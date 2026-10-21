@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2.4:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.2.5:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -37,8 +37,9 @@ Import, der schon lief, startet zugeklappt. Jeder Import zeigt erst eine Vorscha
    bekommt nie dein Passwort. Stattdessen ein Lesezeichen, wie „Käufe lesen“ im eShopKompass:
    1. Den Knopf „Meta-Käufe lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“
       und ein Lesezeichen von Hand anlegen).
-   2. Angemeldet die Bestellseite für digitale Produkte öffnen und das Lesezeichen anklicken. Es
-      scrollt selbst, bis alle Käufe geladen sind.
+   2. Angemeldet die Transaktionen von Meta Pay im Kontenzentrum oder die Bestellseite für
+      digitale Produkte öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in Listen
+      mit eigenem Rollbalken), bis alle Käufe geladen sind.
    3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt die
       Käufe ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse hinter #,
       gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie sofort

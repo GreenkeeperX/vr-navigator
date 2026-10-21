@@ -352,17 +352,18 @@ function libView(){
    Bestellseite oder den Transaktionen bei Meta, scrollt, bis alles geladen ist, und öffnet dann
    dieses Tool mit Seitentext und Links im Adressteil hinter # (geht nicht übers Netz an einen
    Server). Das Tool liest die Käufe dort und übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 2;
+const META_HV = 3;
 function metaHelper(tool){ return `(async()=>{
 if(!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst angemeldet deine Meta-Bestellungen (meta.com/my/orders) oder die Transaktionen von Meta Pay öffnen, dann das Lesezeichen anklicken.");return}
 const box=document.createElement("div");box.style.cssText="position:fixed;z-index:2147483647;top:12px;right:12px;width:min(420px,90vw);background:#fff;color:#111;border:2px solid #24383b;border-radius:8px;padding:12px;font:14px sans-serif";box.textContent="VR-Navigator: lade alle Käufe …";document.body.appendChild(box);
 const look=(b,main)=>{b.style.cssText="margin:0 8px 6px 0;padding:6px 12px;border-radius:6px;font:600 13px sans-serif;cursor:pointer;"+(main?"background:#24383b;color:#fff;border:1px solid #24383b":"background:#f3f4f1;color:#1b2224;border:1px solid #9aa3a1");return b};
 const wait=t=>new Promise(r=>setTimeout(r,t));
-let h=0,same=0;for(let i=0;i<60&&same<3;i++){scrollTo(0,document.documentElement.scrollHeight);await wait(1200);const n=document.documentElement.scrollHeight;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alle Käufe … ("+(i+1)+")"}
-scrollTo(0,0);
+const boxes=()=>[document.scrollingElement||document.documentElement,...[...document.querySelectorAll("div,main,section,ul")].filter(e=>e.scrollHeight>e.clientHeight+50&&/(auto|scroll)/.test(getComputedStyle(e).overflowY))];
+let h=0,same=0;for(let i=0;i<60&&same<3;i++){const bs=boxes();bs.forEach(e=>{e.scrollTop=e.scrollHeight});await wait(1200);const n=bs.reduce((a,e)=>a+e.scrollHeight,0)+document.querySelectorAll("a[href]").length;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alle Käufe … ("+(i+1)+")"}
+boxes().forEach(e=>{e.scrollTop=0});box.remove();
 const links=[...document.querySelectorAll("a[href]")].filter(a=>/\\/(experiences|order)\\//.test(a.href)).slice(0,3000).map(a=>({href:a.href,text:(a.innerText||"").trim().slice(0,200)}));
 const txt=JSON.stringify({kind:"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),links,text:document.body.innerText.slice(0,400000)});
-box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent="Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
+document.body.appendChild(box);box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent="Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
 const go=look(document.createElement("button"),true);go.textContent="Im VR-Navigator übernehmen";go.onclick=()=>{window.open(${JSON.stringify(tool)}+"/#meta="+encodeURIComponent(txt),"_blank");box.remove()};
 const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download="meta-bestellungen.json";document.body.appendChild(a);a.click();a.remove()};
 const b=look(document.createElement("button"));b.textContent="Schließen";b.onclick=()=>box.remove();
@@ -381,7 +382,7 @@ function importCard(kind){
       <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta-Käufe lesen</a>
         <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button>
         <span class="hint">Ein Lesezeichen aus einer früheren Version (es lud nur eine Datei herunter) bitte löschen.</span></li>
-      <li>Öffne angemeldet <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> (oder die Transaktionen von Meta Pay) und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
+      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a> oder <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist; beide Seiten ergeben dieselben Käufe.</li>
       <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt die Käufe. Die Daten stehen nur in der Adresse hinter #.</li></ol>
       <p class="hint">Ohne Lesezeichen: Datei aus „Als Datei sichern“ unten auswählen oder den Seitentext einfügen, dann erst Vorschau.</p>` : `<p class="hint">${c.what}</p>`;
   return card("imp-" + kind, c.title, last ? `zuletzt ${day(last.at)}` : "", `${metaHow}
