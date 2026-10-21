@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2.3:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.2.4:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -34,12 +34,18 @@ Import, der schon lief, startet zugeklappt. Jeder Import zeigt erst eine Vorscha
    Meta oder Steam. Aus den Links liest das Tool die Meta-ID bzw. Steam-App-ID. Die Titel landen
    auf der Wunschliste, solange du sie nicht besitzt.
 2. **Meta-Bestellungen:** Meta hat keine Schnittstelle für die eigenen Käufe, und das Tool
-   bekommt nie dein Passwort. Stattdessen:
-   1. Den Knopf „Meta-Bestellungen sichern“ in die Lesezeichenleiste ziehen.
-   2. Angemeldet die Bestellseite für digitale Produkte öffnen und ganz nach unten scrollen.
-   3. Das Lesezeichen anklicken. Es lädt `meta-bestellungen.json` herunter: alle Links und den
-      Text der Seite. Es schickt nichts an einen Server.
-   4. Die Datei im Tool auswählen, Vorschau prüfen, übernehmen.
+   bekommt nie dein Passwort. Stattdessen ein Lesezeichen, wie „Käufe lesen“ im eShopKompass:
+   1. Den Knopf „Meta-Käufe lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“
+      und ein Lesezeichen von Hand anlegen).
+   2. Angemeldet die Bestellseite für digitale Produkte öffnen und das Lesezeichen anklicken. Es
+      scrollt selbst, bis alle Käufe geladen sind.
+   3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt die
+      Käufe ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse hinter #,
+      gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie sofort
+      aus der Adresse. Was neu war, steht danach in der Karte.
+
+   „Als Datei sichern“ im Kasten lädt stattdessen `meta-bestellungen.json` herunter; die Datei
+   (oder kopierter Seitentext) geht unten in der Karte, dann erst mit Vorschau.
 
    Das Lesezeichen funktioniert auch auf der Seite „Transaktionen“ von Meta Pay im
    Kontenzentrum. Erkannt werden auf der Bestellseite die Blöcke mit Bestellnummer, bei den

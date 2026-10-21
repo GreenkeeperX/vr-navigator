@@ -41,7 +41,8 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/titles.py`: Namen vergleichen, Kennungen aus Links, Titel finden, anlegen, zusammenführen,
   Vorschläge für ähnliche Namen, Suchlinks
 - `app/imports.py`: Vergleichstabelle, Playnite-CSV, Meta-Bestellungen (Lesezeichen-JSON oder Text);
-  jeder Import erst als Vorschau
+  jeder Import aus Datei oder Text erst als Vorschau; das Lesezeichen „Meta-Käufe lesen“ übergibt
+  hinter `#meta=` und übernimmt direkt (Entscheidung 21.10.2026)
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
 - `app/server.py`: Webserver und JSON-Schnittstelle
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);

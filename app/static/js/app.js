@@ -348,12 +348,27 @@ function libView(){
 }
 
 /* ---------------------------------------------------------------- Import */
-// Lesezeichen für die Meta-Bestellseite: sammelt Links und Seitentext und lädt sie als Datei
-// herunter. Es schickt nichts an einen Server; die Datei lädst du hier selbst hoch.
-const BOOKMARKLET = "javascript:(()=>{const L=[...document.querySelectorAll('a[href]')].map(a=>({href:a.href,text:(a.innerText||a.textContent||'').trim().slice(0,200)}));" +
-  "const d={kind:'meta-bestellungen',at:new Date().toISOString(),links:L,text:document.body.innerText.slice(0,2000000)};" +
-  "const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'}));" +
-  "a.download='meta-bestellungen.json';document.body.appendChild(a);a.click();a.remove();})()";
+/* Lesezeichen „Meta-Käufe lesen“ (wie „Käufe lesen“ im eShopKompass): läuft angemeldet auf der
+   Bestellseite oder den Transaktionen bei Meta, scrollt, bis alles geladen ist, und öffnet dann
+   dieses Tool mit Seitentext und Links im Adressteil hinter # (geht nicht übers Netz an einen
+   Server). Das Tool liest die Käufe dort und übernimmt sie. Ausweg: „Als Datei sichern“. */
+const META_HV = 2;
+function metaHelper(tool){ return `(async()=>{
+if(!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst angemeldet deine Meta-Bestellungen (meta.com/my/orders) oder die Transaktionen von Meta Pay öffnen, dann das Lesezeichen anklicken.");return}
+const box=document.createElement("div");box.style.cssText="position:fixed;z-index:2147483647;top:12px;right:12px;width:min(420px,90vw);background:#fff;color:#111;border:2px solid #24383b;border-radius:8px;padding:12px;font:14px sans-serif";box.textContent="VR-Navigator: lade alle Käufe …";document.body.appendChild(box);
+const look=(b,main)=>{b.style.cssText="margin:0 8px 6px 0;padding:6px 12px;border-radius:6px;font:600 13px sans-serif;cursor:pointer;"+(main?"background:#24383b;color:#fff;border:1px solid #24383b":"background:#f3f4f1;color:#1b2224;border:1px solid #9aa3a1");return b};
+const wait=t=>new Promise(r=>setTimeout(r,t));
+let h=0,same=0;for(let i=0;i<60&&same<3;i++){scrollTo(0,document.documentElement.scrollHeight);await wait(1200);const n=document.documentElement.scrollHeight;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alle Käufe … ("+(i+1)+")"}
+scrollTo(0,0);
+const links=[...document.querySelectorAll("a[href]")].filter(a=>/\\/(experiences|order)\\//.test(a.href)).slice(0,3000).map(a=>({href:a.href,text:(a.innerText||"").trim().slice(0,200)}));
+const txt=JSON.stringify({kind:"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),links,text:document.body.innerText.slice(0,400000)});
+box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent="Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
+const go=look(document.createElement("button"),true);go.textContent="Im VR-Navigator übernehmen";go.onclick=()=>{window.open(${JSON.stringify(tool)}+"/#meta="+encodeURIComponent(txt),"_blank");box.remove()};
+const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download="meta-bestellungen.json";document.body.appendChild(a);a.click();a.remove()};
+const b=look(document.createElement("button"));b.textContent="Schließen";b.onclick=()=>box.remove();
+box.append(p,go,f,b);
+})();`; }
+const metaBm = () => "javascript:" + encodeURIComponent(metaHelper(location.origin));
 
 const IMPORTS = {
   sheet: {title: "Vergleichstabelle (CSV)", what: "Deine Tabelle mit Spiel, meta, Bestpreis, gg.deals best, Crossbuy und Links. Die Titel landen auf der Wunschliste, sofern du sie nicht schon besitzt.", accept: ".csv,text/csv"},
@@ -363,21 +378,24 @@ const IMPORTS = {
 function importCard(kind){
   const c = IMPORTS[kind], last = S.imports[kind], p = V.prev[kind];
   const metaHow = kind === "meta" ? `<ol>
-      <li>Ziehe diesen Knopf in deine Lesezeichenleiste: <a class="bm" href="${esc(BOOKMARKLET)}" data-act="nobm">Meta-Bestellungen sichern</a></li>
-      <li>Öffne angemeldet <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und scrolle bis ganz nach unten, damit alle geladen sind.</li>
-      <li>Klicke das Lesezeichen. Es lädt die Datei <code>meta-bestellungen.json</code> herunter und schickt nichts weg.</li>
-      <li>Wähle die Datei hier aus. Alternativ: Seite markieren, kopieren und unten einfügen.</li></ol>` : `<p class="hint">${c.what}</p>`;
+      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta-Käufe lesen</a>
+        <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button>
+        <span class="hint">Ein Lesezeichen aus einer früheren Version (es lud nur eine Datei herunter) bitte löschen.</span></li>
+      <li>Öffne angemeldet <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> (oder die Transaktionen von Meta Pay) und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
+      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt die Käufe. Die Daten stehen nur in der Adresse hinter #.</li></ol>
+      <p class="hint">Ohne Lesezeichen: Datei aus „Als Datei sichern“ unten auswählen oder den Seitentext einfügen, dann erst Vorschau.</p>` : `<p class="hint">${c.what}</p>`;
   return card("imp-" + kind, c.title, last ? `zuletzt ${day(last.at)}` : "", `${metaHow}
     ${last ? `<p class="hint">Zuletzt: ${day(last.at)}, ${last.n} erkannt, ${last.new} neu.</p>` : ""}
     <div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}" aria-label="${esc(c.title)}: Datei wählen"></div>
     <textarea id="txt-${kind}" aria-label="${esc(c.title)}: Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.[kind] || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="${kind}">Vorschau</button>
-      ${p && !p.error ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>
+      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>
     ${p ? previewHtml(p) : ""}`, !!last && !p);
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
-  if(p.done) return `<p class="ok">Übernommen: ${p.n} erkannt, ${p.new} neu angelegt.</p>`;
+  if(p.done) return `<p class="ok">Übernommen: ${p.n} erkannt, ${p.new} neu angelegt.</p>` + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
+    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
   return `<div class="prev">${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
@@ -429,6 +447,22 @@ async function load(){
   if(!document.querySelector("dialog[open]")) render();
   watchSync();
 }
+/* Vom Lesezeichen „Meta-Käufe lesen“: Daten im Adressteil hinter #meta=, sofort aus der Adresse
+   entfernen. Übernommen wird direkt (das Lesezeichen ist dein Klick); was neu war, steht in der
+   Karte Meta-Bestellungen. */
+const META_IN = location.hash.startsWith("#meta=") ? (() => { try{ return decodeURIComponent(location.hash.slice(6)); }catch(e){ return ""; } })() : null;
+if(META_IN !== null) history.replaceState(null, "", location.pathname + location.search);
+async function metaHandOver(){
+  V.tab = "settings"; delete V.folds["c-imp-meta"];
+  try{
+    const res = await api("/api/import", {kind: "meta", text: META_IN, dry: false});
+    S = res.state || S;
+    V.prev.meta = {done: true, n: res.n, new: res.new, entries: res.entries};
+    toast(res.n ? `${res.n} Meta-Käufe gelesen, ${res.new} neu` : "Keine Käufe erkannt. Bitte die Seite neu laden und noch einmal versuchen");
+  }catch(e){ V.prev.meta = {error: e.message}; }
+  render();
+  $("imp-meta")?.scrollIntoView({block: "start"});
+}
 /* Offene Seite hält sich selbst aktuell: jede Minute den Stand prüfen */
 setInterval(async () => {
   if(!S || poll || document.hidden) return;
@@ -450,7 +484,8 @@ document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-act]");
   if(!el) return;
   const a = el.dataset.act, v = el.dataset.v;
-  if(a === "nobm"){ ev.preventDefault(); alert("Bitte in die Lesezeichenleiste ziehen und auf der Meta-Bestellseite anklicken."); return; }
+  if(a === "nobm"){ ev.preventDefault(); toast("Bitte in die Lesezeichenleiste ziehen, nicht anklicken"); return; }
+  if(a === "bmcopy"){ copyNow(metaBm()); toast("Code kopiert. Jetzt ein Lesezeichen anlegen und den Code als Adresse einfügen"); return; }
   if(a === "thm") themeMenu($("thmMenu").hidden);
   else if(a === "thmset") setTheme(v);
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
@@ -561,4 +596,4 @@ addEventListener("resize", navFade);
 $("nav").addEventListener("scroll", navFade);
 
 renderTheme();
-load();
+load().then(() => { if(META_IN !== null && S) metaHandOver(); });
