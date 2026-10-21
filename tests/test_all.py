@@ -258,6 +258,34 @@ class TestServer(unittest.TestCase):
         code, raw = self.call("/api/restore", {"data": backup["data"]})
         self.assertEqual(json.loads(raw)["counts"]["all"], 5)
 
+    def test_delete_and_merge_can_be_undone(self):
+        old_dir, store.DATA_DIR = store.DATA_DIR, tempfile.mkdtemp()
+        try:
+            self._undo()
+        finally:
+            store.DATA_DIR = old_dir
+
+    def _undo(self):
+        code, raw = self.call("/api/title/new", {"name": "Weg und zurück"})
+        key = [r["key"] for r in json.loads(raw)["wishlist"] if r["name"] == "Weg und zurück"][0]
+        self.call("/api/title", {"key": key, "note": "bleibt erhalten"})
+        res = json.loads(self.call("/api/title/delete", {"key": key})[1])
+        self.assertNotIn(key, [r["key"] for r in res["wishlist"]])
+        self.assertEqual(res["undo"][key]["note"], "bleibt erhalten")
+        res = json.loads(self.call("/api/title/restore", {"titles": res["undo"]})[1])
+        self.assertIn(key, [r["key"] for r in res["wishlist"]])
+        self.assertIsNone(json.loads(self.call("/api/title/delete", {"key": "gibt-es-nicht"})[1])["undo"])
+        # Zusammenführen: beide Einträge kommen zurück, wie sie waren
+        self.call("/api/title/new", {"name": "Zwilling A"})
+        st = json.loads(self.call("/api/title/new", {"name": "Zwilling B"})[1])
+        a, b = (next(r["key"] for r in st["wishlist"] if r["name"] == n) for n in ("Zwilling A", "Zwilling B"))
+        res = json.loads(self.call("/api/merge", {"keep": a, "gone": b})[1])
+        self.assertNotIn(b, [r["key"] for r in res["wishlist"]])
+        res = json.loads(self.call("/api/title/restore", {"titles": res["undo"]})[1])
+        self.assertEqual({a, b} - {r["key"] for r in res["wishlist"]}, set())
+        for bad in ({}, {"x": {}}, {"a": {"name": "1"}, "b": {"name": "2"}, "c": {"name": "3"}}, "nein"):
+            self.assertEqual(self.call("/api/title/restore", {"titles": bad})[0], 400)
+
     def test_guards(self):
         self.assertEqual(self.call("/api/title", {"key": "x"}, ctype="text/plain")[0], 400)
         self.assertEqual(self.call("/api/state", host="evil.example.com")[0], 421)
@@ -614,6 +642,81 @@ class TestUi(unittest.TestCase):
         self.assertGreater(len(tokens(auto.group(1))), 10)
         self.assertEqual(tokens(auto.group(1)), tokens(chosen.group(1)))
         self.assertIn('localStorage.getItem("vn.theme")', self.read("index.html"))
+
+    def test_colors_have_one_meaning(self):
+        # Farbregeln aus docs/oberflaeche.md: Rabatt blau (deal), Tiefstpreis Gold mit ★ (best),
+        # prüfen violett (warn); grün nicht für Rabatte
+        js = self.read("js/app.js")
+        self.assertNotIn('class="b go">−', js)
+        self.assertIn('class="b deal">−', js)
+        self.assertIn('class="star"', js)
+        self.assertNotIn("--meta", self.read("style.css"))
+
+    def test_mobile_selftest(self):
+        """Alle Reiter bei 390 px in Chromium: nichts scrollt seitlich, kein Skriptfehler, jedes
+        Bedienelement hat einen Namen, Klappen und Suche wirken. Ohne Chromium übersprungen, in
+        GitHub Actions ein Fehler."""
+        import glob
+        import html
+        import re
+        import shutil
+        import subprocess
+        from datetime import datetime, timezone
+        browser = os.environ.get("CHROME_BIN") or next((shutil.which(n) for n in (
+            "chromium", "chromium-browser", "google-chrome", "google-chrome-stable") if shutil.which(n)), None) \
+            or next(iter(sorted(glob.glob("/opt/pw-browsers/chromium-*/chrome-linux*/chrome"))), None)
+        if not browser:
+            if os.environ.get("CI"):
+                self.fail("kein Chromium gefunden, Oberflächentest in CI nicht übersprungen")
+            self.skipTest("kein Chromium gefunden")
+        store.DATA_DIR = tempfile.mkdtemp()
+        data = store.load_data()
+        imports.IMPORTERS["sheet"](data, SHEET, dry=False)
+        imports.IMPORTERS["playnite"](data, PLAYNITE, dry=False)
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        k = next(k for k, t in data["titles"].items() if t["name"] == "Laser Tennis")
+        data["titles"][k]["live"] = {
+            "meta": {"price": 9.99, "base": 29.99, "discount": 67, "kind": "discount", "until": "2099-01-01",
+                     "low": 9.99, "low_at": "2026-01-01", "at": now},
+            "steam": {"price": 14.99, "base": 24.99, "discount": 40, "at": "2020-01-01T00:00:00+00:00"}}
+        data["titles"][k]["note"] = "Reddit: " + "sehr lange Notiz ohne Leerzeichen " * 3 + "x" * 120
+        store.save_data(data)
+        with open(os.path.join(os.path.dirname(__file__), "ui_selbsttest.html"), encoding="utf-8") as f:
+            probe_page = f.read().encode()
+
+        class Handler(server.Handler):
+            def do_GET(self):
+                if self.path == "/selbsttest":
+                    self._send(200, probe_page, "text/html; charset=utf-8")
+                    return
+                return server.Handler.do_GET(self)
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            out = subprocess.run([browser, "--headless", "--no-sandbox", "--disable-gpu", "--virtual-time-budget=30000",
+                                  "--window-size=800,900", "--dump-dom",
+                                  f"http://127.0.0.1:{srv.server_address[1]}/selbsttest"],
+                                 capture_output=True, text=True, timeout=120)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+        m = re.search(r'<pre id="out">(.*?)</pre>', out.stdout, re.S)
+        self.assertTrue(m, "Selbsttest lieferte kein Ergebnis: " + out.stderr[-300:])
+        res = json.loads(html.unescape(m.group(1)))
+        self.assertEqual(res["errors"], [])
+        views = res["views"]
+        self.assertTrue(views.pop("probe")["wide"], "Der Prüfer erkennt einen zu breiten Kasten nicht")
+        self.assertGreaterEqual(len(views), 8)
+        for name, v in views.items():
+            self.assertLessEqual(v["width"], v["view"], f"{name} scrollt seitlich: {v['wide']}")
+            self.assertEqual(v["wide"], [], name)
+            self.assertEqual(v["unnamed"], [], f"{name}: Bedienelement ohne Namen")
+            self.assertGreater(v["chars"], 150, f"{name} zeigt fast nichts")
+        self.assertEqual(views["wish"]["open"], [True, False])        # im Besitz startet zu
+        self.assertEqual(views["wish:suche"]["open"], [True, True])   # Suche öffnet alles
+        self.assertEqual(views["wish:zu"]["open"], [False, False])
+        self.assertTrue(views["settings"]["open"] and not any(views["settings:zu"]["open"]))
+        self.assertTrue(views["now"]["nav"], "Reiterleiste am Handy ohne weichen Rand")
 
 
 if __name__ == "__main__":

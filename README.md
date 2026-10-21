@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.2.2:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -25,8 +25,8 @@ laufen nebeneinander. Ohne Docker: `python3 -m app.server` (Python 3.10+, Daten 
 
 ## Einrichten
 
-Unter **Import** stehen drei Wege. Jeder Import zeigt erst eine Vorschau und speichert erst
-nach „übernehmen“.
+Unter **Einstellungen** stehen drei Importe. Jede Karte dort klappt an ihrer Überschrift; ein
+Import, der schon lief, startet zugeklappt. Jeder Import zeigt erst eine Vorschau und speichert erst nach „übernehmen“.
 
 1. **Vergleichstabelle (CSV):** eine Zeile je Titel. Erkannt werden die Spalten `Spiel`, `meta`
    (Normalpreis im Meta Store), `Bestpreis` (Meta-Tief), `gg.deals best` (bester Preis für die
@@ -56,15 +56,16 @@ Ein Titel hat bis zu zwei Kennungen: die Meta-ID und die Steam-App-ID. Gleiche K
 gleicher Name (ohne Groß- und Kleinschreibung, Satzzeichen, ™ und ®) heißt gleicher Titel.
 
 Namen, die sich nur durch eine Klammer am Ende oder ein „VR“ unterscheiden („Moon Rover VR“
-und „Moon Rover (Bundle)“), führt das Tool nicht still zusammen. Es zeigt sie unter Import,
-„Derselbe Titel?“, mit den Knöpfen „Zusammenführen“ und „Verschieden“.
+und „Moon Rover (Bundle)“), führt das Tool nicht still zusammen. Es zeigt sie unter
+Einstellungen, „Derselbe Titel?“, mit den Knöpfen „Zusammenführen“ und „Verschieden“.
 
 Von Hand: unter „bearbeiten“ eine Meta-ID oder Steam-App-ID eintragen. Trägt ein anderer Titel
 dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben erhalten.
+Zusammenführen und Löschen fragen nicht vorher, der Hinweis danach bietet „Rückgängig“.
 
 ## Preise abrufen
 
-Unter **Abrufe** startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
+Unter **Einstellungen**, Abgleich, startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
 alle 6 Stunden). Abgefragt werden nur Wunschtitel, die du noch nicht besitzt:
 
 - **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Tiefstpreis,
@@ -77,11 +78,11 @@ alle 6 Stunden). Abgefragt werden nur Wunschtitel, die du noch nicht besitzt:
 Oben steht, wie alt die Preise sind und wann der nächste Abgleich kommt; während eines Laufs
 der Schritt mit Fortschritt. „Aktualisieren“ startet einen Lauf sofort.
 
-Unter Abrufe zeigt die Seite je Quelle Ergebnis und Anzahl der Abrufe, darunter:
+Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 
 - **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
   Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
-- **Protokoll:** live während des Laufs, zum Kopieren; die Klappe merkt sich der Browser.
+- **Protokoll** (eigene Karte): live während des Laufs, zum Kopieren.
 
 Nach einer Sperre (403, 429 oder Prüfseite) ruht eine Quelle 24 Stunden. Probleme stehen als
 Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“: noch kein Abgleich, eine ruhende
@@ -92,20 +93,28 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 
 - **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt
   zuerst, mit Ende des Angebots und „Tiefstpreis“, wenn es bei Meta nie günstiger war.
-- **Wunschliste:** Was du bei Meta oder am PC schon besitzt, fällt heraus; der Knopf
-  „… schon im Besitz“ zeigt es wieder, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
+- **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
+  Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   Je Titel Meta jetzt (mit Rabatt und Ende), Meta-Tief, Steam, gg.deals (Händler / Keyshops)
   und der Abstand: Meta jetzt minus günstigstes PC-Angebot jetzt; Plus heißt PC günstiger.
-  Jeder Wert trägt Quelle und Zeitpunkt, ältere als zwei Tage sind gelb markiert. Ohne Abruf
+  Jeder Wert trägt Quelle und Zeitpunkt, ältere als zwei Tage sind violett markiert. Ohne Abruf
   gelten die Werte der Tabelle, gekennzeichnet mit „Tabelle“ und Datum (Abstand dort: Meta-Tief
   minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
   QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
   Was du dort findest, gehört in die Notiz.
-- **Bibliothek:** alles, was du besitzt, mit „Meta“, „PC“ oder beidem, Filter und Suche.
+- **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
+  „Nur am PC“, mit Suche.
+
+Farben haben je eine Bedeutung: Rabatt blau, ★ und „Tiefstpreis“ Gold, Prüfen und Veraltetes
+violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den
+Betrag, um den Meta teurer ist. Gruppen und Karten klappen, der Browser merkt sich, was du
+zuklappst; „alle aufklappen · alle zuklappen“ steht darüber, eine Suche öffnet alles. Das
+Suchfeld leert × oder Esc. Oben rechts: hell, dunkel oder wie das Gerät. Regeln für Änderungen:
+[docs/oberflaeche.md](docs/oberflaeche.md).
 
 ## Sicherung
 
-Unter Import, Sicherung: alle Titel, Notizen und Zuordnungen als eine JSON-Datei herunterladen
+Unter Einstellungen, Sicherung: alle Titel, Notizen und Zuordnungen als eine JSON-Datei herunterladen
 und wieder einspielen. Die Datei enthält deine Käufe; sie gehört nicht ins Repository. Der
 gg.deals-Schlüssel und der Preisverlauf (`history.json`) sind nicht darin.
 

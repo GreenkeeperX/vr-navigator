@@ -2,7 +2,7 @@
 
 Der Abgleich holt Preise nur für Wunschtitel, die du noch nirgends besitzt. Er läuft nach
 Zeitplan (Standard alle 6 Stunden, einstellbar von 2 bis 48) und auf Knopfdruck unter
-**Abrufe** oder oben über „Aktualisieren“. Zwei Minuten nach dem Start des Containers läuft ein
+**Einstellungen**, Abgleich, oder oben über „Aktualisieren“. Zwei Minuten nach dem Start des Containers läuft ein
 Abgleich, wenn der letzte länger als 30 Minuten zurückliegt, etwa nach einem Update mit neuen
 Lesern. Ist der letzte vor weniger als 30 Minuten fehlgeschlagen, wartet auch dieser Lauf. Mit
 `AUTO_SYNC=0` läuft gar kein Zeitplan.
@@ -18,7 +18,7 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
 ## Protokoll, Selbstprüfung, Verbindung testen
 
 - **Protokoll:** jede Quelle schreibt, was sie tut, live während des Laufs (letzte 200 Zeilen,
-  Zeit in UTC, die Oberfläche zeigt die Zeit des Browsers). Unter Abrufe zum Lesen und Kopieren.
+  Zeit in UTC, die Oberfläche zeigt die Zeit des Browsers). Unter Einstellungen, Protokoll, zum Lesen und Kopieren.
 - **Selbstprüfung** nach jedem Lauf: keine Angebote erkannt, obwohl es beim letzten Lauf welche
   gab; Titelseiten ohne lesbaren Preis; keine Preise für bekannte App-IDs bei Steam oder
   gg.deals; Normalpreise, die sich um mehr als 50 % ändern. Treffer stehen im Protokoll und als

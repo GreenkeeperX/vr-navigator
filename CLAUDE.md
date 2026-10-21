@@ -44,8 +44,9 @@ Weitere feste Regeln (wie im eShopKompass):
   jeder Import erst als Vorschau
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
 - `app/server.py`: Webserver und JSON-Schnittstelle
-- `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`)
-- `tests/test_all.py`: alle Tests; Antworten der Quellen sind erfundene Nachbauten im echten
+- `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);
+  Farben, Marken und Klappen nach `docs/oberflaeche.md`
+- `tests/test_all.py`: alle Tests, mit `tests/ui_selbsttest.html` (Oberfläche bei 390 px in Chromium); Antworten der Quellen sind erfundene Nachbauten im echten
   Aufbau, keine gespeicherten Seiten
 
 Lokal starten: `python3 -m app.server` (Port 8788, Daten in `./data/`, ignoriert).

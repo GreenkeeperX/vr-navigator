@@ -1,4 +1,5 @@
 """Kleiner Webserver: liefert die Oberfläche und eine JSON-Schnittstelle."""
+import copy
 import gzip
 import ipaddress
 import json
@@ -118,6 +119,20 @@ def new_title(body):
     return state()
 
 
+def restore_titles(recs):
+    """Rückgängig für Löschen und Zusammenführen: legt die alten Einträge unter ihrem Schlüssel
+    wieder ab. Nur Einträge mit Namen, höchstens zwei auf einmal."""
+    if not isinstance(recs, dict) or not 0 < len(recs) <= 2 or \
+            not all(isinstance(t, dict) and _text(t.get("name"), 200) for t in recs.values()):
+        raise ValueError("Nichts zum Zurücknehmen")
+    with store.lock:
+        data = store.load_data()
+        for k, t in recs.items():
+            data["titles"][str(k)[:200]] = t
+        store.save_data(data)
+    return state()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "vr-navigator"
 
@@ -215,20 +230,26 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/title/new":
                 self._send(200, new_title(body))
             elif path == "/api/title/delete":
+                # Statt einer Rückfrage: Die Oberfläche bietet „Rückgängig“ und schickt den
+                # alten Eintrag an /api/title/restore zurück
                 with store.lock:
                     data = store.load_data()
-                    data["titles"].pop(str(body.get("key") or ""), None)
+                    key = str(body.get("key") or "")
+                    old = data["titles"].pop(key, None)
                     store.save_data(data)
-                self._send(200, state())
+                self._send(200, dict(state(), undo={key: old} if old else None))
+            elif path == "/api/title/restore":
+                self._send(200, restore_titles(body.get("titles")))
             elif path == "/api/merge":
                 with store.lock:
                     data = store.load_data()
                     keep, gone = str(body.get("keep") or ""), str(body.get("gone") or "")
                     if keep not in data["titles"] or gone not in data["titles"]:
                         raise ValueError("Titel nicht gefunden")
+                    undo = {keep: copy.deepcopy(data["titles"][keep]), gone: copy.deepcopy(data["titles"][gone])}
                     titles.merge(data, keep, gone)
                     store.save_data(data)
-                self._send(200, state())
+                self._send(200, dict(state(), undo=undo))
             elif path == "/api/not_same":
                 with store.lock:
                     data = store.load_data()
