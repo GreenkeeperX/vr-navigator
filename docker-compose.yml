@@ -1,9 +1,9 @@
 # Beispiel für den Betrieb mit dem fertigen Image.
 # OWNER durch den GitHub-Benutzernamen ersetzen (klein geschrieben).
 services:
-  vr-kompass:
-    image: ghcr.io/OWNER/vr-kompass:latest
-    container_name: vr-kompass
+  vr-navigator:
+    image: ghcr.io/OWNER/vr-navigator:latest
+    container_name: vr-navigator
     restart: unless-stopped
     read_only: true
     cap_drop:

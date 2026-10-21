@@ -231,7 +231,7 @@ class TestServer(unittest.TestCase):
     def test_flow(self):
         code, page = self.call("/")
         self.assertEqual(code, 200)
-        self.assertIn(b"VR-Kompass", page)
+        self.assertIn(b"VR-Navigator", page)
         self.assertEqual(self.call("/js/app.js")[0], 200)
         self.assertEqual(self.call("/../app/server.py")[0], 404)
         code, raw = self.call("/api/import", {"kind": "sheet", "text": SHEET, "dry": True})
