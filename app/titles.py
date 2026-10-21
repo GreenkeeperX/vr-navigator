@@ -141,6 +141,12 @@ def merge(data, keep, gone):
         a["crossbuy"] = b.get("crossbuy")
     if b.get("sheet") and (not a.get("sheet") or (b["sheet"].get("at") or "") > (a["sheet"].get("at") or "")):
         a["sheet"] = b["sheet"]
+    live = dict(b.get("live") or {})
+    for src, v in (a.get("live") or {}).items():
+        if (v.get("at") or "") >= ((live.get(src) or {}).get("at") or ""):
+            live[src] = v
+    if live:
+        a["live"] = live
     links = dict(b.get("links") or {})
     links.update(a.get("links") or {})
     a["links"] = links
@@ -227,6 +233,8 @@ def search_links(t):
         out.append(("VRDB", links["vrdb"]))
     if t.get("steam_appid"):
         out.append(("Steam", f"https://store.steampowered.com/app/{t['steam_appid']}/"))
+    if links.get("gg"):
+        out.append(("gg.deals", links["gg"]))
     out.append(("Reddit", f"https://www.reddit.com/search/?q={q(name + ' quest vs steam')}"))
     out.append(("Google", f"https://www.google.com/search?q={q(name + ' VR Quest oder Steam reddit')}"))
     return [{"label": a, "url": b} for a, b in out]

@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.1.2"
+VERSION = "0.2.0"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
@@ -87,13 +87,14 @@ def _decode(raw, enc):
     return raw
 
 
-def request(url, ua=None, timeout=25, encoding="gzip, deflate"):
+def request(url, ua=None, timeout=25, encoding="gzip, deflate", headers=None):
     """HTTP GET ohne Ausnahme: liefert Status, Text und Kopfdaten für die Diagnose."""
     headers = {
         "User-Agent": ua or USER_AGENT,
         "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.7",
         "Accept-Encoding": encoding,
+        **(headers or {}),
     }
     req = urllib.request.Request(url, headers=headers)
     out = {"url": url, "status": 0, "text": "", "enc": "", "server": "", "error": ""}
@@ -113,7 +114,7 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate"):
             out["enc"] = (resp.headers.get("Content-Encoding") or "").lower()
             out["server"] = resp.headers.get("Server") or ""
             if out["enc"] not in ("", "identity", "gzip", "deflate") and encoding != "identity":
-                return request(url, ua, timeout, "identity")   # z. B. Brotli
+                return request(url, ua, timeout, "identity", headers)   # z. B. Brotli
             charset = resp.headers.get_content_charset() or "utf-8"
             out["text"] = _decode(raw, out["enc"]).decode(charset, errors="replace")
     except Exception as e:                # Zeitüberschreitung, DNS, TLS
@@ -121,9 +122,9 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate"):
     return out
 
 
-def fetch(url, timeout=25, ua=None):
+def fetch(url, timeout=25, ua=None, headers=None):
     """HTTP GET, gibt Text zurück. Wirft FetchError mit Statuscode."""
-    r = request(url, ua, timeout)
+    r = request(url, ua, timeout, headers=headers)
     if r["error"]:
         raise FetchError(url, 0, r["error"])
     if r["status"] >= 400:

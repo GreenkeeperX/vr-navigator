@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import imports, library, server, sources, store, titles  # noqa: E402
+from app import imports, library, prices, server, sources, store, sync, titles  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -267,6 +267,231 @@ class TestServer(unittest.TestCase):
         self.assertTrue(server.host_allowed("10.0.0.5"))
         self.assertFalse(server.host_allowed("vr.example.com", extra=""))
         self.assertTrue(server.host_allowed("vr.example.com", extra=".example.com"))
+
+    def test_settings_key_stays_on_server(self):
+        code, raw = self.call("/api/settings", {"gg_key": "geheim-1234567890abcd", "hours": 1})
+        self.assertEqual(code, 200)
+        st = json.loads(raw)["settings"]
+        self.assertTrue(st["gg_key_set"])
+        self.assertEqual(st["hours"], 2)                  # untere Grenze
+        self.assertNotIn("geheim", raw.decode())
+        code, raw = self.call("/api/export")
+        self.assertNotIn("geheim", raw.decode())
+        self.assertEqual(self.call("/api/settings", {"hours": "viele"})[0], 400)
+        self.assertEqual(self.call("/api/test", {"source": "nope"})[0], 400)
+        self.call("/api/settings", {"gg_key": ""})
+
+
+# Erfundene Antworten im Aufbau der echten Quellen (QuestStoreDB, Steam, gg.deals)
+def qsdb_game_html(name, meta_id, price, base, until="", hist=()):
+    offers = [{"@type": "Offer", "priceCurrency": cur, "sku": meta_id, "price": price * f,
+               **({"priceSpecification": {"price": base * f, "priceCurrency": cur}, "priceValidUntil": until}
+                  if price != base else {})} for cur, f in (("USD", 1.2), ("EUR", 1))]
+    ld = {"@graph": [{"@type": ["SoftwareApplication", "VideoGame"], "name": name,
+                      "url": f"https://queststoredb.com/game/{titles.norm(name).replace(' ', '-')}-{meta_id}/",
+                      "offers": offers, "softwareVersion": "1.2.3",
+                      "aggregateRating": {"ratingValue": 4.2, "ratingCount": 80}},
+                     {"@type": "BreadcrumbList"}]}
+    pts = [{"x": x, "y": y, "f": f"{y:.2f}\u00a0\u20ac"} for x, y in hist]
+    return (f'<html><script type="application/ld+json">{json.dumps(ld)}</script>'
+            f'<script id="price-history-data" type="application/json">{json.dumps(pts)}</script></html>')
+
+
+def qsdb_card(name, meta_id, price, base=None, kind="discount", tag="", end=None, path="game"):
+    slug = titles.norm(name).replace(" ", "-")
+    benefit = (f'<div class="app-price-benefit"><span>-{round((1 - price / base) * 100)}%</span>'
+               f'<span>{tag}</span></div>') if base else ""
+    timer = f'<span class="card-info-timer" data-countdown-timer="{end}"></span>' if end else ""
+    return f"""<div class="card-image-container" data-x="1">
+      <a href="https://www.meta.com/experiences/{meta_id}/"></a>
+      <a href="/{path}/{slug}-{meta_id}/"><div class="card-title">
+        <div>
+          {name}
+        </div></div></a></div>
+      <div class="card-info-bar">{timer}
+      <div class="app-price-container app-price-type-{kind}">{benefit}
+        <div class="app-price-amount"><span class=" ">
+          {price:.2f} €</span>
+          <span>{f"{base:.2f} €" if base else ""}</span></div></div></div>"""
+
+
+def qsdb_list(*cards, pages=1):
+    nav = "".join(f'<a href="?sort=-sale_start_time&amp;page={i}">{i}</a>' for i in range(1, pages + 1))
+    return "<html>" + "".join(cards) + nav + "</html>"
+
+
+class TestPrices(unittest.TestCase):
+    def test_qsdb_game(self):
+        g = prices.qsdb_game(qsdb_game_html("Sky Garden", "1111111111111111", 4.49, 8.99, "2026-11-02",
+                                            [(1700000000000, 8.99), (1750000000000, 3.99), (1790000000000, 4.49)]))
+        self.assertEqual((g["meta_id"], g["price"], g["base"], g["until"]), ("1111111111111111", 4.49, 8.99, "2026-11-02"))
+        self.assertEqual((g["low"], g["low_at"]), (3.99, "2025-06-15"))
+        self.assertEqual((g["rating"], g["ratings"], g["version"]), (4.2, 80, "1.2.3"))
+        self.assertEqual(g["path"], "/game/sky-garden-1111111111111111/")
+        g = prices.qsdb_game(qsdb_game_html("Deep Dive", "3333333333333333", 9.99, 9.99))
+        self.assertEqual((g["price"], g["base"], g["until"], g["low"]), (9.99, 9.99, "", None))
+        self.assertIsNone(prices.qsdb_game("<html>keine Daten</html>"))
+
+    def test_qsdb_cards(self):
+        html = qsdb_list(qsdb_card("Sky Garden", "1111111111111111", 4.49, 8.99, tag="lowest", end=1793170800),
+                         qsdb_card("Paint Tool", "5555555555555555", 7.99, 9.99, kind="coupon", tag="coupon", path="app"),
+                         qsdb_card("Moon Rover &amp; Friends", "6666666666666666", 12.0, path="bundle", kind="base"),
+                         pages=7)
+        c = prices.qsdb_cards(html)
+        self.assertEqual(len(c), 3)
+        self.assertEqual((c[0]["price"], c[0]["base"], c[0]["discount"], c[0]["tag"], c[0]["until"]),
+                         (4.49, 8.99, 50, "lowest", "2026-10-28"))
+        self.assertEqual((c[1]["kind"], c[1]["discount"]), ("coupon", 20))
+        self.assertEqual((c[2]["name"], c[2]["price"], c[2]["base"], c[2]["discount"]), ("Moon Rover & Friends", 12.0, 12.0, 0))
+        self.assertEqual(prices.qsdb_pages(html), 7)
+        self.assertEqual(prices._num("12.50 $"), None)
+
+    def test_steam(self):
+        got = prices.steam_prices(json.dumps({
+            "3000001": {"success": True, "data": {"price_overview": {"currency": "EUR", "initial": 1999, "final": 999, "discount_percent": 50}}},
+            "3000002": {"success": True, "data": []},
+            "3000003": {"success": False},
+            "3000004": {"success": True, "data": {"price_overview": {"currency": "USD", "initial": 1, "final": 1}}}}))
+        self.assertEqual(got, {"3000001": {"price": 9.99, "base": 19.99, "discount": 50},
+                               "3000002": {"price": 0.0, "base": 0.0, "discount": 0}})
+        hits = prices.steam_search(json.dumps({"items": [{"type": "app", "id": 3000001, "name": "Sky Garden"},
+                                                         {"type": "sub", "id": 9, "name": "Paket"}]}))
+        self.assertEqual(hits, [{"appid": "3000001", "name": "Sky Garden"}])
+
+    def test_gg(self):
+        got = prices.gg_prices(json.dumps({"success": True, "data": {
+            "3000001": {"title": "Sky Garden", "url": "https://gg.deals/game/sky-garden/",
+                        "prices": {"currentRetail": "7.49", "currentKeyshops": "5.10", "historicalRetail": "4.99",
+                                   "historicalKeyshops": None, "currency": "EUR"}},
+            "3000002": None}}))
+        self.assertEqual(got["3000001"]["keyshops"], 5.1)
+        self.assertIsNone(got["3000001"]["keyshops_low"])
+        self.assertNotIn("3000002", got)
+        with self.assertRaisesRegex(ValueError, "Invalid key"):
+            prices.gg_prices(json.dumps({"success": False, "data": {"message": "Invalid key"}}))
+
+
+class FakeNet:
+    """Attrappe für sources.fetch: Antworten nach Teil der Adresse, merkt sich jeden Abruf."""
+
+    def __init__(self, answers):
+        self.answers, self.calls = answers, []
+
+    def __call__(self, url, timeout=25, ua=None, headers=None):
+        self.calls.append(url)
+        for part, ans in self.answers.items():
+            if part in url:
+                if isinstance(ans, int):
+                    raise sources.FetchError(url, ans)
+                return ans
+        raise sources.FetchError(url, 404)
+
+
+class TestSync(unittest.TestCase):
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        self._fetch, self._sleep = sources.fetch, sync.sleep
+        sync.sleep = lambda s: None
+
+    def tearDown(self):
+        sources.fetch, sync.sleep = self._fetch, self._sleep
+
+    def seed(self):
+        d = empty()
+        imports.import_sheet(d, SHEET, dry=False)
+        # Deep Dive: nur Name, wird über die Suchen gefunden
+        k, _ = titles.upsert(d, "Deep Dive")
+        d["titles"][k]["wish"] = True
+        store.save_data(d)
+        return d
+
+    def test_run(self):
+        self.seed()
+        sync.save_settings({"gg_key": "geheim-1234567890abcd"})
+        sources.fetch = net = FakeNet({
+            "/on_sale/": qsdb_list(qsdb_card("Laser Tennis", "2222222222222222", 9.0, 30.0, end=1793170800)),
+            "/game/sky-garden-1111111111111111/": qsdb_game_html("Sky Garden", "1111111111111111", 7.0, 7.0, hist=[(1700000000000, 3.5)]),
+            "/game/laser-tennis-2222222222222222/": qsdb_game_html("Laser Tennis", "2222222222222222", 9.0, 30.0, "2026-10-28",
+                                                                    [(1700000000000, 30.0), (1792000000000, 9.0)]),
+            "q=Deep+Dive": qsdb_list(qsdb_card("Deep Dive", "3333333333333333", 19.99, kind="base"),
+                                     qsdb_card("Deep Dive Demo", "3333333333333334", 0.0, kind="base")),
+            "/game/deep-dive-3333333333333333/": qsdb_game_html("Deep Dive", "3333333333333333", 19.99, 19.99),
+            "q=Sky+Garden": qsdb_list(qsdb_card("Sky Garden", "1111111111111111", 7.0, kind="base")),
+            "all_apps": qsdb_list(),
+            "storesearch/?term=Deep+Dive": json.dumps({"items": [{"type": "app", "id": 3000009, "name": "Deep Dive"}]}),
+            "storesearch": json.dumps({"items": []}),
+            "appdetails": json.dumps({"3000009": {"success": True, "data": {"price_overview": {
+                "currency": "EUR", "initial": 1999, "final": 1499, "discount_percent": 25}}}}),
+            "api.gg.deals": json.dumps({"success": True, "data": {"3000009": {"url": "https://gg.deals/game/deep-dive/",
+                                        "prices": {"currentRetail": "14.99", "currentKeyshops": "11.00", "currency": "EUR"}}}}),
+        })
+        self.assertTrue(sync.run())
+        d = store.load_data()
+        by = {t["name"]: t for t in d["titles"].values()}
+        lt = by["Laser Tennis"]["live"]["meta"]
+        self.assertEqual((lt["price"], lt["base"], lt["discount"], lt["low"]), (9.0, 30.0, 70, 9.0))
+        self.assertEqual(by["Sky Garden"]["live"]["meta"]["low"], 3.5)
+        dd = by["Deep Dive"]
+        self.assertEqual((dd["meta_id"], dd["steam_appid"]), ("3333333333333333", "3000009"))
+        self.assertEqual(dd["links"]["qsdb"], "https://queststoredb.com/game/deep-dive-3333333333333333/")
+        self.assertEqual(dd["links"]["gg"], "https://gg.deals/game/deep-dive/")
+        self.assertEqual(dd["live"]["steam"]["price"], 14.99)
+        self.assertEqual(dd["live"]["gg"]["keyshops"], 11.0)
+        st = sync.status()
+        self.assertTrue(all(x["ok"] for x in st["sources"].values()))
+        self.assertFalse(any("geheim" in line for line in st["log"]))
+        self.assertTrue(any("key=geheim" in u for u in net.calls))
+        hist = store.load_json("history.json", {})
+        self.assertEqual(hist["meta"]["2222222222222222"][-1][1], 9.0)
+        self.assertEqual(hist["gg"]["3000009"][-1][1], 11.0)
+        # Ansicht: Deep Dive bei Steam reduziert, Laser Tennis bei Meta
+        v = library.view(d)
+        self.assertEqual([r["name"] for r in v["now"]], ["Laser Tennis", "Deep Dive"])
+        r = next(r for r in v["wishlist"] if r["name"] == "Deep Dive")
+        self.assertEqual(r["pc_best"], {"price": 11.0, "src": "gg.deals Keyshop"})
+        self.assertEqual(r["gap_now"], 8.99)
+        # Zweiter Lauf: Titelseiten sind frisch, also nur Angebotsliste und Steam
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("/game/" in u for u in net.calls))
+
+    def test_blocked_source_stops(self):
+        self.seed()
+        sources.fetch = net = FakeNet({"queststoredb.com": 429, "storesearch": json.dumps({"items": []}),
+                                       "appdetails": "{}"})
+        sync.run()
+        st = sync.status()["sources"]
+        self.assertFalse(st["qsdb"]["ok"])
+        self.assertTrue(st["steam"]["ok"])
+        self.assertEqual(sum("queststoredb.com" in u for u in net.calls), 1)
+        # Suche ohne Treffer: eine Woche Ruhe
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("storesearch" in u for u in net.calls))
+
+    def test_sale_ended_and_due(self):
+        from datetime import datetime, timezone
+        t = titles.new_title("Sky Garden")
+        t["live"] = {"meta": {"price": 4.0, "base": 8.0, "discount": 50, "until": "2026-01-01", "low": 4.0,
+                              "at": "2026-01-01T00:00:00+00:00"}}
+        r = library.row("x", t, at=datetime(2026, 1, 5, tzinfo=timezone.utc))
+        self.assertEqual((r["live"]["meta"]["price"], r["live"]["meta"]["discount"]), (8.0, 0))
+        self.assertTrue(r["live"]["meta"]["stale"])
+        self.assertFalse(r["live"]["meta"]["at_low"])
+        self.assertTrue(sync.due())
+        sync.save_settings({"auto": False})
+        self.assertFalse(sync.due())
+
+    def test_merge_keeps_newer_live(self):
+        d = empty()
+        a, _ = titles.upsert(d, "Sky Garden", meta_id="1111111111111111")
+        b, _ = titles.upsert(d, "Sky Garden VR", steam_appid="3000001")
+        d["titles"][a]["live"] = {"meta": {"price": 5.0, "at": "2026-10-01T00:00:00+00:00"}}
+        d["titles"][b]["live"] = {"steam": {"price": 6.0, "at": "2026-10-02T00:00:00+00:00"},
+                                  "meta": {"price": 4.0, "at": "2026-10-03T00:00:00+00:00"}}
+        titles.merge(d, a, b)
+        self.assertEqual(d["titles"][a]["live"]["meta"]["price"], 4.0)
+        self.assertEqual(d["titles"][a]["live"]["steam"]["price"], 6.0)
 
 
 if __name__ == "__main__":

@@ -66,3 +66,14 @@ def load_data():
 def save_data(d):
     with lock:
         _save("data.json", d)
+
+
+def load_json(name, default):
+    """Weitere Dateien im Datenordner: settings.json, history.json, sync.json."""
+    with lock:
+        return _load(name, default)
+
+
+def save_json(name, obj):
+    with lock:
+        _save(name, obj)

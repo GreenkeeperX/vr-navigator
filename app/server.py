@@ -5,10 +5,11 @@ import json
 import os
 import re
 import sys
+import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import imports, library, sources, store, titles
+from . import imports, library, sources, store, sync, titles
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -45,8 +46,16 @@ def host_allowed(host, extra=None):
     return False
 
 
+def settings_view():
+    """Einstellungen für die Oberfläche: der Schlüssel selbst geht nie zurück an den Browser."""
+    s = sync.load_settings()
+    key = s.pop("gg_key")
+    return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "")
+
+
 def state():
-    return dict(library.view(store.load_data()), version=sources.VERSION)
+    return dict(library.view(store.load_data()), version=sources.VERSION,
+                sync=sync.status(), settings=settings_view())
 
 
 def _text(v, limit):
@@ -80,6 +89,10 @@ def edit_title(body):
                                                  **({"label": "PC"} if side == "pc" else {})})
                 else:
                     t["owned"].pop(side, None)
+        if body.get("meta_id") is not None or body.get("steam_appid") is not None:
+            # Neue Kennung von Hand: beim nächsten Abgleich wieder suchen
+            t.pop("meta_miss", None)
+            t.pop("steam_miss", None)
         titles.set_ids(data, key, body.get("meta_id"), body.get("steam_appid"))
         store.save_data(data)
     return state()
@@ -223,6 +236,16 @@ class Handler(BaseHTTPRequestHandler):
                         data["not_same"].append(pair)
                     store.save_data(data)
                 self._send(200, state())
+            elif path == "/api/settings":
+                sync.save_settings(body)
+                self._send(200, state())
+            elif path == "/api/sync":
+                only = body.get("only")
+                only = {str(x) for x in only} if isinstance(only, list) else None
+                started = sync.start(only)
+                self._send(200, dict(state(), started=started))
+            elif path == "/api/test":
+                self._send(200, sync.test(str(body.get("source") or "")))
             elif path == "/api/restore":
                 d = body.get("data")
                 if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):
@@ -251,6 +274,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     port = int(os.environ.get("PORT", "8788"))
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    if os.environ.get("AUTO_SYNC", "1") != "0":
+        threading.Thread(target=sync.scheduler, daemon=True).start()
     print(f"VR-Navigator läuft auf Port {port}", flush=True)
     srv.serve_forever()
 

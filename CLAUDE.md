@@ -33,14 +33,19 @@ Weitere feste Regeln (wie im eShopKompass):
 ## Aufbau
 
 - `app/sources.py`: Netzabruf (`request`, `fetch`, nur öffentliche Ziele), `VERSION`
-- `app/store.py`: `data.json` im Datenordner (Titel, Importe)
+- `app/store.py`: `data.json` im Datenordner (Titel, Importe, Live-Preise), dazu
+  `settings.json`, `history.json`, `sync.json` über `load_json`/`save_json`
+- `app/prices.py`: Preise aus QuestStoreDB-Seiten, Steam- und gg.deals-Antworten lesen (ohne Netz)
+- `app/sync.py`: Abgleich je Quelle, Zeitplan, Einstellungen, Verbindungstest (siehe
+  `docs/abrufe.md`)
 - `app/titles.py`: Namen vergleichen, Kennungen aus Links, Titel finden, anlegen, zusammenführen,
   Vorschläge für ähnliche Namen, Suchlinks
 - `app/imports.py`: Vergleichstabelle, Playnite-CSV, Meta-Bestellungen (Lesezeichen-JSON oder Text);
   jeder Import erst als Vorschau
-- `app/library.py`: Zeilen für Wunschliste und Bibliothek
+- `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
 - `app/server.py`: Webserver und JSON-Schnittstelle
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`)
-- `tests/test_all.py`: alle Tests
+- `tests/test_all.py`: alle Tests; Antworten der Quellen sind erfundene Nachbauten im echten
+  Aufbau, keine gespeicherten Seiten
 
 Lokal starten: `python3 -m app.server` (Port 8788, Daten in `./data/`, ignoriert).

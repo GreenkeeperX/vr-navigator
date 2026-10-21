@@ -58,6 +58,9 @@ nav .cnt{font-size:11px;margin-left:4px;color:var(--muted)}
 .b.go{background:var(--go-bg);color:var(--go)}
 .b.stop{background:var(--stop-bg);color:var(--stop)}
 .b.warn{background:var(--warn-bg);color:var(--warn)}
+.item .row2.small{font-size:12px}
+.item s{color:var(--muted)}
+pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto;margin:0}
 .links a{margin-right:8px;font-size:13px}
 .price{font-variant-numeric:tabular-nums;color:var(--ink)}
 .gap-meta{color:var(--go)}
