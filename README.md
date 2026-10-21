@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2.2:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.2.3:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -41,9 +41,12 @@ Import, der schon lief, startet zugeklappt. Jeder Import zeigt erst eine Vorscha
       Text der Seite. Es schickt nichts an einen Server.
    4. Die Datei im Tool auswählen, Vorschau prüfen, übernehmen.
 
-   Links auf Store-Seiten liefern Titel samt Meta-ID. Ohne solche Links zählt jede Zeile, die
-   nach Entfernen von Datum und Preis noch nach einem Namen aussieht. Kopierter Seitentext geht
-   auch: einfügen statt Datei.
+   Das Lesezeichen funktioniert auch auf der Seite „Transaktionen“ von Meta Pay im
+   Kontenzentrum. Erkannt werden auf der Bestellseite die Blöcke mit Bestellnummer, bei den
+   Transaktionen Titel mit Stand und Datum; Menü und Fußzeile fallen weg, erstattete,
+   stornierte und offene Käufe ebenso. Preise in Euro werden übernommen, andere Währungen
+   nicht. Links auf Store-Seiten liefern zusätzlich die Meta-ID; ohne sie sucht der Abgleich
+   den Titel per Namen. Kopierter Seitentext geht auch: einfügen statt Datei.
 3. **Playnite (CSV):** der CSV-Export der Bibliothek. Übernommen werden Spiele mit einem
    Schlagwort oder Feature „VR“ und alle, deren Name schon in deiner Liste steht; sie gelten
    als Besitz am PC. Mit einer Spalte `Quelle` oder `Bibliothek` ist die Steam-App-ID sicher.

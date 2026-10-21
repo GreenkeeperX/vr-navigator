@@ -160,12 +160,17 @@ function banners(){
   return out.map(t => `<div class="banner">${t} ${logLink}</div>`).join("");
 }
 
-function render(){
+/* Zeichnet neu. Mit anchor (id einer Karte) bleibt diese Karte an ihrer Stelle im Fenster,
+   damit die Seite beim Einlesen einer Datei oder einer Vorschau nicht springt. */
+function render(anchor){
+  const a = anchor && $(anchor), top = a ? a.getBoundingClientRect().top : null;
   renderNav();
   saveView();
   $("main").innerHTML = V.tab === "lib" ? banners() + libView() : V.tab === "now" ? banners() + nowView()
     : V.tab === "settings" ? settingsView() : banners() + wishView();
   showLog();
+  const b = anchor && $(anchor);
+  if(b && top !== null) scrollBy(0, b.getBoundingClientRect().top - top);
   const q = $("q");
   if(q && document.activeElement !== q && V.focusQ){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 }
@@ -490,7 +495,7 @@ document.addEventListener("click", async ev => {
       if(res.state) S = res.state;
       if(a === "apply") V.txt[v] = "";
     }catch(e){ V.prev[v] = {error: e.message}; }
-    render();
+    render("imp-" + v);
   }
 });
 
@@ -512,7 +517,7 @@ document.addEventListener("change", async ev => {
   }
   V.txt = Object.assign(V.txt || {}, {[kind]: text});
   V.prev[kind] = null;
-  render();
+  render("imp-" + kind);
 });
 
 document.addEventListener("submit", async ev => {
