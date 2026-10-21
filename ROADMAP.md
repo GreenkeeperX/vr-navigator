@@ -3,16 +3,19 @@
 Reihenfolge nach Nutzen. Das Konzept dahinter: Kaufentscheidung erst nach Qualität
 (Multiplayer, gepflegtere Version, bessere Version, Crossbuy), dann nach dem Preisabstand.
 
-## 0.2 Preise und Abgleich
+## 0.2 Preise und Abgleich (erledigt)
 
-- Meta-Preise von QuestStoreDB: Sale-Liste jeder Abgleich, Titelseiten der Wunschtitel täglich,
-  Obergrenze je Lauf, Pausen, Abbruch bei 403/429
-- Steam-Preise in Euro über den Store (`appdetails`, `cc=de`)
-- gg.deals-API (kostenloser Schlüssel, Quellenlink Pflicht): Keyshop-Bestpreis und historisches Tief
-- eigener Preisverlauf ab Tag 1 (`history.json`), Zeitplan alle 6 Stunden
+- Meta-Preise von QuestStoreDB: Angebotsliste jeder Lauf, Titelseiten der Wunschtitel täglich,
+  Suche nach Namen, Obergrenzen je Lauf, Pausen, Abbruch bei 403/429
+- Steam-Preise in Euro über den Store (`appdetails`, `cc=de`), App-ID per Store-Suche
+- gg.deals-API (kostenloser Schlüssel, Quellenlink): Händler, Keyshops, historisches Tief
+- eigener Preisverlauf (`history.json`), Zeitplan alle 6 Stunden
 - jede Angabe mit Abrufdatum, Warnung bei veralteten Werten, „Verbindung testen“ je Quelle
-- Reiter „Jetzt“: Wunschtitel im Angebot, Rabatt-Ende, „neues Tief“
+- Reiter „Jetzt“: Wunschtitel im Angebot, Rabatt-Ende, „Tiefstpreis“
 - `docs/abrufe.md`: was woher, wie oft, wohin
+
+Offen aus 0.2: das gg.deals-Format gegen die echte Antwort prüfen (sobald ein Schlüssel da ist);
+Preisverlauf als kleine Kurve je Titel.
 
 ## 0.3 Wo kaufen
 

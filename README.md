@@ -7,8 +7,8 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.1:** Bibliothek, Wunschliste und Importe. Preise stammen noch aus der eigenen
-Vergleichstabelle; Live-Preise, Crossbuy, Updates und Spielerzahlen folgen (siehe
+**Stand 0.2:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
 ## Starten
@@ -62,13 +62,32 @@ und „Moon Rover (Bundle)“), führt das Tool nicht still zusammen. Es zeigt s
 Von Hand: unter „bearbeiten“ eine Meta-ID oder Steam-App-ID eintragen. Trägt ein anderer Titel
 dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben erhalten.
 
+## Preise abrufen
+
+Unter **Abrufe** startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
+alle 6 Stunden). Abgefragt werden nur Wunschtitel, die du noch nicht besitzt:
+
+- **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Tiefstpreis,
+  Bewertung, App-Version). Fehlt die Meta-ID, sucht das Tool den Titel per Namen.
+- **Steam-Store:** Preise in Euro. Fehlt die Steam-App-ID, sucht das Tool im Store nach genau
+  demselben Namen.
+- **gg.deals:** bester Preis bei Händlern und in Keyshops. Dafür einen kostenlosen Schlüssel von
+  gg.deals unter Einstellungen eintragen. Er bleibt auf dem Server.
+
+Je Quelle zeigt die Seite Ergebnis, Anzahl der Abrufe und einen Knopf „Verbindung testen“,
+darunter das Protokoll des letzten Laufs. Einzelheiten in [docs/abrufe.md](docs/abrufe.md).
+
 ## Ansichten
 
+- **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt
+  zuerst, mit Ende des Angebots und „Tiefstpreis“, wenn es bei Meta nie günstiger war.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, fällt heraus; der Knopf
   „… schon im Besitz“ zeigt es wieder, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
-  Je Titel Meta-Normalpreis, Meta-Tief, gg.deals-Bestpreis und der Abstand
-  (Meta-Tief minus gg.deals; Plus heißt Steam günstiger). Die Preise tragen „Tabelle“ und das
-  Datum des Imports. Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
+  Je Titel Meta jetzt (mit Rabatt und Ende), Meta-Tief, Steam, gg.deals (Händler / Keyshops)
+  und der Abstand: Meta jetzt minus günstigstes PC-Angebot jetzt; Plus heißt PC günstiger.
+  Jeder Wert trägt Quelle und Zeitpunkt, ältere als zwei Tage sind gelb markiert. Ohne Abruf
+  gelten die Werte der Tabelle, gekennzeichnet mit „Tabelle“ und Datum (Abstand dort: Meta-Tief
+  minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
   QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
   Was du dort findest, gehört in die Notiz.
 - **Bibliothek:** alles, was du besitzt, mit „Meta“, „PC“ oder beidem, Filter und Suche.
@@ -76,7 +95,8 @@ dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben
 ## Sicherung
 
 Unter Import, Sicherung: alle Titel, Notizen und Zuordnungen als eine JSON-Datei herunterladen
-und wieder einspielen. Die Datei enthält deine Käufe; sie gehört nicht ins Repository.
+und wieder einspielen. Die Datei enthält deine Käufe; sie gehört nicht ins Repository. Der
+gg.deals-Schlüssel und der Preisverlauf (`history.json`) sind nicht darin.
 
 ## Betrieb und Sicherheit
 
@@ -85,8 +105,9 @@ und wieder einspielen. Die Datei enthält deine Käufe; sie gehört nicht ins Re
   `ALLOWED_HOSTS` (Schutz gegen DNS-Rebinding).
 - Fremde Texte (Titel, Notizen, Links) werden in der Oberfläche nie als HTML ausgeführt; Links
   sind nur mit http und https klickbar.
-- Spätere Abrufe laufen über `sources.request`: ehrliche Kennung, nur öffentliche Ziele,
-  Grenzen für Zeit und Größe.
+- Abrufe laufen über `sources.request`: ehrliche Kennung, nur öffentliche Ziele, Grenzen für
+  Zeit und Größe, Pausen zwischen zwei Abrufen, Ende einer Quelle bei 403 oder 429.
+- `AUTO_SYNC=0` schaltet den Zeitplan ab (etwa für einen zweiten Testcontainer).
 - Daten liegen in `data.json` im Datenordner. Eine kaputte Datei bleibt als
   `data.json.kaputt-<Zeit>` liegen und wird im Protokoll des Containers gemeldet.
 
