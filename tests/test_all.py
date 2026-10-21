@@ -172,6 +172,31 @@ class TestImports(unittest.TestCase):
         es = imports.parse_meta(META_TEXT)
         self.assertEqual([(e["name"], e["price"]) for e in es], [("Sky Garden", None), ("Deep Dive", 19.99)])
 
+    def test_meta_order_page(self):
+        # Erfundene Bestellseite im echten Aufbau: Menü, Blöcke mit Bestellnummer, Fußzeile
+        text = "\n".join(["Zum Hauptinhalt", "Meta Quest", "Bestellungen und Rücksendungen", "Galerie", "Abmelden",
+                          "Digitale Produkte", "Käufe",
+                          "25.09.2026", "Bestellnummer 9000000000000001", "GESAMT 6,99\u00a0€", "Sky Garden", "Gekauft",
+                          "Zu den Bestelldetails",
+                          "26.09.2026", "Bestellnummer 9000000000000002", "GESAMT 3.500\u00a0¥", "Moon Rover: Mirror &amp; Dust",
+                          "Gekauft", "Zu den Bestelldetails",
+                          "27.09.2026", "Bestellnummer 9000000000000003", "GESAMT 9,99\u00a0€", "Laser Tennis", "Erstattet",
+                          "Zu den Bestelldetails",
+                          "Meta Store", "Ray-Ban Meta-Brillen", "Datenschutzrichtlinie", "©2026 Meta."])
+        es = imports.parse_meta(json.dumps({"kind": "meta-bestellungen", "links": [
+            {"href": "https://www.meta.com/order/digital/9000000000000001/", "text": "Zu den Bestelldetails"}], "text": text}))
+        self.assertEqual([(e["name"], e["price"]) for e in es],
+                         [("Sky Garden", 6.99), ("Moon Rover: Mirror & Dust", None)])
+
+    def test_meta_transactions(self):
+        # Erfundene Transaktionen (Meta Pay): Titel, Stand, Datum, Betrag
+        text = "\n".join(["Meta-Konto", "Meta Pay", "Transaktionen", "Alle", "Spiele", "Sonstige",
+                          "Sky Garden", "Abgeschlossen", "25.09.2026", "6,99\u00a0€",
+                          "Deep Dive", "Abgeschlossen", "12. Feb. 2025", "1.794\u00a0¥",
+                          "Laser Tennis", "Erstattet", "12. Feb. 2025", "9,99\u00a0€"])
+        es = imports.parse_meta(text)
+        self.assertEqual([(e["name"], e["price"]) for e in es], [("Sky Garden", 6.99), ("Deep Dive", None)])
+
     def test_meta_bad_json(self):
         with self.assertRaises(ValueError):
             imports.parse_meta("{kaputt")

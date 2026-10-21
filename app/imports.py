@@ -4,6 +4,7 @@ Jeder Import läuft zweimal: erst als Vorschau (`dry=True`, ändert nichts), dan
 So siehst du vor dem Speichern, was erkannt wurde.
 """
 import csv
+import html
 import io
 import json
 import re
@@ -216,10 +217,67 @@ def _clean_line(line):
     return t, price
 
 
+# Beträge in anderen Währungen (Käufe in einem anderen Land): erkennen und weglassen, ohne Preis
+_MONEY = re.compile(r"(?:[¥$£]\s*-?[\d.,]+|-?[\d.,]*\d\s*(?:[¥$£]|JPY|USD|GBP)(?![a-z]))", re.I)
+# Bestellseite: Block „Datum, Bestellnummer, GESAMT, Titel, Stand, Zu den Bestelldetails“
+_ORDER = re.compile(r"^(?:bestellnummer|bestell-nr\.?|order (?:number|id|#)|order no\.?)\s*[:#]?\s*(\d{6,})$", re.I)
+_TOTAL = re.compile(r"^(?:gesamt|gesamtbetrag|summe|total)\b", re.I)
+# Transaktionen (Meta Pay): Block „Titel, Stand, Datum, Betrag“
+_DONE = {"abgeschlossen", "gekauft", "completed", "complete", "purchased", "bezahlt", "paid"}
+_UNDONE = {"erstattet", "rückerstattet", "zurückerstattet", "refunded", "storniert", "cancelled", "canceled",
+           "fehlgeschlagen", "failed", "abgelehnt", "declined", "ausstehend", "pending"}
+
+
+def _filler(line):
+    """Zeile ohne Titel: leer, Datum, Betrag, Summe oder Stand."""
+    t = _MONEY.sub(" ", line)
+    name, _ = _clean_line(t)
+    return not name or _TOTAL.match(line) or name.casefold() in _DONE | _UNDONE or name.casefold() in _NOT_TITLE
+
+
+def _eur(line):
+    if _MONEY.search(line):
+        return None
+    m = _PRICE.search(line)
+    return num(m.group(0)) if m else None
+
+
+def _meta_blocks(lines):
+    """Käufe nach dem Aufbau der Seiten: Bestellseite (Bestellnummer als Anker) oder
+    Transaktionen (Stand gefolgt von einem Datum). Erstattete oder abgebrochene Käufe fallen weg."""
+    out, orders = [], [i for i, ln in enumerate(lines) if _ORDER.match(ln)]
+    for i in orders:
+        name, price, state = "", None, ""
+        for ln in lines[i + 1:i + 8]:
+            if _ORDER.match(ln):
+                break
+            if _TOTAL.match(ln):
+                price = _eur(ln)
+            elif not name and not _filler(ln):
+                name = _clean_line(ln)[0]
+            elif name and ln.casefold() in _DONE | _UNDONE:
+                state = ln.casefold()
+                break
+        if name and state not in _UNDONE:
+            out.append({"name": name, "meta_id": "", "price": price, "order": _ORDER.match(lines[i]).group(1)})
+    if orders:
+        return out
+    for i, ln in enumerate(lines):
+        st = ln.casefold()
+        if st not in _DONE | _UNDONE or i == 0 or not any(_DATE.search(x) for x in lines[i + 1:i + 3]):
+            continue
+        if st in _UNDONE or _filler(lines[i - 1]):
+            continue
+        price = next((_eur(x) for x in lines[i + 1:i + 4] if _PRICE.search(x) or _MONEY.search(x)), None)
+        out.append({"name": _clean_line(lines[i - 1])[0], "meta_id": "", "price": price})
+    return out
+
+
 def parse_meta(payload):
     """Meta-Bestellungen aus dem Lesezeichen (JSON mit Links und Seitentext) oder als
-    eingefügter Text. Links auf Store-Seiten liefern Titel samt Meta-ID; ohne sie zählt jede
-    Zeile, die nach Entfernen von Datum und Preis noch nach einem Namen aussieht."""
+    eingefügter Text. Der Reihe nach: Links auf Store-Seiten (Titel samt Meta-ID), dann der
+    Aufbau der Bestellseite oder der Transaktionen, zuletzt jede Zeile, die nach Entfernen von
+    Datum und Preis noch nach einem Namen aussieht."""
     payload = str(payload or "").strip()
     links, text = [], payload
     if payload.startswith("{"):
@@ -229,12 +287,13 @@ def parse_meta(payload):
             raise ValueError("Die Datei ist kein gültiges JSON aus dem Lesezeichen")
         links = obj.get("links") if isinstance(obj.get("links"), list) else []
         text = str(obj.get("text") or "")
+    text = html.unescape(text)
     out, seen = [], set()
     for ln in links[:5000]:
         if not isinstance(ln, dict):
             continue
         mid = titles.meta_id_from(ln.get("href"))
-        name, price = _clean_line(str(ln.get("text") or "")[:200])
+        name, price = _clean_line(html.unescape(str(ln.get("text") or "")[:200]))
         if not mid or not name or name.casefold() in _NOT_TITLE:
             continue
         if mid in seen:
@@ -243,8 +302,18 @@ def parse_meta(payload):
         out.append({"name": name, "meta_id": mid, "price": price})
     if out:
         return out
-    for raw in text.splitlines()[:MAX_ROWS]:
-        name, price = _clean_line(raw.strip())
+    lines = [re.sub(r"\s+", " ", x).strip() for x in text.splitlines()[:MAX_ROWS]]
+    lines = [x for x in lines if x]
+    blocks = _meta_blocks(lines)
+    if blocks:
+        for e in blocks:
+            n = titles.norm(e["name"])
+            if n not in seen and len(e["name"]) <= 120:
+                seen.add(n)
+                out.append(e)
+        return out
+    for raw in lines:
+        name, price = _clean_line(raw)
         if len(name) < 2 or len(name) > 120 or name.casefold() in _NOT_TITLE:
             continue
         if not re.search(r"[^\W\d_]", name):
