@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2.5:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.2.6:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -25,8 +25,8 @@ laufen nebeneinander. Ohne Docker: `python3 -m app.server` (Python 3.10+, Daten 
 
 ## Einrichten
 
-Unter **Einstellungen** stehen drei Importe. Jede Karte dort klappt an ihrer Überschrift; ein
-Import, der schon lief, startet zugeklappt. Jeder Import zeigt erst eine Vorschau und speichert erst nach „übernehmen“.
+Unter **Einstellungen**, Karte Importe, stehen drei Wege. Jeder klappt einzeln und nennt
+zugeklappt, wann er zuletzt lief und was er fand. Jeder Import zeigt erst eine Vorschau und speichert erst nach „übernehmen“.
 
 1. **Vergleichstabelle (CSV):** eine Zeile je Titel. Erkannt werden die Spalten `Spiel`, `meta`
    (Normalpreis im Meta Store), `Bestpreis` (Meta-Tief), `gg.deals best` (bester Preis für die
@@ -67,7 +67,9 @@ gleicher Name (ohne Groß- und Kleinschreibung, Satzzeichen, ™ und ®) heißt 
 
 Namen, die sich nur durch eine Klammer am Ende oder ein „VR“ unterscheiden („Moon Rover VR“
 und „Moon Rover (Bundle)“), führt das Tool nicht still zusammen. Es zeigt sie unter
-Einstellungen, „Derselbe Titel?“, mit den Knöpfen „Zusammenführen“ und „Verschieden“.
+Einstellungen, „Derselbe Titel?“: Ein Klick auf einen der beiden Namen führt zusammen und behält diesen Namen,
+„Verschieden“ trennt sie dauerhaft. Der andere Name bleibt als zweiter Name bekannt, damit ein
+späterer Import den Titel wiederfindet; dasselbe gilt nach dem Umbenennen unter „bearbeiten“.
 
 Von Hand: unter „bearbeiten“ eine Meta-ID oder Steam-App-ID eintragen. Trägt ein anderer Titel
 dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben erhalten.
@@ -92,7 +94,7 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 
 - **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
   Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
-- **Protokoll** (eigene Karte): live während des Laufs, zum Kopieren.
+- **Protokoll** (klappbar, zu außer nach Fehlern): live während des Laufs, zum Kopieren.
 
 Nach einer Sperre (403, 429 oder Prüfseite) ruht eine Quelle 24 Stunden. Probleme stehen als
 Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“: noch kein Abgleich, eine ruhende

@@ -110,9 +110,16 @@ def find(data, meta_id="", steam_appid="", name=""):
             continue
         if steam_appid and t.get("steam_appid") and t["steam_appid"] != steam_appid:
             continue
-        if norm(t["name"]) == n:
+        if n in {norm(x) for x in [t["name"]] + list(t.get("aliases") or [])}:
             return k
     return None
+
+
+def add_alias(t, name):
+    """Früherer oder anderer Name eines Titels (nach Zusammenführen oder Umbenennen), damit ein
+    späterer Import mit diesem Namen den Titel wiederfindet, statt ihn neu anzulegen."""
+    if name and norm(name) != norm(t["name"]) and norm(name) not in {norm(x) for x in t.get("aliases") or []}:
+        t.setdefault("aliases", []).append(name)
 
 
 def add(data, t):
@@ -153,6 +160,8 @@ def merge(data, keep, gone):
     notes = [x for x in (a.get("note"), b.get("note")) if x]
     a["note"] = "\n".join(dict.fromkeys(notes))
     a["added"] = min(x for x in (a.get("added"), b.get("added"), now_iso()) if x)
+    for x in [b.get("name")] + list(b.get("aliases") or []):
+        add_alias(a, x)
     return keep
 
 

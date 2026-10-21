@@ -113,16 +113,16 @@ details.grp{margin-bottom:10px}
 details.grp>summary{cursor:pointer;padding:4px 0;font-weight:600}
 details.grp>summary .n{color:var(--muted);font-weight:400;margin-left:4px}
 details.grp>.list{margin-top:6px}
-.card>details>summary{cursor:pointer;list-style:none}
-.card>details>summary::-webkit-details-marker{display:none}
-.card>details>summary h2{display:inline}
-.card>details>summary::before{content:"▸";display:inline-block;width:18px;color:var(--muted)}
-.card>details[open]>summary::before{content:"▾"}
-.card>details>summary .n{color:var(--muted);font-size:13px;margin-left:6px}
+.card h2 .n{color:var(--muted);font-size:13px;font-weight:400;margin-left:4px}
+/* Klappteile in einer Karte: fette Zeile, daneben grau das Nötigste, auch im zugeklappten Zustand */
+details.sub{border-top:1px solid var(--line);padding:8px 0 4px;margin-top:8px}
+details.sub>summary{cursor:pointer}
+details.sub>summary .n{color:var(--muted);font-size:13px}
+details.sub details.sub{margin-left:0}
 .foldall{font-size:13px;color:var(--muted)}
 /* Sprungleiste der Einstellungen */
 .jump{position:sticky;top:0;z-index:4;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;background:var(--bg);padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--line);font-size:13px}
 .jump a{color:var(--ink);text-decoration:none}
 .jump a:hover{text-decoration:underline}
 .jump .foldall{margin-left:auto}
-.card{scroll-margin-top:48px}
+.card,details.sub{scroll-margin-top:48px}

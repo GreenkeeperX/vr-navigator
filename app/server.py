@@ -75,7 +75,8 @@ def edit_title(body):
             name = _text(body["name"], 200)
             if not name:
                 raise ValueError("Der Name darf nicht leer sein")
-            t["name"] = name
+            old, t["name"] = t["name"], name
+            titles.add_alias(t, old)
         if "note" in body:
             t["note"] = _text(body["note"], 2000)
         if "wish" in body:
