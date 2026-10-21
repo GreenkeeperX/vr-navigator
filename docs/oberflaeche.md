@@ -32,8 +32,11 @@ Textfarbe, unterstrichen.
 
 ## Klappen
 
-- Jede Gruppe mit mehr als einer Zeile und jede Karte der Einstellungen ist ein `details` mit
-  `data-kc`. Offen ist die Vorgabe, mit `data-shut` zu (etwa „Schon im Besitz“ oder ein Import,
+- Jede Gruppe mit mehr als einer Zeile ist ein `details` mit `data-kc`. In den Einstellungen
+  klappen nicht die Karten, sondern ihre Teile (`details.sub`: Protokoll, Verbindungstest,
+  Zeitplan, jeder Import). Die Klappzeile nennt zugeklappt das Nötigste (Stand, letzte Zeile des
+  Protokolls, „zuletzt … erkannt, … neu“, Schlüssel ja/nein); die Kartenüberschrift trägt grau
+  ihren Stand. Offen ist die Vorgabe, mit `data-shut` zu (etwa „Schon im Besitz“ oder ein Import,
   der schon lief). Gemerkt wird je Browser nur die Abweichung (`vn.view`, `folds`).
 - Gibt es mehrere Gruppen, steht „alle aufklappen · alle zuklappen“ in der Werkzeugzeile bzw.
   in der Sprungleiste.
@@ -46,9 +49,11 @@ Textfarbe, unterstrichen.
 - Reiter: Jetzt, Wunschliste, Bibliothek, Einstellungen. Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
-- Einstellungen: Sprungleiste oben (bleibt beim Scrollen stehen), darunter Karten: Derselbe
-  Titel?, Abgleich, Zeitplan und gg.deals, Protokoll, die drei Importe, Sicherung. Ein Sprung
-  öffnet die Karte.
+- Einstellungen: Sprungleiste oben (bleibt beim Scrollen stehen), darunter „Derselbe Titel?“
+  (nur wenn etwas zu entscheiden ist), Abgleich (Quellen, „Jetzt abrufen“, „Verbindung testen“,
+  darunter klappbar Verbindungstest, Protokoll, Zeitplan und gg.deals), Importe (Meta-Käufe,
+  Vergleichstabelle, Playnite) und Sicherung. Das Protokoll ist zu, außer der letzte Lauf hatte
+  Fehler.
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter Sortierung als Chips.
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und
   bietet sieben Sekunden „Rückgängig“. Rückfragen bleiben für Dinge, die alles ersetzen

@@ -107,10 +107,6 @@ function grp(k, title, n, body, shut){
   return `<details class="grp" ${foldAttr(k, shut)}><summary>${title}<span class="n">${esc(n)}</span></summary>${body}</details>`;
 }
 const foldAll = `<span class="foldall"><button class="link" data-act="foldall" data-v="1">alle aufklappen</button> · <button class="link" data-act="foldall" data-v="">alle zuklappen</button></span>`;
-/* Karte der Einstellungen: Überschrift klappt den Inhalt */
-function card(id, title, n, body, shut){
-  return `<div class="card" id="${id}"><details ${foldAttr("c-" + id, shut)}><summary><h2>${title}</h2>${n ? `<span class="n">${esc(n)}</span>` : ""}</summary>${body}</details></div>`;
-}
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
@@ -272,42 +268,54 @@ function srcState(k, x){
   return `${tag} <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>`;
 }
 /* ---------------------------------------------------------------- Einstellungen
-   Karten mit Sprungleiste: Abgleich, Zeitplan, Protokoll, die Importe, Sicherung. Jede Karte
-   klappt an ihrer Überschrift; was erledigt ist (ein Import, der schon lief), startet zu. */
+   Drei feste Karten (Abgleich, Importe, Sicherung), oben „Derselbe Titel?“, wenn etwas zu
+   entscheiden ist. Klappbar sind die Teile darin, nicht die Karten: Protokoll, Verbindungstest,
+   Zeitplan und jeder Import. Jede Klappzeile nennt im zugeklappten Zustand das Nötigste. */
+function box(id, title, info, body){
+  return `<div class="card" id="${id}"><h2>${title}${info ? ` <span class="n">${info}</span>` : ""}</h2>${body}</div>`;
+}
+function sub(k, title, info, body, shut, id){
+  return `<details class="sub" ${foldAttr(k, shut)}${id ? ` id="${id}"` : ""}><summary><b>${title}</b>${info ? ` <span class="n">${info}</span>` : ""}</summary>${body}</details>`;
+}
+// Letzte Zeile des Protokolls ohne Uhrzeit, etwa „fertig, 58 Titel aktualisiert“
+const lastLine = sy => { const l = sy.log || []; return {end: (l[l.length - 1] || "").replace(/^\d\d:\d\d:\d\d /, "")}; };
 function settingsView(){
   const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {}, sug = S.suggestions.length;
+  const hours = se.hours || 6, last = sy.started ? new Date(sy.started) : null;
+  const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
   const rows = SOURCES.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
-  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["zeitplan", "Zeitplan"], ["logcard", "Protokoll"],
-    ["imp-sheet", "Tabelle"], ["imp-meta", "Meta-Käufe"], ["imp-playnite", "Playnite"], ["sicherung", "Sicherung"]].filter(Boolean);
-  const sugCard = sug ? card("sug", "Derselbe Titel?", sug, `
-    <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten.</p>
+  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["importe", "Importe"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const sugCard = sug ? box("sug", "Derselbe Titel?", `${sug} ${sug === 1 ? "Paar" : "Paare"}`, `
+    <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
-      <button data-act="merge" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Zusammenführen</button>
-      <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></div>`).join("")}</div>`) : "";
-  return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` + sugCard +
-    card("abgleich", "Abgleich", sy.running ? "läuft" : "", `
+      <span class="row2">Zusammenführen als
+        <button data-act="merge" data-a="${esc(x.a)}" data-b="${esc(x.b)}" title="Ein Eintrag mit diesem Namen">„${esc(x.a_name)}“</button>
+        <button data-act="merge" data-a="${esc(x.b)}" data-b="${esc(x.a)}" title="Ein Eintrag mit diesem Namen">„${esc(x.b_name)}“</button>
+        oder <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></span></div>`).join("")}</div>`) : "";
+  const ll = lastLine(sy);
+  const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
+  const keyInfo = se.gg_key_set ? `gg.deals-Schlüssel gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}` : "ohne gg.deals-Schlüssel";
+  const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
     <p class="hint">Holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
-    <div class="bar"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
-      <span class="hint">Zuletzt: ${when(sy.started) || "nie"}${sy.finished ? `, fertig ${when(sy.finished)}` : ""}</span></div>
     <div class="list">${rows}</div>
-    <p class="hint" style="margin-top:10px"><button class="link" data-act="diag" ${V.diagRunning ? "disabled" : ""}>${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button>
-      ${V.diag ? ` · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>` : ""}
-      <span class="hint">fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts</span></p>
-    ${V.diag ? `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>` : ""}`) +
-    card("zeitplan", "Zeitplan und gg.deals", se.auto ? `alle ${se.hours} Std.` : "aus", `<form data-form="settings" class="form">
+    <div class="bar" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
+      <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
+    ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}
+    ${sub("logbox", "Protokoll", logInfo + (sy.started ? ` · <button class="link" data-act="copy" data-v="log">kopieren</button>` : ""), `<pre class="log" id="log"></pre>`, sy.ok !== false && !sy.running, "logfold")}
+    ${sub("zeitplan", "Zeitplan und gg.deals", `${se.auto ? `alle ${esc(hours)} Std.` : "Zeitplan aus"} · ${keyInfo}`, `<form data-form="settings" class="form" style="margin-top:8px">
       <span class="full"><label><input type="checkbox" name="auto" ${se.auto ? "checked" : ""}> automatisch abrufen</label></span>
       <label for="s-h">alle … Stunden</label><input type="number" id="s-h" name="hours" min="2" max="48" value="${esc(se.hours)}">
-      <label for="s-gg">gg.deals-Schlüssel</label><input type="password" id="s-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? "gespeichert" + (se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : "") + ", leer lassen zum Behalten" : "kostenlos auf gg.deals unter Einstellungen, API"}">
+      <label for="s-gg">gg.deals-Schlüssel</label><input type="password" id="s-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? "gespeichert, leer lassen zum Behalten" : "kostenlos auf gg.deals unter Einstellungen, API"}">
       ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> Schlüssel löschen</label></span>` : ""}
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="s-err"></span></span></form>
-      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p>`) +
-    card("logcard", "Protokoll", sy.ok === false ? "mit Fehlern" : "", `
-      <p class="hint">Protokoll des letzten Abgleichs, live während eines Laufs · <button class="link" data-act="copy" data-v="log">kopieren</button></p>
-      <pre class="log" id="log"></pre>`) +
-    importCard("sheet") + importCard("meta") + importCard("playnite") +
-    card("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
+      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p>`, !!se.gg_key_set)}`);
+  const importe = box("importe", "Importe", "", `<p class="hint">Bringen deine Käufe und Wünsche ins Tool. Jeder Import ergänzt nur; nichts wird gelöscht.</p>
+    ${importCard("meta")}${importCard("sheet")}${importCard("playnite")}`);
+  const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
      <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
      <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div>`);
+  return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` +
+    sugCard + abgleich + importe + sicherung;
 }
 /* Protokoll: Zeiten kommen in UTC, gezeigt in der Zeit des Browsers; die Box folgt der neuesten
    Zeile, solange du nicht hochgescrollt hast */
@@ -374,24 +382,24 @@ const metaBm = () => "javascript:" + encodeURIComponent(metaHelper(location.orig
 const IMPORTS = {
   sheet: {title: "Vergleichstabelle (CSV)", what: "Deine Tabelle mit Spiel, meta, Bestpreis, gg.deals best, Crossbuy und Links. Die Titel landen auf der Wunschliste, sofern du sie nicht schon besitzt.", accept: ".csv,text/csv"},
   playnite: {title: "Playnite-Export (CSV)", what: "Bibliothek aus Playnite. Übernommen werden Spiele mit VR-Schlagwort und alle, die schon in deiner Liste stehen. Sie gelten als Besitz am PC.", accept: ".csv,text/csv"},
-  meta: {title: "Meta-Bestellungen", what: "", accept: ".json,.txt,application/json,text/plain"},
+  meta: {title: "Meta-Käufe", what: "", accept: ".json,.txt,application/json,text/plain"},
 };
 function importCard(kind){
   const c = IMPORTS[kind], last = S.imports[kind], p = V.prev[kind];
-  const metaHow = kind === "meta" ? `<ol>
-      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta-Käufe lesen</a>
-        <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button>
-        <span class="hint">Ein Lesezeichen aus einer früheren Version (es lud nur eine Datei herunter) bitte löschen.</span></li>
-      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a> oder <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist; beide Seiten ergeben dieselben Käufe.</li>
-      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt die Käufe. Die Daten stehen nur in der Adresse hinter #.</li></ol>
-      <p class="hint">Ohne Lesezeichen: Datei aus „Als Datei sichern“ unten auswählen oder den Seitentext einfügen, dann erst Vorschau.</p>` : `<p class="hint">${c.what}</p>`;
-  return card("imp-" + kind, c.title, last ? `zuletzt ${day(last.at)}` : "", `${metaHow}
-    ${last ? `<p class="hint">Zuletzt: ${day(last.at)}, ${last.n} erkannt, ${last.new} neu.</p>` : ""}
-    <div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}" aria-label="${esc(c.title)}: Datei wählen"></div>
+  const info = last ? `zuletzt ${day(last.at)}: ${last.n} erkannt, ${last.new} neu` : "noch nie";
+  const manual = `<div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}" aria-label="${esc(c.title)}: Datei wählen"></div>
     <textarea id="txt-${kind}" aria-label="${esc(c.title)}: Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.[kind] || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="${kind}">Vorschau</button>
-      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>
-    ${p ? previewHtml(p) : ""}`, !!last && !p);
+      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>`;
+  const body = kind === "meta" ? `<ol>
+      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta-Käufe lesen</a>
+        <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></li>
+      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a> oder <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
+      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt die Käufe. Die Daten stehen nur in der Adresse hinter #.</li></ol>
+      ${p ? previewHtml(p) : ""}
+      ${sub("meta-manual", "Ohne Lesezeichen", "Datei aus „Als Datei sichern“ oder Seitentext, mit Vorschau", manual, !(p && !p.done) && !V.txt?.meta)}`
+    : `<p class="hint">${c.what}</p>${manual}${p ? previewHtml(p) : ""}`;
+  return sub("imp-" + kind, c.title, info, body, !!last && !p, "imp-" + kind);
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
@@ -454,7 +462,7 @@ async function load(){
 const META_IN = location.hash.startsWith("#meta=") ? (() => { try{ return decodeURIComponent(location.hash.slice(6)); }catch(e){ return ""; } })() : null;
 if(META_IN !== null) history.replaceState(null, "", location.pathname + location.search);
 async function metaHandOver(){
-  V.tab = "settings"; delete V.folds["c-imp-meta"];
+  V.tab = "settings"; V.folds["imp-meta"] = false;
   try{
     const res = await api("/api/import", {kind: "meta", text: META_IN, dry: false});
     S = res.state || S;
@@ -495,7 +503,7 @@ document.addEventListener("click", async ev => {
   else if(a === "foldall"){ $("main").querySelectorAll("details[data-kc]").forEach(d => { d.open = !!v; keepFold(d); }); saveView(); }
   else if(a === "jump"){
     ev.preventDefault();
-    const c = $(v), d = c?.querySelector("details");
+    const c = $(v), d = c?.matches("details") ? c : null;
     if(d) d.open = true;
     c?.scrollIntoView({block: "start"});
   }
@@ -510,14 +518,14 @@ document.addEventListener("click", async ev => {
   else if(a === "sync"){ if(await act("/api/sync", {})) watchSync(); }
   else if(a === "diag"){
     V.diagRunning = true; render();
-    try{ V.diag = (await api("/api/diag", {})).lines; }
+    try{ V.diag = (await api("/api/diag", {})).lines; V.diagAt = clock(new Date()); }
     catch(e){ V.diag = ["Test fehlgeschlagen: " + e.message]; }
     V.diagRunning = false; render();
   }
   else if(a === "copy") copyNow(v === "diag" ? (V.diag || []).join("\n") : logText());
   else if(a === "showlog"){
-    V.tab = "settings"; delete V.folds["c-logcard"]; render();
-    $("logcard")?.scrollIntoView({block: "start"});
+    V.tab = "settings"; V.folds.logbox = false; render();
+    $("logfold")?.scrollIntoView({block: "start"});
   }
   else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});

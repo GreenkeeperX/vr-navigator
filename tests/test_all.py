@@ -98,6 +98,19 @@ class TestTitles(unittest.TestCase):
         self.assertEqual(len(d["titles"]), 2)
 
 
+    def test_merged_and_renamed_names_still_match(self):
+        # Nach „Zusammenführen“ oder Umbenennen findet ein späterer Import den Titel unter dem
+        # alten Namen wieder, statt ihn doppelt anzulegen
+        d = empty()
+        a, _ = titles.upsert(d, "Moon Rover", steam_appid="42")
+        b, _ = titles.upsert(d, "Moon Rover VR")
+        titles.merge(d, a, b)
+        self.assertEqual(titles.find(d, name="Moon Rover VR"), a)
+        res = imports.import_meta(d, "Bestellnummer 9000000000000001\nGESAMT 1,99 €\nMoon Rover VR\nGekauft", dry=False)
+        self.assertEqual(res["new"], 0)
+        self.assertEqual(len(d["titles"]), 1)
+
+
 class TestImports(unittest.TestCase):
     def test_num(self):
         self.assertEqual(imports.num("4,2"), 4.2)
@@ -272,6 +285,10 @@ class TestServer(unittest.TestCase):
         code, raw = self.call("/api/title", {"key": key, "note": "Reddit: Quest-Fassung gleichwertig", "owned_meta": True})
         st = json.loads(raw)
         self.assertEqual(st["counts"]["meta"], 1)
+        self.call("/api/title", {"key": key, "name": "Sky Garden Neu"})
+        st = json.loads(self.call("/api/import", {"kind": "meta", "text": "Bestellnummer 9000000000000001\nGESAMT 1,99 €\nSky Garden\nGekauft", "dry": True})[1])
+        self.assertEqual(st["new"], 0)
+        self.call("/api/title", {"key": key, "name": "Sky Garden"})
         code, raw = self.call("/api/title", {"key": key, "steam_appid": "x1"})
         self.assertEqual(code, 400)
         code, raw = self.call("/api/title/new", {"name": "Neu", "link": "https://store.steampowered.com/app/42/"})
