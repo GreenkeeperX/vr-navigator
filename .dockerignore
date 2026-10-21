@@ -1,0 +1,6 @@
+data
+tests
+tools
+__pycache__
+*.pyc
+*.csv
