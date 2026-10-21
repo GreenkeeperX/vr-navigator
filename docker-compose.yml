@@ -1,0 +1,27 @@
+# Beispiel für den Betrieb mit dem fertigen Image.
+# OWNER durch den GitHub-Benutzernamen ersetzen (klein geschrieben).
+services:
+  vr-kompass:
+    image: ghcr.io/OWNER/vr-kompass:latest
+    container_name: vr-kompass
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    ports:
+      - "8788:8788"
+    # Nur nötig, wenn du das Tool über eine Domain aufrufst. IP-Adressen, Namen ohne Punkt und
+    # Namen im eigenen Netz (.home.arpa, .local, .lan, .internal) gelten ohne Eintrag
+    # environment:
+    #   ALLOWED_HOSTS: "vr.beispiel.de"
+    volumes:
+      - vr-daten:/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+volumes:
+  vr-daten:
