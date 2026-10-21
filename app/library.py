@@ -31,11 +31,14 @@ def row(key, t):
 def view(data):
     rows = sorted((row(k, t) for k, t in data["titles"].items()), key=lambda r: titles.norm(r["name"]))
     owned = [r for r in rows if r["where"]]
+    # Die Wunschliste führt auch Titel, die du inzwischen besitzt; die Oberfläche blendet sie
+    # aus, solange du sie nicht ausdrücklich zeigen lässt (owned_wish zählt sie)
     wish = [r for r in rows if r["wish"]]
     return {
         "library": owned,
         "wishlist": wish,
-        "counts": {"all": len(rows), "owned": len(owned), "wish": len(wish),
+        "counts": {"all": len(rows), "owned": len(owned), "wish": sum(not r["where"] for r in wish),
+                   "owned_wish": sum(bool(r["where"]) for r in wish),
                    "meta": sum(r["where"] in ("meta", "beide") for r in rows),
                    "pc": sum(r["where"] in ("pc", "beide") for r in rows),
                    "both": sum(r["where"] == "beide" for r in rows)},

@@ -64,7 +64,9 @@ dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben
 
 ## Ansichten
 
-- **Wunschliste:** je Titel Meta-Normalpreis, Meta-Tief, gg.deals-Bestpreis und der Abstand
+- **Wunschliste:** Was du bei Meta oder am PC schon besitzt, fällt heraus; der Knopf
+  „… schon im Besitz“ zeigt es wieder, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
+  Je Titel Meta-Normalpreis, Meta-Tief, gg.deals-Bestpreis und der Abstand
   (Meta-Tief minus gg.deals; Plus heißt Steam günstiger). Die Preise tragen „Tabelle“ und das
   Datum des Imports. Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
   QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
