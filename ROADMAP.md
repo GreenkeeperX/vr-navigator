@@ -2,20 +2,23 @@
 
 Reihenfolge nach Nutzen. Das Konzept dahinter: Kaufentscheidung erst nach Qualität
 (Multiplayer, gepflegtere Version, bessere Version, Crossbuy), dann nach dem Preisabstand.
+Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md), wann es dazukam,
+in der Git-Geschichte.
 
-## 0.2 Preise und Abgleich (erledigt)
+## Offen aus 0.2
 
-- Meta-Preise von QuestStoreDB: Angebotsliste jeder Lauf, Titelseiten der Wunschtitel täglich,
-  Suche nach Namen, Obergrenzen je Lauf, Pausen, Abbruch bei 403/429
-- Steam-Preise in Euro über den Store (`appdetails`, `cc=de`), App-ID per Store-Suche
-- gg.deals-API (kostenloser Schlüssel, Quellenlink): Händler, Keyshops, historisches Tief
-- eigener Preisverlauf (`history.json`), Zeitplan alle 6 Stunden
-- jede Angabe mit Abrufdatum, Warnung bei veralteten Werten, „Verbindung testen“ je Quelle
-- Reiter „Jetzt“: Wunschtitel im Angebot, Rabatt-Ende, „Tiefstpreis“
-- `docs/abrufe.md`: was woher, wie oft, wohin
+- das gg.deals-Format gegen die echte Antwort prüfen (sobald ein Schlüssel da ist; „Verbindung
+  testen“ zeigt den Anfang der Antwort)
 
-Offen aus 0.2: das gg.deals-Format gegen die echte Antwort prüfen (sobald ein Schlüssel da ist);
-Preisverlauf als kleine Kurve je Titel.
+## 0.2.2 Ansicht und Bedienung (wie im eShopKompass)
+
+- Farbregeln: jede Farbe eine Bedeutung (Rabatt blau, Tiefstpreis Gold mit ★, prüfen und
+  veraltet violett, rot nur der Betrag), festgehalten in `docs/oberflaeche.md`
+- klappbare Bereiche mit Gedächtnis, „alle aufklappen · alle zuklappen“
+- Reiter „Einstellungen“ mit Karten und Sprungleiste statt „Import“ und „Abrufe“
+- Werkzeugzeile mit eigenem × im Suchfeld, Hinweis mit „Rückgängig“ statt Rückfrage
+- Theme-Knopf mit Zeichen und Menü, Reiterleiste am Handy mit weichem Rand
+- Selbsttest der Oberfläche bei 390 px (Chromium) und Vertragstest der Felder
 
 ## 0.3 Wo kaufen
 

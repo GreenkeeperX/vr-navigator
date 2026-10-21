@@ -181,6 +181,8 @@ class Handler(BaseHTTPRequestHandler):
                                else "text/javascript; charset=utf-8")
             elif path == "/api/state":
                 self._send(200, state())
+            elif path == "/api/status":
+                self._send(200, sync.status())
             elif path == "/api/export":
                 self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data()},
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
@@ -244,8 +246,8 @@ class Handler(BaseHTTPRequestHandler):
                 only = {str(x) for x in only} if isinstance(only, list) else None
                 started = sync.start(only)
                 self._send(200, dict(state(), started=started))
-            elif path == "/api/test":
-                self._send(200, sync.test(str(body.get("source") or "")))
+            elif path == "/api/diag":
+                self._send(200, {"lines": sync.diagnose()})
             elif path == "/api/restore":
                 d = body.get("data")
                 if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):

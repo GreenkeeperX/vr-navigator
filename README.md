@@ -74,8 +74,19 @@ alle 6 Stunden). Abgefragt werden nur Wunschtitel, die du noch nicht besitzt:
 - **gg.deals:** bester Preis bei Händlern und in Keyshops. Dafür einen kostenlosen Schlüssel von
   gg.deals unter Einstellungen eintragen. Er bleibt auf dem Server.
 
-Je Quelle zeigt die Seite Ergebnis, Anzahl der Abrufe und einen Knopf „Verbindung testen“,
-darunter das Protokoll des letzten Laufs. Einzelheiten in [docs/abrufe.md](docs/abrufe.md).
+Oben steht, wie alt die Preise sind und wann der nächste Abgleich kommt; während eines Laufs
+der Schritt mit Fortschritt. „Aktualisieren“ startet einen Lauf sofort.
+
+Unter Abrufe zeigt die Seite je Quelle Ergebnis und Anzahl der Abrufe, darunter:
+
+- **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
+  Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
+- **Protokoll:** live während des Laufs, zum Kopieren; die Klappe merkt sich der Browser.
+
+Nach einer Sperre (403, 429 oder Prüfseite) ruht eine Quelle 24 Stunden. Probleme stehen als
+Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“: noch kein Abgleich, eine ruhende
+Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheiten in
+[docs/abrufe.md](docs/abrufe.md).
 
 ## Ansichten
 
@@ -106,7 +117,7 @@ gg.deals-Schlüssel und der Preisverlauf (`history.json`) sind nicht darin.
 - Fremde Texte (Titel, Notizen, Links) werden in der Oberfläche nie als HTML ausgeführt; Links
   sind nur mit http und https klickbar.
 - Abrufe laufen über `sources.request`: ehrliche Kennung, nur öffentliche Ziele, Grenzen für
-  Zeit und Größe, Pausen zwischen zwei Abrufen, Ende einer Quelle bei 403 oder 429.
+  Zeit und Größe, Pausen zwischen zwei Abrufen, 24 Stunden Ruhe nach 403, 429 oder Prüfseite.
 - `AUTO_SYNC=0` schaltet den Zeitplan ab (etwa für einen zweiten Testcontainer).
 - Daten liegen in `data.json` im Datenordner. Eine kaputte Datei bleibt als
   `data.json.kaputt-<Zeit>` liegen und wird im Protokoll des Containers gemeldet.
