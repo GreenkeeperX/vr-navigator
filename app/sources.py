@@ -12,11 +12,11 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
-USER_AGENT = f"vr-kompass/{VERSION} (privates Sammlungs-Tool)"
+USER_AGENT = f"vr-navigator/{VERSION} (privates Sammlungs-Tool)"
 BLOCKED = (403, 429)
 
 

@@ -1,4 +1,4 @@
-# VR-Kompass
+# VR-Navigator
 
 Eine Bibliothek für Meta-Quest-Spiele aus dem Meta Store und von Steam, mit Wunschliste und
 der Frage: Wo kaufe ich einen Titel, bei Meta oder bei Steam?
@@ -14,7 +14,7 @@ Vergleichstabelle; Live-Preise, Crossbuy, Updates und Spielerzahlen folgen (sieh
 ## Starten
 
 Jeder Push auf `main` lässt die Tests laufen und baut danach das Image
-`ghcr.io/OWNER/vr-kompass:latest` (zusätzlich mit Versionsnummer und kurzem Commit). Die
+`ghcr.io/OWNER/vr-navigator:latest` (zusätzlich mit Versionsnummer und kurzem Commit). Die
 `docker-compose.yml` zeigt den Betrieb als unprivilegierter Benutzer mit schreibgeschütztem
 Dateisystem.
 

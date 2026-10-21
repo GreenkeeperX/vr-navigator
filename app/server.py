@@ -106,7 +106,7 @@ def new_title(body):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "vr-kompass"
+    server_version = "vr-navigator"
 
     def log_message(self, fmt, *args):
         pass
@@ -169,8 +169,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/state":
                 self._send(200, state())
             elif path == "/api/export":
-                self._send(200, {"app": "vr-kompass", "version": sources.VERSION, "data": store.load_data()},
-                           extra={"Content-Disposition": 'attachment; filename="vr-kompass-sicherung.json"'})
+                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data()},
+                           extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
             else:
                 self._send(404, {"error": "nicht gefunden"})
         except Exception as e:
@@ -226,7 +226,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/restore":
                 d = body.get("data")
                 if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):
-                    raise ValueError("Keine Sicherung des VR-Kompass")
+                    raise ValueError("Keine Sicherung des VR-Navigator")
                 bad = [k for k, t in d["titles"].items() if not isinstance(t, dict) or not t.get("name")]
                 if bad:
                     raise ValueError(f"{len(bad)} Einträge ohne Namen, Sicherung nicht übernommen")
@@ -251,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     port = int(os.environ.get("PORT", "8788"))
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"VR-Kompass läuft auf Port {port}", flush=True)
+    print(f"VR-Navigator läuft auf Port {port}", flush=True)
     srv.serve_forever()
 
 

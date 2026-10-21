@@ -1,5 +1,5 @@
 "use strict";
-/* VR-Kompass, Oberfläche ohne Build. Reiter: Wunschliste, Bibliothek, Import.
+/* VR-Navigator, Oberfläche ohne Build. Reiter: Wunschliste, Bibliothek, Import.
    Alle fremden Texte (Titel, Notizen, Links) laufen durch esc() bzw. safeUrl(). */
 
 const $ = id => document.getElementById(id);
@@ -10,7 +10,7 @@ const day = iso => iso ? new Date(iso).toLocaleDateString("de-DE", {day: "2-digi
 
 let S = null;                                   // Zustand vom Server
 const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}};
-try{ V.tab = localStorage.getItem("vk.tab") || V.tab; }catch(e){}
+try{ V.tab = localStorage.getItem("vn.tab") || V.tab; }catch(e){}
 
 async function api(path, body){
   const opt = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
@@ -27,7 +27,7 @@ function renderTheme(){ const t = THEMES.find(x => x[0] === themeNow()); $("thmB
 function nextTheme(){
   const i = THEMES.findIndex(x => x[0] === themeNow()), k = THEMES[(i + 1) % THEMES.length][0];
   if(k === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = k;
-  try{ if(k === "system") localStorage.removeItem("vk.theme"); else localStorage.setItem("vk.theme", k); }catch(e){}
+  try{ if(k === "system") localStorage.removeItem("vn.theme"); else localStorage.setItem("vn.theme", k); }catch(e){}
   renderTheme();
 }
 
@@ -42,7 +42,7 @@ function renderNav(){
 
 function render(){
   renderNav();
-  try{ localStorage.setItem("vk.tab", V.tab); }catch(e){}
+  try{ localStorage.setItem("vn.tab", V.tab); }catch(e){}
   $("main").innerHTML = V.tab === "lib" ? libView() : V.tab === "import" ? importView() : wishView();
   const q = $("q");
   if(q && document.activeElement !== q && V.focusQ){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
