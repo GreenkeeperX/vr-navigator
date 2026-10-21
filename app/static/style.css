@@ -58,9 +58,16 @@ nav .cnt{font-size:11px;margin-left:4px;color:var(--muted)}
 .b.go{background:var(--go-bg);color:var(--go)}
 .b.stop{background:var(--stop-bg);color:var(--stop)}
 .b.warn{background:var(--warn-bg);color:var(--warn)}
+.banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:14px}
+.banner button.link{color:inherit}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:13px;z-index:8}
+header.top .stale{color:var(--warn);font-weight:600}
+header.top #syncBtn{font-size:14px;padding:5px 12px}
+details.fold>summary{cursor:pointer}
+pre.log{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:6px}
 .item .row2.small{font-size:12px}
 .item s{color:var(--muted)}
-pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto;margin:0}
+pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto}
 .links a{margin-right:8px;font-size:13px}
 .price{font-variant-numeric:tabular-nums;color:var(--ink)}
 .gap-meta{color:var(--go)}

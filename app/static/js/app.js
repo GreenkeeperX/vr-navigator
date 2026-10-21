@@ -12,8 +12,48 @@ const when = iso => iso ? new Date(iso).toLocaleString("de-DE", {day: "2-digit",
 const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
 
 let S = null;                                   // Zustand vom Server
-const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}, showOwned: false};
-try{ V.tab = localStorage.getItem("vn.tab") || V.tab; }catch(e){}
+const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}, showOwned: false, folds: {}};
+// Ansicht je Browser (vn.view): Reiter und Klappzustände; gemerkt wird das Zuklappen
+try{
+  const v = JSON.parse(localStorage.getItem("vn.view") || "{}") || {};
+  V.tab = v.tab || localStorage.getItem("vn.tab") || V.tab;
+  V.folds = v.folds && typeof v.folds === "object" ? v.folds : {};
+}catch(e){}
+function saveView(){ try{ localStorage.setItem("vn.view", JSON.stringify({tab: V.tab, folds: V.folds})); }catch(e){} }
+
+/* ---------------------------------------------------------------- Zeiten, Hinweise, Kopieren */
+function ago(iso){
+  if(!iso) return "noch nie";
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+  if(min < 2) return "gerade eben";
+  if(min < 90) return `vor ${min} Min.`;
+  if(min < 48 * 60) return `vor ${Math.round(min / 60)} Std.`;
+  return `vor ${Math.round(min / 1440)} Tagen`;
+}
+const clock = d => d.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+function whenDay(d){   // „morgen “ oder „23.10. “ vor einer Uhrzeit, die nicht mehr heute ist
+  const dd = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const n = Math.round((dd(d) - dd(new Date())) / 86400000);
+  return n <= 0 ? "" : n === 1 ? "morgen " : d.toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) + " ";
+}
+function toast(msg){
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+/* Sofort kopieren, noch im Klick: execCommand arbeitet synchron, navigator.clipboard nur als Rückfall */
+function copyNow(text){
+  const t = document.createElement("textarea");
+  t.value = text; t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  document.body.appendChild(t); t.focus(); t.select();
+  let ok = false;
+  try{ ok = document.execCommand("copy"); }catch(e){}
+  t.remove();
+  if(!ok) try{ navigator.clipboard.writeText(text); }catch(e){}
+  toast("Kopiert");
+}
 
 async function api(path, body){
   const opt = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
@@ -43,14 +83,46 @@ function renderNav(){
     ["sync", "Abrufe", syncCnt], ["import", "Import", sug ? `${sug} prüfen` : ""]];
   $("nav").innerHTML = tabs.map(([k, l, n]) =>
     `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${n !== "" ? `<span class="cnt">${esc(n)}</span>` : ""}</button>`).join("");
-  $("meta").textContent = `${c.all} Titel · Meta ${c.meta} · PC ${c.pc} · auf beiden ${c.both} · Version ${S.version}`;
+  renderHead();
+}
+/* Kopfzeile: während eines Laufs Schritt und Fortschritt, sonst Stand und nächster Abgleich */
+function renderHead(){
+  const sy = S.sync || {}, se = S.settings || {}, hours = se.hours || 6, m = $("meta");
+  if(sy.running){
+    m.textContent = `${sy.step || "Abgleich"}${sy.total ? ` (${sy.done}/${sy.total})` : ""} …`;
+  } else {
+    const last = sy.started ? new Date(sy.started) : null;
+    const stale = last && Date.now() - last > 2 * hours * 3600000;
+    const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
+    m.innerHTML = `<span class="${stale ? "stale" : ""}" title="${last ? esc(last.toLocaleString("de-DE")) : ""}">Stand ${ago(sy.started)}</span>` +
+      (next ? ` · nächster Abgleich ${next < new Date() ? "in Kürze" : "ca. " + whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : "") +
+      ` · ${S.counts.all} Titel · v${esc(S.version)}`;
+  }
+  $("syncBtn").disabled = !!sy.running;
+}
+/* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals"};
+function banners(){
+  const sy = S.sync || {}, out = [];
+  const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
+  if(sy.running) return "";
+  if(!sy.started) return `<div class="banner">Noch kein Abgleich. Der erste Lauf holt die Preise deiner Wunschtitel und dauert einige Minuten.
+    <button class="link" data-act="sync">Jetzt abrufen</button></div>`;
+  const src = sy.sources || {};
+  const resting = Object.entries(src).filter(([, x]) => x.until && new Date(x.until) > new Date());
+  if(resting.length) out.push(`${resting.map(([k, x]) => `${SRC_NAME[k] || k} ruht nach einer Sperre bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}`).join(", ")}. Bis dahin gelten die zuletzt gelesenen Preise.`);
+  if((sy.warnings || []).length) out.push(`Selbstprüfung nach dem letzten Abgleich: ${sy.warnings.map(esc).join(" · ")}.`);
+  const failed = Object.entries(src).filter(([k, x]) => !x.ok && !x.until);
+  if(failed.length) out.push(`Letzter Abgleich mit Fehlern: ${failed.map(([k, x]) => `${SRC_NAME[k] || k} (${esc(x.msg || "Fehler")})`).join(", ")}.`);
+  return out.map(t => `<div class="banner">${t} ${logLink}</div>`).join("");
 }
 
 function render(){
   renderNav();
-  try{ localStorage.setItem("vn.tab", V.tab); }catch(e){}
-  $("main").innerHTML = V.tab === "lib" ? libView() : V.tab === "import" ? importView() : V.tab === "now" ? nowView()
-    : V.tab === "sync" ? syncView() : wishView();
+  saveView();
+  $("main").innerHTML = V.tab === "lib" ? banners() + libView() : V.tab === "import" ? importView() : V.tab === "now" ? banners() + nowView()
+    : V.tab === "sync" ? syncView() : banners() + wishView();
+  showLog();
   const q = $("q");
   if(q && document.activeElement !== q && V.focusQ){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 }
@@ -145,28 +217,57 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"]];
+function srcState(k, x){
+  if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
+  const rest = x.until && new Date(x.until) > new Date();
+  const tag = x.ok ? `<span class="b go">ok</span>` : rest ? `<span class="b warn" title="${esc(x.msg || "")}">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>`
+    : `<span class="b stop">${esc(x.msg || "Fehler")}</span>`;
+  return `${tag} <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>`;
+}
 function syncView(){
   const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {};
-  const rows = SOURCES.map(([k, l]) => {
-    const x = src[k], t = V.test?.[k];
-    return `<div class="item"><span class="nm">${l}</span>
-      ${x ? `<span class="b ${x.ok ? "go" : "stop"}">${x.ok ? "ok" : esc(x.msg || "Fehler")}</span> <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>` : `<span class="hint">${k === "gg" && !se.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`}
-      <button data-act="test" data-v="${k}">Verbindung testen</button>
-      ${t ? `<div class="row2"><span class="${t.ok ? "ok" : "err"}">${esc(t.msg)}</span></div>` : ""}</div>`;
-  }).join("");
-  return `<div class="card"><h2>Abgleich</h2>
-    <p class="hint">Holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen.</p>
+  const rows = SOURCES.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
+  return banners() + `<div class="card"><h2>Abgleich</h2>
+    <p class="hint">Holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     <div class="bar"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
-      <span class="hint">Zuletzt: ${when(sy.started) || "nie"}${sy.done ? `, fertig ${when(sy.done)}` : ""}</span></div>
-    <div class="list">${rows}</div></div>
+      <span class="hint">Zuletzt: ${when(sy.started) || "nie"}${sy.finished ? `, fertig ${when(sy.finished)}` : ""}</span></div>
+    <div class="list">${rows}</div>
+    <p class="hint" style="margin-top:10px"><button class="link" data-act="diag" ${V.diagRunning ? "disabled" : ""}>${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button>
+      ${V.diag ? ` · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>` : ""}
+      <span class="hint">fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts</span></p>
+    ${V.diag ? `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>` : ""}</div>
     <div class="card"><h2>Einstellungen</h2><form data-form="settings" class="form">
       <span class="full"><label><input type="checkbox" name="auto" ${se.auto ? "checked" : ""}> automatisch abrufen</label></span>
       <label for="s-h">alle … Stunden</label><input type="number" id="s-h" name="hours" min="2" max="48" value="${esc(se.hours)}">
       <label for="s-gg">gg.deals-Schlüssel</label><input type="password" id="s-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? "gespeichert" + (se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : "") + ", leer lassen zum Behalten" : "kostenlos auf gg.deals unter Einstellungen, API"}">
       ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> Schlüssel löschen</label></span>` : ""}
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="s-err"></span></span></form>
-      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung und geht nie an den Browser zurück.</p></div>
-    ${sy.log?.length ? `<div class="card"><h2>Protokoll des letzten Laufs</h2><pre class="log">${esc(sy.log.join("\n"))}</pre></div>` : ""}`;
+      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p></div>
+    <div class="card" id="logcard"><h2>Protokoll</h2>
+      <p class="hint">Protokoll des letzten Abgleichs · <button class="link" data-act="copy" data-v="log">kopieren</button></p>
+      <details class="fold" data-kc="logbox" ${V.folds.logbox ? "" : "open"}><summary class="hint">Protokoll anzeigen</summary>
+      <pre class="log" id="log"></pre></details></div>`;
+}
+/* Protokoll: Zeiten kommen in UTC, gezeigt in der Zeit des Browsers; die Box folgt der neuesten
+   Zeile, solange du nicht hochgescrollt hast */
+function localStamp(line){
+  const m = /^(\d\d):(\d\d):(\d\d)( .*)$/s.exec(line);
+  if(!m) return line;
+  const d = new Date(); d.setUTCHours(+m[1], +m[2], +m[3], 0);
+  return d.toLocaleTimeString("de-DE") + m[4];
+}
+function logText(){
+  const sy = S.sync || {};
+  if(!(sy.log || []).length) return "Noch kein Protokoll.";
+  const head = `Abgleich vom ${new Date(sy.started).toLocaleString("de-DE")}, v${S.version}${sy.running ? ", läuft" : sy.ok === false ? ", mit Fehlern" : ""}\n`;
+  return head + sy.log.map(localStamp).join("\n");
+}
+function showLog(){
+  const l = $("log");
+  if(!l) return;
+  const atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 30;
+  l.textContent = logText();
+  if(atEnd || !l.dataset.seen){ l.scrollTop = l.scrollHeight; l.dataset.seen = "1"; }
 }
 
 /* ---------------------------------------------------------------- Bibliothek */
@@ -255,17 +356,37 @@ function openEdit(key){
 /* ---------------------------------------------------------------- Ereignisse */
 let poll = null;
 function watchSync(){
-  // Läuft ein Abgleich, alle 5 Sekunden den Stand holen, bis er fertig ist
-  if(S?.sync?.running && !poll) poll = setInterval(async () => {
-    try{ S = await api("/api/state"); }catch(e){ return; }
-    if(!S.sync.running){ clearInterval(poll); poll = null; }
-    if(!document.querySelector("dialog[open]") && document.activeElement?.tagName !== "INPUT") render();
-  }, 5000);
+  // Läuft ein Abgleich, alle 2 Sekunden Schritt und Protokoll holen; am Ende alles neu laden
+  if(!S?.sync?.running || poll) return;
+  poll = setInterval(async () => {
+    let st;
+    try{ st = await api("/api/status"); }catch(e){ return; }
+    S.sync = st;
+    if(!st.running){
+      clearInterval(poll); poll = null;
+      await load();
+      toast(st.ok === false ? "Abgleich mit Fehlern beendet" : "Abgleich fertig");
+      return;
+    }
+    renderNav(); showLog();
+  }, 2000);
 }
 async function load(){
-  try{ S = await api("/api/state"); render(); watchSync(); }
-  catch(e){ $("main").innerHTML = `<p class="err">Server nicht erreichbar: ${esc(e.message)}</p>`; }
+  try{ S = await api("/api/state"); }
+  catch(e){ $("main").innerHTML = `<p class="err">Server nicht erreichbar: ${esc(e.message)}</p>`; return; }
+  if(!document.querySelector("dialog[open]")) render();
+  watchSync();
 }
+/* Offene Seite hält sich selbst aktuell: jede Minute den Stand prüfen */
+setInterval(async () => {
+  if(!S || poll || document.hidden) return;
+  try{
+    const st = await api("/api/status");
+    if(st.running){ S.sync = st; renderNav(); watchSync(); }
+    else if(st.finished !== (S.sync || {}).finished && !document.activeElement?.matches("input,textarea,select")) await load();
+    else renderHead();
+  }catch(e){}
+}, 60000);
 async function act(path, body, errEl){
   try{ S = await api(path, body); render(); return true; }
   catch(e){ if(errEl) errEl.textContent = e.message; else alert(e.message); return false; }
@@ -287,11 +408,16 @@ document.addEventListener("click", async ev => {
     if(confirm("Titel samt Notiz löschen?") && await act("/api/title/delete", {key: el.dataset.k})) $("edit").close();
   }
   else if(a === "sync"){ if(await act("/api/sync", {})) watchSync(); }
-  else if(a === "test"){
-    el.disabled = true; el.textContent = "prüft …";
-    try{ V.test = Object.assign(V.test || {}, {[v]: await api("/api/test", {source: v})}); }
-    catch(e){ V.test = Object.assign(V.test || {}, {[v]: {ok: false, msg: e.message}}); }
-    render();
+  else if(a === "diag"){
+    V.diagRunning = true; render();
+    try{ V.diag = (await api("/api/diag", {})).lines; }
+    catch(e){ V.diag = ["Test fehlgeschlagen: " + e.message]; }
+    V.diagRunning = false; render();
+  }
+  else if(a === "copy") copyNow(v === "diag" ? (V.diag || []).join("\n") : logText());
+  else if(a === "showlog"){
+    V.tab = "sync"; V.folds.logbox = false; render();
+    $("logcard")?.scrollIntoView({block: "start"});
   }
   else if(a === "merge") act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b});
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
@@ -341,7 +467,7 @@ document.addEventListener("submit", async ev => {
     const body = {auto: f.auto.checked, hours: Number(f.hours.value)};
     if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();
     if(f.gg_clear?.checked) body.gg_key = "";
-    if(await act("/api/settings", body, $("s-err"))) V.test = {};
+    if(await act("/api/settings", body, $("s-err"))) toast("Gespeichert");
   }
   if(kind === "edit"){
     ev.preventDefault();
@@ -352,6 +478,14 @@ document.addEventListener("submit", async ev => {
     if(ok) $("edit").close();
   }
 });
+
+// Klappzustände merken: gemerkt wird das Zuklappen (offen ist die Vorgabe)
+document.addEventListener("toggle", ev => {
+  const k = ev.target.dataset?.kc;
+  if(!k) return;
+  if(ev.target.open) delete V.folds[k]; else V.folds[k] = true;
+  saveView();
+}, true);
 
 renderTheme();
 load();

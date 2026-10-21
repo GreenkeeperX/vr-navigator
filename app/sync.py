@@ -10,7 +10,12 @@ Ablauf eines Laufs (Einzelheiten in docs/abrufe.md):
 
 Die Abrufe laufen ohne Sperre auf data.json; erst das Ergebnis wird unter der Sperre in die
 aktuelle Fassung eingetragen. Zwischen zwei Abrufen derselben Quelle liegt PAUSE. Antwortet
-eine Quelle mit 403 oder 429, endet sie für diesen Lauf.
+eine Quelle mit 403 oder 429 oder einer Prüfseite, endet sie für diesen Lauf und ruht danach
+REST_H Stunden, auch über Läufe hinweg. Nach einem kurzen Netzfehler gibt es einen zweiten
+Versuch.
+
+Das Protokoll entsteht live (STATE), die Oberfläche liest es während des Laufs; am Ende landet
+es mit dem Ergebnis je Quelle und der Selbstprüfung in sync.json.
 """
 import sys
 import threading
@@ -27,6 +32,12 @@ MAX_PAGES = 60
 MAX_SEARCH = 30
 MAX_ERRORS = 5
 MISS_DAYS = 7               # nicht gefundene Titel erst nach so vielen Tagen erneut suchen
+REST_H = 24                 # Ruhezeit einer Quelle nach Sperre oder Prüfseite
+NET_RETRY = 5.0             # Pause vor dem zweiten Versuch nach einem Netzfehler
+BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger her ist
+LOG_LINES = 200
+JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
+NAMES = {"qsdb": "QuestStoreDB", "steam": "Steam", "gg": "gg.deals"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
 GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
@@ -35,6 +46,8 @@ SETTINGS = {"gg_key": "", "auto": True, "hours": 6}
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
 _running = threading.Lock()
+# Stand des laufenden Abgleichs, live für die Oberfläche
+STATE = {"started": "", "step": "", "done": 0, "total": 0, "log": []}
 
 
 def now():
@@ -63,32 +76,62 @@ def save_settings(body):
 
 
 def status():
+    """Letzter Lauf aus sync.json; läuft gerade einer, mit Schritt und Protokoll live."""
     st = store.load_json("sync.json", {})
     st["running"] = _running.locked()
+    if st["running"]:
+        st.update(started=STATE["started"], step=STATE["step"], done=STATE["done"],
+                  total=STATE["total"], log=list(STATE["log"]))
     return st
 
 
-def due(settings=None, at=None):
-    """Ist ein Lauf nach Zeitplan fällig?"""
+def _iso(at):
+    return at.isoformat(timespec="seconds")
+
+
+def _ago(iso, at):
+    try:
+        return at - datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return None
+
+
+def due(settings=None, at=None, boot=False):
+    """Ist ein Lauf nach Zeitplan fällig? boot: erster Blick nach dem Start des Containers;
+    dann gleich ein Lauf (etwa mit neuen Lesern nach einem Update), außer der letzte liegt
+    weniger als BOOT_GAP_MIN zurück. Nach einem Fehlschlag wartet auch der Start so lange."""
     s = settings or load_settings()
     if not s["auto"]:
         return False
-    last = store.load_json("sync.json", {}).get("started") or ""
-    if not last:
+    last = store.load_json("sync.json", {})
+    at = at or now()
+    since = _ago(last.get("started"), at)
+    if since is None:
         return True
-    try:
-        return (at or now()) - datetime.fromisoformat(last) >= timedelta(hours=s["hours"])
-    except ValueError:
-        return True
+    gap = timedelta(minutes=BOOT_GAP_MIN)
+    if last.get("ok") is False and since < gap:
+        return False
+    return since >= (gap if boot else timedelta(hours=s["hours"]))
+
+
+def progress(step, done=0, total=0):
+    STATE.update(step=step, done=done, total=total)
 
 
 class _Source:
-    """Eine Quelle in einem Lauf: Pausen, Fehlerzähler, Ende bei Sperre."""
+    """Eine Quelle in einem Lauf: Pausen, Fehlerzähler, zweiter Versuch nach Netzfehler, Ende
+    bei Sperre oder Prüfseite (blocked: die Quelle ruht danach)."""
 
     def __init__(self, name, log, headers=None):
         self.name, self.log, self.headers = name, log, headers
         self.n = self.errors = 0
         self.stopped = ""
+        self.blocked = False
+        self.stats = {}
+
+    def _stop(self, why, where):
+        self.stopped, self.blocked = why, True
+        self.log(f"{self.name}: {why} bei {where}, Quelle ruht {REST_H} Stunden")
 
     def get(self, url, shown=None):
         if self.stopped:
@@ -96,24 +139,34 @@ class _Source:
         if self.n:
             sleep(PAUSE)
         self.n += 1
-        try:
-            return sources.fetch(url, headers=self.headers)
-        except sources.FetchError as e:
-            where = shown or url
-            if e.status in sources.BLOCKED:
-                self.stopped = f"gesperrt ({e.status})"
-                self.log(f"{self.name}: {e.status} bei {where}, Quelle für diesen Lauf beendet")
-            else:
-                self.errors += 1
-                self.log(f"{self.name}: Fehler {e.status or ''} bei {where}".replace("  ", " "))
-                if self.errors >= MAX_ERRORS:
-                    self.stopped = f"{self.errors} Fehler"
-                    self.log(f"{self.name}: zu viele Fehler, Quelle für diesen Lauf beendet")
+        where = shown or url
+        for attempt in (1, 2):
+            try:
+                text = sources.fetch(url, headers=self.headers)
+                break
+            except sources.FetchError as e:
+                if e.status == 0 and attempt == 1:
+                    self.log(f"{self.name}: keine Verbindung bei {where}, zweiter Versuch")
+                    sleep(NET_RETRY)
+                    continue
+                if e.status in sources.BLOCKED:
+                    self._stop(f"gesperrt (HTTP {e.status})", where)
+                else:
+                    self.errors += 1
+                    self.log(f"{self.name}: {'HTTP ' + str(e.status) if e.status else 'keine Verbindung'} bei {where}")
+                    if self.errors >= MAX_ERRORS:
+                        self.stopped = f"{self.errors} Fehler"
+                        self.log(f"{self.name}: zu viele Fehler, Quelle für diesen Lauf beendet")
+                return None
+        why = sources.challenge(text)
+        if why:
+            self._stop(why, where)
             return None
+        return text
 
     def result(self):
         return {"at": titles.now_iso(), "requests": self.n, "errors": self.errors,
-                "ok": not self.stopped, "msg": self.stopped}
+                "ok": not self.stopped, "msg": self.stopped, "blocked": self.blocked, **self.stats}
 
 
 def _targets(data):
@@ -142,6 +195,7 @@ def _qsdb(targets, upd, log):
     # 1. Angebotsliste
     sale, pages, page = {}, 1, 1
     while page <= min(pages, MAX_SALE_PAGES):
+        progress("QuestStoreDB: Angebotsliste", page, min(pages, MAX_SALE_PAGES))
         text = src.get(f"{prices.QSDB}/on_sale/?sort=-sale_start_time&page={page}")
         if text is None:
             break
@@ -160,10 +214,12 @@ def _qsdb(targets, upd, log):
     old = (now() - timedelta(hours=PAGE_AGE_H)).isoformat(timespec="seconds")
     todo = sorted((((t.get("live") or {}).get("meta") or {}).get("page_at") or "", k)
                   for k, t in targets.items())
-    searches = pages_done = 0
+    searches = pages_done = parsed = 0
+    due_n = min(MAX_PAGES, sum(p <= old for p, _ in todo))
     for page_at, k in todo:
         if page_at > old or pages_done >= MAX_PAGES or src.stopped:
             continue
+        progress("QuestStoreDB: Titelseiten", pages_done, due_n)
         t = targets[k]
         path = ((t.get("live") or {}).get("meta") or {}).get("path") or ""
         link = (t.get("links") or {}).get("qsdb") or ""
@@ -185,7 +241,10 @@ def _qsdb(targets, upd, log):
         pages_done += 1
         g = prices.qsdb_game(text) if text else None
         if not g:
+            if text is not None:
+                log(f"QuestStoreDB: kein Preis lesbar auf {path}")
             continue
+        parsed += 1
         u = upd.setdefault(k, {})
         today = now().strftime("%Y-%m-%d")
         on_sale = g["price"] is not None and g["base"] and g["price"] < g["base"]
@@ -199,7 +258,8 @@ def _qsdb(targets, upd, log):
         if g["meta_id"]:
             u["meta_id"] = g["meta_id"]
         u["qsdb"] = prices.QSDB + (g["path"] or path)
-    log(f"QuestStoreDB: {len(sale)} Angebote, {pages_done} Titelseiten, {searches} Suchen")
+    log(f"QuestStoreDB: {len(sale)} Angebote, {pages_done} Titelseiten ({parsed} lesbar), {searches} Suchen")
+    src.stats = {"sale": len(sale), "pages": pages_done, "parsed": parsed, "searches": searches}
     return src.result()
 
 
@@ -215,6 +275,7 @@ def _steam(targets, upd, log):
         if searches >= MAX_SEARCH or src.stopped or _missed(t, "steam_miss"):
             continue
         searches += 1
+        progress("Steam: Suche", searches, 0)
         q = urllib.parse.urlencode({"term": t["name"], "l": "german", "cc": "DE"})
         text = src.get(f"{STEAM}/api/storesearch/?{q}")
         same = [i for i in prices.steam_search(text or "") if titles.norm(i["name"]) == titles.norm(t["name"])]
@@ -227,6 +288,7 @@ def _steam(targets, upd, log):
     found = 0
     for i in range(0, len(keys), 50):
         chunk = keys[i:i + 50]
+        progress("Steam: Preise", i // 50 + 1, (len(keys) + 49) // 50)
         q = ",".join(dict.fromkeys(ids[k] for k in chunk))
         text = src.get(f"{STEAM}/api/appdetails?appids={q}&cc=de&filters=price_overview")
         if text is None:
@@ -237,7 +299,8 @@ def _steam(targets, upd, log):
             if p:
                 found += 1
                 upd.setdefault(k, {})["steam"] = dict(p, at=stamp)
-    log(f"Steam: {found} Preise, {searches} Suchen")
+    log(f"Steam: {found} Preise für {len(keys)} App-IDs, {searches} Suchen")
+    src.stats = {"ids": len(keys), "found": found, "searches": searches}
     return src.result()
 
 
@@ -252,6 +315,7 @@ def _gg(targets, upd, key, log):
     apps = list(ids)
     found = 0
     for i in range(0, len(apps), 100):
+        progress("gg.deals: Preise", i // 100 + 1, (len(apps) + 99) // 100)
         q = urllib.parse.urlencode({"ids": ",".join(apps[i:i + 100]), "region": "de"})
         # Der Schlüssel steht nur in der Anfrage, nie im Protokoll
         text = src.get(f"{GG_API}?{q}&key={urllib.parse.quote(key)}", shown=f"{GG_API}?{q}")
@@ -267,7 +331,8 @@ def _gg(targets, upd, key, log):
             for k in ids.get(a, []):
                 found += 1
                 upd.setdefault(k, {})["gg"] = dict(p, at=stamp)
-    log(f"gg.deals: {found} Preise")
+    log(f"gg.deals: {found} Preise für {len(apps)} App-IDs")
+    src.stats = {"ids": len(apps), "found": found}
     return src.result()
 
 
@@ -283,6 +348,7 @@ def apply(upd):
     """Ergebnis eines Laufs in die aktuelle data.json eintragen und den Verlauf fortschreiben.
     Titel, die es inzwischen nicht mehr gibt, fallen weg."""
     day = now().strftime("%Y-%m-%d")
+    jumps = 0
     with store.lock:
         data = store.load_data()
         hist = store.load_json("history.json", {})
@@ -294,6 +360,9 @@ def apply(upd):
             for src in ("meta", "steam", "gg"):
                 if src in u:
                     v = dict(u[src])
+                    old = (live.get(src) or {}).get("base")
+                    if old and v.get("base") is not None and abs(v["base"] - old) > JUMP * old:
+                        jumps += 1
                     if src == "meta":
                         prev = live.get("meta") or {}
                         for f in ("low", "low_at", "rating", "ratings", "version", "path", "page_at"):
@@ -324,42 +393,86 @@ def apply(upd):
             _history(hist, "gg", t.get("steam_appid"), best, day)
         store.save_data(data)
         store.save_json("history.json", hist)
+    return {"jumps": jumps}
 
 
-def run(only=None):
+def self_check(results, prev, applied):
+    """Ergebnisse glaubhaft? Meldet, statt still weiterzurechnen: leere Listen, wo sonst etwas
+    stand, Seiten ohne lesbaren Preis, Normalpreise mit großen Sprüngen."""
+    w = []
+    q, pq = results.get("qsdb") or {}, prev.get("qsdb") or {}
+    if q.get("ok") and q.get("sale") == 0 and (pq.get("sale") or 0) > 0:
+        w.append(f"QuestStoreDB: keine Angebote erkannt (zuletzt {pq['sale']}), hat sich die Seite geändert?")
+    if q.get("pages") and not q.get("parsed"):
+        w.append(f"QuestStoreDB: auf {q['pages']} Titelseiten kein Preis lesbar")
+    for k in ("steam", "gg"):
+        r = results.get(k) or {}
+        if r.get("ok") and r.get("ids") and not r.get("found"):
+            w.append(f"{NAMES[k]}: kein Preis für {r['ids']} App-IDs")
+    if applied.get("jumps"):
+        w.append(f"{applied['jumps']} Normalpreise änderten sich um mehr als {round(JUMP * 100)} %")
+    return w
+
+
+def run(only=None, boot=False):
     """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. Läuft schon einer,
     kommt False zurück."""
     if not _running.acquire(blocking=False):
         return False
     try:
-        st = {"started": now().isoformat(timespec="seconds"), "log": [], "sources": status().get("sources") or {}}
+        prev = store.load_json("sync.json", {})
+        st = {"started": _iso(now()), "log": [], "sources": dict(prev.get("sources") or {}),
+              "rest": {k: v for k, v in (prev.get("rest") or {}).items() if v > _iso(now())}}
+        STATE.update(started=st["started"], step="Start", done=0, total=0, log=st["log"])
 
         def log(msg):
-            st["log"].append(f"{datetime.now().strftime('%H:%M:%S')} {msg}")
+            # Zeit in UTC, die Oberfläche zeigt sie in der Zeit des Browsers
+            st["log"].append(f"{now().strftime('%H:%M:%S')} {msg}")
+            del st["log"][:-LOG_LINES]
             print(msg, flush=True)
 
         settings = load_settings()
         targets = _targets(store.load_data())
-        log(f"Abgleich für {len(targets)} Wunschtitel")
-        upd = {}
+        log(f"VR-Navigator {sources.VERSION}, Abgleich für {len(targets)} Wunschtitel"
+            + (" (nach dem Start)" if boot else ""))
+        upd, results = {}, {}
         steps = [("qsdb", _qsdb), ("steam", _steam)]
         if settings["gg_key"]:
             steps.append(("gg", lambda t, u, lg: _gg(t, u, settings["gg_key"], lg)))
+        else:
+            log("gg.deals: kein Schlüssel eingetragen, nicht abgefragt")
         for name, step in steps:
             if only and name not in only:
                 continue
+            if st["rest"].get(name):
+                until = datetime.fromisoformat(st["rest"][name])
+                log(f"{NAMES[name]}: ruht nach einer Sperre bis {until.strftime('%d.%m. %H:%M')} UTC, nicht abgefragt")
+                results[name] = {"at": titles.now_iso(), "ok": False, "msg": "ruht", "until": st["rest"][name],
+                                 "requests": 0, "errors": 0}
+                continue
+            progress(NAMES[name])
             try:
-                st["sources"][name] = step(targets, upd, log)
+                results[name] = step(targets, upd, log)
             except Exception as e:          # ein Fehler im Lesen soll die anderen Quellen nicht aufhalten
-                log(f"{name}: unerwarteter Fehler ({type(e).__name__})")
+                log(f"{NAMES[name]}: unerwarteter Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers")
                 print(f"Fehler beim Abgleich {name}:", e, file=sys.stderr)
-                st["sources"][name] = {"at": titles.now_iso(), "ok": False, "msg": type(e).__name__}
-        apply(upd)
-        st["done"] = now().isoformat(timespec="seconds")
-        log(f"fertig, {len(upd)} Titel aktualisiert")
+                results[name] = {"at": titles.now_iso(), "ok": False, "msg": type(e).__name__}
+            if results[name].get("blocked"):
+                st["rest"][name] = _iso(now() + timedelta(hours=REST_H))
+                results[name]["until"] = st["rest"][name]
+        progress("Speichern")
+        applied = apply(upd)
+        st["sources"].update(results)
+        st["warnings"] = self_check(results, prev.get("sources") or {}, applied)
+        for w in st["warnings"]:
+            log("Selbstprüfung: " + w)
+        st["ok"] = all(r.get("ok") for r in results.values())
+        st["finished"] = st["done"] = _iso(now())
+        log(f"fertig, {len(upd)} Titel aktualisiert" + ("" if st["ok"] else ", mit Fehlern"))
         store.save_json("sync.json", st)
         return True
     finally:
+        STATE.update(step="", done=0, total=0)
         _running.release()
 
 
@@ -373,47 +486,114 @@ def start(only=None):
 
 def scheduler():
     """Prüft jede Minute, ob ein Lauf nach Zeitplan fällig ist. Erster Blick zwei Minuten nach
-    dem Start, damit ein Neustart des Containers nicht sofort abruft."""
+    dem Start: dann ein Lauf, wenn der letzte über BOOT_GAP_MIN zurückliegt (siehe due)."""
     time.sleep(120)
+    boot = True
     while True:
         try:
-            if due() and not _running.locked():
-                run()
+            if due(boot=boot) and not _running.locked():
+                run(boot=boot)
         except Exception as e:
             print("Zeitplan:", e, file=sys.stderr)
+        boot = False
         time.sleep(60)
 
 
-TESTS = {
-    "qsdb": f"{prices.QSDB}/on_sale/?sort=-sale_start_time",
-    "steam": f"{STEAM}/api/appdetails?appids=10&cc=de&filters=price_overview",
-}
+def diagnose():
+    """Verbindung testen: jede Quelle einmal abfragen und beschreiben, was zurückkommt (Status,
+    Server, Kodierung, was die Leser erkennen). Nimmt, wo es geht, einen Titel deiner
+    Wunschliste. Speichert nichts; der gg.deals-Schlüssel erscheint nie im Ergebnis."""
+    data = store.load_data()
+    key = load_settings()["gg_key"]
+    targets = list(_targets(data).values())
+    lines = [f"VR-Navigator {sources.VERSION}, Test vom {now().strftime('%d.%m.%Y %H:%M')} UTC"]
+    hosts = set()
 
+    def probe(name, url, info, headers=None, shown=None):
+        host = urllib.parse.urlsplit(url).hostname
+        if host in hosts:
+            sleep(PAUSE)
+        hosts.add(host)
+        r = sources.request(url, headers=headers)
+        if r["error"]:
+            lines.append(f"{name}: keine Verbindung ({r['error']})")
+            return None
+        head = f"{name}: HTTP {r['status']}, Server {r['server'] or '?'}, Kodierung {r['enc'] or 'keine'}, {len(r['text'])} Zeichen"
+        why = sources.challenge(r["text"])
+        if why or r["status"] >= 400:
+            lines.append(head + (f", {why}" if why else "") + (", gesperrt" if r["status"] in sources.BLOCKED else "")
+                         + f". Anfang: {' '.join(r['text'][:160].split())}")
+            return None
+        try:
+            lines.append(f"{head}, {info(r['text'])}")
+        except Exception as e:     # ein Lesefehler soll nicht den ganzen Test abbrechen
+            lines.append(f"{head}, nicht auswertbar ({type(e).__name__}: {e})")
+        return r["text"]
 
-def test(source):
-    """Verbindung prüfen: ein Abruf, Ergebnis als Text."""
-    if source == "gg":
-        key = load_settings()["gg_key"]
-        if not key:
-            return {"ok": False, "msg": "Kein Schlüssel eingetragen"}
-        url = f"{GG_API}?ids=10&region=de&key={urllib.parse.quote(key)}"
-    elif source in TESTS:
-        url = TESTS[source]
+    def sale_info(text):
+        cards = prices.qsdb_cards(text)
+        return f"{len(cards)} Angebote erkannt, {prices.qsdb_pages(text)} Seiten" + (
+            f", erstes: {cards[0]['name']} {cards[0]['price']} € statt {cards[0]['base']} €" if cards else "")
+    sale = probe("QuestStoreDB, Angebotsliste", f"{prices.QSDB}/on_sale/?sort=-sale_start_time", sale_info, QSDB_HEAD)
+
+    t = next((t for t in targets if t.get("meta_id") or (t.get("links") or {}).get("qsdb")), targets[0] if targets else None)
+    name = t["name"] if t else "vr"
+    hit = {}
+
+    def search_info(text):
+        cards = prices.qsdb_cards(text)
+        h = _pick(cards, t) if t else (cards[0] if cards else None)
+        if h:
+            hit.update(h)
+        return f"{len(cards)} Treffer für „{name}“" + (f", passend: {h['name']} (Meta-ID {h['meta_id']})" if h else ", keiner passt eindeutig")
+    q = urllib.parse.urlencode({"release_status": "all", "q": name})
+    probe("QuestStoreDB, Suche", f"{prices.QSDB}/all_apps/?{q}", search_info, QSDB_HEAD)
+
+    path = ((t or {}).get("live") or {}).get("meta", {}).get("path") or hit.get("path") or ""
+    link = ((t or {}).get("links") or {}).get("qsdb") or ""
+    if not path and link.startswith(prices.QSDB + "/"):
+        path = link[len(prices.QSDB):]
+    if not path and sale:
+        path = next((c["path"] for c in prices.qsdb_cards(sale)), "")
+
+    def game_info(text):
+        g = prices.qsdb_game(text)
+        if not g:
+            return "kein Preis lesbar (strukturierte Daten fehlen)"
+        return (f"„{g['name']}“, Preis {g['price']} €, Normalpreis {g['base']} €"
+                + (f" bis {g['until']}" if g["until"] and g["price"] != g["base"] else "")
+                + (f", Tief {g['low']} € am {g['low_at']}" if g["low"] is not None else ", ohne Preisverlauf")
+                + (f", Version {g['version']}" if g["version"] else ""))
+    if path:
+        probe("QuestStoreDB, Titelseite", prices.QSDB + path, game_info, QSDB_HEAD)
     else:
-        raise ValueError("unbekannte Quelle")
-    r = sources.request(url, headers=QSDB_HEAD if source == "qsdb" else None)
-    if r["error"]:
-        return {"ok": False, "msg": r["error"].replace(key, "…") if source == "gg" else r["error"]}
-    if r["status"] >= 400:
-        return {"ok": False, "msg": f"HTTP {r['status']}" + (" (gesperrt oder Prüfseite)" if r["status"] in sources.BLOCKED else "")}
-    if source == "qsdb":
-        n = len(prices.qsdb_cards(r["text"]))
-        return {"ok": n > 0, "msg": f"{n} Angebote auf Seite 1" if n else "Seite geladen, aber keine Angebote erkannt"}
-    if source == "steam":
-        n = len(prices.steam_prices(r["text"]))
-        return {"ok": n > 0, "msg": "Preis gelesen" if n else "Antwort nicht erkannt"}
-    try:
-        prices.gg_prices(r["text"])
-        return {"ok": True, "msg": "Schlüssel angenommen"}
-    except ValueError as e:
-        return {"ok": False, "msg": str(e)}
+        lines.append("QuestStoreDB, Titelseite: kein Pfad bekannt, nicht angefragt")
+
+    st = next((t for t in targets if t.get("steam_appid")), None)
+    appid = st["steam_appid"] if st else "10"
+
+    def steam_info(text):
+        p = prices.steam_prices(text).get(appid)
+        return (f"App {appid}: {p['price']} € statt {p['base']} €, −{p['discount']} %" if p and p["discount"]
+                else f"App {appid}: {p['price']} €" if p and p["price"] else f"App {appid}: kostenlos oder ohne Preis" if p else f"App {appid}: kein Preis im deutschen Store")
+    probe("Steam, Preise", f"{STEAM}/api/appdetails?appids={appid}&cc=de&filters=price_overview", steam_info)
+    sname = (st or t or {}).get("name") or "vr"
+    probe("Steam, Suche", f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": sname, "l": "german", "cc": "DE"}),
+          lambda text: f"{len(prices.steam_search(text))} Treffer für „{sname}“")
+
+    if not key:
+        lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")
+    else:
+        def gg_info(text):
+            try:
+                got = prices.gg_prices(text)
+            except ValueError as e:
+                return f"{e}. Anfang: {' '.join(text[:200].split())}"
+            p = got.get(appid)
+            return ("Schlüssel angenommen, " + (f"App {appid}: Händler {p['retail']} €, Keyshops {p['keyshops']} €" if p
+                    else f"für App {appid} kein Eintrag") + f". Anfang: {' '.join(text[:200].split())}")
+        q = urllib.parse.urlencode({"ids": appid, "region": "de"})
+        probe("gg.deals, Preise", f"{GG_API}?{q}&key={urllib.parse.quote(key)}", gg_info, shown=f"{GG_API}?{q}")
+    if key:
+        lines = [x.replace(key, "…").replace(urllib.parse.quote(key), "…") for x in lines]
+    return lines

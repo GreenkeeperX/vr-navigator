@@ -278,7 +278,6 @@ class TestServer(unittest.TestCase):
         code, raw = self.call("/api/export")
         self.assertNotIn("geheim", raw.decode())
         self.assertEqual(self.call("/api/settings", {"hours": "viele"})[0], 400)
-        self.assertEqual(self.call("/api/test", {"source": "nope"})[0], 400)
         self.call("/api/settings", {"gg_key": ""})
 
 
@@ -464,10 +463,102 @@ class TestSync(unittest.TestCase):
         self.assertFalse(st["qsdb"]["ok"])
         self.assertTrue(st["steam"]["ok"])
         self.assertEqual(sum("queststoredb.com" in u for u in net.calls), 1)
-        # Suche ohne Treffer: eine Woche Ruhe
+        self.assertTrue(st["qsdb"]["until"])
+        # Suche ohne Treffer: eine Woche Ruhe; QuestStoreDB ruht nach der Sperre auch im nächsten Lauf
         net.calls.clear()
         sync.run()
         self.assertFalse(any("storesearch" in u for u in net.calls))
+        self.assertFalse(any("queststoredb.com" in u for u in net.calls))
+        st = sync.status()
+        self.assertEqual(st["sources"]["qsdb"]["msg"], "ruht")
+        self.assertTrue(any("ruht nach einer Sperre" in line for line in st["log"]))
+        self.assertFalse(st["ok"])
+
+    def test_challenge_page_counts_as_block(self):
+        self.seed()
+        page = "<html><title>Just a moment...</title><script>window._cf_chl_opt={}</script></html>"
+        sources.fetch = net = FakeNet({"queststoredb.com": page, "storesearch": json.dumps({"items": []}),
+                                       "appdetails": "{}"})
+        sync.run()
+        st = sync.status()["sources"]["qsdb"]
+        self.assertEqual((st["ok"], st["msg"], st["blocked"]), (False, "Prüfseite von Cloudflare", True))
+        self.assertEqual(sum("queststoredb.com" in u for u in net.calls), 1)
+        self.assertEqual(sources.challenge("<script src='/cdn-cgi/challenge-platform/x.js'></script>"), "")
+
+    def test_network_error_gets_second_try(self):
+        calls = []
+
+        def flaky(url, timeout=25, ua=None, headers=None):
+            calls.append(url)
+            if len(calls) == 1:
+                raise sources.FetchError(url, 0, "Zeitüberschreitung")
+            return "ok"
+        sources.fetch = flaky
+        lines = []
+        src = sync._Source("Test", lines.append)
+        self.assertEqual(src.get("https://example.com/a"), "ok")
+        self.assertEqual(len(calls), 2)
+        self.assertIn("zweiter Versuch", lines[0])
+
+    def test_due_after_boot_and_failure(self):
+        from datetime import datetime, timedelta, timezone
+        at = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+        self.assertTrue(sync.due(at=at))                                     # noch nie gelaufen
+        store.save_json("sync.json", {"started": (at - timedelta(hours=2)).isoformat(), "ok": True})
+        self.assertFalse(sync.due(at=at))                                    # Zeitplan: erst nach 6 h
+        self.assertTrue(sync.due(at=at, boot=True))                          # nach dem Start gleich
+        store.save_json("sync.json", {"started": (at - timedelta(minutes=10)).isoformat(), "ok": False})
+        self.assertFalse(sync.due(at=at, boot=True))                         # gerade fehlgeschlagen
+        store.save_json("sync.json", {"started": (at - timedelta(minutes=10)).isoformat(), "ok": True})
+        self.assertFalse(sync.due(at=at, boot=True))                         # gerade erst gelaufen
+
+    def test_self_check(self):
+        w = sync.self_check({"qsdb": {"ok": True, "sale": 0, "pages": 3, "parsed": 0},
+                             "steam": {"ok": True, "ids": 4, "found": 0}},
+                            {"qsdb": {"sale": 90}}, {"jumps": 2})
+        text = " | ".join(w)
+        self.assertIn("keine Angebote erkannt (zuletzt 90)", text)
+        self.assertIn("auf 3 Titelseiten kein Preis lesbar", text)
+        self.assertIn("Steam: kein Preis für 4 App-IDs", text)
+        self.assertIn("2 Normalpreise", text)
+        self.assertEqual(sync.self_check({"qsdb": {"ok": True, "sale": 12, "pages": 2, "parsed": 2}}, {}, {}), [])
+
+    def test_diagnose(self):
+        self.seed()
+        sync.save_settings({"gg_key": "geheim-1234567890abcd"})
+        sale = qsdb_list(qsdb_card("Laser Tennis", "2222222222222222", 9.0, 30.0, end=1793170800), pages=3)
+        answers = [
+            ("/on_sale/", 200, sale),
+            ("all_apps", 200, qsdb_list(qsdb_card("Laser Tennis", "2222222222222222", 9.0, 30.0))),
+            ("/game/laser-tennis", 200, qsdb_game_html("Laser Tennis", "2222222222222222", 9.0, 30.0, "2026-10-28",
+                                                        [(1700000000000, 30.0), (1792000000000, 9.0)])),
+            ("appdetails", 200, json.dumps({"10": {"success": True, "data": []}})),
+            ("storesearch", 200, json.dumps({"items": []})),
+            ("api.gg.deals", 403, "<html><title>Just a moment...</title>cf_chl_opt</html>"),
+        ]
+        seen = []
+
+        def fake_request(url, ua=None, timeout=25, encoding="", headers=None):
+            seen.append(url)
+            for part, code, text in answers:
+                if part in url:
+                    return {"url": url, "status": code, "text": text, "enc": "gzip", "server": "nginx", "error": ""}
+            return {"url": url, "status": 0, "text": "", "enc": "", "server": "", "error": "unbekannt"}
+        old = sources.request
+        sources.request = fake_request
+        try:
+            lines = sync.diagnose()
+        finally:
+            sources.request = old
+        text = "\n".join(lines)
+        self.assertIn("1 Angebote erkannt, 3 Seiten", text)
+        self.assertIn("1 Treffer für „Sky Garden“, keiner passt eindeutig", text)
+        self.assertIn("Tief 9.0 € am", text)
+        self.assertIn("App 10: kostenlos oder ohne Preis", text)
+        self.assertIn("gg.deals, Preise: HTTP 403", text)
+        self.assertIn("Prüfseite von Cloudflare", text)
+        self.assertNotIn("geheim", text)
+        self.assertTrue(any("key=geheim" in u for u in seen))
 
     def test_sale_ended_and_due(self):
         from datetime import datetime, timezone
@@ -492,6 +583,37 @@ class TestSync(unittest.TestCase):
         titles.merge(d, a, b)
         self.assertEqual(d["titles"][a]["live"]["meta"]["price"], 4.0)
         self.assertEqual(d["titles"][a]["live"]["steam"]["price"], 6.0)
+
+
+class TestUi(unittest.TestCase):
+    """Oberfläche ohne Zusatzpakete: Jede Adresse, die app.js ruft, gibt es; die dunklen Farben
+    stehen in style.css zweimal gleich (wie das Gerät und Wahl „Dunkel“)."""
+    STATIC = os.path.join(os.path.dirname(__file__), "..", "app", "static")
+
+    def read(self, name):
+        with open(os.path.join(self.STATIC, name), encoding="utf-8") as f:
+            return f.read()
+
+    def test_every_api_path_exists(self):
+        import re
+        js = self.read("js/app.js") + self.read("index.html")
+        paths = set(re.findall(r'"(/api/[a-z_/]+)"', js))
+        self.assertGreater(len(paths), 8)
+        with open(os.path.join(os.path.dirname(__file__), "..", "app", "server.py"), encoding="utf-8") as f:
+            src = f.read()
+        for p in paths:
+            self.assertIn(f'"{p}"', src, f"{p} fehlt im Server")
+
+    def test_dark_tokens_match(self):
+        import re
+        css = self.read("style.css")
+        auto = re.search(r"@media \(prefers-color-scheme: dark\)\{:root:not\(\[data-theme=light\]\)\{([^}]*)\}\}", css)
+        chosen = re.search(r":root\[data-theme=dark\]\{color-scheme:dark;([^}]*)\}", css)
+        self.assertTrue(auto and chosen)
+        tokens = lambda block: dict(re.findall(r"(--[\w-]+):\s*([^;]+);", block))
+        self.assertGreater(len(tokens(auto.group(1))), 10)
+        self.assertEqual(tokens(auto.group(1)), tokens(chosen.group(1)))
+        self.assertIn('localStorage.getItem("vn.theme")', self.read("index.html"))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
@@ -130,3 +130,12 @@ def fetch(url, timeout=25, ua=None, headers=None):
     if r["status"] >= 400:
         raise FetchError(url, r["status"])
     return r["text"]
+
+
+def challenge(text):
+    """Prüfseite statt Inhalt (Cloudflare „Just a moment…“), sonst "". Das Hintergrundskript
+    „challenge-platform“ allein genügt nicht: Es steht auch in normalen Seiten."""
+    t = str(text or "")[:200_000]
+    if "cf_chl_opt" in t or "<title>Just a moment" in t:
+        return "Prüfseite von Cloudflare"
+    return ""

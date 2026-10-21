@@ -2,13 +2,32 @@
 
 Der Abgleich holt Preise nur für Wunschtitel, die du noch nirgends besitzt. Er läuft nach
 Zeitplan (Standard alle 6 Stunden, einstellbar von 2 bis 48) und auf Knopfdruck unter
-**Abrufe**. Der erste Blick auf den Zeitplan fällt zwei Minuten nach dem Start des Containers.
-Mit `AUTO_SYNC=0` läuft gar kein Zeitplan.
+**Abrufe** oder oben über „Aktualisieren“. Zwei Minuten nach dem Start des Containers läuft ein
+Abgleich, wenn der letzte länger als 30 Minuten zurückliegt, etwa nach einem Update mit neuen
+Lesern. Ist der letzte vor weniger als 30 Minuten fehlgeschlagen, wartet auch dieser Lauf. Mit
+`AUTO_SYNC=0` läuft gar kein Zeitplan.
 
 Alle Abrufe gehen über `sources.fetch`: ehrliche Kennung `vr-navigator/<Version>`, nur
 öffentliche Ziele, Grenzen für Zeit und Größe. Zwischen zwei Abrufen derselben Quelle liegen
-2 Sekunden. Antwortet eine Quelle mit 403 oder 429, endet sie für diesen Lauf; nach 5 anderen
-Fehlern ebenso. Die übrigen Quellen laufen weiter.
+2 Sekunden. Nach einem kurzen Netzfehler gibt es nach 5 Sekunden einen zweiten Versuch.
+Antwortet eine Quelle mit 403 oder 429 oder mit einer Prüfseite (Cloudflare „Just a moment“),
+endet sie für diesen Lauf und **ruht 24 Stunden**, auch über spätere Läufe hinweg; das Protokoll
+nennt das Ende der Ruhezeit. Nach 5 anderen Fehlern endet sie nur für diesen Lauf. Die übrigen
+Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
+
+## Protokoll, Selbstprüfung, Verbindung testen
+
+- **Protokoll:** jede Quelle schreibt, was sie tut, live während des Laufs (letzte 200 Zeilen,
+  Zeit in UTC, die Oberfläche zeigt die Zeit des Browsers). Unter Abrufe zum Lesen und Kopieren.
+- **Selbstprüfung** nach jedem Lauf: keine Angebote erkannt, obwohl es beim letzten Lauf welche
+  gab; Titelseiten ohne lesbaren Preis; keine Preise für bekannte App-IDs bei Steam oder
+  gg.deals; Normalpreise, die sich um mehr als 50 % ändern. Treffer stehen im Protokoll und als
+  Hinweis über den Ansichten.
+- **Verbindung testen** fragt jede Quelle einmal an, mit einem Titel deiner Wunschliste, und
+  beschreibt die Antwort: HTTP-Status, Server, Kodierung, Größe und was die Leser erkennen
+  (Angebote und Seiten, Suchtreffer, Preis, Tief und Version der Titelseite, Steam-Preis,
+  gg.deals-Antwort samt Anfang). Gespeichert wird nichts; der gg.deals-Schlüssel erscheint nie
+  im Ergebnis.
 
 ## QuestStoreDB (Meta-Preise)
 
@@ -46,7 +65,7 @@ Nur mit eigenem, kostenlosem Schlüssel (gg.deals, Einstellungen, API). Der Schl
 | Preise | `https://api.gg.deals/v1/prices/by-steam-app-id/?ids=<IDs>&region=de` | jeder Lauf, Pakete zu 100 IDs | Händler und Keyshops, jetzt und bisheriges Tief, Link |
 
 Das Antwortformat ist noch nicht gegen die echte API geprüft. „Verbindung testen“ zeigt, ob
-der Schlüssel angenommen wird.
+der Schlüssel angenommen wird, und den Anfang der Antwort.
 
 ## Ablage im Datenordner
 
@@ -55,5 +74,6 @@ der Schlüssel angenommen wird.
   dessen Ende vorbei ist, zeigt sie wieder zum Normalpreis.
 - `history.json`: eigener Preisverlauf, je Quelle und Kennung (Meta-ID, Steam-App-ID) eine
   Liste `[Tag, Preis]`; ein Eintrag nur, wenn sich der Preis ändert.
-- `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Protokoll.
+- `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
+  Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
