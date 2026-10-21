@@ -188,6 +188,9 @@ class TestLibrary(unittest.TestCase):
         self.assertEqual(sky["gap"], -2.0)                 # Meta-Tief 4 gegen gg.deals 6
         self.assertEqual(sky["where"], "beide")
         self.assertEqual(v["counts"]["both"], 1)
+        # Besessene Wunschtitel zählen getrennt; die Oberfläche blendet sie aus
+        self.assertEqual(v["counts"]["owned_wish"], 2)    # Sky Garden (beide), Laser Tennis (PC)
+        self.assertEqual(v["counts"]["wish"], 2)
         labels = [l["label"] for l in sky["links"]]
         self.assertEqual(labels[:2], ["Meta", "VRDB"])
         self.assertIn("Reddit", labels)

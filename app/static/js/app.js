@@ -9,7 +9,7 @@ const eur = v => v == null ? "–" : v.toLocaleString("de-DE", {minimumFractionD
 const day = iso => iso ? new Date(iso).toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit", year: "numeric"}) : "";
 
 let S = null;                                   // Zustand vom Server
-const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}};
+const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}, showOwned: false};
 try{ V.tab = localStorage.getItem("vn.tab") || V.tab; }catch(e){}
 
 async function api(path, body){
@@ -77,13 +77,16 @@ function searchBar(extra){
 /* ---------------------------------------------------------------- Wunschliste */
 function wishView(){
   const sorts = [["name", "Name"], ["gap", "Abstand"], ["low", "Meta-Tief"]];
-  let rows = S.wishlist.filter(match);
+  // Was du schon besitzt (Meta oder PC), fällt von der Wunschliste, außer du lässt es zeigen
+  let rows = S.wishlist.filter(r => (V.showOwned || !r.where) && match(r));
   const k = {gap: r => r.gap ?? 1e9, low: r => r.sheet?.meta_low ?? 1e9}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   const add = `<form class="bar" data-form="add"><input type="text" name="name" placeholder="Neuer Titel" required>
     <input type="text" name="link" placeholder="Link zu VRDB, QuestStoreDB, Meta oder Steam (optional)">
     <button class="primary">Hinzufügen</button></form>`;
-  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>`);
+  const ow = S.counts.owned_wish;
+  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}
+    ${ow ? `<button data-act="owned" class="${V.showOwned ? "on" : ""}" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">${ow} schon im Besitz</button>` : ""}</span>`);
   if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Import oder trage oben einen Titel ein.</p>`;
   return add + head + `<p class="hint">Preise stammen vorerst aus deiner Tabelle (Stand jeweils dabei). Live-Preise von QuestStoreDB, Steam und gg.deals folgen in Version 0.2.
     Abstand = Meta-Tief minus gg.deals-Bestpreis: <span class="gap-steam">+ Steam günstiger</span>, <span class="gap-meta">− Meta günstiger</span>.</p>
@@ -206,6 +209,7 @@ document.addEventListener("click", async ev => {
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); }
   else if(a === "sort"){ V.sort = v; render(); }
   else if(a === "where"){ V.where = v; render(); }
+  else if(a === "owned"){ V.showOwned = !V.showOwned; render(); }
   else if(a === "edit") openEdit(el.dataset.k);
   else if(a === "close") $("edit").close();
   else if(a === "del"){
