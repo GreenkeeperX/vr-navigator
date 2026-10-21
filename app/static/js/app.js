@@ -1,5 +1,6 @@
 "use strict";
-/* VR-Navigator, Oberfläche ohne Build. Reiter: Jetzt, Wunschliste, Bibliothek, Abrufe, Import.
+/* VR-Navigator, Oberfläche ohne Build. Reiter: Jetzt, Wunschliste, Bibliothek, Einstellungen.
+   Farben, Marken und Klappen folgen docs/oberflaeche.md.
    Alle fremden Texte (Titel, Notizen, Links) laufen durch esc() bzw. safeUrl(). */
 
 const $ = id => document.getElementById(id);
@@ -12,11 +13,14 @@ const when = iso => iso ? new Date(iso).toLocaleString("de-DE", {day: "2-digit",
 const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
 
 let S = null;                                   // Zustand vom Server
-const V = {tab: "wish", q: "", where: "all", sort: "name", prev: {}, showOwned: false, folds: {}};
-// Ansicht je Browser (vn.view): Reiter und Klappzustände; gemerkt wird das Zuklappen
+const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["lib", "Bibliothek"], ["settings", "Einstellungen"]];
+const V = {tab: "wish", q: "", sort: "name", prev: {}, folds: {}};
+// Ansicht je Browser (vn.view): Reiter und Klappzustände. Bis 0.2.1 gab es die Reiter Abrufe
+// und Import, beide stehen jetzt unter Einstellungen.
 try{
   const v = JSON.parse(localStorage.getItem("vn.view") || "{}") || {};
-  V.tab = v.tab || localStorage.getItem("vn.tab") || V.tab;
+  const t = v.tab || localStorage.getItem("vn.tab") || V.tab;
+  V.tab = t === "sync" || t === "import" ? "settings" : TABS.some(x => x[0] === t) ? t : V.tab;
   V.folds = v.folds && typeof v.folds === "object" ? v.folds : {};
 }catch(e){}
 function saveView(){ try{ localStorage.setItem("vn.view", JSON.stringify({tab: V.tab, folds: V.folds})); }catch(e){} }
@@ -36,12 +40,20 @@ function whenDay(d){   // „morgen “ oder „23.10. “ vor einer Uhrzeit, di
   const n = Math.round((dd(d) - dd(new Date())) / 86400000);
   return n <= 0 ? "" : n === 1 ? "morgen " : d.toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) + " ";
 }
-function toast(msg){
+/* Kurzer Hinweis unten; mit undo ein Knopf „Rückgängig“ und mehr Zeit (statt einer Rückfrage vorher) */
+function toast(msg, undo){
   document.querySelectorAll(".toast").forEach(t => t.remove());
   const t = document.createElement("div");
-  t.className = "toast"; t.textContent = msg;
+  t.className = "toast"; t.setAttribute("role", "status");
+  t.append(msg);
+  if(undo){
+    const b = document.createElement("button");
+    b.textContent = "Rückgängig";
+    b.onclick = () => { t.remove(); undo(); };
+    t.appendChild(b);
+  }
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2600);
+  setTimeout(() => t.remove(), undo ? 7000 : 2600);
 }
 /* Sofort kopieren, noch im Klick: execCommand arbeitet synchron, navigator.clipboard nur als Rückfall */
 function copyNow(text){
@@ -64,26 +76,57 @@ async function api(path, body){
 }
 
 /* ---------------------------------------------------------------- Ansicht hell/dunkel */
-const THEMES = [["system", "Auto", "wie das Gerät"], ["light", "Hell", "hell"], ["dark", "Dunkel", "dunkel"]];
+// Runder Knopf mit dem Zeichen der Wahl (halber Kreis System, Sonne, Mond), ein Klick öffnet das Menü
+const ICO = d => `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">${d}</svg>`;
+const THEMES = [
+  ["system", ICO(`<circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>`), "System", "wie dein Gerät"],
+  ["light", ICO(`<circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/>`), "Hell", ""],
+  ["dark", ICO(`<path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>`), "Dunkel", ""]];
 function themeNow(){ const t = document.documentElement.dataset.theme; return t === "light" || t === "dark" ? t : "system"; }
-function renderTheme(){ const t = THEMES.find(x => x[0] === themeNow()); $("thmBtn").textContent = t[1]; $("thmBtn").title = "Ansicht: " + t[2] + ". Klick wechselt."; }
-function nextTheme(){
-  const i = THEMES.findIndex(x => x[0] === themeNow()), k = THEMES[(i + 1) % THEMES.length][0];
+function renderTheme(){
+  const cur = THEMES.find(x => x[0] === themeNow()), b = $("thmBtn");
+  b.innerHTML = cur[1];
+  b.title = `Ansicht: ${cur[2]}${cur[3] ? ` (${cur[3]})` : ""}. Klick zum Ändern`;
+  b.setAttribute("aria-label", b.title);
+  $("thmMenu").innerHTML = THEMES.map(([k, ic, l, h]) =>
+    `<button role="menuitemradio" aria-checked="${k === cur[0]}" class="${k === cur[0] ? "on" : ""}" data-act="thmset" data-v="${k}"><span class="ic">${ic}</span>${l}${h ? ` <span class="hint">${h}</span>` : ""}</button>`).join("");
+}
+function themeMenu(open){ $("thmMenu").hidden = !open; $("thmBtn").setAttribute("aria-expanded", open); }
+function setTheme(k){
   if(k === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = k;
   try{ if(k === "system") localStorage.removeItem("vn.theme"); else localStorage.setItem("vn.theme", k); }catch(e){}
-  renderTheme();
+  renderTheme(); themeMenu(false);
+}
+
+/* ---------------------------------------------------------------- Klappen
+   Offen als Vorgabe (mit shut zu); gemerkt wird nur die Abweichung davon, je Browser. Während
+   einer Suche ist jede Gruppe offen, damit kein Treffer versteckt bleibt. */
+const isOpen = (k, shut) => V.q.trim() ? true : k in V.folds ? !V.folds[k] : !shut;
+const foldAttr = (k, shut) => `data-kc="${esc(k)}"${shut ? ` data-shut="1"` : ""} ${isOpen(k, shut) ? "open" : ""}`;
+function grp(k, title, n, body, shut){
+  return `<details class="grp" ${foldAttr(k, shut)}><summary>${title}<span class="n">${esc(n)}</span></summary>${body}</details>`;
+}
+const foldAll = `<span class="foldall"><button class="link" data-act="foldall" data-v="1">alle aufklappen</button> · <button class="link" data-act="foldall" data-v="">alle zuklappen</button></span>`;
+/* Karte der Einstellungen: Überschrift klappt den Inhalt */
+function card(id, title, n, body, shut){
+  return `<div class="card" id="${id}"><details ${foldAttr("c-" + id, shut)}><summary><h2>${title}</h2>${n ? `<span class="n">${esc(n)}</span>` : ""}</summary>${body}</details></div>`;
 }
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
   const c = S.counts, sug = S.suggestions.length;
   const sy = S.sync || {};
-  const syncCnt = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : "";
-  const tabs = [["now", "Jetzt", c.now || ""], ["wish", "Wunschliste", c.wish], ["lib", "Bibliothek", c.owned],
-    ["sync", "Abrufe", syncCnt], ["import", "Import", sug ? `${sug} prüfen` : ""]];
-  $("nav").innerHTML = tabs.map(([k, l, n]) =>
-    `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${n !== "" ? `<span class="cnt">${esc(n)}</span>` : ""}</button>`).join("");
+  const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} prüfen` : "";
+  const cnt = {now: c.now || "", wish: c.wish, lib: c.owned, settings: set};
+  $("nav").innerHTML = TABS.map(([k, l]) =>
+    `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${cnt[k] !== "" ? `<span class="cnt">${esc(cnt[k])}</span>` : ""}</button>`).join("");
   renderHead();
+  navFade();
+}
+/* Reiterleiste schmaler als ihre Reiter (Handy): rechts weich ausblenden, damit man sieht, dass es weitergeht */
+function navFade(){
+  const n = $("nav");
+  if(n) n.classList.toggle("more", n.scrollLeft + n.clientWidth < n.scrollWidth - 2);
 }
 /* Kopfzeile: während eines Laufs Schritt und Fortschritt, sonst Stand und nächster Abgleich */
 function renderHead(){
@@ -120,8 +163,8 @@ function banners(){
 function render(){
   renderNav();
   saveView();
-  $("main").innerHTML = V.tab === "lib" ? banners() + libView() : V.tab === "import" ? importView() : V.tab === "now" ? banners() + nowView()
-    : V.tab === "sync" ? syncView() : banners() + wishView();
+  $("main").innerHTML = V.tab === "lib" ? banners() + libView() : V.tab === "now" ? banners() + nowView()
+    : V.tab === "settings" ? settingsView() : banners() + wishView();
   showLog();
   const q = $("q");
   if(q && document.activeElement !== q && V.focusQ){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
@@ -129,9 +172,9 @@ function render(){
 
 function badges(r){
   const out = [];
-  if(r.where === "meta" || r.where === "beide") out.push(`<span class="b meta" title="Im Meta Store gekauft">Meta</span>`);
-  if(r.where === "pc" || r.where === "beide") out.push(`<span class="b pc" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
-  if(r.crossbuy === true) out.push(`<span class="b go" title="Meta-Kauf gilt auch für die PC-Fassung (Rift)">Crossbuy</span>`);
+  if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
+  if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
+  if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)">Crossbuy</span>`);
   if(r.crossbuy === false) out.push(`<span class="b" title="Meta-Kauf gilt nur auf der Quest">kein Crossbuy</span>`);
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="Steam-ID aus Playnite geraten, bitte prüfen">Steam-ID ≈</span>`);
   return out.join(" ");
@@ -141,35 +184,34 @@ const linksHtml = r => `<span class="links">${r.links.filter(l => safeUrl(l.url)
 
 function match(r){
   const q = V.q.trim().toLowerCase();
-  if(q && !r.name.toLowerCase().includes(q) && !r.note.toLowerCase().includes(q)) return false;
-  if(V.tab === "lib" && V.where !== "all"){
-    if(V.where === "beide") return r.where === "beide";
-    return r.where === V.where;
-  }
-  return true;
+  return !q || r.name.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
 }
 
+/* Werkzeugzeile: Suche mit eigenem × (Esc leert sie ebenso), dahinter Sortierung und Klappen */
 function searchBar(extra){
-  return `<div class="bar"><input type="search" id="q" placeholder="Titel oder Notiz suchen" value="${esc(V.q)}" data-in="q">${extra || ""}</div>`;
+  return `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel oder Notiz suchen" aria-label="Titel oder Notiz suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>${extra || ""}</div>`;
 }
 
 /* ---------------------------------------------------------------- Wunschliste */
 function wishView(){
   const sorts = [["name", "Name"], ["gap", "Abstand"], ["low", "Meta-Tief"]];
   // Was du schon besitzt (Meta oder PC), fällt von der Wunschliste, außer du lässt es zeigen
-  let rows = S.wishlist.filter(r => (V.showOwned || !r.where) && match(r));
+  let rows = S.wishlist.filter(match);
   const k = {gap: r => r.gap_now ?? r.gap ?? 1e9, low: r => r.live.meta?.low ?? r.sheet?.meta_low ?? 1e9}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
-  const add = `<form class="bar" data-form="add"><input type="text" name="name" placeholder="Neuer Titel" required>
-    <input type="text" name="link" placeholder="Link zu VRDB, QuestStoreDB, Meta oder Steam (optional)">
+  // Was du schon besitzt (Meta oder PC), steht in einer eigenen, zugeklappten Gruppe
+  const open = rows.filter(r => !r.where), owned = rows.filter(r => r.where);
+  const add = `<form class="bar" data-form="add"><input type="text" name="name" placeholder="Neuer Titel" aria-label="Neuer Titel" required>
+    <input type="text" name="link" placeholder="Link zu VRDB, QuestStoreDB, Meta oder Steam (optional)" aria-label="Link zum Titel (optional)">
     <button class="primary">Hinzufügen</button></form>`;
   const ow = S.counts.owned_wish;
-  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}
-    ${ow ? `<button data-act="owned" class="${V.showOwned ? "on" : ""}" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">${ow} schon im Besitz</button>` : ""}</span>`);
-  if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Import oder trage oben einen Titel ein.</p>`;
+  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>${ow ? foldAll : ""}`);
+  if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Einstellungen oder trage oben einen Titel ein.</p>`;
   return add + head + `<p class="hint">Live-Preise von QuestStoreDB (Meta), Steam und gg.deals, Stand jeweils dabei; ohne Abruf gelten die Werte aus deiner Tabelle.
     Abstand = Meta jetzt minus günstigstes PC-Angebot jetzt (bei Tabellenwerten: Meta-Tief minus gg.deals): <span class="gap-steam">+ PC günstiger</span>, <span class="gap-meta">− Meta günstiger</span>.</p>
-    <div class="list">${rows.map(wishRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>`;
+    ${!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(wishRow).join("")}</div>`
+      : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(wishRow).join("")}</div>`) +
+        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(wishRow).join("")}</div>`, true)}`;
 }
 
 function gapHtml(g, label){
@@ -179,11 +221,11 @@ const stamp = (v, src) => `<span class="${v.stale ? "b warn" : ""}" title="${v.s
 function liveHtml(r){
   const L = r.live, m = L.meta, st = L.steam, g = L.gg, out = [];
   if(m){
-    const sale = m.discount ? ` <span class="b go">−${m.discount} %${m.kind === "coupon" ? " Gutschein" : ""}</span> ${until(m.until)}` : "";
-    out.push(`<span>Meta <span class="price">${eur(m.price)}</span>${m.discount ? ` <s>${eur(m.base)}</s>` : ""}${sale}${m.at_low ? ` <span class="b go" title="So günstig war der Titel bei Meta noch nie">Tiefstpreis</span>` : ""}</span>`);
+    const sale = m.discount ? ` <span class="b deal">−${m.discount} %${m.kind === "coupon" ? " Gutschein" : ""}</span> ${until(m.until)}` : "";
+    out.push(`<span>Meta ${m.at_low ? `<span class="star" title="So günstig war der Titel bei Meta noch nie">★</span>` : ""}<span class="price">${eur(m.price)}</span>${m.discount ? ` <s>${eur(m.base)}</s>` : ""}${sale}${m.at_low ? ` <span class="b best" title="So günstig war der Titel bei Meta noch nie">Tiefstpreis</span>` : ""}</span>`);
     if(m.low != null) out.push(`<span title="Tiefstpreis laut QuestStoreDB${m.low_at ? ", " + day(m.low_at) : ""}">Meta-Tief <span class="price">${eur(m.low)}</span></span>`);
   }
-  if(st) out.push(`<span>Steam <span class="price">${eur(st.price)}</span>${st.discount ? ` <s>${eur(st.base)}</s> <span class="b go">−${st.discount} %</span>` : ""}</span>`);
+  if(st) out.push(`<span>Steam <span class="price">${eur(st.price)}</span>${st.discount ? ` <s>${eur(st.base)}</s> <span class="b deal">−${st.discount} %</span>` : ""}</span>`);
   if(g && (g.retail != null || g.keyshops != null)) out.push(`<span title="gg.deals: Händler / Keyshops, darunter das bisherige Tief">gg.deals <span class="price">${eur(g.retail)}</span> / <span class="price">${eur(g.keyshops)}</span></span>`);
   if(!out.length) return "";
   out.push(gapHtml(r.gap_now, "Abstand"));
@@ -209,7 +251,7 @@ function wishRow(r){
 /* ---------------------------------------------------------------- Jetzt */
 function nowView(){
   const last = S.sync?.done;
-  if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Unter Abrufe startest du den ersten; danach läuft er nach Zeitplan.</p>`;
+  if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
   const rows = S.now.filter(match);
   return searchBar() + `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt zuerst. Letzter Abruf: ${when(last) || "–"}.</p>
     <div class="list">${rows.map(wishRow).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
@@ -224,10 +266,21 @@ function srcState(k, x){
     : `<span class="b stop">${esc(x.msg || "Fehler")}</span>`;
   return `${tag} <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>`;
 }
-function syncView(){
-  const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {};
+/* ---------------------------------------------------------------- Einstellungen
+   Karten mit Sprungleiste: Abgleich, Zeitplan, Protokoll, die Importe, Sicherung. Jede Karte
+   klappt an ihrer Überschrift; was erledigt ist (ein Import, der schon lief), startet zu. */
+function settingsView(){
+  const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {}, sug = S.suggestions.length;
   const rows = SOURCES.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
-  return banners() + `<div class="card"><h2>Abgleich</h2>
+  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["zeitplan", "Zeitplan"], ["logcard", "Protokoll"],
+    ["imp-sheet", "Tabelle"], ["imp-meta", "Meta-Käufe"], ["imp-playnite", "Playnite"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const sugCard = sug ? card("sug", "Derselbe Titel?", sug, `
+    <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten.</p>
+    <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
+      <button data-act="merge" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Zusammenführen</button>
+      <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></div>`).join("")}</div>`) : "";
+  return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` + sugCard +
+    card("abgleich", "Abgleich", sy.running ? "läuft" : "", `
     <p class="hint">Holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     <div class="bar"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
       <span class="hint">Zuletzt: ${when(sy.started) || "nie"}${sy.finished ? `, fertig ${when(sy.finished)}` : ""}</span></div>
@@ -235,18 +288,21 @@ function syncView(){
     <p class="hint" style="margin-top:10px"><button class="link" data-act="diag" ${V.diagRunning ? "disabled" : ""}>${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button>
       ${V.diag ? ` · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>` : ""}
       <span class="hint">fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts</span></p>
-    ${V.diag ? `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>` : ""}</div>
-    <div class="card"><h2>Einstellungen</h2><form data-form="settings" class="form">
+    ${V.diag ? `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>` : ""}`) +
+    card("zeitplan", "Zeitplan und gg.deals", se.auto ? `alle ${se.hours} Std.` : "aus", `<form data-form="settings" class="form">
       <span class="full"><label><input type="checkbox" name="auto" ${se.auto ? "checked" : ""}> automatisch abrufen</label></span>
       <label for="s-h">alle … Stunden</label><input type="number" id="s-h" name="hours" min="2" max="48" value="${esc(se.hours)}">
       <label for="s-gg">gg.deals-Schlüssel</label><input type="password" id="s-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? "gespeichert" + (se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : "") + ", leer lassen zum Behalten" : "kostenlos auf gg.deals unter Einstellungen, API"}">
       ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> Schlüssel löschen</label></span>` : ""}
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="s-err"></span></span></form>
-      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p></div>
-    <div class="card" id="logcard"><h2>Protokoll</h2>
-      <p class="hint">Protokoll des letzten Abgleichs · <button class="link" data-act="copy" data-v="log">kopieren</button></p>
-      <details class="fold" data-kc="logbox" ${V.folds.logbox ? "" : "open"}><summary class="hint">Protokoll anzeigen</summary>
-      <pre class="log" id="log"></pre></details></div>`;
+      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p>`) +
+    card("logcard", "Protokoll", sy.ok === false ? "mit Fehlern" : "", `
+      <p class="hint">Protokoll des letzten Abgleichs, live während eines Laufs · <button class="link" data-act="copy" data-v="log">kopieren</button></p>
+      <pre class="log" id="log"></pre>`) +
+    importCard("sheet") + importCard("meta") + importCard("playnite") +
+    card("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
+     <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
+     <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div>`);
 }
 /* Protokoll: Zeiten kommen in UTC, gezeigt in der Zeit des Browsers; die Box folgt der neuesten
    Zeile, solange du nicht hochgescrollt hast */
@@ -272,15 +328,18 @@ function showLog(){
 
 /* ---------------------------------------------------------------- Bibliothek */
 function libView(){
-  const ws = [["all", "Alle"], ["meta", "Nur Meta"], ["pc", "Nur PC"], ["beide", "Beide"]];
+  // Gruppen nach Laden: auf beiden Seiten, nur Meta, nur PC; jede klappbar
+  const ws = [["beide", "Bei Meta und am PC"], ["meta", "Nur bei Meta"], ["pc", "Nur am PC"]];
   const rows = S.library.filter(match);
-  if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Import deine Meta-Bestellungen und den Playnite-Export.</p>`;
-  return searchBar(`<span class="chips">${ws.map(([v, l]) => `<button data-act="where" data-v="${v}" class="${V.where === v ? "on" : ""}">${l}</button>`).join("")}</span>`) +
-    `<div class="list">${rows.map(r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
+  if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Einstellungen deine Meta-Bestellungen und den Playnite-Export.</p>`;
+  const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
       ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
       <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
       <div class="row2">${linksHtml(r)}</div>
-      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`).join("") || `<p class="hint">Kein Treffer.</p>`}</div>`;
+      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
+  const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
+  return searchBar(groups.length > 1 ? foldAll : "") + (groups.map(([w, l, rs]) =>
+    grp("l-" + w, l, rs.length, `<div class="list">${rs.map(row).join("")}</div>`)).join("") || `<p class="hint">Kein Treffer.</p>`);
 }
 
 /* ---------------------------------------------------------------- Import */
@@ -303,32 +362,20 @@ function importCard(kind){
       <li>Öffne angemeldet <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und scrolle bis ganz nach unten, damit alle geladen sind.</li>
       <li>Klicke das Lesezeichen. Es lädt die Datei <code>meta-bestellungen.json</code> herunter und schickt nichts weg.</li>
       <li>Wähle die Datei hier aus. Alternativ: Seite markieren, kopieren und unten einfügen.</li></ol>` : `<p class="hint">${c.what}</p>`;
-  return `<div class="card"><h2>${c.title}</h2>${metaHow}
+  return card("imp-" + kind, c.title, last ? `zuletzt ${day(last.at)}` : "", `${metaHow}
     ${last ? `<p class="hint">Zuletzt: ${day(last.at)}, ${last.n} erkannt, ${last.new} neu.</p>` : ""}
-    <div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}"></div>
-    <textarea id="txt-${kind}" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.[kind] || "")}</textarea>
+    <div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}" aria-label="${esc(c.title)}: Datei wählen"></div>
+    <textarea id="txt-${kind}" aria-label="${esc(c.title)}: Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.[kind] || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="${kind}">Vorschau</button>
       ${p && !p.error ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>
-    ${p ? previewHtml(p) : ""}</div>`;
+    ${p ? previewHtml(p) : ""}`, !!last && !p);
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
   if(p.done) return `<p class="ok">Übernommen: ${p.n} erkannt, ${p.new} neu angelegt.</p>`;
   return `<div class="prev">${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.<ul>${p.entries.slice(0, 300).map(e =>
-    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b meta">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b ${e.steam_sure === false ? "warn" : "pc"}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
+    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
-function importView(){
-  const sug = S.suggestions.length ? `<div class="card"><h2>Derselbe Titel?</h2>
-    <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten.</p>
-    <div class="list">${S.suggestions.map(s => `<div class="item"><span class="nm">${esc(s.a_name)} ↔ ${esc(s.b_name)}</span>
-      <button data-act="merge" data-a="${esc(s.a)}" data-b="${esc(s.b)}">Zusammenführen</button>
-      <button data-act="notsame" data-a="${esc(s.a)}" data-b="${esc(s.b)}">Verschieden</button></div>`).join("")}</div></div>` : "";
-  return sug + importCard("sheet") + importCard("meta") + importCard("playnite") +
-    `<div class="card"><h2>Sicherung</h2><p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei.</p>
-     <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
-     <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div></div>`;
-}
-
 /* ---------------------------------------------------------------- Bearbeiten */
 function openEdit(key){
   const r = S.library.concat(S.wishlist).find(x => x.key === key);
@@ -387,25 +434,37 @@ setInterval(async () => {
     else renderHead();
   }catch(e){}
 }, 60000);
+// Schickt eine Änderung, zeichnet neu und gibt die Antwort zurück (mit undo, wo es eins gibt)
 async function act(path, body, errEl){
-  try{ S = await api(path, body); render(); return true; }
-  catch(e){ if(errEl) errEl.textContent = e.message; else alert(e.message); return false; }
+  try{ const r = await api(path, body); S = r; render(); return r; }
+  catch(e){ if(errEl) errEl.textContent = e.message; else alert(e.message); return null; }
 }
+const undoTo = res => res?.undo ? () => act("/api/title/restore", {titles: res.undo}).then(r => r && toast("Zurückgenommen")) : null;
 
 document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-act]");
   if(!el) return;
   const a = el.dataset.act, v = el.dataset.v;
   if(a === "nobm"){ ev.preventDefault(); alert("Bitte in die Lesezeichenleiste ziehen und auf der Meta-Bestellseite anklicken."); return; }
-  if(a === "thm") nextTheme();
-  else if(a === "tab"){ V.tab = v; V.q = ""; render(); }
+  if(a === "thm") themeMenu($("thmMenu").hidden);
+  else if(a === "thmset") setTheme(v);
+  else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
   else if(a === "sort"){ V.sort = v; render(); }
-  else if(a === "where"){ V.where = v; render(); }
-  else if(a === "owned"){ V.showOwned = !V.showOwned; render(); }
+  else if(a === "qclear"){ V.q = ""; render(); $("q")?.focus(); }
+  else if(a === "foldall"){ $("main").querySelectorAll("details[data-kc]").forEach(d => { d.open = !!v; keepFold(d); }); saveView(); }
+  else if(a === "jump"){
+    ev.preventDefault();
+    const c = $(v), d = c?.querySelector("details");
+    if(d) d.open = true;
+    c?.scrollIntoView({block: "start"});
+  }
   else if(a === "edit") openEdit(el.dataset.k);
   else if(a === "close") $("edit").close();
   else if(a === "del"){
-    if(confirm("Titel samt Notiz löschen?") && await act("/api/title/delete", {key: el.dataset.k})) $("edit").close();
+    // Kein Rückfrage-Fenster: gelöscht wird sofort, der Hinweis bietet „Rückgängig“
+    const name = $("f-name")?.value || "Titel";
+    const res = await act("/api/title/delete", {key: el.dataset.k});
+    if(res){ $("edit").close(); toast(`„${name}“ gelöscht`, undoTo(res)); }
   }
   else if(a === "sync"){ if(await act("/api/sync", {})) watchSync(); }
   else if(a === "diag"){
@@ -416,10 +475,10 @@ document.addEventListener("click", async ev => {
   }
   else if(a === "copy") copyNow(v === "diag" ? (V.diag || []).join("\n") : logText());
   else if(a === "showlog"){
-    V.tab = "sync"; V.folds.logbox = false; render();
+    V.tab = "settings"; delete V.folds["c-logcard"]; render();
     $("logcard")?.scrollIntoView({block: "start"});
   }
-  else if(a === "merge") act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b});
+  else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
   else if(a === "preview" || a === "apply"){
     const text = $("txt-" + v).value;
@@ -479,13 +538,22 @@ document.addEventListener("submit", async ev => {
   }
 });
 
-// Klappzustände merken: gemerkt wird das Zuklappen (offen ist die Vorgabe)
-document.addEventListener("toggle", ev => {
-  const k = ev.target.dataset?.kc;
-  if(!k) return;
-  if(ev.target.open) delete V.folds[k]; else V.folds[k] = true;
-  saveView();
-}, true);
+// Klappzustände merken: nur die Abweichung von der Vorgabe (offen, mit data-shut zu). Während
+// einer Suche ist alles offen; das zählt nicht als Wahl.
+function keepFold(d){
+  const k = d.dataset?.kc;
+  if(!k || V.q.trim()) return;
+  if(d.open === !d.dataset.shut) delete V.folds[k]; else V.folds[k] = !d.open;
+}
+document.addEventListener("toggle", ev => { if(ev.target.dataset?.kc){ keepFold(ev.target); saveView(); } }, true);
+document.addEventListener("click", ev => { if(!ev.target.closest(".thm")) themeMenu(false); });
+document.addEventListener("keydown", ev => {
+  if(ev.key !== "Escape") return;
+  themeMenu(false);
+  if(ev.target.id === "q" && V.q){ ev.preventDefault(); V.q = ""; render(); $("q")?.focus(); }
+});
+addEventListener("resize", navFade);
+$("nav").addEventListener("scroll", navFade);
 
 renderTheme();
 load();

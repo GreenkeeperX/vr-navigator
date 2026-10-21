@@ -10,16 +10,6 @@ in der Git-Geschichte.
 - das gg.deals-Format gegen die echte Antwort prüfen (sobald ein Schlüssel da ist; „Verbindung
   testen“ zeigt den Anfang der Antwort)
 
-## 0.2.2 Ansicht und Bedienung (wie im eShopKompass)
-
-- Farbregeln: jede Farbe eine Bedeutung (Rabatt blau, Tiefstpreis Gold mit ★, prüfen und
-  veraltet violett, rot nur der Betrag), festgehalten in `docs/oberflaeche.md`
-- klappbare Bereiche mit Gedächtnis, „alle aufklappen · alle zuklappen“
-- Reiter „Einstellungen“ mit Karten und Sprungleiste statt „Import“ und „Abrufe“
-- Werkzeugzeile mit eigenem × im Suchfeld, Hinweis mit „Rückgängig“ statt Rückfrage
-- Theme-Knopf mit Zeichen und Menü, Reiterleiste am Handy mit weichem Rand
-- Selbsttest der Oberfläche bei 390 px (Chromium) und Vertragstest der Felder
-
 ## 0.3 Wo kaufen
 
 - Steam-Besitz und -Wunschliste über die Steam Web API (Schlüssel in den Einstellungen)
@@ -28,6 +18,8 @@ in der Git-Geschichte.
 - Urteil je Titel mit Gründen: erst Nachteile je Shop, dann der Abstand (Startwert für „groß“:
   mindestens 40 % und 8 €, einstellbar)
 - Gutscheine mit Shop, Prozent oder Betrag und Ablaufdatum
+- Legende („?“ oben) nach `docs/oberflaeche.md` und eine Liste „Zu erledigen“ (offene
+  Zuordnungen, fehlende IDs, ungeprüfte Steam-IDs)
 
 ## Danach
 

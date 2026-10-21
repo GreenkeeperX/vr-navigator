@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8">
+<!-- Selbsttest der Oberfläche, nur für tests/test_all.py (wie im eShopKompass): lädt die Seite in
+     einem Rahmen von Handybreite (390 px), geht alle Reiter und einige Zustände durch und schreibt
+     je Ansicht Breite, zu breite Elemente, Bedienelemente ohne Namen und Skriptfehler als JSON in
+     ein pre-Element mit der id out. Chromium gibt das Ergebnis mit --dump-dom aus. -->
+<body style="margin:0">
+<iframe id="f" src="/" style="width:390px;height:844px;border:0"></iframe>
+<script>
+const f = document.getElementById("f"), res = {errors: [], views: {}};
+const done = () => { const p = document.createElement("pre"); p.id = "out"; p.textContent = JSON.stringify(res); document.body.appendChild(p); };
+f.addEventListener("load", () => {
+  const w = f.contentWindow;
+  w.addEventListener("error", e => res.errors.push(String(e.message)));
+  w.addEventListener("unhandledrejection", e => res.errors.push(String(e.reason)));
+  const ready = () => w.eval("typeof S !== 'undefined' && !!S && !!S.counts");
+  let n = 0;
+  const wait = () => { if(ready()) run(); else if(n++ < 100) setTimeout(wait, 100); else { res.errors.push("Zustand nicht geladen"); done(); } };
+  const run = async () => {
+    try{
+      const views = w.eval("TABS.map(x => x[0])").map(t => [t, `V.q = ''; V.tab = '${t}'`])
+        .concat([["wish:suche", "V.tab = 'wish'; V.q = 'sky'"], ["wish:zu", "V.q = ''; V.folds['w-open'] = true"],
+                 ["settings:zu", "V.tab = 'settings'", "document.querySelector('[data-act=foldall][data-v=\"\"]').click(); render()"],
+                 ["thema", "", "themeMenu(true)"]]);
+      // Prüft erst den Prüfer: Ein absichtlich zu breiter Kasten muss auffallen
+      const probe = w.document.createElement("div");
+      probe.style.width = "700px"; probe.textContent = "Probe";
+      // je Ansicht: vorher setzen, zeichnen, danach klicken (wie ein Mensch nach dem Zeichnen)
+      for(const [name, before, after] of [["probe", "V.tab = 'now'"]].concat(views)){
+        w.eval(before || ""); w.eval("render()"); if(after) w.eval(after);
+        await new Promise(r => setTimeout(r, 200));
+        if(name === "probe") w.document.body.appendChild(probe);
+        const d = w.document, vw = d.documentElement.clientWidth;
+        const clipped = e => { for(let a = e.parentElement; a; a = a.parentElement){ if(w.getComputedStyle(a).overflowX !== "visible") return true; } return false; };
+        const wide = [...d.querySelectorAll("body *")].filter(e => e.getBoundingClientRect().right > vw + 1 && !clipped(e))
+          .slice(0, 3).map(e => e.tagName.toLowerCase() + (e.className ? "." + String(e.className).split(" ")[0] : "") + " " + (e.textContent || "").trim().slice(0, 40));
+        // Knöpfe und Felder ohne Wort brauchen einen Namen für Bildschirmleser
+        const unnamed = [...d.querySelectorAll("button,a")].filter(b => !/[\p{L}\p{N}]/u.test(b.textContent) && !b.getAttribute("aria-label"))
+          .concat([...d.querySelectorAll("input:not([type=hidden]),select,textarea")].filter(x => !x.getAttribute("aria-label") && !x.closest("label") && !(x.id && d.querySelector(`label[for="${x.id}"]`))))
+          .slice(0, 3).map(b => b.outerHTML.slice(0, 60));
+        const open = [...d.querySelectorAll("#main details[data-kc]")].map(x => x.open);
+        res.views[name] = {width: d.documentElement.scrollWidth, view: vw, wide, unnamed, chars: d.body.innerText.length, open,
+                           nav: d.getElementById("nav").classList.contains("more")};
+        if(name === "probe") probe.remove();
+      }
+    }catch(e){ res.errors.push(String(e)); }
+    done();
+  };
+  wait();
+});
+</script>
