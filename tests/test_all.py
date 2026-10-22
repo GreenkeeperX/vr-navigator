@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 import os
 import sys
 import tempfile
@@ -354,6 +355,25 @@ class TestCollection(unittest.TestCase):
 
 
 class TestLibrary(unittest.TestCase):
+    def test_best_fallback(self):
+        """Ohne eigenen Verlauf gilt das Allzeit-Tief einer anderen Quelle als Bestpreis (≈)."""
+        d = empty()
+        k, _ = titles.upsert(d, "Comet Chase", steam_appid="3000030", meta_id="1234567890123456")
+        now = "2026-10-20T10:00:00+00:00"
+        d["titles"][k].update(wish=True, live={
+            "meta": {"price": 20.0, "base": 20.0, "low": 10.0, "low_at": "2025-12-24", "at": now},
+            "steam": {"price": 12.0, "base": 24.0, "discount": 50, "at": now},
+            "gg": {"retail": 12.0, "retail_low": 12.0, "at": now}})
+        at = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+        r = library.row(k, d["titles"][k], at=at, hist={}, data=d)
+        self.assertEqual((r["best"]["meta"]["best"], r["best"]["meta"]["level"], r["best"]["meta"]["over"]), (10.0, "", 10.0))
+        self.assertIn("QuestStoreDB", r["best"]["meta"]["src"])
+        self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"]["level"]), (12.0, "best"))
+        # mit eigenem Verlauf (mit Preiswechsel) zählt der, ohne Quelle
+        hist = {"steam": {"3000030": [["2025-01-01", 24.0], ["2025-06-01", 9.0], ["2025-06-10", 24.0]]}}
+        r = library.row(k, d["titles"][k], at=at, hist=hist, data=d)
+        self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"].get("src")), (9.0, None))
+
     def test_gap_and_where(self):
         d = empty()
         imports.import_sheet(d, SHEET, dry=False)

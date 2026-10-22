@@ -26,9 +26,13 @@ Plan (22.10.2026): erstes Recherche-Paket (etwa 20 Wunschtitel), dann das Urteil
 0.4.0 brachte die Sammlung und den Reiter, 0.4.1 die Steam-Rezensionen, 0.4.2 das Ausklammern
 reiner Konsolenspiele, 0.4.3 die Bestpreis-Leiste in Jetzt und Feinschliff in Entdecken, 0.4.4
 den Abgleich der Merkmale mit den Steam-Store-Daten (beide einig: bestätigt, sonst „≈“), 0.4.5
-Wertungen beider Läden mit Sortierung und Filtern in Wunschliste und Bibliothek. Als Nächstes:
+Wertungen beider Läden mit Sortierung und Filtern in Wunschliste und Bibliothek, 0.4.6 eine
+aufgeräumte Zeile je Titel (Leiste zum Bestpreis, eine Wertungsskala, Klappe „Mehr“, Recherche als
+unsicher gekennzeichnet). Als Nächstes:
 
-- 0.4.6 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+- 0.4.7 gemessene Kaufgründe: Spielerzahlen jetzt und Spitze (Steam), letztes Update und
+  Version je Shop (Steam-Neuigkeiten, QuestStoreDB), Crossbuy aus einer verlässlichen Quelle
+- 0.4.8 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 

@@ -192,15 +192,23 @@ function match(r){
   return !q || r.name.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
 }
 
-/* Wertungen je Laden. Meta in Sternen (laut QuestStoreDB), Steam als Anteil positiv ab 50
-   Rezensionen; beide Skalen sind verschieden und werden nicht umgerechnet. */
+/* Wertungen je Laden auf einer Skala: Steam als Anteil positiver Rezensionen (ab 50), Meta-Sterne
+   umgerechnet (Sterne × 20, daher „≈“). Liegen beide vor und trennt sie mindestens 5 Punkte,
+   ist der bessere grün hervorgehoben. */
 const num = n => n.toLocaleString("de-DE");
+const RATE_GAP = 5;
 function ratingHtml(r){
-  const m = r.rating?.meta, s = r.rating?.steam, out = [];
-  if(m) out.push(`<span title="Durchschnitt im Meta Store (1 bis 5), gelesen bei QuestStoreDB">Meta ${String(m.stars).replace(".", ",")}/5${m.n ? ` <span class="hint">(${num(m.n)})</span>` : ""}</span>`);
-  if(s) out.push(s.pct != null ? `<span title="Anteil positiver Steam-Rezensionen">Steam ${s.pct} % <span class="hint">(${num(s.n)})</span></span>`
-    : `<span title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam: ${num(s.n)} Rezensionen</span>`);
-  return out.length ? `<div class="row2">${out.join("")}</div>` : "";
+  const m = r.rating?.meta, s = r.rating?.steam;
+  if(!m && !s) return "";
+  const mp = m ? Math.round(m.stars * 20) : null, sp = s?.pct ?? null;
+  const win = mp != null && sp != null && Math.abs(mp - sp) >= RATE_GAP ? (mp > sp ? "meta" : "steam") : "";
+  const cell = (k, label, v, n, tip) => `<span class="rate${win === k ? " win" : ""}" title="${esc(tip)}">${label} ${v}${n ? ` <span class="hint">(${num(n)})</span>` : ""}</span>`;
+  const out = [];
+  if(m) out.push(cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
+  if(s) out.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen")
+    : `<span class="hint" title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam: ${num(s.n)} Rezensionen</span>`);
+  if(win) out.push(`<span class="b go" title="Mindestens ${RATE_GAP} Punkte Abstand">${win === "meta" ? "Meta" : "Steam"} +${Math.abs(mp - sp)}</span>`);
+  return `<div class="row2 rates"><span class="hint">Wertung</span>${out.join("")}</div>`;
 }
 /* Filter für Wunschliste und Bibliothek (gemeinsam, je Reiter nur die passenden) */
 V.lf = {cb: false, sale: false, good: false};
@@ -245,48 +253,59 @@ function nearBest(r){
   return q.length ? Math.min(...q) : 1e9;
 }
 
-/* Ein Shop: Preis, Rabatt, Stufe zum Bestpreis (Farben nach docs/oberflaeche.md); der
-   Abrufzeitpunkt nur, wenn der Preis älter als zwei Tage ist */
+/* Ein Shop: Preis, Rabatt und darunter die Leiste zum Bestpreis (Farben nach docs/oberflaeche.md);
+   der Abrufzeitpunkt nur, wenn der Preis älter als zwei Tage ist */
 function offerHtml(shop, v, b){
   const sale = v.discount ? ` <s>${eur(v.base)}</s> <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? " " + until(v.until) : ""}` : "";
-  let lv = "";
-  if(b && !b.thin){
-    const tip = `Bestpreis bei ${shop} ${b.full ? "in den letzten 24 Monaten" : "seit " + day(b.since)}: ${eur(b.best)} am ${day(b.best_at)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
-    if(b.level === "best") lv = ` <span class="star" title="${esc(tip)}">★</span><span class="b best" title="${esc(tip)}">am Bestpreis${b.full ? "" : " seit " + day(b.since)}</span>`;
-    else if(b.level === "usual") lv = ` <span class="hint" title="${esc(tip)}">übliches Angebot</span>`;
-    else lv = ` <span class="hint" title="${esc(tip)}">Bestpreis${b.full ? "" : " seit " + day(b.since)} ${eur(b.best)}${b.once && b.usual != null ? " einmalig, sonst " + eur(b.usual) : ""} (+${eur(b.over)})</span>`;
-  }
   const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
-  return `<span>${shop} <span class="price">${eur(v.price)}</span>${sale}${lv}${old}</span>`;
+  return `<div class="offer"><span>${shop} <span class="price">${eur(v.price)}</span>${sale}${old}</span>${bestBar(shop, v, b)}</div>`;
 }
+/* Leiste: links der Bestpreis, rechts der Normalpreis, gefüllt bis zum Preis jetzt; nur bei einem
+   Angebot oder am Bestpreis, sonst bleibt es bei der Zeile darüber. Am Bestpreis gold. Stammt der Bestpreis nicht aus dem eigenen Verlauf (src), trägt er „≈“. */
+function bestBar(shop, v, b){
+  if(!v || !b || b.thin || b.best == null) return "";
+  const span = (v.base || v.price) - b.best, at = b.level === "best", ap = b.src ? " ≈" : "";
+  const w = at ? 0 : span > 0 ? Math.min(100, Math.max(4, (v.price - b.best) / span * 100)) : 100;
+  const rel = b.best > 0 ? Math.round((v.price - b.best) / b.best * 100) : 0;
+  const when = b.src ? `${b.src}${b.best_at ? ", " + day(b.best_at) : ""}` : `${day(b.best_at)}${b.full ? ", 24 Monate" : ", Verlauf seit " + day(b.since)}`;
+  const tip = `${shop}: jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} (${when}), Normalpreis ${eur(v.base || v.price)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
+  return `<div class="bbar${at ? " at" : ""}" title="${esc(tip)}">
+    <span class="txt">${at ? `<span class="star">★</span> am Bestpreis${ap}` : `<b>+${eur(v.price - b.best)}</b> über Bestpreis ${eur(b.best)}${ap} (+${rel} %)${b.level === "usual" ? " · übliches Angebot" : ""}`}</span>
+    ${at || v.discount ? `<span class="track" aria-hidden="true"><span class="fill" style="width:${w.toFixed(0)}%"></span></span>` : ""}</div>`;
+}
+// Preise je Shop, das günstigere vorn; dazu die Differenz Meta gegenüber dem günstigsten PC-Angebot
 function liveHtml(r){
-  const L = r.live, B = r.best || {}, g = L.gg;
+  const L = r.live, B = r.best || {};
   const offers = [["Meta", L.meta, B.meta], ["Steam", L.steam, B.steam]].filter(o => o[1]).sort((a, b) => a[1].price - b[1].price);
-  const small = [];
-  if(g && (g.retail != null || g.keyshops != null)) small.push(`<span title="gg.deals: günstigster Händler und Keyshop. Keyshops zählen nicht für Bestpreis und Differenz.">gg.deals ${[
-    g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
-    g.retail_low != null && "Allzeit-Tief " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}</span>`);
-  if(r.gap_now) small.push(`<span title="Differenz: Meta jetzt gegenüber dem günstigsten PC-Angebot (Steam oder Händler)">${r.gap_now > 0 ? "PC" : "Meta"} ${eur(Math.abs(r.gap_now))} günstiger</span>`);
-  if(!offers.length && !small.length) return "";
-  return (offers.length ? `<div class="row2">${offers.map(o => offerHtml(...o)).join("")}</div>` : "") +
-    (small.length ? `<div class="row2 small">${small.join("")}</div>` : "");
+  if(!offers.length) return "";
+  // unter einem Euro ist der Unterschied keine Farbe wert
+  const gap = r.gap_now ? `<span class="gap ${Math.abs(r.gap_now) < 1 ? "hint" : r.gap_now > 0 ? "gap-steam" : "gap-meta"}" title="Meta jetzt gegenüber dem günstigsten PC-Angebot (Steam oder Händler bei gg.deals)">${r.gap_now > 0 ? "PC" : "Meta"} ${eur(Math.abs(r.gap_now))} günstiger</span>` : "";
+  return `<div class="offers">${offers.map(o => offerHtml(...o)).join("")}${gap}</div>`;
 }
-
-function wishRow(r, bars){
+V.more = new Set();
+// Was selten entscheidet, steht in der Klappe „Mehr“: gg.deals, Tabelle, Links, Bearbeiten
+function moreHtml(r, extra){
+  const g = r.live.gg, s = r.sheet, out = [];
+  if(g && (g.retail != null || g.keyshops != null)) out.push(`<div class="small">gg.deals: ${[
+    g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
+    g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}
+    <span class="hint">(Keyshops zählen nicht mit)</span></div>`);
+  if(s && Object.keys(r.live).length) out.push(`<div class="small">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</div>`);
+  out.push(`<div class="row2">${linksHtml(r)}</div>`);
+  out.push(`<div class="row2"><button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${extra || ""}</div>`);
+  return `<details class="more" data-more="${esc(r.key)}" ${V.more.has(r.key) ? "open" : ""}><summary>Mehr</summary>${out.join("")}</details>`;
+}
+function wishRow(r){
   const s = r.sheet, live = liveHtml(r);
-  const B = r.best || {}, bar = bars ? [["Meta", r.live.meta, B.meta], ["Steam", r.live.steam, B.steam]].map(o => bestBar(...o)).join("") : "";
-  const prices = live ? live + (s ? `<div class="row2 small"><span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</span></div>` : "")
-    : `<div class="row2">${s ? `<span>Meta <span class="price">${eur(s.meta)}</span></span>
+  const prices = live || `<div class="row2">${s ? `<span>Meta <span class="price">${eur(s.meta)}</span></span>
       <span>Meta-Tief <span class="price">${eur(s.meta_low)}</span></span>
       <span>gg.deals <span class="price">${eur(s.gg)}</span></span>
       ${r.gap != null ? `<span>Differenz <span class="price ${r.gap > 0 ? "gap-steam" : r.gap < 0 ? "gap-meta" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span></span>` : ""}
       <span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}</span>` : `<span>keine Preise</span>`}</div>`;
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
-    <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
-    <button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>
-    ${prices}${bar}${ratingHtml(r)}
-    <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
-    ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
+    ${prices}${ratingHtml(r)}${opinionHtml(r)}
+    ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
+    ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
 }
 
 /* ---------------------------------------------------------------- Entdecken
@@ -452,16 +471,6 @@ function findView(){
 /* ---------------------------------------------------------------- Jetzt */
 /* Abstand zum Bestpreis als Leiste, wie im eShopKompass: links der Bestpreis der letzten 24
    Monate, rechts der Normalpreis, die Füllung bis zum Preis jetzt; am Bestpreis gold */
-function bestBar(shop, v, b){
-  if(!v || !b || b.thin || b.best == null) return "";
-  const span = (v.base || v.price) - b.best, at = b.level === "best";
-  const w = at ? 0 : span > 0 ? Math.min(100, Math.max(4, (v.price - b.best) / span * 100)) : 100;
-  const rel = b.best > 0 ? Math.round((v.price - b.best) / b.best * 100) : 0;
-  const tip = `${shop}: jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} am ${day(b.best_at)}${b.full ? " (24 Monate)" : " (seit " + day(b.since) + ")"}, Normalpreis ${eur(v.base || v.price)}`;
-  return `<div class="bbar${at ? " at" : ""}" title="${esc(tip)}"><span class="lbl">${shop}</span>
-    <span class="txt">${at ? `<span class="star">★</span> am Bestpreis ${eur(b.best)}` : `<b>+${eur(v.price - b.best)}</b> über Bestpreis ${eur(b.best)} (+${rel} %)${b.level === "usual" ? ", übliches Angebot" : ""}`}</span>
-    <span class="track" aria-hidden="true"><span class="fill" style="width:${w.toFixed(0)}%"></span></span></div>`;
-}
 function nowView(){
   const last = S.sync?.done;
   if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
@@ -470,8 +479,8 @@ function nowView(){
   if(sort === "best") rows = rows.slice().sort((a, b) => nearBest(a) - nearBest(b));
   const sorts = [["best", "Nah am Bestpreis"], ["sale", "Rabatt"]];
   return searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="nowsort" data-v="${v}" class="${sort === v ? "on" : ""}">${l}</button>`).join("")}</span>`) +
-    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Die Leiste zeigt je Shop, wie weit der Preis jetzt über dem Bestpreis der letzten 24 Monate liegt (links Bestpreis, rechts Normalpreis). Letzter Abruf: ${when(last) || "–"}.</p>
-    <div class="list">${rows.map(r => wishRow(r, true)).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
+    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Die Leiste zeigt je Shop den Abstand zum Bestpreis der letzten 24 Monate (links Bestpreis, rechts Normalpreis, gold am Bestpreis); „≈“: Bestpreis aus einer anderen Quelle, solange der eigene Verlauf zu kurz ist. Letzter Abruf: ${when(last) || "–"}.</p>
+    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
 }
 
 /* ---------------------------------------------------------------- Abrufe */
@@ -590,7 +599,8 @@ function opinionHtml(r){
     ["Crossbuy", o.crossbuy_grund], ["Komfort", o.komfort], ["Warnungen", o.warnungen]].filter(x => x[1]);
   const src = (o.quellen || []).filter(q => safeUrl(q.url)).map(q =>
     `<a href="${esc(q.url)}" target="_blank" rel="noopener noreferrer">${esc(q.titel || q.url.replace(/^https?:\/\/([^\/?#]+).*$/i, "$1"))}</a>${q.datum ? ` <span class="hint">${esc(q.datum)}</span>` : ""}`).join(" · ");
-  return `<details class="op" ${foldAttr("op-" + r.key, true)}><summary><span class="hint">Recherche${o.stand ? ", " + esc(o.stand) : ""}:</span> ${esc(head || "Meinungen")}</summary>
+  // Recherche ist nicht gemessen: violett gestrichelt und mit „≈“ wie andere unsichere Werte
+  return `<details class="op unsure" ${foldAttr("op-" + r.key, true)}><summary title="Aus Foren und Tests zusammengetragen, nicht vom Tool geprüft"><span class="ux">≈ Recherche${o.stand ? ", " + esc(o.stand) : ""}:</span> ${esc(head || "Meinungen")}</summary>
     ${rows.map(([l, v]) => `<div class="small"><b>${l}:</b> ${esc(v)}</div>`).join("")}${src ? `<div class="small"><b>Quellen:</b> ${src}</div>` : ""}</details>`;
 }
 
@@ -604,9 +614,8 @@ function libView(){
   if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Einstellungen deine Meta-Bestellungen und den Playnite-Export.</p>`;
   const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
       ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
-      <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${ratingHtml(r)}
-      <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
-      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
+      ${ratingHtml(r)}${opinionHtml(r)}
+      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>`;
   const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
   const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="lsort" data-v="${v}" class="${ls === v ? "on" : ""}">${l}</button>`).join("")}</span>${groups.length > 1 ? foldAll : ""}`)
     + `<div class="chips" role="group" aria-label="Filter">${lfChips(["cb", "good"])}</div>`;
@@ -969,7 +978,11 @@ function keepFold(d){
   if(!k || V.q.trim()) return;
   if(d.open === !d.dataset.shut) delete V.folds[k]; else V.folds[k] = !d.open;
 }
-document.addEventListener("toggle", ev => { if(ev.target.dataset?.kc){ keepFold(ev.target); saveView(); } }, true);
+document.addEventListener("toggle", ev => {
+  const d = ev.target.dataset;
+  if(d?.kc){ keepFold(ev.target); saveView(); }
+  else if(d?.more) ev.target.open ? V.more.add(d.more) : V.more.delete(d.more);    // nur bis zum Neuladen
+}, true);
 document.addEventListener("click", ev => { if(!ev.target.closest(".thm")) themeMenu(false); });
 document.addEventListener("keydown", ev => {
   if(ev.key !== "Escape") return;

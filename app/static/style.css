@@ -139,10 +139,19 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .dfilter label{display:flex;gap:6px;align-items:center;max-width:100%}
 .dfilter select{min-width:0;max-width:100%}
 /* Jetzt: Abstand zum Bestpreis als Leiste (links Bestpreis, rechts Normalpreis) */
-.bbar{flex-basis:100%;display:grid;grid-template-columns:44px 1fr;gap:2px 8px;align-items:center;font-size:13px;min-width:0;margin-top:2px}
-.bbar .lbl{color:var(--muted)}
+.offers{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:14px}
+.offer{min-width:0}
+.gap{grid-column:1/-1;font-size:13px;font-weight:600}
+.bbar{display:grid;gap:2px;font-size:12px;color:var(--muted);min-width:0;margin-top:3px}
 .bbar .txt{min-width:0;overflow-wrap:anywhere}
-.bbar .track{grid-column:2;height:6px;border-radius:3px;background:var(--chip);overflow:hidden;max-width:320px}
-.bbar .fill{display:block;height:100%;background:var(--muted)}
+.bbar .track{height:6px;border-radius:3px;background:var(--chip);overflow:hidden;max-width:320px}
+.bbar .fill{display:block;height:100%;background:var(--muted);opacity:.6}
 .bbar.at .track{background:var(--best-bg);box-shadow:inset 4px 0 0 var(--best)}
 .bbar.at .txt{color:var(--best);font-weight:600}
+.rates .rate{color:var(--ink)}
+.rates .rate.win{color:var(--go);font-weight:600}
+details.more{flex-basis:100%;font-size:13px;color:var(--muted)}
+details.more>summary{cursor:pointer;width:max-content}
+details.more>div{margin:4px 0 0 14px}
+details.op.unsure{border-left:3px dashed var(--warn);padding-left:8px}
+details.op .ux{color:var(--warn)}
