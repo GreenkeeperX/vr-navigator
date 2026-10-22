@@ -166,6 +166,7 @@ function render(anchor){
     : V.tab === "find" ? findView() : V.tab === "settings" ? settingsView() : banners() + wishView();
   findHash();
   showLog();
+  moreOnScroll();
   const b = anchor && $(anchor);
   if(b && top !== null) scrollBy(0, b.getBoundingClientRect().top - top);
   const q = $("q");
@@ -212,9 +213,9 @@ function wishView(){
   if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Einstellungen oder trage oben einen Titel ein.</p>`;
   return add + head + `<p class="hint">Preise bei Meta und Steam, das günstigere vorn, je Shop gemessen am Bestpreis der letzten 24 Monate:
     <span class="star">★</span> am Bestpreis (bis 2 % darüber), „übliches Angebot“: so tief wie in mindestens zwei Angeboten. Darunter klein gg.deals (Keyshops zählen nicht mit) und die Differenz zwischen Meta und PC. Ohne Abruf gelten die Werte aus deiner Tabelle.</p>
-    ${!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(wishRow).join("")}</div>`
-      : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(wishRow).join("")}</div>`) +
-        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(wishRow).join("")}</div>`, true)}`;
+    ${!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
+      : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`) +
+        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true)}`;
 }
 // Sortierschlüssel: wie nah der günstigere Shop an seinem Bestpreis liegt (1 = am Bestpreis)
 function nearBest(r){
@@ -249,8 +250,9 @@ function liveHtml(r){
     (small.length ? `<div class="row2 small">${small.join("")}</div>` : "");
 }
 
-function wishRow(r){
+function wishRow(r, bars){
   const s = r.sheet, live = liveHtml(r);
+  const B = r.best || {}, bar = bars ? [["Meta", r.live.meta, B.meta], ["Steam", r.live.steam, B.steam]].map(o => bestBar(...o)).join("") : "";
   const prices = live ? live + (s ? `<div class="row2 small"><span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</span></div>` : "")
     : `<div class="row2">${s ? `<span>Meta <span class="price">${eur(s.meta)}</span></span>
       <span>Meta-Tief <span class="price">${eur(s.meta_low)}</span></span>
@@ -260,7 +262,7 @@ function wishRow(r){
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
     <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
     <button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>
-    ${prices}
+    ${prices}${bar}
     <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
 }
@@ -270,7 +272,7 @@ function wishRow(r){
    Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
    (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
 let C = null, cLoading = false;
-const D0 = {mp: [], min: 0, g: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 50};
+const D0 = {mp: [], min: 0, g: [], st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
@@ -279,7 +281,7 @@ const MIXES = [
   ["duo", "Koop zu zweit", "Koop-Spiele für zwei, die besten zuerst", {mp: ["coop"], min: 2}],
   ["couch", "Couch-Abend", "Lokal an einem Rechner: Couch-Koop oder Splitscreen", {mp: ["couch"]}],
   ["big", "Große Runde", "Mindestens vier Spieler", {min: 4}],
-  ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt (wenige Steam-Rezensionen); wo die Zahl noch fehlt, grob geschätzt", {sc: 80, sort: "gem"}],
+  ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt (wenige Steam-Rezensionen); nur Spiele, deren Rezensionen schon abgerufen sind", {sc: 80, sort: "gem"}],
   ["old", "Gut, lange her", "Wertung ab 80, seit über zwei Jahren in der Sammlung, in zufälliger Folge", {sc: 80, old: 1, sort: "random"}],
   ["wild", "Wilde Mischung", "Würfelt eine Mehrspieler-Art und ein Genre zusammen und zieht drei Vorschläge", null],
 ];
@@ -315,9 +317,10 @@ function dFilter(d){
   return C.games.filter(g => d.mp.every(m => g.mp.includes(m))
     // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
-    && (!d.g || g.genres.includes(d.g)) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
+    // mehrere Genres: eines davon genügt
+    && (!d.g.length || d.g.some(x => g.genres.includes(x))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
     && (!d.old || (g.added && g.added < cut))
-    && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q)));
+    && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))));
 }
 function dSort(rows, d){
   const by = {score: g => -(g.score ?? -1), gem: g => -g.gem, known: g => -(g.reviews ?? -1), added: g => g.added ? -Date.parse(g.added) : 0,
@@ -348,15 +351,15 @@ function setMix(k){
     const kinds = ["coop", "couch", "online", "lan", "", ""], r = mulberry(newSeed());
     for(let i = 0; i < 30; i++){
       const d = Object.assign({}, D0, {mp: [kinds[Math.floor(r() * kinds.length)]].filter(Boolean),
-        g: C.genres[Math.floor(r() * C.genres.length)] || "", sc: r() < .5 ? 70 : 0});
+        g: [C.genres[Math.floor(r() * C.genres.length)]].filter(Boolean), sc: r() < .5 ? 70 : 0});
       if(dFilter(d).length >= 3 || i === 29){ V.d = d; break; }
     }
   } else if(m[3]) V.d = Object.assign({}, D0, m[3]);
   V.d.mix = k;
   V.d.seed = newSeed();
-  V.d.n = 50;
+  V.d.n = D0.n;
 }
-const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g, d.st,
+const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g.join(" oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 function gameRow(g){
@@ -364,13 +367,21 @@ function gameRow(g){
   const name = safeUrl(g.url) ? `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">${esc(g.name)}</a>` : esc(g.name);
   return `<div class="item"><span class="nm">${name}</span>${mp}
     ${g.players ? `<span class="b" title="Höchste Spielerzahl laut Playnite">bis ${g.players}</span>` : ""}
-    ${g.gem >= 0.2 && !g.gem_guess ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
-    <div class="row2">${g.score != null ? `<span title="${g.score_src === "Steam" ? "Anteil positiver Steam-Rezensionen" : "Aus Playnite übernommen: " + (g.score_src === "Kritik" ? "Expertenwertung" : "Communitywertung")}">${esc(g.score_src)} ${g.score}${g.score_src === "Steam" ? " %" : ""}</span>` : ""}
-      ${g.reviews != null ? `<span title="Zahl der Steam-Rezensionen: Maß für die Bekanntheit">${g.reviews.toLocaleString("de-DE")} Rezensionen</span>` : ""}
+    ${g.gem >= 0.2 ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
+    <div class="row2">${g.score != null ? `<span title="Anteil positiver Steam-Rezensionen">Steam ${g.score} % <span class="hint">(${g.reviews.toLocaleString("de-DE")})</span></span>`
+        : g.reviews != null ? `<span title="Steam-Rezensionen; eine Wertung gibt es ab 50">${g.reviews.toLocaleString("de-DE")} Rezensionen</span>` : ""}
       ${g.genres.length ? `<span>${g.genres.map(esc).join(", ")}</span>` : ""}
       ${g.year ? `<span>${esc(g.year)}</span>` : ""}
-      ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
-      ${g.dev ? `<span>${esc(g.dev)}</span>` : ""}</div></div>`;
+      ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}</div></div>`;
+}
+// Entdecken lädt beim Scrollen weiter: kommt „weitere zeigen“ in Sicht, klickt es sich selbst
+let moreObs = null;
+function moreOnScroll(){
+  moreObs?.disconnect();
+  const m = $("dmore");
+  if(!m || !("IntersectionObserver" in window)) return;
+  moreObs = new IntersectionObserver(es => { if(es.some(e => e.isIntersecting)){ moreObs.disconnect(); m.click(); } }, {rootMargin: "400px"});
+  moreObs.observe(m);
 }
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
@@ -381,39 +392,56 @@ function findView(){
   const d = V.d, rows = dSort(dFilter(d), d), pick = d.mix === "surprise" || d.mix === "wild" ? dPick(rows, d.seed) : [];
   const opt = (k, list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
   const stores = [...new Set(C.games.map(g => g.store).filter(Boolean))].sort();
-  const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="dmix" data-v="${k}" title="${esc(tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
+  // ein Klick auf die gewählte Mischung nimmt sie wieder zurück
+  const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="${d.mix === k ? "dmixoff" : "dmix"}" data-v="${k}" title="${esc(d.mix === k ? "Zurücknehmen" : tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
   const kinds = Object.entries(C.mp_label).map(([k, l]) => `<button data-act="dmp" data-v="${k}" class="${d.mp.includes(k) ? "on" : ""}">${esc(l)}</button>`).join("");
   const label = dLabel(d);
   const filters = `<details class="sub" ${foldAttr("d-filter", true)}><summary><b>Filter</b> <span class="n">${label ? esc(label) : "keine"}</span></summary>
     <div class="dfilter">
       <div class="chips" role="group" aria-label="Mehrspieler-Art">${kinds}</div>
       <label>Spieler <select data-dset="min">${opt("min", [[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>
-      <label>Genre <select data-dset="g">${opt("g", [["", "alle"]].concat(C.genres.map(g => [g, g])), d.g)}</select></label>
+      <div class="chips" role="group" aria-label="Genre, eines davon genügt">${C.genres.map(g => `<button data-act="dgenre" data-v="${esc(g)}" class="${d.g.includes(g) ? "on" : ""}">${esc(g)}</button>`).join("")}</div>
       <label>Laden <select data-dset="st">${opt("st", [["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>
-      <label>Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60"], [70, "ab 70"], [80, "ab 80"], [90, "ab 90"]], d.sc)}</select></label>
+      <label>Steam-Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>
       <label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>
       ${label ? `<button class="link" data-act="dreset">Filter zurücksetzen</button>` : ""}
     </div></details>`;
-  const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="Name oder Entwickler suchen" aria-label="Name oder Entwickler suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren" aria-label="Suche leeren">×</button>` : ""}</span>
+  const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="Name, Entwickler oder Genre suchen" aria-label="Name, Entwickler oder Genre suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren" aria-label="Suche leeren">×</button>` : ""}</span>
     <label class="kind">Sortierung <select data-dset="sort">${opt("sort", D_SORTS, d.sort)}</select></label>
     ${d.sort === "random" ? `<button data-act="dshuffle">Neu mischen</button>` : ""}</div>`;
   const pickCard = d.mix === "surprise" || d.mix === "wild" ? `<div class="card"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? `<div class="list">${pick.map(gameRow).join("")}</div>` : `<p class="hint">Nichts passt zu den Filtern.</p>`}
-    <div class="actions"><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
+    <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
   const at = S.imports.collection?.at;
   return mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler stammen aus Playnite, die Wertung von Steam (ab 50 Rezensionen) oder aus Playnite; ≈ heißt geschätzt.</p>
+    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler stammen aus Playnite, die Wertung aus Steam-Rezensionen (ab 50, nach und nach abgerufen: ${C.games.filter(g => g.reviews != null).length} bisher); ≈ heißt vermutet.</p>
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
-    ${rows.length > d.n ? `<div class="actions"><button data-act="dmore">${Math.min(50, rows.length - d.n)} weitere zeigen</button></div>` : ""}`;
+    ${rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : ""}`;
 }
 
 /* ---------------------------------------------------------------- Jetzt */
+/* Abstand zum Bestpreis als Leiste, wie im eShopKompass: links der Bestpreis der letzten 24
+   Monate, rechts der Normalpreis, die Füllung bis zum Preis jetzt; am Bestpreis gold */
+function bestBar(shop, v, b){
+  if(!v || !b || b.thin || b.best == null) return "";
+  const span = (v.base || v.price) - b.best, at = b.level === "best";
+  const w = at ? 0 : span > 0 ? Math.min(100, Math.max(4, (v.price - b.best) / span * 100)) : 100;
+  const rel = b.best > 0 ? Math.round((v.price - b.best) / b.best * 100) : 0;
+  const tip = `${shop}: jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} am ${day(b.best_at)}${b.full ? " (24 Monate)" : " (seit " + day(b.since) + ")"}, Normalpreis ${eur(v.base || v.price)}`;
+  return `<div class="bbar${at ? " at" : ""}" title="${esc(tip)}"><span class="lbl">${shop}</span>
+    <span class="txt">${at ? `<span class="star">★</span> am Bestpreis ${eur(b.best)}` : `<b>+${eur(v.price - b.best)}</b> über Bestpreis ${eur(b.best)} (+${rel} %)${b.level === "usual" ? ", übliches Angebot" : ""}`}</span>
+    <span class="track" aria-hidden="true"><span class="fill" style="width:${w.toFixed(0)}%"></span></span></div>`;
+}
 function nowView(){
   const last = S.sync?.done;
   if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
-  const rows = S.now.filter(match);
-  return searchBar() + `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt zuerst. Letzter Abruf: ${when(last) || "–"}.</p>
-    <div class="list">${rows.map(wishRow).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
+  const sort = V.nowSort || "best";
+  let rows = S.now.filter(match);
+  if(sort === "best") rows = rows.slice().sort((a, b) => nearBest(a) - nearBest(b));
+  const sorts = [["best", "Nah am Bestpreis"], ["sale", "Rabatt"]];
+  return searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="nowsort" data-v="${v}" class="${sort === v ? "on" : ""}">${l}</button>`).join("")}</span>`) +
+    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Die Leiste zeigt je Shop, wie weit der Preis jetzt über dem Bestpreis der letzten 24 Monate liegt (links Bestpreis, rechts Normalpreis). Letzter Abruf: ${when(last) || "–"}.</p>
+    <div class="list">${rows.map(r => wishRow(r, true)).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
 }
 
 /* ---------------------------------------------------------------- Abrufe */
@@ -558,7 +586,7 @@ function libView(){
    - gg.deals: deine Wunschliste; weitere Seiten holt es mit kurzer Pause nach.
    Dann öffnet es dieses Tool mit den Daten im Adressteil hinter # (geht nicht übers Netz an einen
    Server). Das Tool übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 5;
+const META_HV = 6;
 function metaHelper(tool){ return `(async()=>{
 const gg=/(^|\\.)gg\\.deals$/.test(location.hostname);
 if(!gg&&!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst eine dieser Seiten öffnen, dann das Lesezeichen anklicken: angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay, deine Wunschliste im Meta Store oder deine Wunschliste bei gg.deals.");return}
@@ -570,7 +598,8 @@ let txt,msg,file;
 if(gg){
 const read=d=>[...d.querySelectorAll("a[href*='/game/']")].map(a=>{const m=(a.getAttribute("href")||"").match(/\\/game\\/([a-z0-9-]+)\\/?(?:[?#].*)?$/);return m&&{slug:m[1],name:(a.innerText||a.title||"").trim().replace(/\\s+/g," ").slice(0,200)}}).filter(Boolean);
 let items=read(document);const base=location.href.split(/[?#]/)[0];
-const pages=[...new Set([...document.querySelectorAll("a[href*='page=']")].map(a=>a.href).filter(h=>h.split("?")[0]===base&&!/[?&]page=1(&|$)/.test(h)))].slice(0,20);
+const last=Math.min(30,Math.max(1,...[...document.querySelectorAll("a[href*='page=']")].filter(a=>a.href.split("?")[0]===base).map(a=>+((a.href.match(/[?&]page=(\\d+)/)||[])[1]||1))));
+const pages=[];for(let p=2;p<=last;p++){const u=new URL(location.href);u.searchParams.set("page",p);pages.push(u.href)}
 for(let i=0;i<pages.length;i++){box.textContent="VR-Navigator: lese Seite "+(i+2)+" von "+(pages.length+1)+" …";await wait(1200);try{const r=await fetch(pages[i],{credentials:"include"});items=items.concat(read(new DOMParser().parseFromString(await r.text(),"text/html")))}catch(e){}}
 const by={};items.forEach(x=>{if(!by[x.slug]||(!by[x.slug].name&&x.name))by[x.slug]=x});items=Object.values(by);
 txt=JSON.stringify({kind:"gg-wunschliste",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,pages:pages.length+1,items});
@@ -760,11 +789,18 @@ document.addEventListener("click", async ev => {
   else if(a === "thmset") setTheme(v);
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
   else if(a === "sort"){ V.sort = v; render(); }
+  else if(a === "nowsort"){ V.nowSort = v; render(); }
   else if(a === "dmix"){ setMix(v); render(); }
-  else if(a === "dmp"){ const m = V.d.mp; V.d.mp = m.includes(v) ? m.filter(x => x !== v) : m.concat(v); V.d.mix = ""; V.d.n = 50; render(); }
+  else if(a === "dmixoff" || a === "dpickoff"){
+    // Mischung zurücknehmen: Vorschläge weg; ihre Filter bleiben nur bei „Schließen“
+    if(a === "dmixoff" && V.d.mix !== "surprise") V.d = Object.assign({}, D0); else V.d.mix = "";
+    render();
+  }
+  else if(a === "dgenre"){ const g = V.d.g; V.d.g = g.includes(v) ? g.filter(x => x !== v) : g.concat(v); V.d.mix = ""; V.d.n = D0.n; render(); }
+  else if(a === "dmp"){ const m = V.d.mp; V.d.mp = m.includes(v) ? m.filter(x => x !== v) : m.concat(v); V.d.mix = ""; V.d.n = D0.n; render(); }
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort}); render(); }
   else if(a === "dshuffle"){ V.d.seed = newSeed(); render(); }
-  else if(a === "dmore"){ V.d.n += 50; render(); }
+  else if(a === "dmore"){ V.d.n += D0.n; render(); }
   else if(a === "dqclear"){ V.d.q = ""; render(); $("dq")?.focus(); }
   else if(a === "qclear"){ V.q = ""; render(); $("q")?.focus(); }
   else if(a === "foldall"){ $("main").querySelectorAll("details[data-kc]").forEach(d => { d.open = !!v; keepFold(d); }); saveView(); }
@@ -824,7 +860,7 @@ document.addEventListener("click", async ev => {
 document.addEventListener("input", ev => {
   if(ev.target.dataset.in === "q"){ V.q = ev.target.value; V.focusQ = true; render(); V.focusQ = false; }
   if(ev.target.dataset.in === "dq"){
-    V.d.q = ev.target.value; V.d.n = 50; render();
+    V.d.q = ev.target.value; V.d.n = D0.n; render();
     const q = $("dq"); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
   }
 });
@@ -836,7 +872,7 @@ document.addEventListener("change", async ev => {
     V.d[ds] = el.type === "checkbox" ? (el.checked ? 1 : 0) : typeof D0[ds] === "number" ? Number(el.value) || 0 : el.value;
     if(ds === "sort" && el.value === "random") V.d.seed = newSeed();
     if(ds !== "sort") V.d.mix = "";
-    V.d.n = 50;
+    V.d.n = D0.n;
     render();
     return;
   }

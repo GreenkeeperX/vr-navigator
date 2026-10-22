@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.2:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.3:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -69,7 +69,8 @@ lesen“ im eShopKompass:
 2. Angemeldet die Transaktionen von Meta Pay, die Bestellseite für digitale Produkte oder deine
    Wunschliste im Meta Store öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in
    Listen mit eigenem Rollbalken), bis alles geladen ist. Auf deiner Wunschliste bei gg.deals
-   liest es alle Seiten (mit kurzer Pause dazwischen).
+   liest es alle Seiten bis zur höchsten Seitenzahl der Seitenleiste (höchstens 30, mit kurzer
+   Pause dazwischen). Unbekannte Namen daraus sucht der Abgleich bei Steam nach, 40 je Lauf.
 3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt Käufe
    oder Wunschliste ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse
    hinter #, gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie
@@ -183,8 +184,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 
 ## Ansichten
 
-- **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt
-  zuerst, mit Ende des Angebots und der Stufe zum Bestpreis.
+- **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, sortiert nach Nähe
+  zum Bestpreis (oder nach Rabatt), mit Ende des Angebots. Je Shop eine Leiste wie im
+  eShopKompass: links der Bestpreis der letzten 24 Monate, rechts der Normalpreis, gefüllt bis
+  zum Preis jetzt, daneben der Abstand („+3,50 € über Bestpreis 14,00 € (+25 %)“); am Bestpreis
+  gold mit ★.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   „nicht mehr wünschen“ nimmt einen Titel von der Liste (mit Rückgängig).
@@ -205,22 +209,24 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „Nur am PC“, mit Suche.
 - **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
   Mehrspieler-Art (Mehrspieler, Online, Koop, Lokal, Splitscreen, LAN, MMO), Spielerzahl,
-  Genre, Laden, Mindestwertung und „über zwei Jahre in der Sammlung“; sortiert nach Wertung,
-  Geheimtipp, neu in der Sammlung, Jahr, Name oder Zufall. Mischungen setzen Filter mit einem
-  Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“, „Geheimtipps“, „Gut, lange her“.
-  „Überrasch mich“ zieht drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen
-  öfter), „Wilde Mischung“ würfelt dazu eine Mehrspieler-Art und ein Genre. Filter und Zufall
-  stehen in der Adresse (`#entdecken?…`), eine Mischung lässt sich so als Lesezeichen merken.
+  Genres (mehrere wählbar, eines genügt), Laden, Steam-Wertung und „über zwei Jahre in der
+  Sammlung“; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, Jahr, Name
+  oder Zufall. Die Suche findet Name, Entwickler und Genre. Die Liste lädt beim Scrollen weiter.
+  Mischungen setzen Filter mit einem Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“,
+  „Geheimtipps“, „Gut, lange her“; ein zweiter Klick nimmt sie zurück. „Überrasch mich“ zieht
+  drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen öfter), „Wilde Mischung“
+  würfelt dazu eine Mehrspieler-Art und ein Genre; „Schließen“ blendet die Vorschläge aus.
+  Filter und Zufall stehen in der Adresse (`#entdecken?…`), eine Mischung lässt sich so als
+  Lesezeichen merken.
   Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
   Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
-  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen, die Wertung aus Community- oder
-  Expertenwertung mit Angabe der Quelle. Ein Laden, der nur aus der Kennung vermutet ist,
-  trägt „≈“. Für Steam-Spiele holt der Abgleich nach und nach die Steam-Rezensionen (100 je
-  Lauf, siehe [docs/abrufe.md](docs/abrufe.md)): ab 50 Rezensionen gilt die Wertung „Steam“
-  (Anteil positiv), die Zahl zeigt die Bekanntheit (Sortierung „Bekanntheit“). Der
-  Geheimtipp-Wert G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5) ist hoch bei guter
-  Wertung und wenigen Rezensionen; die Marke „Geheimtipp“ steht ab 0,2. Ohne Rezensionszahl ist
-  er grob geschätzt und ohne Marke.
+  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Laden, der nur aus der Kennung
+  vermutet ist, trägt „≈“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
+  die der Abgleich nach und nach holt (100 je Lauf, siehe [docs/abrufe.md](docs/abrufe.md));
+  die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
+  unzuverlässig). Die Zahl der Rezensionen zeigt die Bekanntheit. Der Geheimtipp-Wert
+  G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5) ist hoch bei guter Wertung und
+  wenigen Rezensionen; die Marke „Geheimtipp“ steht ab 0,2.
 
 Farben haben je eine Bedeutung: Rabatt blau, ★ und „am Bestpreis“ Gold, Prüfen und Veraltetes
 violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den

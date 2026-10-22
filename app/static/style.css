@@ -76,7 +76,8 @@ pre.log{background:var(--bg);border:1px solid var(--line);border-radius:10px;pad
 .item .row2.small{font-size:12px}
 .item s{color:var(--muted)}
 pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto}
-.links a{margin-right:8px;font-size:13px}
+.links{display:inline-flex;flex-wrap:wrap;gap:2px 8px;min-width:0}
+.links a{font-size:13px}
 .price{font-variant-numeric:tabular-nums;color:var(--ink)}
 .gap-meta{color:var(--go)}
 .gap-steam{color:var(--stop)}
@@ -137,3 +138,11 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .dfilter .chips{flex-basis:100%}
 .dfilter label{display:flex;gap:6px;align-items:center;max-width:100%}
 .dfilter select{min-width:0;max-width:100%}
+/* Jetzt: Abstand zum Bestpreis als Leiste (links Bestpreis, rechts Normalpreis) */
+.bbar{flex-basis:100%;display:grid;grid-template-columns:44px 1fr;gap:2px 8px;align-items:center;font-size:13px;min-width:0;margin-top:2px}
+.bbar .lbl{color:var(--muted)}
+.bbar .txt{min-width:0;overflow-wrap:anywhere}
+.bbar .track{grid-column:2;height:6px;border-radius:3px;background:var(--chip);overflow:hidden;max-width:320px}
+.bbar .fill{display:block;height:100%;background:var(--muted)}
+.bbar.at .track{background:var(--best-bg);box-shadow:inset 4px 0 0 var(--best)}
+.bbar.at .txt{color:var(--best);font-weight:600}

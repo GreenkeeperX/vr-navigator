@@ -50,6 +50,7 @@ APPINFO_MAX = 40            # Store-Seiten je Lauf, um zu prüfen, ob eine App V
 ASSIGN_APPS = 25            # Steam-Store-Abfragen je Lauf, um Steam-IDs „≈“ zu prüfen
 ASSIGN_SEARCH = 15          # QuestStoreDB-Suchen je Lauf für Titel außerhalb der Preisliste
 GG_WISH_PAGES = 10
+GG_PENDING = 40             # Namen je Lauf aus der per Lesezeichen gelesenen gg.deals-Wunschliste
 SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
 SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
 REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekanntheit, Geheimtipps)
@@ -1048,7 +1049,8 @@ def run(only=None, boot=False, by_hand=False):
                     "Wunschliste ab jetzt mit dem Lesezeichen „Seite lesen“ auf gg.deals; der Server versucht es erst "
                     "wieder, wenn du den Link neu speicherst.")
         if store.load_data().get("gg_unknown") and (not only or "ggwish" in only):
-            r = _gg_pending(log, budget)
+            # eigenes Kontingent: eine lange Wunschliste soll in wenigen Läufen durch sein
+            r = _gg_pending(log, {"apps": GG_PENDING, "search": GG_PENDING})
             if r and "ggwish" not in results:
                 results["ggwish"] = dict(r, manual=bool(manual.get("ggwish")))
         elif settings["gg_wish"] and manual.get("ggwish") and "ggwish" not in results:
