@@ -2,7 +2,7 @@
 
 Der Abgleich liest erst deine Konten (Steam, gg.deals-Wunschliste, Sharenite) und holt dann Preise nur für Wunschtitel, die du noch nirgends besitzt. Er läuft nach
 Zeitplan (Standard alle 6 Stunden, einstellbar von 2 bis 48) und auf Knopfdruck unter
-**Einstellungen**, Abgleich, oder oben über „Aktualisieren“. Zwei Minuten nach dem Start des Containers läuft ein
+**Einstellungen**, Abgleich, oder oben über „Aktualisieren“. Fünf Minuten nach dem Start des Containers läuft ein
 Abgleich, wenn der letzte länger als 30 Minuten zurückliegt, etwa nach einem Update mit neuen
 Lesern. Ist der letzte vor weniger als 30 Minuten fehlgeschlagen, wartet auch dieser Lauf. Mit
 `AUTO_SYNC=0` läuft gar kein Zeitplan.
