@@ -178,6 +178,8 @@ def merge(data, keep, gone):
         a["wish_src"] = ws
     if a.get("crossbuy") is None:
         a["crossbuy"] = b.get("crossbuy")
+    if b.get("opinion") and (b["opinion"].get("at") or "") > ((a.get("opinion") or {}).get("at") or ""):
+        a["opinion"] = b["opinion"]
     if b.get("sheet") and (not a.get("sheet") or (b["sheet"].get("at") or "") > (a["sheet"].get("at") or "")):
         a["sheet"] = b["sheet"]
     live = dict(b.get("live") or {})

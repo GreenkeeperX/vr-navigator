@@ -75,6 +75,10 @@ def row(key, t, at=None, hist=None):
     o = t.get("owned") or {}
     live = _live(t, at)
     pc = _pc_best(live)
+    # Crossbuy von Hand oder aus der Tabelle geht vor; sonst der aus der Recherche, gekennzeichnet
+    cb, cb_src = t.get("crossbuy"), ""
+    if cb is None and (t.get("opinion") or {}).get("crossbuy") is not None:
+        cb, cb_src = t["opinion"]["crossbuy"], "Recherche"
     meta_now = (live.get("meta") or {}).get("price")
     today = (at or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     hist = hist or {}
@@ -86,7 +90,8 @@ def row(key, t, at=None, hist=None):
         "steam_doubt": t.get("steam_doubt") or "", "bundle": titles.is_bundle(t),
         "where": _where(t), "pc_label": (o.get("pc") or {}).get("label") or "",
         "meta_price": (o.get("meta") or {}).get("price"),
-        "wish": bool(t.get("wish")), "crossbuy": t.get("crossbuy"),
+        "wish": bool(t.get("wish")), "crossbuy": cb, "crossbuy_src": cb_src,
+        "opinion": t.get("opinion") or None,
         "sheet": sheet, "gap": gap, "note": t.get("note") or "",
         "live": live, "pc_best": pc, "best": {k: v for k, v in best.items() if v},
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt

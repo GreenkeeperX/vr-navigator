@@ -175,8 +175,9 @@ function badges(r){
   const out = [];
   if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
-  if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)">Crossbuy</span>`);
-  if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest">kein Crossbuy</span>`);
+  const cbr = r.crossbuy_src ? ` ≈` : "", cbt = r.crossbuy_src ? " (laut Recherche)" : "";
+  if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)${cbt}">Crossbuy${cbr}</span>`);
+  if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest${cbt}">kein Crossbuy${cbr}</span>`);
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
   return out.join(" ");
@@ -259,7 +260,7 @@ function wishRow(r){
     <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
     <button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>
     ${prices}
-    <div class="row2">${linksHtml(r)}</div>
+    <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
 }
 
@@ -372,6 +373,22 @@ function showLog(){
 }
 
 /* ---------------------------------------------------------------- Bibliothek */
+/* Meinungen aus der Recherche (Reddit, Web): eine Zeile mit Fassung und Mehrspieler, der Rest
+   aufklappbar; alles mit „Recherche“ und Stand gekennzeichnet */
+const FASSUNG = {quest: "Quest-Fassung besser", pc: "PC-Fassung besser", gleich: "Fassungen gleichwertig"};
+const MP = {lebendig: "Mehrspieler lebendig", ruhig: "Mehrspieler ruhig", tot: "Mehrspieler tot", keiner: "kein Mehrspieler"};
+function opinionHtml(r){
+  const o = r.opinion;
+  if(!o) return "";
+  const head = [o.fassung && FASSUNG[o.fassung], o.mehrspieler && MP[o.mehrspieler]].filter(Boolean).join(" · ");
+  const rows = [["Fazit", o.fazit], ["Fassung", o.fassung_grund], ["Mehrspieler", o.mehrspieler_stand], ["Pflege", o.pflege],
+    ["Crossbuy", o.crossbuy_grund], ["Komfort", o.komfort], ["Warnungen", o.warnungen]].filter(x => x[1]);
+  const src = (o.quellen || []).filter(q => safeUrl(q.url)).map(q =>
+    `<a href="${esc(q.url)}" target="_blank" rel="noopener noreferrer">${esc(q.titel || q.url.replace(/^https?:\/\/([^\/?#]+).*$/i, "$1"))}</a>${q.datum ? ` <span class="hint">${esc(q.datum)}</span>` : ""}`).join(" · ");
+  return `<details class="op" ${foldAttr("op-" + r.key, true)}><summary><span class="hint">Recherche${o.stand ? ", " + esc(o.stand) : ""}:</span> ${esc(head || "Meinungen")}</summary>
+    ${rows.map(([l, v]) => `<div class="small"><b>${l}:</b> ${esc(v)}</div>`).join("")}${src ? `<div class="small"><b>Quellen:</b> ${src}</div>` : ""}</details>`;
+}
+
 function libView(){
   // Gruppen nach Laden: auf beiden Seiten, nur Meta, nur PC; jede klappbar
   const ws = [["beide", "Bei Meta und am PC"], ["meta", "Nur bei Meta"], ["pc", "Nur am PC"]];
@@ -380,7 +397,7 @@ function libView(){
   const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
       ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
       <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
-      <div class="row2">${linksHtml(r)}</div>
+      <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
       ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
   const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
   return searchBar(groups.length > 1 ? foldAll : "") + (groups.map(([w, l, rs]) =>
@@ -428,7 +445,7 @@ function metaCard(){
 function fileCard(){
   const p = V.prev.file, last = ["sheet", "playnite", "ggwish"].map(k => S.imports[k] && `${KINDS[k]} ${day(S.imports[k].at)}`).filter(Boolean);
   return sub("imp-file", "Datei oder Text einlesen", last.join(", ") || "noch nie", `
-    <p class="hint">Vergleichstabelle (CSV), Playnite-Export (CSV), eine gg.deals-Wunschliste (CSV), die Datei des Meta-Lesezeichens oder kopierter Text deiner Meta-Bestellungen. Das Tool erkennt die Art am Aufbau und zeigt erst, was es übernehmen würde.</p>
+    <p class="hint">Vergleichstabelle (CSV), Playnite-Export (CSV), eine gg.deals-Wunschliste (CSV), die Datei des Meta-Lesezeichens, kopierter Text deiner Meta-Bestellungen oder eine Meinungen-Datei aus der Recherche. Das Tool erkennt die Art am Aufbau und zeigt erst, was es übernehmen würde.</p>
     <div class="bar"><input type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" data-file="file" aria-label="Datei wählen"></div>
     <textarea id="txt-file" aria-label="Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.file || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="file">Vorschau</button>
