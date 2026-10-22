@@ -43,7 +43,8 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/titles.py`: Namen vergleichen, Kennungen aus Links, Titel finden, anlegen, zusammenführen,
   Vorschläge für ähnliche Namen, Steam-ID prüfen, Liste „Zu erledigen“ (`todo`), Suchlinks
 - `app/imports.py`: Vergleichstabelle, Playnite-CSV, gg.deals-Wunschliste (CSV), Meta-Bestellungen
-  und Meta-Wunschliste (Lesezeichen-JSON oder Text), Erkennung der Art (`detect`);
+  und Meta-Wunschliste (Lesezeichen-JSON oder Text), Meinungen (`docs/meinungen.md`),
+  Erkennung der Art (`detect`);
   jeder Import aus Datei oder Text erst als Vorschau; das Lesezeichen „Meta-Käufe lesen“ übergibt
   hinter `#meta=` und übernimmt direkt (Entscheidung 21.10.2026)
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek

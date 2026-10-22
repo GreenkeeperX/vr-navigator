@@ -7,7 +7,7 @@ in der Git-Geschichte.
 
 ## 0.3 Wo kaufen
 
-Plan (22.10.2026): 0.3.3 Meinungen als Datei einlesen, 0.3.4 Urteil (misst am üblichen
+Plan (22.10.2026): erstes Recherche-Paket (etwa 20 Wunschtitel), dann 0.3.4 Urteil (misst am üblichen
 Angebot, wenn der Bestpreis einmalig war).
 
 - Bestpreis am PC über 24 Monate mit IsThereAnyDeal (optionaler Schlüssel), solange der eigene

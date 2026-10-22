@@ -215,6 +215,35 @@ class TestImports(unittest.TestCase):
             imports.parse_meta("{kaputt")
 
 
+    def test_opinions(self):
+        """Meinungen-Datei: erkannt, nur bekannte Titel, Crossbuy nur ohne eigenen Wert."""
+        d = empty()
+        a, _ = titles.upsert(d, "Orbit Golf", steam_appid="3000040")
+        b, _ = titles.upsert(d, "Comet Chase")
+        d["titles"][b]["crossbuy"] = True
+        doc = {"app": "vr-navigator-meinungen", "stand": "2026-10-22", "titles": [
+            {"name": "Anderer Name", "steam_appid": "3000040", "fazit": "Ruhig und schön.", "fassung": "PC",
+             "mehrspieler": "ruhig", "crossbuy": False, "unbekannt": "weg",
+             "quellen": [{"url": "https://example.org/a", "titel": "Test"}, {"url": "javascript:alert(1)"}]},
+            {"name": "Comet Chase", "crossbuy": False, "fassung": "besser"},
+            {"name": "Nebula Drift", "fazit": "fehlt im Tool"}]}
+        text = json.dumps(doc)
+        self.assertEqual(imports.detect(text), "opinions")
+        res = imports.import_auto(d, text, dry=True)
+        self.assertEqual((res["n"], res["what"]), (2, "Meinungen"))
+        self.assertIn("Nebula Drift", res["note"])
+        self.assertNotIn("opinion", d["titles"][a])
+        imports.import_auto(d, text, dry=False)
+        o = d["titles"][a]["opinion"]
+        self.assertEqual((o["fassung"], o["mehrspieler"], o["stand"]), ("pc", "ruhig", "2026-10-22"))
+        self.assertNotIn("unbekannt", o)
+        self.assertEqual([q["url"] for q in o["quellen"]], ["https://example.org/a"])
+        self.assertNotIn("fassung", d["titles"][b]["opinion"])
+        rows = {r["name"]: r for r in library.view(d)["wishlist"] + [library.row(k, t) for k, t in d["titles"].items()]}
+        self.assertEqual((rows["Orbit Golf"]["crossbuy"], rows["Orbit Golf"]["crossbuy_src"]), (False, "Recherche"))
+        self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, ""))
+
+
 class TestLibrary(unittest.TestCase):
     def test_gap_and_where(self):
         d = empty()
@@ -1033,6 +1062,9 @@ class TestUi(unittest.TestCase):
                      "low": 9.99, "low_at": "2026-01-01", "at": now},
             "steam": {"price": 14.99, "base": 24.99, "discount": 40, "at": "2020-01-01T00:00:00+00:00"}}
         data["titles"][k]["note"] = "Reddit: " + "sehr lange Notiz ohne Leerzeichen " * 3 + "x" * 120
+        data["titles"][k]["opinion"] = {"stand": "2026-10-22", "fassung": "pc", "mehrspieler": "lebendig",
+                                        "fazit": "Schnelles Tennis mit vielen Gegnern, " * 4, "crossbuy": True,
+                                        "quellen": [{"url": "https://example.org/" + "x" * 80, "datum": "2026-10-01"}]}
         # Zu erledigen: eine zweifelhafte Steam-ID und ein Bundle ohne Meta-ID
         s, _ = titles.upsert(data, "Comet Chase", steam_appid="3000030")
         data["titles"][s].update(owned={"pc": {"src": "playnite", "label": "Steam"}},

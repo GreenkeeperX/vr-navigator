@@ -433,10 +433,72 @@ def import_ggwish(data, text, dry=True):
     return res
 
 
+# ------------------------------------------------------------------ Meinungen (Recherche)
+
+OPINION_MARK = "vr-navigator-meinungen"
+OPINION_TEXT = {"fazit": 600, "fassung_grund": 400, "mehrspieler_stand": 300, "pflege": 400,
+                "komfort": 300, "warnungen": 400, "crossbuy_grund": 300}
+OPINION_ENUM = {"fassung": ("quest", "pc", "gleich", ""), "mehrspieler": ("lebendig", "ruhig", "tot", "keiner", "")}
+
+
+def parse_opinions(obj):
+    """Datei mit recherchierten Meinungen, je Titel: Kurzfazit, bessere Fassung (quest, pc,
+    gleich) mit Grund, Mehrspieler (lebendig, ruhig, tot, keiner) mit Stand, Pflege, Crossbuy
+    laut Store und Community, Komfort, Warnungen, Quellen mit Datum. Unbekannte Felder fallen weg,
+    Texte werden gekürzt, Links nur mit http(s)."""
+    if not isinstance(obj, dict) or obj.get("app") != OPINION_MARK or not isinstance(obj.get("titles"), list):
+        raise ValueError("Keine Meinungen-Datei")
+    stand = str(obj.get("stand") or "")[:10]
+    out = []
+    for e in obj["titles"][:2000]:
+        if not isinstance(e, dict) or not str(e.get("name") or "").strip():
+            continue
+        o = {"name": str(e["name"]).strip()[:200], "meta_id": re.sub(r"\D", "", str(e.get("meta_id") or ""))[:20],
+             "steam_appid": re.sub(r"\D", "", str(e.get("steam_appid") or ""))[:12],
+             "stand": str(e.get("stand") or stand)[:10]}
+        for f, n in OPINION_TEXT.items():
+            o[f] = str(e.get(f) or "").strip()[:n]
+        for f, allowed in OPINION_ENUM.items():
+            v = str(e.get(f) or "").strip().casefold()
+            o[f] = v if v in allowed else ""
+        o["crossbuy"] = e.get("crossbuy") if e.get("crossbuy") in (True, False) else None
+        o["quellen"] = [{"url": str(q["url"])[:500], "titel": str(q.get("titel") or "")[:200], "datum": str(q.get("datum") or "")[:10]}
+                        for q in (e.get("quellen") or [])[:12]
+                        if isinstance(q, dict) and re.match(r"https?://", str(q.get("url") or ""))]
+        out.append(o)
+    return out
+
+
+def import_opinions(data, text, dry=True):
+    """Meinungen zu Titeln, die das Tool kennt (Kennung oder Name). Neue Titel legt die Datei
+    nicht an. Crossbuy aus der Recherche gilt nur, wo du ihn nicht selbst gesetzt hast."""
+    items = parse_opinions(json.loads(text))
+    entries, unknown = [], []
+    for o in items:
+        k = titles.find(data, o["meta_id"], o["steam_appid"], o["name"])
+        if k is None:
+            unknown.append(o["name"])
+            continue
+        entries.append({"name": data["titles"][k]["name"], "known": True})
+        if dry:
+            continue
+        t = data["titles"][k]
+        rec = {f: v for f, v in o.items() if f not in ("name", "meta_id", "steam_appid") and v not in ("", None, [])}
+        rec["at"] = titles.now_iso()
+        t["opinion"] = rec
+    res = _summary(data, entries, dry, 0)
+    if not dry:
+        data["imports"]["opinions"] = {"at": titles.now_iso(), "n": len(entries), "new": 0}
+    res["what"] = "Meinungen"
+    if unknown:
+        res["note"] = f"Nicht zugeordnet ({len(unknown)}): " + ", ".join(unknown[:20]) + (" …" if len(unknown) > 20 else "")
+    return res
+
+
 # ------------------------------------------------------------------ Eine Datei, egal welche
 
 KINDS = {"sheet": "Vergleichstabelle", "playnite": "Playnite-Export", "meta": "Meta-Käufe",
-         "ggwish": "gg.deals-Wunschliste"}
+         "ggwish": "gg.deals-Wunschliste", "opinions": "Meinungen"}
 
 
 def detect(text):
@@ -453,6 +515,8 @@ def detect(text):
             raise ValueError("Die Datei sieht nach JSON aus, ist aber keins")
         if isinstance(obj, dict) and str(obj.get("kind") or "").startswith("meta"):
             return "meta"
+        if isinstance(obj, dict) and obj.get("app") == OPINION_MARK:
+            return "opinions"
         if isinstance(obj, dict) and obj.get("app") == "vr-navigator":
             raise ValueError("Das ist eine Sicherung des VR-Navigators; die spielst du unter Sicherung ein")
         raise ValueError("Diese JSON-Datei kennt das Tool nicht")
@@ -477,4 +541,5 @@ def import_auto(data, text, dry=True):
     return res
 
 
-IMPORTERS = {"sheet": import_sheet, "playnite": import_playnite, "meta": import_meta, "ggwish": import_ggwish}
+IMPORTERS = {"sheet": import_sheet, "playnite": import_playnite, "meta": import_meta, "ggwish": import_ggwish,
+             "opinions": import_opinions}

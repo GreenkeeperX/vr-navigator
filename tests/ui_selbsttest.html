@@ -39,7 +39,7 @@ f.addEventListener("load", () => {
         const unnamed = [...d.querySelectorAll("button,a")].filter(b => !/[\p{L}\p{N}]/u.test(b.textContent) && !b.getAttribute("aria-label"))
           .concat([...d.querySelectorAll("input:not([type=hidden]),select,textarea")].filter(x => !x.getAttribute("aria-label") && !x.closest("label") && !(x.id && d.querySelector(`label[for="${x.id}"]`))))
           .slice(0, 3).map(b => b.outerHTML.slice(0, 60));
-        const open = [...d.querySelectorAll("#main details[data-kc]")].map(x => x.open);
+        const open = [...d.querySelectorAll("#main details[data-kc]:not(.op)")].map(x => x.open);
         res.views[name] = {width: d.documentElement.scrollWidth, view: vw, wide, unnamed, chars: d.body.innerText.length, open,
                            nav: d.getElementById("nav").classList.contains("more")};
         if(name === "probe") probe.remove();

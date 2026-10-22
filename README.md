@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.3.2:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.3.3:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -87,6 +87,10 @@ Ein Feld für jede Datei; das Tool erkennt die Art am Aufbau und zeigt erst eine
   Steam-App-ID sicher, sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“).
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
+- **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere
+  Fassung, Mehrspieler, Pflege, Crossbuy, Komfort, Warnungen und Quellen. Sie stehen unter
+  dem Titel als zugeklappte Zeile „Recherche, Datum: …“; Crossbuy daraus trägt „≈“. Aufbau
+  in [docs/meinungen.md](docs/meinungen.md).
 
 ## Titel zusammenführen
 
