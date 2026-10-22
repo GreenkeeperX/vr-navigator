@@ -1220,6 +1220,26 @@ class TestSync(unittest.TestCase):
         by = {t["name"]: t for t in store.load_data()["titles"].values()}
         self.assertFalse(by["Comet Chase"]["wish"])
         self.assertIn("von deiner (1): Comet Chase", "\n".join(sync.status()["log"]))
+        # Steam-Wunschliste abgeschaltet: nicht mehr abgefragt, Steam zählt nicht mehr als Quelle;
+        # ein Wunsch nur von dort bleibt, steht aber ohne Quelle zum Nachtragen bei gg.deals da
+        def by_name(n):
+            return next(t for t in store.load_data()["titles"].values() if t["name"] == n)
+        net.answers["GetWishlist"] = steam_wish_json("3000030")
+        sync.run(by_hand=True)
+        self.assertEqual(set(by_name("Comet Chase")["wish_src"]), {"steam"})
+        sync.save_settings({"steam_wish": False})
+        t = by_name("Comet Chase")
+        self.assertTrue(t["wish"])
+        self.assertNotIn("wish_src", t)
+        settings = sync.load_settings()
+        got = {x["name"]: x for x in lists.check(store.load_data(), settings)}
+        self.assertIn("nur von der Steam-Wunschliste", got["Comet Chase"]["why"])
+        self.assertEqual([l["label"] for l in got["Comet Chase"]["links"]], ["gg.deals"])
+        net.calls.clear()
+        sync.run(by_hand=True)
+        self.assertFalse(any("GetWishlist" in u for u in net.calls))
+        self.assertTrue(any("GetOwnedGames" in u for u in net.calls))
+        self.assertIn("Wunschliste nicht gelesen", "\n".join(sync.status()["log"]))
 
     def test_blocked_source_stops(self):
         self.seed()

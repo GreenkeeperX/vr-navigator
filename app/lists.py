@@ -44,13 +44,14 @@ def _links(t, srcs):
     return out
 
 
-def add_links(t):
+def add_links(t, steam=True):
     """Wo du einen Titel auf die Wunschliste setzt: die Seite im Laden (Herz bei Meta und
-    Steam) und bei gg.deals die Spielseite oder die Suche."""
+    Steam) und bei gg.deals die Spielseite oder die Suche. steam=False: ohne Steam, wenn du die
+    Steam-Wunschliste nicht pflegst."""
     out = []
     if t.get("meta_id"):
         out.append({"label": "Meta", "url": f"https://www.meta.com/experiences/{t['meta_id']}/"})
-    if t.get("steam_appid"):
+    if steam and t.get("steam_appid"):
         out.append({"label": "Steam", "url": f"https://store.steampowered.com/app/{t['steam_appid']}/"})
     gg = (t.get("links") or {}).get("gg") or ""
     out.append({"label": "gg.deals", "url": gg if gg.startswith("https://gg.deals/") else
@@ -75,7 +76,7 @@ def lists_read(data, settings=None):
     """Welche Wunschlisten das Tool liest: meta (einmal per Lesezeichen gelesen), steam (SteamID
     eingetragen), gg (Link oder Lesezeichen)."""
     imp, s = data.get("imports") or {}, settings or {}
-    return ({"meta"} if imp.get("metawish") else set()) | ({"steam"} if s.get("steam_id") else set()) | \
+    return ({"meta"} if imp.get("metawish") else set()) | ({"steam"} if s.get("steam_id") and s.get("steam_wish", True) else set()) | \
         ({"gg"} if s.get("gg_wish") or imp.get("ggwish") else set())
 
 
@@ -83,6 +84,7 @@ def check(data, settings=None):
     """Abweichungen zwischen den Wunschlisten und dem Tool: [{key, name, kind, why, srcs, links}]."""
     out = []
     read = lists_read(data, settings)
+    steam = (settings or {}).get("steam_wish", True)
     for k, t in data["titles"].items():
         ws = [s for s in (t.get("wish_src") or {}) if s != "hand"]
         off = list(t.get("wish_off") or [])
@@ -93,16 +95,17 @@ def check(data, settings=None):
             why = f"gekauft {where}" + (f", steht noch auf: {', '.join(_src_names(ws))}" if ws else ", steht noch auf deiner Wunschliste im Tool")
             out.append(dict(item, kind="owned", why=why, srcs=ws, links=_links(t, ws)))
         elif t.get("wish") and not t.get("wish_src") and not owned:
-            why = "nur aus der alten Tabelle" if t.get("sheet") is not None else "ohne Quelle"
-            out.append(dict(item, kind="table", why=why + ", auf keiner Wunschliste", srcs=[], links=add_links(t)))
+            why = "nur aus der alten Tabelle" if t.get("sheet") is not None else \
+                "nur von der Steam-Wunschliste" if "steamwish" in (t.get("origin") or {}) and not steam else "ohne Quelle"
+            out.append(dict(item, kind="table", why=why + ", auf keiner Wunschliste", srcs=[], links=add_links(t, steam)))
         elif not t.get("wish") and off:
             out.append(dict(item, kind="off", why=f"im Tool entfernt, steht noch auf: {', '.join(_src_names(off))}",
                             srcs=off, links=_links(t, off)))
         elif t.get("wish") and not owned and not t.get("wish_lists_ok") and missing(t, read):
             miss = missing(t, read)
             have = _src_names([s for s in t["wish_src"] if s != "hand"]) or ["nur im Tool"]
-            names = {"meta": "Meta", "pc": "Steam oder gg.deals"}
-            links = [x for x in add_links(t) if ("meta" if x["label"] == "Meta" else "pc") in miss]
+            names = {"meta": "Meta", "pc": "Steam oder gg.deals" if steam else "gg.deals"}
+            links = [x for x in add_links(t, steam) if ("meta" if x["label"] == "Meta" else "pc") in miss]
             out.append(dict(item, kind="missing", why=f"fehlt bei {' und '.join(names[m] for m in miss)}; steht auf: {', '.join(have)}",
                             srcs=miss, links=links))
     order = {"owned": 0, "off": 1, "missing": 2, "table": 3}

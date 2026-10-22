@@ -69,7 +69,7 @@ NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
-SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
+SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": ""}
 SECRETS = ("gg_key", "steam_key", "gg_wish")      # bleiben auf dem Server, nie im Protokoll
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
@@ -103,6 +103,14 @@ def save_settings(body):
         if v and not accounts.steam_id_input(v)[0]:
             raise ValueError("SteamID: die 17-stellige Zahl oder der Link zu deinem Steam-Profil")
         s["steam_id"] = v
+    if "steam_wish" in body:
+        s["steam_wish"] = bool(body["steam_wish"])
+        if not s["steam_wish"]:
+            # Wird nicht mehr gepflegt (Entscheidung 22.10.2026): Steam zählt nicht mehr als Quelle
+            with store.lock:
+                data = store.load_data()
+                if titles.drop_wish_source(data, "steam"):
+                    store.save_data(data)
     if "gg_wish" in body:
         v = str(body["gg_wish"] or "").strip()[:300]
         if v and not re.match(r"https://gg\.deals/(?:[a-z]{2}/)?wishlist/share/[A-Za-z0-9_-]+/?$", v):
@@ -697,12 +705,15 @@ def _steam_account(settings, log, budget):
             log(str(e))
     else:
         log("Steam-Konto: ohne Schlüssel nur die Wunschliste")
-    text = src.get(f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid={sid}",
-                   shown=f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid=…")
-    try:
-        wished = accounts.steam_wishlist(text) if text else None
-    except ValueError as e:
-        log(str(e))
+    if settings.get("steam_wish", True):
+        text = src.get(f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid={sid}",
+                       shown=f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid=…")
+        try:
+            wished = accounts.steam_wishlist(text) if text else None
+        except ValueError as e:
+            log(str(e))
+    else:
+        log("Steam-Konto: Wunschliste nicht gelesen (in den Einstellungen abgeschaltet)")
     data = store.load_data()
     if wished == [] and any("steam" in (t.get("wish_src") or {}) for t in data["titles"].values()):
         # Leer, obwohl zuletzt Titel darauf standen: eher privat gestellt als leer geräumt

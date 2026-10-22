@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.1:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.2:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -33,7 +33,10 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
 - **Steam:** SteamID (die Zahl oder der Link zum Profil) und ein Steam-Schlüssel
   (kostenlos unter steamcommunity.com/dev/apikey; im Profil müssen die Spieldetails öffentlich
   sein). Dann liest jeder Abgleich deinen Besitz und deine Wunschliste, mit genauen App-IDs;
-  „Steam-ID ≈“ entfällt für alles, was dort steht. Ohne Schlüssel nur die Wunschliste. Apps,
+  „Steam-ID ≈“ entfällt für alles, was dort steht. Ohne Schlüssel nur die Wunschliste. Pflegst
+  du am PC nur die gg.deals-Wunschliste, schalte „Steam-Wunschliste lesen“ ab: Steam zählt dann
+  nicht mehr als Quelle, Hinweise und Links zum Nachtragen nennen nur noch gg.deals, und ein
+  Wunsch, der nur von Steam kam, bleibt und steht unter „Wunschliste abgleichen“. Apps,
   die das Tool noch nicht kennt, prüft es im Store auf VR (höchstens 40 je Abgleich, das
   Ergebnis bleibt gespeichert); übernommen werden nur VR-Apps.
 - **gg.deals-Wunschliste:** der Link aus „Wunschliste teilen“. Es zählen Titel, die das Tool

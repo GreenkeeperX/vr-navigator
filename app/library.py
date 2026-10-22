@@ -239,7 +239,7 @@ def view(data, at=None, hist=None, settings=None):
         t = data["titles"][r["key"]]
         r["wish_missing"] = [] if r["where"] or t.get("wish_lists_ok") else lists.missing(t, read)
         if r["wish_missing"]:
-            r["add_links"] = lists.add_links(t)
+            r["add_links"] = lists.add_links(t, (settings or {}).get("steam_wish", True))
     # Jetzt: nur Angebote, die nah am Bestpreis beider Läden liegen; die übrigen zählt now_far
     sale = sorted((r for r in wish if not r["where"] and _sale(r)), key=lambda r: (-_sale(r), titles.norm(r["name"])))
     now = [r for r in sale if _near(r)]
