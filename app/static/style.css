@@ -129,3 +129,5 @@ details.sub details.sub{margin-left:12px;padding-left:10px;border-top:0;border-l
 .jump a:hover{text-decoration:underline}
 .jump .foldall{margin-left:auto}
 .card,details.sub{scroll-margin-top:48px}
+.bundle input{display:block;width:100%;margin:4px 0}
+label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind select{min-width:0;max-width:100%}

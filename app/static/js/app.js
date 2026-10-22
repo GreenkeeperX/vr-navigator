@@ -140,7 +140,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -280,6 +280,7 @@ const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, 
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
   const rest = x.until && new Date(x.until) > new Date();
+  if(x.manual) return `<span class="b warn" title="gg.deals zeigt dem Server eine Prüfseite; dein Browser kommt durch">per Lesezeichen</span> <span class="hint">${S.imports.ggwish ? "zuletzt " + when(S.imports.ggwish.at) : "noch nie gelesen"}</span>`;
   const tag = x.ok ? `<span class="b go">ok</span>` : rest ? `<span class="b warn" title="${esc(x.msg || "")}">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>`
     : `<span class="b stop">${esc(x.msg || "Fehler")}</span>`;
   return `${tag} <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>`;
@@ -300,7 +301,10 @@ function settingsView(){
   const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {}, sug = S.suggestions.length;
   const hours = se.hours || 6, last = sy.started ? new Date(sy.started) : null;
   const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
-  const rows = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se)).map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
+  const shown = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se));
+  const rows = shown.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
+  const bad = shown.filter(([k]) => src[k] && !src[k].ok).length, okN = shown.filter(([k]) => src[k]?.ok).length;
+  const srcInfo = [okN && `${okN} ok`, bad && `<span class="err">${bad} mit Problem</span>`].filter(Boolean).join(", ") || "noch nicht gelaufen";
   const todo = S.todo || [], open = sug + todo.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["abgleich", "Abgleich"], ["importe", "Einlesen"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
@@ -317,7 +321,7 @@ function settingsView(){
         <button data-act="steamwrong" data-k="${esc(x.key)}" title="Steam-ID entfernen; diese App schlägt das Tool nicht wieder vor">falsch</button></span></div>`).join("")}</div>`;
   const metaList = `<p class="hint">QuestStoreDB fand diese Titel unter keinem ihrer Namen. Unter „bearbeiten“ kannst du einen Link oder die Meta-ID eintragen, dann holt das Tool den Rest.</p>
     <div class="list">${metaTodo.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
-      <span class="row2"><span class="hint">${esc(x.why)}</span>
+      <span class="row2"><span class="hint">${esc(x.why)}${x.row?.origin?.length ? `. Herkunft: ${originText(x.row)}` : ""}</span>
         <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
   const sugCard = open ? box("todo", "Zu erledigen", `${open} offen`, `
@@ -330,7 +334,7 @@ function settingsView(){
   const keyInfo = se.gg_key_set ? `gg.deals-Schlüssel gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}` : "ohne gg.deals-Schlüssel";
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
     <p class="hint">Liest deine Konten, ordnet alle Titel zu (Meta-ID, Steam-ID prüfen) und holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
-    <div class="list">${rows}</div>
+    ${sub("quellen", "Quellen", srcInfo, `<div class="list">${rows}</div>`, !bad)}
     <div class="bar" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
     ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}
@@ -405,25 +409,41 @@ function libView(){
 }
 
 /* ---------------------------------------------------------------- Import */
-/* Lesezeichen „Meta-Käufe lesen“ (wie „Käufe lesen“ im eShopKompass): läuft angemeldet auf der
-   Bestellseite oder den Transaktionen bei Meta, scrollt, bis alles geladen ist, und öffnet dann
-   dieses Tool mit Seitentext und Links im Adressteil hinter # (geht nicht übers Netz an einen
-   Server). Das Tool liest die Käufe dort und übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 4;
+/* Lesezeichen „Seite lesen“ (wie „Käufe lesen“ im eShopKompass): läuft in deinem Browser, wo du
+   angemeldet bist und Prüfseiten wie die von Cloudflare schon bestanden hast.
+   - Meta: Bestellseite, Transaktionen von Meta Pay oder Wunschliste; scrollt, bis alles geladen ist.
+   - gg.deals: deine Wunschliste; weitere Seiten holt es mit kurzer Pause nach.
+   Dann öffnet es dieses Tool mit den Daten im Adressteil hinter # (geht nicht übers Netz an einen
+   Server). Das Tool übernimmt sie. Ausweg: „Als Datei sichern“. */
+const META_HV = 5;
 function metaHelper(tool){ return `(async()=>{
-if(!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay oder deine Wunschliste im Meta Store öffnen, dann das Lesezeichen anklicken.");return}
-const wish=/wish/i.test(location.pathname)||/wunschliste|wishlist/i.test(document.title);
+const gg=/(^|\\.)gg\\.deals$/.test(location.hostname);
+if(!gg&&!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst eine dieser Seiten öffnen, dann das Lesezeichen anklicken: angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay, deine Wunschliste im Meta Store oder deine Wunschliste bei gg.deals.");return}
+if(gg&&!/wishlist/.test(location.pathname)){alert("Bitte deine Wunschliste bei gg.deals öffnen (angemeldet oder über den Teilen-Link), dann das Lesezeichen anklicken.");return}
 const box=document.createElement("div");box.style.cssText="position:fixed;z-index:2147483647;top:12px;right:12px;width:min(420px,90vw);background:#fff;color:#111;border:2px solid #24383b;border-radius:8px;padding:12px;font:14px sans-serif";box.textContent="VR-Navigator: lade alles …";document.body.appendChild(box);
 const look=(b,main)=>{b.style.cssText="margin:0 8px 6px 0;padding:6px 12px;border-radius:6px;font:600 13px sans-serif;cursor:pointer;"+(main?"background:#24383b;color:#fff;border:1px solid #24383b":"background:#f3f4f1;color:#1b2224;border:1px solid #9aa3a1");return b};
 const wait=t=>new Promise(r=>setTimeout(r,t));
+let txt,msg,file;
+if(gg){
+const read=d=>[...d.querySelectorAll("a[href*='/game/']")].map(a=>{const m=(a.getAttribute("href")||"").match(/\\/game\\/([a-z0-9-]+)\\/?(?:[?#].*)?$/);return m&&{slug:m[1],name:(a.innerText||a.title||"").trim().replace(/\\s+/g," ").slice(0,200)}}).filter(Boolean);
+let items=read(document);const base=location.href.split(/[?#]/)[0];
+const pages=[...new Set([...document.querySelectorAll("a[href*='page=']")].map(a=>a.href).filter(h=>h.split("?")[0]===base&&!/[?&]page=1(&|$)/.test(h)))].slice(0,20);
+for(let i=0;i<pages.length;i++){box.textContent="VR-Navigator: lese Seite "+(i+2)+" von "+(pages.length+1)+" …";await wait(1200);try{const r=await fetch(pages[i],{credentials:"include"});items=items.concat(read(new DOMParser().parseFromString(await r.text(),"text/html")))}catch(e){}}
+const by={};items.forEach(x=>{if(!by[x.slug]||(!by[x.slug].name&&x.name))by[x.slug]=x});items=Object.values(by);
+txt=JSON.stringify({kind:"gg-wunschliste",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,pages:pages.length+1,items});
+msg="gg.deals-Wunschliste gelesen: "+items.length+" Spiele. Der VR-Navigator übernimmt sie.";file="gg-wunschliste.json";
+}else{
+const wish=/wish/i.test(location.pathname)||/wunschliste|wishlist/i.test(document.title);
 const boxes=()=>[document.scrollingElement||document.documentElement,...[...document.querySelectorAll("div,main,section,ul")].filter(e=>e.scrollHeight>e.clientHeight+50&&/(auto|scroll)/.test(getComputedStyle(e).overflowY))];
 let h=0,same=0;for(let i=0;i<60&&same<3;i++){const bs=boxes();bs.forEach(e=>{e.scrollTop=e.scrollHeight});await wait(1200);const n=bs.reduce((a,e)=>a+e.scrollHeight,0)+document.querySelectorAll("a[href]").length;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alles … ("+(i+1)+")"}
-boxes().forEach(e=>{e.scrollTop=0});box.remove();
+boxes().forEach(e=>{e.scrollTop=0});
 const links=[...document.querySelectorAll("a[href]")].filter(a=>/\\/(experiences|order)\\//.test(a.href)).slice(0,3000).map(a=>({href:a.href,text:(a.innerText||a.getAttribute("aria-label")||(a.querySelector("img")||{}).alt||"").trim().slice(0,200)}));
-const txt=JSON.stringify({kind:wish?"meta-wunschliste":"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,links,text:document.body.innerText.slice(0,400000)});
-document.body.appendChild(box);box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent=wish?"Wunschliste gelesen. Der VR-Navigator übernimmt sie.":"Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
+txt=JSON.stringify({kind:wish?"meta-wunschliste":"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,links,text:document.body.innerText.slice(0,400000)});
+msg=wish?"Wunschliste gelesen. Der VR-Navigator übernimmt sie.":"Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";file=wish?"meta-wunschliste.json":"meta-bestellungen.json";
+}
+box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent=msg;
 const go=look(document.createElement("button"),true);go.textContent="Im VR-Navigator übernehmen";go.onclick=()=>{window.open(${JSON.stringify(tool)}+"/#meta="+encodeURIComponent(txt),"_blank");box.remove()};
-const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download=wish?"meta-wunschliste.json":"meta-bestellungen.json";document.body.appendChild(a);a.click();a.remove()};
+const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download=file;document.body.appendChild(a);a.click();a.remove()};
 const b=look(document.createElement("button"));b.textContent="Schließen";b.onclick=()=>box.remove();
 box.append(p,go,f,b);
 })();`; }
@@ -432,21 +452,26 @@ const metaBm = () => "javascript:" + encodeURIComponent(metaHelper(location.orig
 const KINDS = {sheet: "Vergleichstabelle", playnite: "Playnite-Export", meta: "Meta-Käufe", metawish: "Meta-Wunschliste", ggwish: "gg.deals-Wunschliste"};
 /* Meta-Lesezeichen: Käufe und Wunschliste, beides ohne Datei */
 function metaCard(){
-  const p = V.prev.meta, lm = S.imports.meta, lw = S.imports.metawish;
-  const info = [lm && `Käufe ${day(lm.at)}`, lw && `Wunschliste ${day(lw.at)}`].filter(Boolean).join(", ") || "noch nie";
-  return sub("imp-meta", "Meta: Käufe und Wunschliste", info, `<ol>
-      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta lesen</a>
+  const p = V.prev.meta, lm = S.imports.meta, lw = S.imports.metawish, lg = S.imports.ggwish;
+  const info = [lm && `Meta-Käufe ${day(lm.at)}`, lw && `Meta-Wunschliste ${day(lw.at)}`, lg && `gg.deals ${day(lg.at)}`].filter(Boolean).join(", ") || "noch nie";
+  return sub("imp-meta", "Lesezeichen: Meta und gg.deals", info, `<ol>
+      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Seite lesen</a>
         <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></li>
-      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder deine Wunschliste im Meta Store und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
-      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt Käufe oder Wunschliste. Die Daten stehen nur in der Adresse hinter #.</li></ol>
+      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder deine Wunschliste im Meta Store und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.
+        Genauso auf deiner <a href="https://gg.deals/wishlist/" target="_blank" rel="noopener noreferrer">Wunschliste bei gg.deals</a>: Dein Browser kommt an der Prüfseite vorbei, der Server nicht.</li>
+      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt Käufe oder Wunschliste. Ein altes Lesezeichen „Meta lesen“ ersetzt du durch dieses. Die Daten stehen nur in der Adresse hinter #.</li></ol>
       ${p ? previewHtml(p) : ""}`, !!(lm || lw) && !p, "imp-meta");
 }
 /* Ein Feld für jede Datei: das Tool erkennt die Art selbst und zeigt erst eine Vorschau */
+// Arten, die du im Importfeld von Hand wählen kannst, wenn die Erkennung danebenliegt
+const FILE_KINDS = {sheet: "Vergleichstabelle", playnite: "Playnite-Export", ggwish: "gg.deals-Wunschliste (CSV)",
+  meta: "Meta (Lesezeichen, Text)", opinions: "Meinungen"};
 function fileCard(){
   const p = V.prev.file, last = ["sheet", "playnite", "ggwish"].map(k => S.imports[k] && `${KINDS[k]} ${day(S.imports[k].at)}`).filter(Boolean);
   return sub("imp-file", "Datei oder Text einlesen", last.join(", ") || "noch nie", `
     <p class="hint">Vergleichstabelle (CSV), Playnite-Export (CSV), eine gg.deals-Wunschliste (CSV), die Datei des Meta-Lesezeichens, kopierter Text deiner Meta-Bestellungen oder eine Meinungen-Datei aus der Recherche. Das Tool erkennt die Art am Aufbau und zeigt erst, was es übernehmen würde.</p>
-    <div class="bar"><input type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" data-file="file" aria-label="Datei wählen"></div>
+    <div class="bar"><input type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" data-file="file" aria-label="Datei wählen">
+      <label class="kind">Art <select id="kind-file">${[["auto", "erkennen"], ...Object.entries(FILE_KINDS)].map(([k, l]) => `<option value="${k}" ${V.kindFile === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
     <textarea id="txt-file" aria-label="Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.file || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="file">Vorschau</button>
       ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="file">${p.n} übernehmen</button>` : ""}</div>
@@ -465,7 +490,7 @@ function accountsCard(){
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
-      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey; im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
+      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
       <li><b>gg.deals:</b> deine geteilte Wunschliste. Es zählen Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
@@ -481,10 +506,22 @@ function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
   if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
-  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>: ` : ""}${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
+  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
 /* ---------------------------------------------------------------- Bearbeiten */
+/* Herkunft eines Titels, etwa „Vergleichstabelle, Zeile 128 (21.10.2026)“; vermutet heißt: aus
+   der Zeit vor 0.3.4, abgeleitet aus Besitz, Wunschquellen und Importzeitpunkt */
+const originText = r => (r.origin || []).map(o => `${esc(o.label)}${o.detail ? ", " + esc(o.detail) : ""}${o.at ? " (" + day(o.at) + ")" : ""}${o.guess ? " ≈" : ""}`).join(" · ");
+/* Inhalt eines Bundles: je Spiel ein Feld für Name oder Link, „+“ fügt eines an */
+const bundleField = v => `<input type="text" name="contains" value="${esc(v)}" placeholder="Name oder Link (Meta, QuestStoreDB, VRDB, Steam)" aria-label="Spiel im Bundle">`;
+function bundleEdit(r){
+  const items = (r.contains || []).map(x => x.name);
+  return `<details class="op" ${r.bundle || items.length ? "open" : ""}><summary>${r.bundle || items.length ? "Inhalt des Bundles" : "Ist das ein Bundle? Inhalt eintragen"}</summary>
+    <div class="bundle" id="f-bundle">${(items.length ? items : [""]).map(bundleField).join("")}</div>
+    <button type="button" data-act="bundleadd" title="Weiteres Spiel im Bundle">+ Spiel</button>
+    <p class="hint">Jedes Spiel wird ein eigener Titel, mit dem Bundle als Herkunft. Besitzt du das Bundle, besitzt du die Spiele darin.</p></details>`;
+}
 function openEdit(key){
   const r = S.library.concat(S.wishlist, (S.todo || []).map(x => x.row)).find(x => x.key === key);
   if(!r) return;
@@ -501,7 +538,9 @@ function openEdit(key){
       <label class="full" for="f-note">Notiz, etwa Meinungen von Reddit mit Link</label>
       <textarea class="full" id="f-note" name="note">${esc(r.note)}</textarea>
     </div>
+    ${bundleEdit(r)}
     <p class="hint">Trägt ein anderer Titel dieselbe ID, werden beide zusammengeführt.</p>
+    ${r.origin?.length ? `<p class="hint">Herkunft: ${originText(r)}</p>` : ""}
     <p class="err" id="f-err"></p>
     <div class="actions"><button type="button" class="danger" data-act="del" data-k="${esc(key)}">Löschen</button><span class="sp"></span>
       <button type="button" data-act="close">Abbrechen</button><button class="primary" value="save">Speichern</button></div></form>`;
@@ -584,6 +623,7 @@ document.addEventListener("click", async ev => {
     c?.scrollIntoView({block: "start"});
   }
   else if(a === "edit") openEdit(el.dataset.k);
+  else if(a === "bundleadd"){ $("f-bundle").insertAdjacentHTML("beforeend", bundleField("")); $("f-bundle").lastElementChild.focus(); }
   else if(a === "close") $("edit").close();
   else if(a === "del"){
     // Kein Rückfrage-Fenster: gelöscht wird sofort, der Hinweis bietet „Rückgängig“
@@ -619,7 +659,8 @@ document.addEventListener("click", async ev => {
     V.txt = Object.assign(V.txt || {}, {[v]: text});
     el.disabled = true;
     try{
-      const res = await api("/api/import", {kind: v === "file" ? "auto" : v, text, dry: a === "preview"});
+      if(v === "file") V.kindFile = $("kind-file")?.value || "auto";
+      const res = await api("/api/import", {kind: v === "file" ? V.kindFile || "auto" : v, text, dry: a === "preview"});
       V.prev[v] = a === "apply" ? Object.assign({done: true}, res, {state: null}) : res;
       if(res.state) S = res.state;
       if(a === "apply") V.txt[v] = "";
@@ -676,7 +717,8 @@ document.addEventListener("submit", async ev => {
     const cb = f.crossbuy.value;
     const ok = await act("/api/title", {key: f.dataset.k, name: f.name.value, meta_id: f.meta_id.value, steam_appid: f.steam_appid.value,
       crossbuy: cb === "yes" ? true : cb === "no" ? false : null, wish: f.wish.checked,
-      owned_meta: f.owned_meta.checked, owned_pc: f.owned_pc.checked, note: f.note.value}, $("f-err"));
+      owned_meta: f.owned_meta.checked, owned_pc: f.owned_pc.checked, note: f.note.value,
+      contains: [...f.querySelectorAll("input[name=contains]")].map(x => x.value.trim()).filter(Boolean)}, $("f-err"));
     if(ok) $("edit").close();
   }
 });

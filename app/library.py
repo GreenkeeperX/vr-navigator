@@ -66,7 +66,7 @@ def _best(hist, src, ident, price, today):
     return dict(b, level=level, over=round(price - b["best"], 2))
 
 
-def row(key, t, at=None, hist=None):
+def row(key, t, at=None, hist=None, data=None):
     sheet = t.get("sheet") or None
     gap = None
     if sheet and sheet.get("meta_low") is not None and sheet.get("gg") is not None:
@@ -91,7 +91,9 @@ def row(key, t, at=None, hist=None):
         "where": _where(t), "pc_label": (o.get("pc") or {}).get("label") or "",
         "meta_price": (o.get("meta") or {}).get("price"),
         "wish": bool(t.get("wish")), "crossbuy": cb, "crossbuy_src": cb_src,
-        "opinion": t.get("opinion") or None,
+        "opinion": t.get("opinion") or None, "origin": titles.origins(t, data),
+        "contains": [{"key": k, "name": data["titles"][k]["name"]} for k in t.get("contains") or []
+                     if data and k in data["titles"]],
         "sheet": sheet, "gap": gap, "note": t.get("note") or "",
         "live": live, "pc_best": pc, "best": {k: v for k, v in best.items() if v},
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt
@@ -107,7 +109,7 @@ def _sale(r):
 
 
 def view(data, at=None, hist=None):
-    rows = sorted((row(k, t, at, hist) for k, t in data["titles"].items()), key=lambda r: titles.norm(r["name"]))
+    rows = sorted((row(k, t, at, hist, data) for k, t in data["titles"].items()), key=lambda r: titles.norm(r["name"]))
     owned = [r for r in rows if r["where"]]
     # Die Wunschliste führt auch Titel, die du inzwischen besitzt; die Oberfläche blendet sie
     # aus, solange du sie nicht ausdrücklich zeigen lässt (owned_wish zählt sie)
@@ -124,6 +126,6 @@ def view(data, at=None, hist=None):
                    "both": sum(r["where"] == "beide" for r in rows)},
         "suggestions": titles.suggestions(data),
         # Mit der Zeile, damit „bearbeiten“ auch Titel öffnet, die weder Besitz noch Wunsch sind
-        "todo": [dict(x, row=row(x["key"], data["titles"][x["key"]], at, hist)) for x in titles.todo(data)],
+        "todo": [dict(x, row=row(x["key"], data["titles"][x["key"]], at, hist, data)) for x in titles.todo(data)],
         "imports": data.get("imports") or {},
     }

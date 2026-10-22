@@ -215,6 +215,51 @@ class TestImports(unittest.TestCase):
             imports.parse_meta("{kaputt")
 
 
+    def test_origin_and_bundle(self):
+        """Herkunft je Titel (mit Zeile der Tabelle, für alte Daten vermutet) und Bundle-Inhalt."""
+        d = empty()
+        imports.import_sheet(d, SHEET, dry=False)
+        t = d["titles"][titles.find(d, "", "", "Nur ein Name")]
+        self.assertEqual([(o["label"], o["detail"], o["guess"]) for o in titles.origins(t, d)],
+                         [("Vergleichstabelle", "Zeile 5", False)])
+        old = dict(t)
+        old.pop("origin")
+        self.assertEqual([(o["src"], o["guess"]) for o in titles.origins(old, d)], [("sheet", True)])
+        b = titles.find(d, "", "", "Moon Rover (Bundle-Fassung)")
+        d["titles"][b]["owned"] = {"meta": {"src": "meta"}}
+        d["titles"][b]["meta_miss"] = titles.now_iso()
+        self.assertIn(b, [x["key"] for x in titles.todo(d)])
+        keys = titles.set_bundle(d, b, ["Comet Chase", "https://vrdb.app/game/orbit-golf/5555555555555555", " "])
+        self.assertEqual([d["titles"][k]["name"] for k in keys], ["Comet Chase", "orbit golf"])
+        og = d["titles"][keys[1]]
+        self.assertEqual((og["meta_id"], og["owned"]["meta"]["src"]), ("5555555555555555", "bundle"))
+        self.assertEqual(og["origin"]["bundle"]["detail"], "Moon Rover (Bundle-Fassung)")
+        self.assertNotIn(b, [x["key"] for x in titles.todo(d)])
+        r = library.row(b, d["titles"][b], data=d)
+        self.assertEqual([x["name"] for x in r["contains"]], ["Comet Chase", "orbit golf"])
+        with self.assertRaises(ValueError):
+            titles.set_bundle(d, b, ["https://example.org/kein-spiel"])
+
+    def test_ggpage_and_guess(self):
+        """gg.deals-Wunschliste aus dem Lesezeichen; unklare Dateien melden sich statt still nichts."""
+        d = empty()
+        k, _ = titles.upsert(d, "Orbit Golf")
+        payload = json.dumps({"kind": "gg-wunschliste", "hv": 5, "items": [
+            {"slug": "orbit-golf", "name": "Orbit Golf"}, {"slug": "comet-chase", "name": ""},
+            {"slug": "../boese", "name": "x"}]})
+        self.assertEqual(imports.detect(payload), "meta")
+        res = imports.import_auto(d, payload, dry=True)
+        self.assertEqual([(e["name"], e["known"]) for e in res["entries"]], [("Orbit Golf", True), ("comet chase", False)])
+        imports.import_auto(d, payload, dry=False)
+        self.assertEqual(set(d["titles"][k]["wish_src"]), {"gg"})
+        self.assertEqual(d["gg_unknown"], ["comet chase"])
+        self.assertEqual(d["imports"]["ggwish"]["via"], "Lesezeichen")
+        with self.assertRaises(ValueError) as e:
+            imports.import_auto(d, "Irgendwas;Ganz;Anderes\n1;2;3\n", dry=True)
+        self.assertIn("Art", str(e.exception))
+        res = imports.import_auto(d, SHEET, dry=True)
+        self.assertEqual((res["kind"], res["guess"]), ("sheet", False))
+
     def test_opinions(self):
         """Meinungen-Datei: erkannt, nur bekannte Titel, Crossbuy nur ohne eigenen Wert."""
         d = empty()
@@ -700,6 +745,33 @@ class TestSync(unittest.TestCase):
         store.save_data(d)
         server.edit_title({"key": gk, "steam_sure": True})
         self.assertTrue(store.load_data()["titles"][gk]["steam_sure"])
+
+    def test_ggwish_manual(self):
+        """gg.deals sperrt den Server: Wunschliste ab dann per Lesezeichen, unbekannte Namen
+        sucht der Abgleich nach; ein neu gespeicherter Link versucht es wieder."""
+        self.seed()
+        sync.save_settings({"gg_wish": "https://gg.deals/wishlist/share/AbCdEf123/"})
+        sources.fetch = net = FakeNet({"wishlist/share": 403, "/on_sale/": qsdb_list(), "all_apps": qsdb_list(),
+                                       "storesearch/?term=Comet+Chase": json.dumps({"items": [{"type": "app", "id": 3000030, "name": "Comet Chase"}]}),
+                                       "appids=3000030&cc=de&l=german": steam_app_json(3000030, "Comet Chase", True),
+                                       "storesearch": json.dumps({"items": []}), "appdetails": "{}"})
+        sync.run()
+        st = sync.status()
+        self.assertTrue(st["sources"]["ggwish"]["manual"])
+        self.assertNotIn("ggwish", st.get("rest") or {})
+        self.assertIn("Lesezeichen", "\n".join(st["log"]))
+        d = store.load_data()
+        d["gg_unknown"] = ["Comet Chase"]
+        store.save_data(d)
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("wishlist/share" in u for u in net.calls))
+        d = store.load_data()
+        cc = next(t for t in d["titles"].values() if t["name"] == "Comet Chase")
+        self.assertEqual((cc["steam_appid"], set(cc["wish_src"])), ("3000030", {"gg"}))
+        self.assertEqual(d["gg_unknown"], [])
+        sync.save_settings({"gg_wish": "https://gg.deals/wishlist/share/Neu1/"})
+        self.assertNotIn("ggwish", store.load_json("sync.json", {}).get("manual") or {})
 
     def test_accounts_in_run(self):
         """Steam-Konto, gg.deals-Wunschliste und Sharenite vor den Preisen."""

@@ -47,6 +47,7 @@ STEAM = "https://store.steampowered.com"
 GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
 STEAM_API = "https://api.steampowered.com"
 APPINFO_MAX = 40            # Store-Seiten je Lauf, um zu prüfen, ob eine App VR kann
+ASSIGN_APPS = 25            # Steam-Store-Abfragen je Lauf, um Steam-IDs „≈“ zu prüfen
 ASSIGN_SEARCH = 15          # QuestStoreDB-Suchen je Lauf für Titel außerhalb der Preisliste
 GG_WISH_PAGES = 10
 SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
@@ -91,6 +92,10 @@ def save_settings(body):
         if v and not re.match(r"https://gg\.deals/(?:[a-z]{2}/)?wishlist/share/[A-Za-z0-9_-]+/?$", v):
             raise ValueError("gg.deals: den Link aus „Wunschliste teilen“ einfügen (https://gg.deals/wishlist/share/…)")
         s["gg_wish"] = v
+        st = store.load_json("sync.json", {})
+        if (st.get("manual") or {}).pop("ggwish", None):
+            # Neuer Link: der Server versucht es wieder selbst
+            store.save_json("sync.json", st)
     if "sharenite" in body:
         v = str(body["sharenite"] or "").strip()[:300]
         m = re.match(r"https://(?:www\.)?sharenite\.link/profiles/([A-Za-z0-9_-]+)(?:/games)?/?$", v)
@@ -719,12 +724,30 @@ def _gg_wish(settings, log, budget):
         data = store.load_data()
         res = accounts.apply_gg_wishes(data, items, stamp)
         store.save_data(data)
-    # Unbekannte Namen: im Steam-Store suchen, nur VR-Apps aufnehmen
+    added, steam_n = _gg_resolve(res["unknown"], log, budget, stamp, list(res["keys"]))
+    unknown = [n for n in res["unknown"] if n not in added]
+    log(f"gg.deals-Wunschliste: {len(items)} Spiele auf {page - 1} Seiten, davon {len(res['keys']) + len(added)} VR-Titel im Tool"
+        + (f"; neu auf der Wunschliste ({len(res['wish_added']) + len(added)}): {_few(res['wish_added'] + added)}"
+           if res["wish_added"] or added else "")
+        + (f"; nicht mehr bei gg.deals und damit von deiner ({len(res['wish_removed'])}): {_few(res['wish_removed'])}"
+           if res["wish_removed"] else ""))
+    if unknown:
+        log(f"gg.deals-Wunschliste, nicht zugeordnet (kein VR laut Steam oder nicht gefunden, {len(unknown)}): {_few(unknown)}")
+    log(f"gg.deals-Wunschliste: fertig nach {_took(start)}, {src.n + steam_n} Anfragen")
+    src.stats = {"items": len(items), "vr": len(res["keys"]) + len(added)}
+    return src.result()
+
+
+def _gg_resolve(names, log, budget, stamp, keys=None):
+    """Namen von der gg.deals-Wunschliste, die das Tool nicht kennt: im Steam-Store suchen (nur
+    genau gleicher Name, je Name höchstens alle MISS_DAYS Tage) und aufnehmen, wenn die App VR
+    kann. keys: die übrigen Titel der Liste; dann ersetzt das Ergebnis die gg.deals-Wunschliste,
+    sonst (Lesezeichen) kommen die gefundenen nur dazu. Liefert (aufgenommene Namen, Anfragen)."""
     steam = _Source("Steam", log)
     data = store.load_data()
     tried = dict(data.get("gg_tried") or {})
     old = (now() - timedelta(days=MISS_DAYS)).isoformat(timespec="seconds")
-    found, todo = {}, [n for n in res["unknown"] if (tried.get(titles.norm(n)) or "") < old][:budget["search"]]
+    found, todo = {}, [n for n in names if (tried.get(titles.norm(n)) or "") < old][:budget["search"]]
     for name in todo:
         budget["search"] -= 1
         text = steam.get(f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}))
@@ -741,27 +764,35 @@ def _gg_wish(settings, log, budget):
         data = store.load_data()
         data["steam_apps"] = dict(data.get("steam_apps") or {}, **apps)
         data["gg_tried"] = tried
-        keys = list(res["keys"])
+        new_keys = []
         for appid, name in found.items():
             if (apps.get(appid) or {}).get("vr"):
                 k, _ = titles.upsert(data, name, "", appid)
                 data["titles"][k]["steam_sure"] = True
-                keys.append(k)
+                new_keys.append(k)
                 added.append(name)
-        if added:
-            titles.set_wishes(data, "gg", keys, stamp)
+        if keys is not None and new_keys:
+            titles.set_wishes(data, "gg", list(keys) + new_keys, stamp)
+        elif new_keys:
+            titles.add_wish(data, "gg", new_keys, stamp)
+        if data.get("gg_unknown"):
+            data["gg_unknown"] = [n for n in data["gg_unknown"] if n not in added and titles.norm(n) not in tried]
         store.save_data(data)
-    unknown = [n for n in res["unknown"] if n not in added]
-    log(f"gg.deals-Wunschliste: {len(items)} Spiele auf {page - 1} Seiten, davon {len(res['keys']) + len(added)} VR-Titel im Tool"
-        + (f"; neu auf der Wunschliste ({len(res['wish_added']) + len(added)}): {_few(res['wish_added'] + added)}"
-           if res["wish_added"] or added else "")
-        + (f"; nicht mehr bei gg.deals und damit von deiner ({len(res['wish_removed'])}): {_few(res['wish_removed'])}"
-           if res["wish_removed"] else ""))
-    if unknown:
-        log(f"gg.deals-Wunschliste, nicht zugeordnet (kein VR laut Steam oder nicht gefunden, {len(unknown)}): {_few(unknown)}")
-    log(f"gg.deals-Wunschliste: fertig nach {_took(start)}, {src.n + steam.n} Anfragen")
-    src.stats = {"items": len(items), "vr": len(res["keys"]) + len(added)}
-    return src.result()
+    return added, steam.n
+
+
+def _gg_pending(log, budget):
+    """Unbekannte Namen aus der per Lesezeichen gelesenen gg.deals-Wunschliste nachsuchen."""
+    names = store.load_data().get("gg_unknown") or []
+    if not names:
+        return None
+    stamp = titles.now_iso()
+    added, n = _gg_resolve(names, log, budget, stamp)
+    left = store.load_data().get("gg_unknown") or []
+    log(f"gg.deals-Wunschliste (Lesezeichen): {len(names)} unbekannte Namen, {n} Anfragen bei Steam"
+        + (f"; als VR-Titel aufgenommen ({len(added)}): {_few(added)}" if added else "")
+        + (f"; {len(left)} folgen beim nächsten Abgleich" if left else ""))
+    return {"at": stamp, "ok": True, "requests": n, "errors": 0, "msg": "", "via": "Lesezeichen"}
 
 
 def _sharenite(settings, log):
@@ -960,8 +991,29 @@ def run(only=None, boot=False, by_hand=False):
         budget = {"apps": APPINFO_MAX, "search": 15}
         if settings["steam_id"]:
             do("steamacc", lambda: _steam_account(settings, log, budget))
-        if settings["gg_wish"]:
+        # gg.deals zeigt dem Server oft eine Prüfseite von Cloudflare; dann liest das Lesezeichen
+        # die Wunschliste im Browser, und der Abgleich sucht nur die unbekannten Namen nach
+        manual = st["manual"] = dict(prev.get("manual") or {})
+        if st["rest"].pop("ggwish", None):
+            manual["ggwish"] = _iso(now())          # Sperre aus einer Version vor 0.3.4
+        if settings["gg_wish"] and not manual.get("ggwish"):
             do("ggwish", lambda: _gg_wish(settings, log, budget))
+            if (results.get("ggwish") or {}).get("blocked"):
+                manual["ggwish"] = _iso(now())
+                st["rest"].pop("ggwish", None)
+                results["ggwish"] = dict(results["ggwish"], ok=True, manual=True, msg="per Lesezeichen", until=None)
+                log("gg.deals-Wunschliste: gg.deals lässt den Server nicht durch (Prüfseite von Cloudflare). Lies die "
+                    "Wunschliste ab jetzt mit dem Lesezeichen „Seite lesen“ auf gg.deals; der Server versucht es erst "
+                    "wieder, wenn du den Link neu speicherst.")
+        if store.load_data().get("gg_unknown") and (not only or "ggwish" in only):
+            r = _gg_pending(log, budget)
+            if r and "ggwish" not in results:
+                results["ggwish"] = dict(r, manual=bool(manual.get("ggwish")))
+        elif settings["gg_wish"] and manual.get("ggwish") and "ggwish" not in results:
+            last = (store.load_data().get("imports") or {}).get("ggwish") or {}
+            log("gg.deals-Wunschliste: nur per Lesezeichen" + (f", zuletzt gelesen {_ago_text(last['at'])}" if last.get("at") else ", noch nie gelesen"))
+            results["ggwish"] = {"at": titles.now_iso(), "ok": True, "manual": True, "msg": "per Lesezeichen",
+                                 "requests": 0, "errors": 0}
         if settings["sharenite"]:
             last = ((prev.get("sources") or {}).get("sharenite") or {})
             fresh = last.get("ok") and (last.get("at") or "") > _iso(now() - timedelta(hours=SHARENITE_H))
@@ -973,7 +1025,8 @@ def run(only=None, boot=False, by_hand=False):
         if not only or any(x in only for x in ("qsdb", "steam")):
             progress("Zuordnung")
             try:
-                _assign(log, budget, st["rest"])
+                # eigenes Kontingent, damit eine lange Steam-Wunschliste die Prüfung nicht aufbraucht
+                _assign(log, {"apps": ASSIGN_APPS, "search": 0}, st["rest"])
             except Exception as e:
                 log(f"Zuordnung: unerwarteter Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers")
                 print("Fehler bei der Zuordnung:", e, file=sys.stderr)
