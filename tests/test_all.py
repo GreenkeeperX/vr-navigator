@@ -1290,6 +1290,7 @@ class TestSync(unittest.TestCase):
     def test_due_after_boot_and_failure(self):
         from datetime import datetime, timedelta, timezone
         at = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+        self.assertEqual(sync.BOOT_WAIT_S, 300)                              # Ruhe nach dem Start: 5 min
         self.assertTrue(sync.due(at=at))                                     # noch nie gelaufen
         store.save_json("sync.json", {"started": (at - timedelta(hours=2)).isoformat(), "ok": True})
         self.assertFalse(sync.due(at=at))                                    # Zeitplan: erst nach 6 h

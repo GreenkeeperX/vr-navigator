@@ -39,14 +39,15 @@ gg.deals-Wunschliste nach einer Woche wieder vom Server), 0.5.0 eine Stelle für
 Herkunft des Wunsches je Titel, die Tabelle eingefroren), 0.5.1 Nachtragen leicht gemacht
 („fehlt auf einer Laden-Wunschliste“ mit Links zum Eintragen, Meta-Wunschliste sauber gelesen,
 Jetzt nur nah am Bestpreis mit den Grenzen des eShopKompass), 0.5.2 Steam-Wunschliste
-abschaltbar (am PC zählt dann nur gg.deals, Entscheidung 22.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
+abschaltbar (am PC zählt dann nur gg.deals, Entscheidung 22.10.2026), 0.5.3 erster Abgleich
+fünf statt zwei Minuten nach dem Start. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- 0.5.3 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
+- 0.5.4 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als
   Ergänzung
-- 0.5.4 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+- 0.5.5 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 - Besitz mit zweiter Quelle bestätigen (Steam-Konto und Sharenite, Meta-Käufe und VRDB) und

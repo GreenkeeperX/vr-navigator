@@ -67,6 +67,7 @@ PLAYERS_H = 20              # so alt darf eine Spielerzahl werden
 PEAK_DAYS = 30              # Spitze über so viele Tage
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
+BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Entscheidung 22.10.2026
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": ""}
@@ -1392,9 +1393,9 @@ def start(only=None):
 
 
 def scheduler():
-    """Prüft jede Minute, ob ein Lauf nach Zeitplan fällig ist. Erster Blick zwei Minuten nach
+    """Prüft jede Minute, ob ein Lauf nach Zeitplan fällig ist. Erster Blick BOOT_WAIT_S nach
     dem Start: dann ein Lauf, wenn der letzte über BOOT_GAP_MIN zurückliegt (siehe due)."""
-    time.sleep(120)
+    time.sleep(BOOT_WAIT_S)
     boot = True
     while True:
         try:
