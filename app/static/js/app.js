@@ -110,7 +110,7 @@ const foldAll = `<span class="foldall"><button class="link" data-act="foldall" d
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
-  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length;
+  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
   const cnt = {now: c.now || "", wish: c.wish, lib: c.owned, find: S.imports.collection?.n || "", settings: set};
@@ -190,6 +190,7 @@ function badges(r){
   }
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
+  if(r.wish && !r.wish_src?.length) out.push(`<span class="b" title="Steht auf keiner Wunschliste, nur in deiner alten Tabelle (Einstellungen, Zu erledigen)">Wunsch · Tabelle</span>`);
   return out.join(" ");
 }
 const linksHtml = r => `<span class="links">${r.links.filter(l => safeUrl(l.url)).map(l =>
@@ -284,7 +285,12 @@ function wishView(){
   const ow = S.counts.owned_wish;
   const head = listBar({sorts, sort: V.sort, sortKey: "wish", filters: ["cb", "sale", "best", "good"],
     extra: `<button data-act="addopen" class="${V.add ? "on" : ""}" title="Titel von Hand hinzufügen">+ Titel</button>${ow ? foldAll : ""}`});
-  return (V.add ? add : "") + head +
+  // Hinweis auf „Wunschliste abgleichen“, solange es dort etwas zu tun gibt
+  const L = S.lists || [], lc = k => L.filter(x => x.kind === k).length;
+  const hint = L.length ? `<div class="banner">Abgleich mit deinen Wunschlisten: ${[lc("owned") && `${lc("owned")} schon gekauft`,
+    lc("off") && `${lc("off")} im Laden noch gewünscht`, lc("table") && `${lc("table")} nur aus der Tabelle`].filter(Boolean).join(", ")}.
+    <button class="link" data-act="golists">ansehen</button></div>` : "";
+  return hint + (V.add ? add : "") + head +
     (!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
       : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`) +
         grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true));
@@ -355,6 +361,8 @@ function moreHtml(r, extra){
     g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
     g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}
     <span class="hint">(Keyshops zählen nicht mit)</span></div>`);
+  const WS = {meta: "Meta", steam: "Steam", gg: "gg.deals", hand: "von Hand"};
+  if(r.wish) out.push(`<div class="small">Wunsch aus: ${r.wish_src?.length ? r.wish_src.map(s => WS[s] || s).join(", ") : "nur der alten Tabelle"}</div>`);
   if(s && Object.keys(r.live).length) has.push("Tabelle"), out.push(`<div class="small">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</div>`);
   out.push(`<div class="row2">${linksHtml(r)}</div>`);
   out.push(`<div class="row2"><button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${extra || ""}</div>`);
@@ -591,7 +599,7 @@ function settingsView(){
   const rows = shown.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
   const bad = shown.filter(([k]) => src[k] && !src[k].ok).length, okN = shown.filter(([k]) => src[k]?.ok).length;
   const srcInfo = [okN && `${okN} ok`, bad && `<span class="err">${bad} mit Problem</span>`].filter(Boolean).join(", ") || "noch nicht gelaufen";
-  const todo = S.todo || [], open = sug + todo.length;
+  const todo = S.todo || [], lists = S.lists || [], open = sug + todo.length + lists.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
@@ -612,6 +620,7 @@ function settingsView(){
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
   const sugCard = open ? box("todo", "Zu erledigen", `${open} offen`, `
     <p class="hint">Was das Tool nicht selbst klären konnte. Alles andere ordnet es bei jedem Abgleich von allein zu.</p>
+    ${listsHtml()}
     ${sug ? sub("sug", "Derselbe Titel?", `${S.suggestions.length} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
     ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", steamTodo.length, steamList) : ""}
     ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", metaTodo.length, metaList) : ""}`) : "";
@@ -635,6 +644,36 @@ function settingsView(){
   return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` +
     sugCard + importe + abgleich + sicherung;
 }
+/* Wunschliste abgleichen: das Tool führt deine Wünsche, die Wunschlisten der Läden sind Spiegel.
+   Je Gruppe eine Aktion für alle, je Titel dieselbe einzeln; Links führen zur Liste im Laden,
+   wo du einen Eintrag selbst entfernst (das Tool schreibt nirgends hin). */
+const LIST_GROUPS = [
+  ["owned", "Gekauft, noch auf der Wunschliste", "Du besitzt diese Titel schon. Nimm sie von der Wunschliste; steht ein Titel noch bei Steam, gg.deals oder Meta, zeigt der Link dorthin. „behalten“, wenn du die Fassung im anderen Laden willst.",
+    [["drop", "von der Wunschliste"], ["keep", "behalten"]]],
+  ["off", "Im Tool entfernt, im Laden noch gewünscht", "Du hast sie im Tool entfernt, die Liste im Laden führt sie noch. Entferne sie dort, dann verschwindet der Hinweis beim nächsten Abgleich; oder wünsche sie wieder.",
+    [["wish", "wieder wünschen"]]],
+  ["table", "Nur aus der alten Tabelle", "Diese Wünsche stehen auf keiner Wunschliste, nur in deiner Vergleichstabelle. „behalten“ führt sie im Tool weiter (von Hand), „entfernen“ nimmt sie von der Liste.",
+    [["keep", "behalten"], ["drop", "entfernen"]]]];
+function listsHtml(){
+  const L = S.lists || [], st = S.lists_stale || [];
+  const metaWish = st.find(x => x.src === "metawish");
+  // Erst lesen, dann entscheiden: was auf der Meta-Wunschliste steht, ordnet das Tool selbst zu
+  const first = metaWish && L.some(x => x.kind === "table")
+    ? `<p class="banner">${metaWish.at ? `Deine Meta-Wunschliste hast du zuletzt ${ago(metaWish.at)} gelesen` : "Deine Meta-Wunschliste hat das Tool noch nie gelesen"}. Lies sie zuerst mit dem Lesezeichen „Meta-Käufe lesen“ auf deiner Wunschliste bei Meta: Was dort steht, ordnet das Tool selbst zu, hier bleiben nur die echten Reste. <a href="#importe" data-act="jump" data-v="importe">zum Lesezeichen</a></p>` : "";
+  const groups = LIST_GROUPS.map(([kind, title, hint, acts]) => {
+    const rows = L.filter(x => x.kind === kind);
+    if(!rows.length) return "";
+    const keys = rows.map(x => x.key).join(",");
+    const bulk = acts.map(([a, l]) => `<button data-act="lists" data-v="${a}" data-keys="${esc(keys)}">alle ${rows.length} ${l}</button>`).join(" ");
+    const list = rows.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
+      <span class="row2"><span class="hint">${esc(x.why)}</span>
+        ${x.links.filter(l => safeUrl(l.url)).map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(" ")}
+        ${acts.map(([a, l]) => `<button data-act="lists" data-v="${a}" data-keys="${esc(x.key)}">${l}</button>`).join(" ")}</span></div>`).join("");
+    return sub("lists-" + kind, title, rows.length, `<p class="hint">${hint}</p><div class="bar">${bulk}</div><div class="list">${list}</div>`, kind === "table" && rows.length > 20);
+  }).join("");
+  return groups ? first + groups : "";
+}
+
 /* Protokoll: Zeiten kommen in UTC, gezeigt in der Zeit des Browsers; die Box folgt der neuesten
    Zeile, solange du nicht hochgescrollt hast */
 function localStamp(line){
@@ -927,6 +966,10 @@ document.addEventListener("click", async ev => {
   else if(a === "dqclear"){ V.d.q = ""; render(); $("dq")?.focus(); }
   else if(a === "qclear"){ V.q = ""; render(); $("q")?.focus(); }
   else if(a === "foldall"){ $("main").querySelectorAll("details[data-kc]").forEach(d => { d.open = !!v; keepFold(d); }); saveView(); }
+  else if(a === "golists"){
+    V.tab = "settings"; render();
+    const c = $("todo"); c?.scrollIntoView({block: "start"});
+  }
   else if(a === "jump"){
     ev.preventDefault();
     const c = $(v), d = c?.matches("details") ? c : null;
@@ -961,6 +1004,11 @@ document.addEventListener("click", async ev => {
   else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
   else if(a === "steamok") act("/api/title", {key: el.dataset.k, steam_sure: true});
+  else if(a === "lists"){
+    const keys = el.dataset.keys.split(",").filter(Boolean);
+    const res = await act("/api/wishes", {kind: v, keys});
+    if(res) toast(`${res.changed} ${res.changed === 1 ? "Titel" : "Titel"} ${{keep: "behalten", drop: "von der Wunschliste genommen", wish: "wieder gewünscht"}[v]}`, undoTo(res));
+  }
   else if(a === "steamwrong"){
     const k = el.dataset.k, x = (S.todo || []).find(y => y.key === k) || {};
     if(await act("/api/title", {key: k, steam_appid: ""})) toast(`Steam-ID von „${x.name || "Titel"}“ entfernt`, x.steam_appid ? () => act("/api/title", {key: k, steam_appid: x.steam_appid}) : null);

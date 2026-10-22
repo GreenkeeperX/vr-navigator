@@ -176,6 +176,8 @@ def merge(data, keep, gone):
     ws.update(a.get("wish_src") or {})
     if ws:
         a["wish_src"] = ws
+    if b.get("wish_keep"):
+        a["wish_keep"] = True
     if a.get("crossbuy") is None and b.get("crossbuy") is not None:
         a["crossbuy"] = b["crossbuy"]
         if b.get("crossbuy_src"):

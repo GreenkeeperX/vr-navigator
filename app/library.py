@@ -1,7 +1,7 @@
 """Ansichten: Bibliothek, Wunschliste und „Jetzt“ als Zeilen für die Oberfläche."""
 from datetime import datetime, timedelta, timezone
 
-from . import prices, titles
+from . import lists, prices, titles
 
 STALE_H = 48        # ältere Live-Preise markiert die Oberfläche als veraltet
 
@@ -123,7 +123,7 @@ def row(key, t, at=None, hist=None, data=None):
         "steam_doubt": t.get("steam_doubt") or "", "bundle": titles.is_bundle(t),
         "where": _where(t), "pc_label": (o.get("pc") or {}).get("label") or "",
         "meta_price": (o.get("meta") or {}).get("price"),
-        "wish": bool(t.get("wish")), "crossbuy": cb, "crossbuy_src": cb_src, "crossbuy_other": cb_other,
+        "wish": bool(t.get("wish")), "wish_src": sorted(t.get("wish_src") or {}), "crossbuy": cb, "crossbuy_src": cb_src, "crossbuy_other": cb_other,
         "crossbuy_hand": t.get("crossbuy") if crossbuy_origin(t) == "Hand" else None,
         "opinion": t.get("opinion") or None, "origin": titles.origins(t, data),
         "contains": [{"key": k, "name": data["titles"][k]["name"]} for k in t.get("contains") or []
@@ -223,4 +223,5 @@ def view(data, at=None, hist=None):
         # Mit der Zeile, damit „bearbeiten“ auch Titel öffnet, die weder Besitz noch Wunsch sind
         "todo": [dict(x, row=row(x["key"], data["titles"][x["key"]], at, hist, data)) for x in titles.todo(data)],
         "imports": data.get("imports") or {},
+        "lists": lists.check(data), "lists_stale": lists.stale(data, at),
     }

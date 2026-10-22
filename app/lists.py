@@ -1,0 +1,102 @@
+"""Wunschliste abgleichen: das Tool ist die Stelle für deine Wünsche, die Wunschlisten bei Meta,
+Steam und gg.deals sind Spiegel, die der Abgleich liest (Entscheidung 22.10.2026). Was sich
+abrufen lässt, ordnet das Tool selbst zu; hier steht nur, was danach nicht zusammenpasst:
+
+- table: Wunsch nur aus der alten Vergleichstabelle, auf keiner Wunschliste und nicht von Hand,
+- owned: schon gekauft (Meta oder PC), steht aber noch auf einer Wunschliste,
+- off: im Tool entfernt, steht aber noch auf einer Wunschliste.
+
+Ohne Netz; die Oberfläche bietet je Gruppe eine Aktion für alle."""
+
+from datetime import datetime, timedelta, timezone
+
+from . import titles
+
+# Quellen, die der Server selbst liest, und solche, die nur das Lesezeichen bringt
+LINKS = {"steam": "https://store.steampowered.com/wishlist/", "gg": "https://gg.deals/wishlist/"}
+MANUAL_DAYS = 30            # so lange gilt eine per Lesezeichen gelesene Liste als aktuell
+
+
+def _src_names(srcs):
+    return [titles.WISH_SOURCES.get(s, s) for s in srcs if s != "hand"]
+
+
+def _owned_text(t):
+    o = t.get("owned") or {}
+    parts = []
+    if o.get("meta"):
+        parts.append("bei Meta")
+    if o.get("pc"):
+        parts.append("am PC" + (f" ({o['pc']['label']})" if o["pc"].get("label") and o["pc"]["label"] != "PC" else ""))
+    return " und ".join(parts)
+
+
+def _links(t, srcs):
+    out = []
+    for s in srcs:
+        if s == "meta" and t.get("meta_id"):
+            out.append({"label": "Meta", "url": f"https://www.meta.com/experiences/{t['meta_id']}/"})
+        elif s in LINKS:
+            out.append({"label": titles.WISH_SOURCES[s].replace("-Wunschliste", ""), "url": LINKS[s]})
+    return out
+
+
+def check(data):
+    """Abweichungen zwischen den Wunschlisten und dem Tool: [{key, name, kind, why, srcs, links}]."""
+    out = []
+    for k, t in data["titles"].items():
+        ws = [s for s in (t.get("wish_src") or {}) if s != "hand"]
+        off = list(t.get("wish_off") or [])
+        owned = bool(t.get("owned"))
+        item = {"key": k, "name": t["name"]}
+        if t.get("wish") and owned and not t.get("wish_keep"):
+            where = _owned_text(t)
+            why = f"gekauft {where}" + (f", steht noch auf: {', '.join(_src_names(ws))}" if ws else ", steht noch auf deiner Wunschliste im Tool")
+            out.append(dict(item, kind="owned", why=why, srcs=ws, links=_links(t, ws)))
+        elif t.get("wish") and not t.get("wish_src") and not owned:
+            why = "nur aus der alten Tabelle" if t.get("sheet") is not None else "ohne Quelle"
+            out.append(dict(item, kind="table", why=why + ", auf keiner Wunschliste", srcs=[], links=[]))
+        elif not t.get("wish") and off:
+            out.append(dict(item, kind="off", why=f"im Tool entfernt, steht noch auf: {', '.join(_src_names(off))}",
+                            srcs=off, links=_links(t, off)))
+    order = {"owned": 0, "off": 1, "table": 2}
+    return sorted(out, key=lambda x: (order[x["kind"]], titles.norm(x["name"])))
+
+
+def stale(data, now=None):
+    """Listen, die nur das Lesezeichen bringt und die lange nicht gelesen wurden:
+    [{src, label, at}] mit at = "" für noch nie."""
+    now = now or datetime.now(timezone.utc)
+    old = (now - timedelta(days=MANUAL_DAYS)).isoformat(timespec="seconds")
+    imp = data.get("imports") or {}
+    out = []
+    for src, label in (("metawish", "Meta-Wunschliste"), ("meta", "Meta-Käufe")):
+        at = (imp.get(src) or {}).get("at") or ""
+        if at < old:
+            out.append({"src": src, "label": label, "at": at})
+    return out
+
+
+def apply(data, kind, keys):
+    """Eine Aktion für Titel einer Gruppe. keep: als Wunsch von Hand behalten (table) oder trotz
+    Besitz behalten (owned); drop: von der Wunschliste nehmen; wish: wieder wünschen (off).
+    Liefert die Zahl der geänderten Titel."""
+    n = 0
+    for k in keys:
+        t = data["titles"].get(k)
+        if not t:
+            continue
+        if kind == "keep":
+            if t.get("owned"):
+                t["wish_keep"] = True
+            else:
+                titles.wish_by_hand(t, True)
+        elif kind == "drop":
+            titles.wish_by_hand(t, False)
+            t.pop("wish_keep", None)
+        elif kind == "wish":
+            titles.wish_by_hand(t, True)
+        else:
+            raise ValueError("Unbekannte Aktion")
+        n += 1
+    return n

@@ -10,7 +10,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import collection, imports, library, sources, store, sync, titles
+from . import collection, imports, library, lists, sources, store, sync, titles
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -279,6 +279,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, dict(res, state=None if dry else state()))
             elif path == "/api/title":
                 self._send(200, edit_title(body))
+            elif path == "/api/wishes":
+                # Eine Aktion für mehrere Titel aus „Wunschliste abgleichen“
+                with store.lock:
+                    data = store.load_data()
+                    keys = [str(k) for k in (body.get("keys") or [])][:2000]
+                    old = {k: copy.deepcopy(data["titles"][k]) for k in keys if k in data["titles"]}
+                    n = lists.apply(data, str(body.get("kind") or ""), keys)
+                    store.save_data(data)
+                self._send(200, dict(state(), changed=n, undo=old or None))
             elif path == "/api/title/new":
                 self._send(200, new_title(body))
             elif path == "/api/title/delete":

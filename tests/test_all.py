@@ -12,7 +12,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, collection, imports, library, prices, server, sources, store, sync, titles  # noqa: E402
+from app import accounts, collection, imports, library, lists, prices, server, sources, store, sync, titles  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -297,6 +297,40 @@ class TestImports(unittest.TestCase):
         self.assertEqual((rows["Orbit Golf"]["crossbuy"], rows["Orbit Golf"]["crossbuy_src"]), (False, "Recherche"))
         self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, "Hand"))
 
+    def test_lists(self):
+        """Wunschliste abgleichen: gekauft und noch gewünscht, im Tool entfernt und im Laden noch
+        gewünscht, Wunsch nur aus der Tabelle; Aktionen und wann ein Hinweis von selbst geht."""
+        d = empty()
+        a, _ = titles.upsert(d, "Orbit Golf", steam_appid="3000040")
+        b, _ = titles.upsert(d, "Comet Chase")
+        c, _ = titles.upsert(d, "Harbor Heist", meta_id="1234567890123456")
+        e, _ = titles.upsert(d, "Quiet Garden")
+        titles.set_wishes(d, "gg", [a, c])
+        titles.set_wishes(d, "steam", [a])
+        d["titles"][a]["owned"] = {"pc": {"src": "steam", "label": "Steam", "at": "2026-10-01"}}
+        d["titles"][b].update(wish=True, sheet={"at": "2026-10-01"})
+        d["titles"][e]["wish"] = True
+        titles.wish_by_hand(d["titles"][c], False)
+        got = {x["name"]: x for x in lists.check(d)}
+        self.assertEqual({n: x["kind"] for n, x in got.items()},
+                         {"Orbit Golf": "owned", "Harbor Heist": "off", "Comet Chase": "table", "Quiet Garden": "table"})
+        self.assertIn("gg.deals-Wunschliste, Steam-Wunschliste", got["Orbit Golf"]["why"])
+        self.assertEqual([l["label"] for l in got["Orbit Golf"]["links"]], ["gg.deals", "Steam"])
+        self.assertIn("nur aus der alten Tabelle", got["Comet Chase"]["why"])
+        # „behalten“: Wunsch von Hand, der Hinweis geht; trotz Besitz behalten ebenso
+        lists.apply(d, "keep", [b, a])
+        self.assertEqual(d["titles"][b]["wish_src"].keys(), {"hand"})
+        self.assertTrue(d["titles"][a]["wish_keep"])
+        # Eine Liste im Laden führt den Titel: der Tabellen-Hinweis geht von selbst
+        titles.set_wishes(d, "meta", [e])
+        self.assertEqual({x["name"] for x in lists.check(d)}, {"Harbor Heist"})
+        # Im Laden entfernt: der Hinweis geht beim nächsten Abgleich
+        titles.set_wishes(d, "gg", [a])
+        self.assertEqual(lists.check(d), [])
+        self.assertRaises(ValueError, lists.apply, d, "egal", [a])
+        st = lists.stale(d, datetime(2026, 10, 22, tzinfo=timezone.utc))
+        self.assertEqual([x["src"] for x in st], ["metawish", "meta"])
+
     def test_opinion_crossbuy_needs_evidence(self):
         """Crossbuy gilt nur im Meta Store: eine Begründung mit Steam, Crossplay oder der eigenen
         Zuordnung ist kein Beleg und fällt weg; Crossplay steht als eigenes Feld."""
@@ -569,6 +603,13 @@ class TestServer(unittest.TestCase):
         res = json.loads(self.call("/api/title/restore", {"titles": res["undo"]})[1])
         self.assertIn(key, [r["key"] for r in res["wishlist"]])
         self.assertIsNone(json.loads(self.call("/api/title/delete", {"key": "gibt-es-nicht"})[1])["undo"])
+        # Wunschliste abgleichen: eine Aktion für mehrere Titel, mit Rückgängig
+        res = json.loads(self.call("/api/wishes", {"kind": "drop", "keys": [key]})[1])
+        self.assertEqual(res["changed"], 1)
+        self.assertNotIn(key, [r["key"] for r in res["wishlist"]])
+        res = json.loads(self.call("/api/title/restore", {"titles": res["undo"]})[1])
+        self.assertIn(key, [r["key"] for r in res["wishlist"]])
+        self.assertIn("lists", res)
         # Zusammenführen: beide Einträge kommen zurück, wie sie waren
         self.call("/api/title/new", {"name": "Zwilling A"})
         st = json.loads(self.call("/api/title/new", {"name": "Zwilling B"})[1])
