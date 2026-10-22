@@ -51,8 +51,8 @@ Textfarbe, unterstrichen.
   weitere Reiter folgen.
 - Einstellungen: Sprungleiste oben (bleibt beim Scrollen stehen), darunter „Derselbe Titel?“
   (nur wenn etwas zu entscheiden ist), Abgleich (Quellen, „Jetzt abrufen“, „Verbindung testen“,
-  darunter klappbar Verbindungstest, Protokoll, Zeitplan und gg.deals), Importe (Meta-Käufe,
-  Vergleichstabelle, Playnite) und Sicherung. Das Protokoll ist zu, außer der letzte Lauf hatte
+  darunter klappbar Verbindungstest, Protokoll, Zeitplan und gg.deals), Einlesen (Konten,
+  Meta per Lesezeichen, ein Feld für jede Datei) und Sicherung. Das Protokoll ist zu, außer der letzte Lauf hatte
   Fehler.
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter Sortierung als Chips.
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und

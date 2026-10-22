@@ -273,6 +273,38 @@ def _meta_blocks(lines):
     return out
 
 
+def meta_is_wishlist(payload):
+    """Kommt die Datei des Lesezeichens von deiner Wunschliste bei Meta (statt von Käufen)?"""
+    payload = str(payload or "").strip()
+    if not payload.startswith("{"):
+        return False
+    try:
+        obj = json.loads(payload)
+    except ValueError:
+        return False
+    return isinstance(obj, dict) and (obj.get("kind") == "meta-wunschliste" or "wish" in str(obj.get("page") or "").lower())
+
+
+def parse_meta_wishlist(payload):
+    """Wunschliste bei Meta aus dem Lesezeichen: jeder Link auf eine Store-Seite ist ein Titel mit
+    Meta-ID; Name aus dem Linktext (oder dem Bildtext)."""
+    obj = json.loads(str(payload).strip())
+    out, seen = [], set()
+    for ln in (obj.get("links") if isinstance(obj.get("links"), list) else [])[:5000]:
+        if not isinstance(ln, dict):
+            continue
+        mid = titles.meta_id_from(ln.get("href"))
+        name = _clean_line(html.unescape(str(ln.get("text") or "")[:200]))[0]
+        if not mid or mid in seen:
+            continue
+        if not name or name.casefold() in _NOT_TITLE:
+            # Bild-Link ohne Text: der nächste Link mit derselben ID trägt meist den Namen
+            continue
+        seen.add(mid)
+        out.append({"name": name, "meta_id": mid, "price": None})
+    return out
+
+
 def parse_meta(payload):
     """Meta-Bestellungen aus dem Lesezeichen (JSON mit Links und Seitentext) oder als
     eingefügter Text. Der Reihe nach: Links auf Store-Seiten (Titel samt Meta-ID), dann der
@@ -327,6 +359,8 @@ def parse_meta(payload):
 
 
 def import_meta(data, payload, dry=True):
+    if meta_is_wishlist(payload):
+        return import_meta_wishlist(data, payload, dry)
     entries = parse_meta(payload)
     new = 0
     for e in entries:
@@ -343,4 +377,104 @@ def import_meta(data, payload, dry=True):
     return _summary(data, entries, dry, new)
 
 
-IMPORTERS = {"sheet": import_sheet, "playnite": import_playnite, "meta": import_meta}
+def import_meta_wishlist(data, payload, dry=True):
+    """Deine Wunschliste bei Meta. Sie ersetzt, was die Meta-Wunschliste zuletzt sagte: Titel, die
+    dort fehlen, verlieren diese Quelle (siehe titles.set_wishes)."""
+    entries = parse_meta_wishlist(payload)
+    if not entries:
+        raise ValueError("Keine Titel auf der Wunschliste erkannt. Bitte die Seite neu laden und noch einmal versuchen")
+    new, keys = 0, []
+    for e in entries:
+        k = titles.find(data, e["meta_id"], "", e["name"])
+        e["known"] = k is not None
+        new += k is None
+        if not dry:
+            k, _ = titles.upsert(data, e["name"], e["meta_id"], "")
+            keys.append(k)
+    res = _summary(data, entries, dry, new)
+    if not dry:
+        res["wish_added"], res["wish_removed"] = titles.set_wishes(data, "meta", keys)
+        data["imports"]["metawish"] = {"at": titles.now_iso(), "n": len(entries), "new": new}
+    res["what"] = "Meta-Wunschliste"
+    return res
+
+
+# ------------------------------------------------------------------ gg.deals-Wunschliste als CSV
+
+def parse_ggwish(text):
+    """Wunschliste von gg.deals als Tabelle (Spalte Name), etwa aus einem eigenen Export."""
+    rows = _rows(text)
+    if not rows:
+        return []
+    c = _col(rows[0], "name", "titel", "spiel", "title")
+    c = 0 if c is None else c
+    out, seen = [], set()
+    for row in rows[1:]:
+        name = row[c] if c < len(row) else ""
+        if name and not re.match(r"https?://", name) and titles.norm(name) not in seen:
+            seen.add(titles.norm(name))
+            out.append({"name": name, "slug": ""})
+    return out
+
+
+def import_ggwish(data, text, dry=True):
+    from . import accounts
+    items = parse_ggwish(text)
+    entries = []
+    for it in items:
+        entries.append({"name": it["name"], "known": titles.find(data, "", "", it["name"]) is not None})
+    res = _summary(data, entries, dry, 0)
+    if not dry:
+        r = accounts.apply_gg_wishes(data, items)
+        res.update(wish_added=r["wish_added"], wish_removed=r["wish_removed"], unknown=r["unknown"])
+        data["imports"]["ggwish"] = {"at": titles.now_iso(), "n": len(items), "new": 0}
+    res["what"] = "gg.deals-Wunschliste"
+    res["note"] = "Es zählen nur Titel, die das Tool schon kennt; ob ein unbekanntes Spiel VR kann, lässt sich ohne Steam-ID nicht prüfen."
+    return res
+
+
+# ------------------------------------------------------------------ Eine Datei, egal welche
+
+KINDS = {"sheet": "Vergleichstabelle", "playnite": "Playnite-Export", "meta": "Meta-Käufe",
+         "ggwish": "gg.deals-Wunschliste"}
+
+
+def detect(text):
+    """Welche Art von Datei? Am Aufbau erkannt: JSON des Lesezeichens, Playnite-CSV an
+    Sortiername/Schlagwörtern/Spiel-ID, die Vergleichstabelle an Spiel/Bestpreis/gg.deals/Crossbuy,
+    eine gg.deals-Wunschliste an Links auf geteilte Wunschlisten. Sonst Seitentext von Meta."""
+    t = str(text or "").lstrip("\ufeff").strip()
+    if not t:
+        raise ValueError("Nichts zum Einlesen")
+    if t.startswith("{") or t.startswith("["):
+        try:
+            obj = json.loads(t)
+        except ValueError:
+            raise ValueError("Die Datei sieht nach JSON aus, ist aber keins")
+        if isinstance(obj, dict) and str(obj.get("kind") or "").startswith("meta"):
+            return "meta"
+        if isinstance(obj, dict) and obj.get("app") == "vr-navigator":
+            raise ValueError("Das ist eine Sicherung des VR-Navigators; die spielst du unter Sicherung ein")
+        raise ValueError("Diese JSON-Datei kennt das Tool nicht")
+    rows = _rows(t)[:4]
+    header = [c.casefold() for c in rows[0]] if rows else []
+    if len(header) >= 2:
+        if any("gg.deals/wishlist" in c or "gg.deals/de/wishlist" in c for r in rows for c in r):
+            return "ggwish"
+        if any(h in header for h in ("sortiername", "sorting name", "schlagwörter", "tags", "features",
+                                     "spiel-id", "game id", "gameid")):
+            return "playnite"
+        if any(h in ("spiel", "bestpreis", "crossbuy", "meta") or "gg.deals" in h for h in header):
+            return "sheet"
+    return "meta"
+
+
+def import_auto(data, text, dry=True):
+    kind = detect(text)
+    res = IMPORTERS[kind](data, text, dry=dry)
+    res["kind"] = kind
+    res.setdefault("what", KINDS[kind])
+    return res
+
+
+IMPORTERS = {"sheet": import_sheet, "playnite": import_playnite, "meta": import_meta, "ggwish": import_ggwish}

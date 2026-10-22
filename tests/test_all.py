@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import imports, library, prices, server, sources, store, sync, titles  # noqa: E402
+from app import accounts, imports, library, prices, server, sources, store, sync, titles  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -349,6 +349,19 @@ class TestServer(unittest.TestCase):
         self.assertNotIn("geheim", raw.decode())
         self.assertEqual(self.call("/api/settings", {"hours": "viele"})[0], 400)
         self.call("/api/settings", {"gg_key": ""})
+        # Steam-Schlüssel und Wunschlisten-Link bleiben ebenso auf dem Server
+        code, raw = self.call("/api/settings", {"steam_key": "ab" * 16, "steam_id": "76561190000000001",
+                                                "gg_wish": "https://gg.deals/wishlist/share/AbCdEfGh12345/",
+                                                "sharenite": "https://www.sharenite.link/profiles/beispiel"})
+        self.assertEqual(code, 200)
+        st = json.loads(raw)["settings"]
+        self.assertTrue(st["steam_key_set"] and st["gg_wish_set"])
+        self.assertEqual(st["sharenite"], "https://www.sharenite.link/profiles/beispiel/games")
+        self.assertNotIn("abababab", raw.decode())
+        self.assertNotIn("AbCdEfGh", raw.decode())
+        self.assertEqual(self.call("/api/settings", {"steam_key": "kurz"})[0], 400)
+        self.assertEqual(self.call("/api/settings", {"gg_wish": "https://example.com/x"})[0], 400)
+        self.call("/api/settings", {"steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""})
 
 
 # Erfundene Antworten im Aufbau der echten Quellen (QuestStoreDB, Steam, gg.deals)
@@ -554,7 +567,8 @@ class TestSync(unittest.TestCase):
         log = "\n".join(sync.status()["log"])
         self.assertIn("Suche geändert", log)
         self.assertIn("QuestStoreDB, Suche: 3 Anfragen, 1 Titel gefunden", log)
-        self.assertIn("Abgleich für 1 Wunschtitel, nach Zeitplan", log)
+        self.assertIn("Abgleich nach Zeitplan", log)
+        self.assertIn("Preise für 1 Wunschtitel", log)
         self.assertIn("Stand: 1 Wunschtitel, mit Preis bei Meta 1", log)
         # Nächster Lauf: neue Suche gilt, der Steam-Fehlschlag wartet seine 7 Tage ab
         net.calls.clear()
@@ -571,6 +585,53 @@ class TestSync(unittest.TestCase):
         self.assertEqual(got["moves"]["down"], ["Laser Tennis (Meta 10,00 € → 8,00 €)"])
         self.assertEqual(got["moves"]["low"], ["Laser Tennis 8,00 €"])
         self.assertEqual(got["coverage"]["has"]["meta"], 1)
+
+    def test_accounts_in_run(self):
+        """Steam-Konto, gg.deals-Wunschliste und Sharenite vor den Preisen."""
+        self.seed()
+        sync.save_settings({"steam_id": "76561190000000001", "steam_key": "cd" * 16,
+                            "gg_wish": "https://gg.deals/wishlist/share/AbCdEf123/",
+                            "sharenite": "https://www.sharenite.link/profiles/beispiel/games"})
+        sources.fetch = net = FakeNet({
+            "GetOwnedGames": steam_owned_json(("3000005", "Sky Garden"), ("3000020", "Star Ride"), ("3000021", "Flat Racer")),
+            "GetWishlist": steam_wish_json("3000030"),
+            "appids=3000020&cc=de&l=german": steam_app_json(3000020, "Star Ride", True),
+            "appids=3000021&cc=de&l=german": steam_app_json(3000021, "Flat Racer", False),
+            "appids=3000030&cc=de&l=german": steam_app_json(3000030, "Comet Chase", True),
+            "appids=3000040&cc=de&l=german": steam_app_json(3000040, "Orbit Golf", True),
+            "wishlist/share/AbCdEf123/?page=2": gg_wish_html("Laser Tennis"),
+            "wishlist/share/AbCdEf123/": gg_wish_html("Laser Tennis", "Orbit Golf", "Flat Racer", pages=2),
+            "storesearch/?term=Orbit+Golf": json.dumps({"items": [{"type": "app", "id": 3000040, "name": "Orbit Golf"}]}),
+            "tag_ids%5B%5D=t-vr&sort=name_asc&page=1": sharenite_html([("Nebula Drift", "GOG", ["VR"])]),
+            "sharenite.link/profiles/beispiel/games?sort=name_asc": sharenite_html([("Flat Racer", "Steam", [])], total=300,
+                                                                                   vr_tags=[("t-vr", "VR")]),
+            "/on_sale/": qsdb_list(), "all_apps": qsdb_list(), "storesearch": json.dumps({"items": []}),
+            "appdetails": "{}",
+        })
+        sync.run(by_hand=True)
+        d = store.load_data()
+        by = {t["name"]: t for t in d["titles"].values()}
+        self.assertEqual(by["Sky Garden"]["owned"]["pc"]["label"], "Steam")
+        self.assertTrue(by["Star Ride"]["steam_sure"])
+        self.assertNotIn("Flat Racer", by)
+        self.assertEqual(by["Comet Chase"]["wish_src"].keys(), {"steam"})
+        self.assertEqual(set(by["Orbit Golf"]["wish_src"]), {"gg"})
+        self.assertIn("gg", by["Laser Tennis"]["wish_src"])
+        self.assertEqual(by["Nebula Drift"]["owned"]["pc"], dict(by["Nebula Drift"]["owned"]["pc"], src="sharenite", label="GOG"))
+        log = "\n".join(sync.status()["log"])
+        self.assertIn("Steam-Konto, Besitz: 3 Spiele, davon 2 VR-Titel", log)
+        self.assertIn("gg.deals-Wunschliste: 3 Spiele auf 2 Seiten", log)
+        self.assertIn("Sharenite: 300 Spiele im Profil, 1 mit VR-Schlagwort", log)
+        self.assertFalse(any("cdcdcdcd" in line or "AbCdEf123" in line for line in sync.status()["log"]))
+        self.assertTrue(all(sync.status()["sources"][k]["ok"] for k in ("steamacc", "ggwish", "sharenite")))
+        # Zweiter Lauf nach Zeitplan: Sharenite ruht, Comet Chase fällt von der Steam-Wunschliste
+        net.answers["GetWishlist"] = steam_wish_json("3000005")
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("sharenite" in u for u in net.calls))
+        by = {t["name"]: t for t in store.load_data()["titles"].values()}
+        self.assertFalse(by["Comet Chase"]["wish"])
+        self.assertIn("von deiner (1): Comet Chase", "\n".join(sync.status()["log"]))
 
     def test_blocked_source_stops(self):
         self.seed()
@@ -701,6 +762,122 @@ class TestSync(unittest.TestCase):
         titles.merge(d, a, b)
         self.assertEqual(d["titles"][a]["live"]["meta"]["price"], 4.0)
         self.assertEqual(d["titles"][a]["live"]["steam"]["price"], 6.0)
+
+
+# Erfundene Antworten im Aufbau von Steam Web API, gg.deals-Wunschliste und Sharenite
+def steam_owned_json(*games):
+    return json.dumps({"response": {"game_count": len(games), "games": [{"appid": int(a), "name": n} for a, n in games]}})
+
+
+def steam_wish_json(*appids):
+    return json.dumps({"response": {"items": [{"appid": int(a), "priority": i} for i, a in enumerate(appids)]}})
+
+
+def steam_app_json(appid, name, vr):
+    cats = [{"id": 2, "description": "Einzelspieler"}] + ([{"id": 54, "description": "Nur VR"}] if vr else [])
+    return json.dumps({str(appid): {"success": True, "data": {"type": "game", "name": name, "categories": cats}}})
+
+
+def gg_wish_html(*names, pages=1):
+    rows = "".join(f'<div class="game-item"><a href="/game/{titles.norm(n).replace(" ", "-")}/"><img alt=""></a>'
+                   f'<a class="title" href="https://gg.deals/game/{titles.norm(n).replace(" ", "-")}/"><span>{n}</span></a></div>'
+                   for n in names)
+    nav = "".join(f'<a href="?page={i}">{i}</a>' for i in range(2, pages + 1))
+    return f"<html><body>{rows}{nav}</body></html>"
+
+
+def sharenite_html(games, total=None, vr_tags=()):
+    opts = '<select name="tag_ids[]" multiple><option value="__none__">No tags</option>' + "".join(
+        f'<option value="{v}">{label}</option>' for v, label in vr_tags) + '<option value="t-x">Puzzle</option></select>'
+    rows = ""
+    for i, (name, src, tags) in enumerate(games):
+        pills = f'<span class="games-value-pill games-value-pill--source">{src}</span>' + "".join(
+            f'<span class="games-value-pill games-value-pill--tag">{t}</span>' for t in tags)
+        rows += (f'<tr id="game_{i:04d}"><td><div class="d-flex"><strong>{name}</strong></div></td>'
+                 f'<td class="d-lg-table-cell d-xxl-none"><div class="games-meta-stack">{pills}'
+                 f'<span class="games-value-pill games-value-pill--category games-value-pill--muted">No categories</span></div></td>'
+                 f'<td class="d-none d-xxl-table-cell">{pills}</td></tr>')
+    return f'<html>{opts}<p class="games-list-total">Total games listed: {total or len(games)}</p><table><tbody>{rows}</tbody></table></html>'
+
+
+class TestAccounts(unittest.TestCase):
+    def test_parsers(self):
+        self.assertEqual(accounts.steam_id_input("https://steamcommunity.com/profiles/76561190000000001/"), ("id", "76561190000000001"))
+        self.assertEqual(accounts.steam_id_input("https://steamcommunity.com/id/beispiel/"), ("vanity", "beispiel"))
+        self.assertEqual(accounts.steam_id_input("x y"), ("", ""))
+        self.assertEqual(accounts.steam_owned(steam_owned_json(("3000001", "Sky Garden"))), [{"appid": "3000001", "name": "Sky Garden"}])
+        with self.assertRaises(ValueError):
+            accounts.steam_owned(json.dumps({"response": {}}))     # Spieldetails privat
+        self.assertEqual(accounts.steam_wishlist(steam_wish_json("3000009", "3000010")), ["3000009", "3000010"])
+        self.assertEqual(accounts.steam_app(steam_app_json(3000009, "Deep Dive", True), "3000009"),
+                         {"name": "Deep Dive", "type": "game", "vr": True})
+        self.assertFalse(accounts.steam_app(steam_app_json(3000010, "Flat Racer", False), "3000010")["vr"])
+        items, pages = accounts.gg_wishlist(gg_wish_html("Sky Garden", "Flat Racer", pages=3))
+        self.assertEqual([i["name"] for i in items], ["Sky Garden", "Flat Racer"])
+        self.assertEqual(pages, 3)
+        games, total, tags = accounts.sharenite_page(sharenite_html(
+            [("Sky Garden", "Steam", ["VR", "Puzzle"]), ("Flat Racer", "GOG", [])], total=250, vr_tags=[("t-vr", "VR"), ("t-avr", "Asymmetric VR")]))
+        self.assertEqual(total, 250)
+        self.assertEqual(tags, ["t-vr", "t-avr"])
+        self.assertEqual([(g["name"], g["source"], g["vr"]) for g in games], [("Sky Garden", "Steam", True), ("Flat Racer", "GOG", False)])
+
+    def test_wishes_from_sources(self):
+        d = empty()
+        a, _ = titles.upsert(d, "Sky Garden")
+        b, _ = titles.upsert(d, "Laser Tennis")
+        c, _ = titles.upsert(d, "Moon Rover")
+        d["titles"][c]["wish"] = True                       # aus der Tabelle, ohne Quelle
+        self.assertEqual(titles.set_wishes(d, "steam", [a, b]), (["Sky Garden", "Laser Tennis"], []))
+        titles.set_wishes(d, "gg", [a])
+        # Laser Tennis fällt bei Steam weg: keine Quelle mehr, also von der Wunschliste
+        self.assertEqual(titles.set_wishes(d, "steam", [a]), ([], ["Laser Tennis"]))
+        self.assertTrue(d["titles"][a]["wish"] and d["titles"][c]["wish"])
+        # Von Hand genommen: dieselbe Quelle holt ihn erst zurück, nachdem er dort einmal fehlte
+        titles.wish_by_hand(d["titles"][a], False)
+        titles.set_wishes(d, "steam", [a])
+        self.assertFalse(d["titles"][a]["wish"])
+        titles.set_wishes(d, "steam", [])
+        titles.set_wishes(d, "steam", [a])
+        self.assertTrue(d["titles"][a]["wish"])
+
+    def test_apply_steam(self):
+        d = empty()
+        imports.import_sheet(d, SHEET, dry=False)
+        apps = {"3000020": {"name": "Star Ride", "vr": True}, "3000021": {"name": "Flat Racer", "vr": False}}
+        res = accounts.apply_steam(d, [{"appid": "3000005", "name": "Sky Garden"}, {"appid": "3000020", "name": "Star Ride"},
+                                       {"appid": "3000021", "name": "Flat Racer"}, {"appid": "3000022", "name": "Unbekannt"}],
+                                   ["3000023"], apps)
+        by = {t["name"]: t for t in d["titles"].values()}
+        self.assertEqual((by["Sky Garden"]["steam_appid"], by["Sky Garden"]["steam_sure"]), ("3000005", True))
+        self.assertEqual(by["Sky Garden"]["owned"]["pc"]["label"], "Steam")
+        self.assertIn("Star Ride", by)
+        self.assertNotIn("Flat Racer", by)
+        self.assertEqual(res["owned_new"], ["Star Ride"])
+        self.assertEqual(res["unchecked"], 2)               # eine gekaufte, eine gewünschte App ohne Prüfung
+
+    def test_detect_and_meta_wishlist(self):
+        self.assertEqual(imports.detect(SHEET), "sheet")
+        self.assertEqual(imports.detect(PLAYNITE), "playnite")
+        self.assertEqual(imports.detect(META_JSON), "meta")
+        self.assertEqual(imports.detect(META_TEXT), "meta")
+        self.assertEqual(imports.detect("Nr.,Name,Quelle\n1,Sky Garden,https://gg.deals/wishlist/share/AbC123/\n"), "ggwish")
+        with self.assertRaises(ValueError):
+            imports.detect(json.dumps({"app": "vr-navigator", "data": {}}))
+        d = empty()
+        imports.import_sheet(d, SHEET, dry=False)
+        wish = json.dumps({"kind": "meta-wunschliste", "page": "/my/wishlist/", "links": [
+            {"href": "https://www.meta.com/experiences/5555555555555555/", "text": ""},
+            {"href": "https://www.meta.com/experiences/5555555555555555/", "text": "Star Ride"},
+            {"href": "https://www.meta.com/experiences/1111111111111111/", "text": "Sky Garden"}]})
+        res = imports.import_auto(d, wish, dry=False)
+        self.assertEqual((res["kind"], res["what"], res["n"], res["new"]), ("meta", "Meta-Wunschliste", 2, 1))
+        by = {t["name"]: t for t in d["titles"].values()}
+        self.assertEqual(by["Star Ride"]["meta_id"], "5555555555555555")
+        self.assertIn("meta", by["Sky Garden"]["wish_src"])
+        # gg.deals-Wunschliste als CSV: nur bekannte Titel zählen
+        res = imports.import_auto(d, "Nr.,Name,Quelle\n1,Laser Tennis,https://gg.deals/wishlist/share/AbC123/\n2,Flat Racer,\n", dry=False)
+        self.assertEqual(res["unknown"], ["Flat Racer"])
+        self.assertIn("gg", by["Laser Tennis"]["wish_src"])
 
 
 class TestUi(unittest.TestCase):

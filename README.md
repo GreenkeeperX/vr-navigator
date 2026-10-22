@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.2.8:** Bibliothek, Wunschliste, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.3.0:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -25,40 +25,68 @@ laufen nebeneinander. Ohne Docker: `python3 -m app.server` (Python 3.10+, Daten 
 
 ## Einrichten
 
-Unter **Einstellungen**, Karte Importe, stehen drei Wege. Jeder klappt einzeln und nennt
-zugeklappt, wann er zuletzt lief und was er fand. Jeder Import zeigt erst eine Vorschau und speichert erst nach „übernehmen“.
+Unter **Einstellungen**, Karte Einlesen, stehen drei Wege: Konten liest jeder Abgleich
+selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim Einlesen nichts.
 
-1. **Vergleichstabelle (CSV):** eine Zeile je Titel. Erkannt werden die Spalten `Spiel`, `meta`
-   (Normalpreis im Meta Store), `Bestpreis` (Meta-Tief), `gg.deals best` (bester Preis für die
-   Steam-Fassung), `Crossbuy` (Yes/No) und in beliebiger Spalte Links zu VRDB, QuestStoreDB,
-   Meta oder Steam. Aus den Links liest das Tool die Meta-ID bzw. Steam-App-ID. Die Titel landen
-   auf der Wunschliste, solange du sie nicht besitzt.
-2. **Meta-Bestellungen:** Meta hat keine Schnittstelle für die eigenen Käufe, und das Tool
-   bekommt nie dein Passwort. Stattdessen ein Lesezeichen, wie „Käufe lesen“ im eShopKompass:
-   1. Den Knopf „Meta-Käufe lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“
-      und ein Lesezeichen von Hand anlegen).
-   2. Angemeldet die Transaktionen von Meta Pay im Kontenzentrum oder die Bestellseite für
-      digitale Produkte öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in Listen
-      mit eigenem Rollbalken), bis alle Käufe geladen sind.
-   3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt die
-      Käufe ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse hinter #,
-      gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie sofort
-      aus der Adresse. Was neu war, steht danach in der Karte.
+### Konten (automatisch)
 
-   „Als Datei sichern“ im Kasten lädt stattdessen `meta-bestellungen.json` herunter; die Datei
-   (oder kopierter Seitentext) geht unten in der Karte, dann erst mit Vorschau.
+- **Steam:** SteamID (die Zahl oder der Link zum Profil) und ein Steam-Schlüssel
+  (kostenlos unter steamcommunity.com/dev/apikey; im Profil müssen die Spieldetails öffentlich
+  sein). Dann liest jeder Abgleich deinen Besitz und deine Wunschliste, mit genauen App-IDs;
+  „Steam-ID ≈“ entfällt für alles, was dort steht. Ohne Schlüssel nur die Wunschliste. Apps,
+  die das Tool noch nicht kennt, prüft es im Store auf VR (höchstens 40 je Abgleich, das
+  Ergebnis bleibt gespeichert); übernommen werden nur VR-Apps.
+- **gg.deals-Wunschliste:** der Link aus „Wunschliste teilen“. Es zählen Titel, die das Tool
+  kennt (Name, früherer Name, Name aus einem Link), und Spiele, die es im Steam-Store unter
+  genau diesem Namen als VR-App findet.
+- **Sharenite:** der Link zu deinem öffentlichen Profil (Playnite online, mit allen Läden wie
+  Steam, GOG, Epic). Übernommen werden Spiele mit einem Schlagwort „VR“ als Besitz am PC, mit
+  dem Laden als Marke; gelesen wird höchstens alle 20 Stunden.
 
-   Das Lesezeichen funktioniert auch auf der Seite „Transaktionen“ von Meta Pay im
-   Kontenzentrum. Erkannt werden auf der Bestellseite die Blöcke mit Bestellnummer, bei den
-   Transaktionen Titel mit Stand und Datum; Menü und Fußzeile fallen weg, erstattete,
-   stornierte und offene Käufe ebenso. Preise in Euro werden übernommen, andere Währungen
-   nicht. Links auf Store-Seiten liefern zusätzlich die Meta-ID; ohne sie sucht der Abgleich
-   den Titel per Namen. Kopierter Seitentext geht auch: einfügen statt Datei.
-3. **Playnite (CSV):** der CSV-Export der Bibliothek. Übernommen werden Spiele mit einem
-   Schlagwort oder Feature „VR“ und alle, deren Name schon in deiner Liste steht; sie gelten
-   als Besitz am PC. Mit einer Spalte `Quelle` oder `Bibliothek` ist die Steam-App-ID sicher.
-   Ohne sie gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID und ist mit „≈“
-   markiert.
+Schlüssel und Wunschlisten-Link bleiben auf deinem Server, nicht in der Sicherung, nicht im
+Protokoll, nie zurück im Browser.
+
+**Wunschliste aus Quellen:** Ein Titel steht auf der Wunschliste, solange ihn eine Quelle führt
+(Wunschliste bei Meta, Steam oder gg.deals) oder du ihn von Hand eingetragen hast. Fehlt er bei
+der letzten Quelle, fällt er von deiner Wunschliste; das Protokoll nennt ihn. Titel aus der
+Vergleichstabelle tragen keine Quelle und bleiben, bis du sie nimmst. Nimmst du einen Titel von
+Hand von der Liste, holt dieselbe Quelle ihn erst zurück, nachdem er dort einmal fehlte. Ist
+eine Wunschliste plötzlich leer, obwohl zuletzt Titel darauf standen, gilt die alte weiter.
+
+### Meta per Lesezeichen
+
+Meta hat keine Schnittstelle für die eigenen Käufe, und das Tool bekommt nie dein Passwort.
+Stattdessen ein Lesezeichen, wie „Käufe lesen“ im eShopKompass:
+
+1. Den Knopf „Meta lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“ und ein
+   Lesezeichen von Hand anlegen).
+2. Angemeldet die Transaktionen von Meta Pay, die Bestellseite für digitale Produkte oder deine
+   Wunschliste im Meta Store öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in
+   Listen mit eigenem Rollbalken), bis alles geladen ist.
+3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt Käufe
+   oder Wunschliste ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse
+   hinter #, gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie
+   sofort aus der Adresse. Was neu war, steht danach in der Karte.
+
+Käufe: Erkannt werden auf der Bestellseite die Blöcke mit Bestellnummer, bei den Transaktionen
+Titel mit Stand und Datum; Menü und Fußzeile fallen weg, erstattete, stornierte und offene Käufe
+ebenso. Preise in Euro werden übernommen, andere Währungen nicht. Wunschliste: jeder Link auf
+eine Store-Seite ist ein Titel, samt Meta-ID; sie ersetzt, was die Meta-Wunschliste zuletzt
+sagte. „Als Datei sichern“ im Kasten lädt die Daten stattdessen herunter.
+
+### Datei oder Text
+
+Ein Feld für jede Datei; das Tool erkennt die Art am Aufbau und zeigt erst eine Vorschau:
+
+- **Vergleichstabelle (CSV):** eine Zeile je Titel mit den Spalten `Spiel`, `meta`
+  (Normalpreis im Meta Store), `Bestpreis` (Meta-Tief), `gg.deals best`, `Crossbuy` (Yes/No) und
+  in beliebiger Spalte Links zu VRDB, QuestStoreDB, Meta oder Steam (daraus Meta-ID und
+  Steam-App-ID). Die Titel landen auf der Wunschliste, solange du sie nicht besitzt.
+- **Playnite (CSV):** Spiele mit Schlagwort oder Feature „VR“ und alle, deren Name schon in
+  deiner Liste steht, als Besitz am PC. Mit einer Spalte `Quelle` oder `Bibliothek` ist die
+  Steam-App-ID sicher, sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“).
+- **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
+- **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 
 ## Titel zusammenführen
 
@@ -78,7 +106,8 @@ Zusammenführen und Löschen fragen nicht vorher, der Hinweis danach bietet „R
 ## Preise abrufen
 
 Unter **Einstellungen**, Abgleich, startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
-alle 6 Stunden). Abgefragt werden nur Wunschtitel, die du noch nicht besitzt:
+alle 6 Stunden). Erst liest er die eingerichteten Konten, dann Preise für die Wunschtitel, die du
+noch nicht besitzt:
 
 - **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Tiefstpreis,
   Bewertung, App-Version). Fehlt die Meta-ID, sucht das Tool den Titel per Namen.

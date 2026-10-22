@@ -1,6 +1,6 @@
 # Abrufe: was woher, wie oft, wohin
 
-Der Abgleich holt Preise nur für Wunschtitel, die du noch nirgends besitzt. Er läuft nach
+Der Abgleich liest erst deine Konten (Steam, gg.deals-Wunschliste, Sharenite) und holt dann Preise nur für Wunschtitel, die du noch nirgends besitzt. Er läuft nach
 Zeitplan (Standard alle 6 Stunden, einstellbar von 2 bis 48) und auf Knopfdruck unter
 **Einstellungen**, Abgleich, oder oben über „Aktualisieren“. Zwei Minuten nach dem Start des Containers läuft ein
 Abgleich, wenn der letzte länger als 30 Minuten zurückliegt, etwa nach einem Update mit neuen
@@ -33,6 +33,27 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   (Angebote und Seiten, Suchtreffer, Preis, Tief und Version der Titelseite, Steam-Preis,
   gg.deals-Antwort samt Anfang). Gespeichert wird nichts; der gg.deals-Schlüssel erscheint nie
   im Ergebnis.
+
+## Konten (vor den Preisen)
+
+Jeder Abgleich liest zuerst die eingerichteten Konten, damit neue Wunschtitel gleich Preise
+bekommen. Eingetragen wird erst nach dem Lesen, unter der Sperre auf `data.json`.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Steam, Profilname auflösen | `api.steampowered.com/ISteamUser/ResolveVanityURL/v1/` (mit Schlüssel) | nur bei Profilnamen statt Zahl | SteamID |
+| Steam, Besitz | `api.steampowered.com/IPlayerService/GetOwnedGames/v1/` (mit Schlüssel) | jeder Lauf | App-ID und Name je Spiel |
+| Steam, Wunschliste | `api.steampowered.com/IWishlistService/GetWishlist/v1/` | jeder Lauf | App-IDs |
+| Steam, VR-Prüfung | `store.steampowered.com/api/appdetails?appids=<ID>&cc=de&l=german` | je unbekannter App einmal, 40 je Lauf | Name, Kategorien (VR Support, VR Supported, VR Only) |
+| gg.deals-Wunschliste | der geteilte Link, `?page=N` | jeder Lauf, höchstens 10 Seiten | Links auf `/game/<name>/` mit Namen |
+| Steam-Suche für unbekannte gg.deals-Namen | `store.steampowered.com/api/storesearch/` | 15 je Lauf, je Name höchstens alle 7 Tage | App-ID bei genau gleichem Namen |
+| Sharenite | `sharenite.link/profiles/<Profil>/games?sort=name_asc`, dann mit `tag_ids[]` der VR-Schlagwörter | höchstens alle 20 Stunden (von Hand immer) | Name, Laden und Schlagwörter je Spiel; ohne VR-Filter die ganze Liste (100 je Seite, höchstens 40 Seiten) |
+
+Ergebnis der VR-Prüfung: `data["steam_apps"]` (`{App-ID: {name, vr, at}}`), versuchte
+gg.deals-Namen: `data["gg_tried"]`. Wunschlisten setzen je Titel `wish_src` (`{Quelle: Zeit}`,
+Quellen `meta`, `steam`, `gg`, `hand`); von Hand genommene Quellen stehen in `wish_off`.
+Gekaufte Spiele aus Steam tragen `owned.pc.src = "steam"`, aus Sharenite `"sharenite"` mit dem
+Laden als `label`.
 
 ## QuestStoreDB (Meta-Preise)
 
