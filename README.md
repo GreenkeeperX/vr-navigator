@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.5:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.6:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -188,7 +188,9 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   zum Bestpreis (oder nach Rabatt), mit Ende des Angebots. Je Shop eine Leiste wie im
   eShopKompass: links der Bestpreis der letzten 24 Monate, rechts der Normalpreis, gefüllt bis
   zum Preis jetzt, daneben der Abstand („+3,50 € über Bestpreis 14,00 € (+25 %)“); am Bestpreis
-  gold mit ★.
+  gold mit ★. Die Leiste steht auch in der Wunschliste, sobald ein Shop reduziert ist. Ist der
+  eigene Verlauf noch zu kurz, gilt als Bestpreis das Allzeit-Tief einer anderen Quelle, mit
+  „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Händler-Angebot laut gg.deals.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   „nicht mehr wünschen“ nimmt einen Titel von der Liste (mit Rückgängig).
@@ -201,9 +203,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   als 24 Monate ist; ohne jede Preisänderung noch keine Stufe). Darunter klein gg.deals
   (Händler, Keyshop, Allzeit-Tief; Keyshops zählen nicht mit) und die Differenz („PC 3,00 €
   günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter als zwei Tage ist.
-  Je Titel die Wertungen beider Läden nebeneinander: Meta in Sternen (1 bis 5, über
-  QuestStoreDB) und Steam als Anteil positiver Rezensionen (ab 50; darunter nur die Zahl).
-  Die Skalen werden nicht umgerechnet. Sortieren nach Name, „Nah am Bestpreis“, Rabatt, Wertung
+  Je Titel die Wertungen beider Läden auf einer Skala: Steam als Anteil positiver Rezensionen
+  (ab 50; darunter nur die Zahl), Meta-Sterne über QuestStoreDB umgerechnet (Sterne × 20, daher
+  „≈“). Trennen beide mindestens 5 Punkte, ist der bessere grün mit Abstand („Meta +8“).
+  Sichtbar bleiben Preise, Wertung, Recherche und Notiz; gg.deals, Tabellenwerte, Links und
+  „bearbeiten“ stehen in der Klappe „Mehr“. Die Recherche ist violett gestrichelt und trägt „≈“,
+  weil sie nicht vom Tool gemessen ist. Sortieren nach Name, „Nah am Bestpreis“, Rabatt, Wertung
   (die bessere der beiden, Sterne mal 20) und „Neu“ (zuletzt ins Tool gekommen); Filter
   „Crossbuy“, „Im Angebot“ und „Gut bewertet“ (Meta ab 4,3 oder Steam ab 85 %). Ohne Abruf gelten die Werte der Tabelle,
   gekennzeichnet mit „Tabelle“ und Datum (Differenz dort: Meta-Tief minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,

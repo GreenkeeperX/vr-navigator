@@ -66,6 +66,15 @@ def _best(hist, src, ident, price, today):
     return dict(b, level=level, over=round(price - b["best"], 2))
 
 
+def _guess(price, low, at, src):
+    """Bestpreis aus fremder Quelle, wenn der eigene Verlauf noch nichts hergibt. Liegt der Preis
+    jetzt darunter, gilt er selbst als Bestpreis."""
+    best = min(price, low)
+    level = "best" if price <= best * (1 + prices.BEST_TOL) + 0.005 else ""
+    return {"best": best, "best_at": at if best == low else "", "since": "", "once": True, "usual": None,
+            "full": False, "level": level, "over": round(price - best, 2), "src": src}
+
+
 def row(key, t, at=None, hist=None, data=None):
     sheet = t.get("sheet") or None
     gap = None
@@ -82,8 +91,16 @@ def row(key, t, at=None, hist=None, data=None):
     meta_now = (live.get("meta") or {}).get("price")
     today = (at or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     hist = hist or {}
+    steam_now = (live.get("steam") or {}).get("price")
     best = {"meta": _best(hist, "meta", t.get("meta_id"), meta_now, today),
-            "steam": _best(hist, "steam", t.get("steam_appid"), (live.get("steam") or {}).get("price"), today)}
+            "steam": _best(hist, "steam", t.get("steam_appid"), steam_now, today)}
+    # Eigener Verlauf noch zu kurz: Allzeit-Tief einer anderen Quelle, gekennzeichnet (≈)
+    for shop, now_p, low, at, src in (
+            ("meta", meta_now, (live.get("meta") or {}).get("low"), (live.get("meta") or {}).get("low_at"), "QuestStoreDB, Allzeit-Tief"),
+            ("steam", steam_now, (live.get("gg") or {}).get("retail_low"), "", "gg.deals, Allzeit-Tief aller Händler")):
+        b = best[shop]
+        if (b is None or b.get("thin")) and now_p is not None and isinstance(low, (int, float)) and low > 0:
+            best[shop] = _guess(now_p, low, at or "", src)
     return {
         "key": key, "name": t["name"], "meta_id": t.get("meta_id") or "",
         "steam_appid": t.get("steam_appid") or "", "steam_sure": bool(t.get("steam_sure")),

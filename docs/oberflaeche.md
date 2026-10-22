@@ -13,13 +13,17 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 |---|---|---|---|
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
 | Gold | `--best` | am Bestpreis (niedrigster Preis des Shops in 24 Monaten, bis 2 % darüber) | ★ hinter dem Preis (`.star`), Marke „am Bestpreis“ (`.b.best`), Leiste in Jetzt am Bestpreis (`.bbar.at`; sonst grau) |
-| Grün | `--go` | spricht für den Kauf, gelingt | Crossbuy, Meta günstiger (`.gap-meta`), Quelle „ok“ |
+| Grün | `--go` | spricht für den Kauf, gelingt | Crossbuy, Meta günstiger (`.gap-meta`), besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
 | Rot | `--stop` | spricht gegen den Kauf, misslingt | Betrag, um den Meta teurer ist (`+5 €`, `.gap-steam`), sanft als Marke „kein Crossbuy“ (`.b.stop`), Fehler einer Quelle |
-| Violett | `--warn` | prüfen, veraltet, geschätzt | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben |
+| Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“ |
 
 Geschätzte oder übernommene Werte tragen „≈“ oder „Tabelle“ samt Datum. Links stehen in
 Textfarbe, unterstrichen.
+
+Eine Titelzeile zeigt, was entscheidet: Preise je Shop mit Leiste zum Bestpreis (bei Angebot
+oder am Bestpreis), Differenz (unter 1 € grau), Wertung, Recherche, Notiz. Alles andere steht in
+der Klappe „Mehr“ (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“).
 
 ## Hell, dunkel, System
 
