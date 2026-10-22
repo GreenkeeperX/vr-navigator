@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.3.0:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.3.1:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -99,7 +99,25 @@ Einstellungen, „Derselbe Titel?“: Ein Klick auf einen der beiden Namen führ
 „Verschieden“ trennt sie dauerhaft. Der andere Name bleibt als zweiter Name bekannt, damit ein
 späterer Import den Titel wiederfindet; dasselbe gilt nach dem Umbenennen unter „bearbeiten“.
 
-Von Hand: unter „bearbeiten“ eine Meta-ID oder Steam-App-ID eintragen. Trägt ein anderer Titel
+## Zuordnung und „Zu erledigen“
+
+Jeder Abgleich ordnet auch Titel zu, die nicht auf der Wunschliste stehen, etwa Meta-Käufe:
+
+- **Meta-ID:** Titel ohne Meta-ID sucht das Tool bei QuestStoreDB unter all ihren Namen
+  (15 Anfragen je Abgleich, Meta-Käufe zuerst). Es gilt nur ein Treffer mit genau passendem
+  Namen. Trägt schon ein anderer Titel diese Meta-ID, gehen beide in einem auf.
+- **Steam-ID „≈“:** Eine Steam-ID, die nur aus einem Namen stammt (Playnite, Suche), fragt das
+  Tool im Steam-Store nach. Passt der Name und kann die App VR, gilt sie als sicher.
+- **Namen lernen:** Die Namen, die Meta und Steam für einen Titel führen, merkt sich das Tool
+  als weitere Namen. Spätere Importe und Suchen finden den Titel so auch unter dem anderen
+  Namen.
+
+Was offen bleibt, steht in den Einstellungen unter „Zu erledigen“: „Derselbe Titel?“,
+Steam-IDs, die die Prüfung nicht bestätigt hat („passt“ oder „falsch“; eine falsche App schlägt
+die Suche nicht wieder vor), und Titel, die QuestStoreDB nicht fand. Bundles sind dort als
+solche markiert.
+
+Von Hand: unter „bearbeiten“ eine Meta-ID (oder einen Link von Meta, QuestStoreDB oder VRDB) oder Steam-App-ID eintragen. Trägt ein anderer Titel
 dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben erhalten.
 Zusammenführen und Löschen fragen nicht vorher, der Hinweis danach bietet „Rückgängig“.
 

@@ -45,7 +45,9 @@ _SLUG_RES = (
 def store_names(t):
     """Namen, unter denen die Shops den Titel wohl führen: der eigene Name, derselbe ohne
     Klammer am Ende und, wenn ein VRDB- oder QuestStoreDB-Link da ist, der Name aus dessen
-    Adresse. Der passt zur Meta-ID, auch wenn der Name aus einer Tabelle anders lautet."""
+    Adresse. Der passt zur Meta-ID, auch wenn der Name aus einer Tabelle anders lautet. Zuletzt
+    die weiteren Namen (aliases): frühere Namen und die, die das Tool bei Meta und Steam gelernt
+    hat."""
     out = [t["name"], re.sub(r"\s*[(\[][^)\]]*[)\]]\s*$", "", t["name"])]
     if t.get("meta_id"):
         for link in (t.get("links") or {}).values():
@@ -53,6 +55,7 @@ def store_names(t):
                 m = rx.search(str(link or ""))
                 if m:
                     out.append(m.group(1).replace("-", " "))
+    out += list(t.get("aliases") or [])
     seen, names = set(), []
     for x in out:
         if x and norm(x) not in seen:
@@ -316,10 +319,65 @@ def set_ids(data, key, meta_id=None, steam_appid=None):
             for k2, t2 in list(data["titles"].items()):
                 if k2 != key and t2.get(field) == val:
                     merge(data, key, k2)
+        old = t.get(field) or ""
         t[field] = val
         if field == "steam_appid":
             t["steam_sure"] = bool(val)
+            t.pop("steam_doubt", None)
+            if old and not val:
+                # Von Hand entfernt: die Steam-Suche schlägt diese App nicht wieder vor
+                t["steam_wrong"] = sorted(set(t.get("steam_wrong") or []) | {old})
     return key
+
+
+# ------------------------------------------------------------------ Zuordnung
+
+_BUNDLE = re.compile(r"\b(bundle|pack|collection)\b", re.I)
+
+
+def is_bundle(t):
+    return bool(_BUNDLE.search(t.get("name") or ""))
+
+
+def names_match(t, other):
+    """Passt ein Name aus einem Shop zu einem der Namen des Titels (ohne Klammer- und VR-Zusatz)?"""
+    b = base_norm(other)
+    return bool(b) and b in {base_norm(x) for x in store_names(t)}
+
+
+def steam_verdict(t, info):
+    """Steam-ID prüfen, die nur aus einem Namen stammt (Playnite, Suche). info: Eintrag aus
+    data["steam_apps"] (Name und VR laut Store) oder None, wenn noch nicht gefragt.
+    Liefert (sicher, Grund): (True, "") passt; (False, Grund) passt nicht; (None, "") ungeprüft."""
+    if not info:
+        return None, ""
+    name = info.get("name") or ""
+    if not name:
+        return False, "Steam zeigt die App im deutschen Store nicht"
+    if not info.get("vr"):
+        return False, f"laut Steam ohne VR: {name}"
+    if not names_match(t, name):
+        return False, f"Name bei Steam: {name}"
+    return True, ""
+
+
+def todo(data):
+    """Was das Tool nicht selbst klären konnte, je Titel mit Grund: Steam-IDs, die die Prüfung
+    nicht bestätigt hat, und Titel, die QuestStoreDB unter keinem ihrer Namen fand (Meta-Käufe
+    ohne Meta-ID und Titel ganz ohne Kennung)."""
+    out = []
+    for k, t in data["titles"].items():
+        if t.get("steam_appid") and not t.get("steam_sure") and t.get("steam_doubt"):
+            out.append({"key": k, "name": t["name"], "kind": "steam", "steam_appid": t["steam_appid"],
+                        "why": t["steam_doubt"]})
+        if t.get("meta_miss") and not t.get("meta_id") and \
+                ((t.get("owned") or {}).get("meta") or not t.get("steam_appid")):
+            why = "bei QuestStoreDB nicht gefunden, gesucht als " + ", ".join(f"„{x}“" for x in store_names(t)[:4])
+            if is_bundle(t):
+                why = "Bundle: " + why + ". Trag die enthaltenen Spiele einzeln ein oder die Meta-ID des Bundles"
+            out.append({"key": k, "name": t["name"], "kind": "meta", "why": why,
+                        "owned_meta": bool((t.get("owned") or {}).get("meta"))})
+    return sorted(out, key=lambda x: (x["kind"] != "steam", norm(x["name"])))
 
 
 # ------------------------------------------------------------------ Anzeige

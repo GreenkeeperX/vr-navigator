@@ -551,6 +551,8 @@ class TestSync(unittest.TestCase):
         self.assertEqual(titles.store_names(t), ["Sternfahrt (Fassung aus der Tabelle)", "Sternfahrt", "star ride"])
         self.assertEqual([(x["a_name"], x["b_name"]) for x in titles.suggestions(d)],
                          [("Sternfahrt (Fassung aus der Tabelle)", "Star Ride")])
+        del d["titles"][o]              # die Zuordnung gekaufter Titel prüft test_assign
+        store.save_data(d)
         store.save_json("sync.json", {"started": "2026-10-20T10:00:00+00:00", "search_v": 1})
         sources.fetch = net = FakeNet({
             "q=star+ride": qsdb_list(qsdb_card("Star Ride", "4444444444444444", 12.0, kind="base")),
@@ -585,6 +587,64 @@ class TestSync(unittest.TestCase):
         self.assertEqual(got["moves"]["down"], ["Laser Tennis (Meta 10,00 € → 8,00 €)"])
         self.assertEqual(got["moves"]["low"], ["Laser Tennis 8,00 €"])
         self.assertEqual(got["coverage"]["has"]["meta"], 1)
+
+    def test_assign(self):
+        """Zuordnung für gekaufte Titel: Meta-ID über die Suche (mit Zusammenführen), Steam-IDs
+        „≈“ im Store prüfen, Namen lernen, Rest unter „Zu erledigen“."""
+        d = empty()
+        a, _ = titles.upsert(d, "Star Ride")
+        d["titles"][a]["owned"] = {"meta": {"src": "meta"}}
+        b, _ = titles.upsert(d, "Sternfahrt", meta_id="4444444444444444")
+        for name in ("Nebula Drift", "Moon Rover Bundle"):
+            k, _ = titles.upsert(d, name)
+            d["titles"][k]["owned"] = {"meta": {"src": "meta"}}
+        g, _ = titles.upsert(d, "Orbit Golf", steam_appid="3000040")
+        c, _ = titles.upsert(d, "Comet Chase", steam_appid="3000030")
+        for k in (g, c):
+            d["titles"][k]["owned"] = {"pc": {"src": "playnite", "label": "Steam"}}
+        store.save_data(d)
+        sources.fetch = net = FakeNet({
+            "q=Star+Ride": qsdb_list(qsdb_card("Star Ride", "4444444444444444", 12.0, kind="base")),
+            "all_apps": qsdb_list(),
+            "appids=3000040&cc=de&l=german": steam_app_json(3000040, "Orbit Golf VR", True),
+            "appids=3000030&cc=de&l=german": steam_app_json(3000030, "Comet Chase", False),
+            "/on_sale/": qsdb_list(), "storesearch": json.dumps({"items": []}),
+        })
+        sync.run()
+        d = store.load_data()
+        by = {t["name"]: (k, t) for k, t in d["titles"].items()}
+        k, t = by["Star Ride"]
+        self.assertEqual(t["meta_id"], "4444444444444444")
+        self.assertNotIn("Sternfahrt", by)
+        self.assertIn("Sternfahrt", t["aliases"])
+        self.assertTrue(t["links"]["qsdb"].endswith("4444444444444444/"))
+        self.assertTrue(by["Orbit Golf"][1]["steam_sure"])
+        self.assertIn("Orbit Golf VR", by["Orbit Golf"][1]["aliases"])
+        self.assertEqual(by["Comet Chase"][1]["steam_doubt"], "laut Steam ohne VR: Comet Chase")
+        todo = {x["name"]: x for x in library.view(d)["todo"]}
+        self.assertEqual(set(todo), {"Comet Chase", "Nebula Drift", "Moon Rover Bundle"})
+        self.assertEqual(todo["Comet Chase"]["kind"], "steam")
+        self.assertTrue(todo["Moon Rover Bundle"]["why"].startswith("Bundle:"))
+        log = "\n".join(sync.status()["log"])
+        self.assertIn("Zuordnung, Steam-IDs „≈“: 2 ungeprüft, 2 Apps im Store gefragt; bestätigt (1): Orbit Golf", log)
+        self.assertIn("gefunden (1): Star Ride, davon 1 mit einem vorhandenen Eintrag zusammengeführt", log)
+        self.assertIn("3 Fälle unter „Zu erledigen“", log)
+        # Zweiter Lauf: Fehlschläge warten, gefragte Apps kommen aus dem Speicher
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("all_apps" in u or "appdetails" in u for u in net.calls))
+        # Von Hand: Steam-ID falsch, die Suche schlägt sie nicht wieder vor
+        ck = by["Comet Chase"][0]
+        server.edit_title({"key": ck, "steam_appid": ""})
+        t = store.load_data()["titles"][ck]
+        self.assertEqual(t["steam_wrong"], ["3000030"])
+        self.assertNotIn("steam_doubt", t)
+        gk = by["Orbit Golf"][0]
+        d = store.load_data()
+        d["titles"][gk]["steam_sure"] = False
+        store.save_data(d)
+        server.edit_title({"key": gk, "steam_sure": True})
+        self.assertTrue(store.load_data()["titles"][gk]["steam_sure"])
 
     def test_accounts_in_run(self):
         """Steam-Konto, gg.deals-Wunschliste und Sharenite vor den Preisen."""
@@ -947,6 +1007,12 @@ class TestUi(unittest.TestCase):
                      "low": 9.99, "low_at": "2026-01-01", "at": now},
             "steam": {"price": 14.99, "base": 24.99, "discount": 40, "at": "2020-01-01T00:00:00+00:00"}}
         data["titles"][k]["note"] = "Reddit: " + "sehr lange Notiz ohne Leerzeichen " * 3 + "x" * 120
+        # Zu erledigen: eine zweifelhafte Steam-ID und ein Bundle ohne Meta-ID
+        s, _ = titles.upsert(data, "Comet Chase", steam_appid="3000030")
+        data["titles"][s].update(owned={"pc": {"src": "playnite", "label": "Steam"}},
+                                 steam_doubt="Name bei Steam: Comet Chase Deluxe Soundtrack und weitere Inhalte")
+        b, _ = titles.upsert(data, "Moon Rover Ultimate Collection Bundle mit sehr langem Namen")
+        data["titles"][b].update(owned={"meta": {"src": "meta"}}, meta_miss=now)
         store.save_data(data)
         with open(os.path.join(os.path.dirname(__file__), "ui_selbsttest.html"), encoding="utf-8") as f:
             probe_page = f.read().encode()

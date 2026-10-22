@@ -7,8 +7,7 @@ in der Git-Geschichte.
 
 ## 0.3 Wo kaufen
 
-Plan (22.10.2026): 0.3.1 Zuordnung für alle Titel (Meta-IDs auch für Käufe, Namen
-lernen, Steam-ID selbst prüfen, Liste „Zu erledigen“), 0.3.2 Bestpreis je Shop aus 24 Monaten
+Plan (22.10.2026): 0.3.2 Bestpreis je Shop aus 24 Monaten
 statt Abstand als Mittelpunkt, Abrufzeit nur bei Veraltung, 0.3.3 Meinungen als Datei
 einlesen, 0.3.4 Urteil.
 
@@ -17,8 +16,8 @@ einlesen, 0.3.4 Urteil.
 - Urteil je Titel mit Gründen: erst Nachteile je Shop, dann der Abstand (Startwert für „groß“:
   mindestens 40 % und 8 €, einstellbar)
 - Gutscheine mit Shop, Prozent oder Betrag und Ablaufdatum
-- Legende („?“ oben) nach `docs/oberflaeche.md` und eine Liste „Zu erledigen“ (offene
-  Zuordnungen, fehlende IDs, ungeprüfte Steam-IDs)
+- Legende („?“ oben) nach `docs/oberflaeche.md`
+- VRDB-Link aus der QuestStoreDB-Seite, Bundles mit den enthaltenen Spielen verknüpfen
 
 ## Danach
 

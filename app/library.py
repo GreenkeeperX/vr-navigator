@@ -59,6 +59,7 @@ def row(key, t, at=None):
     return {
         "key": key, "name": t["name"], "meta_id": t.get("meta_id") or "",
         "steam_appid": t.get("steam_appid") or "", "steam_sure": bool(t.get("steam_sure")),
+        "steam_doubt": t.get("steam_doubt") or "", "bundle": titles.is_bundle(t),
         "where": _where(t), "pc_label": (o.get("pc") or {}).get("label") or "",
         "meta_price": (o.get("meta") or {}).get("price"),
         "wish": bool(t.get("wish")), "crossbuy": t.get("crossbuy"),
@@ -93,5 +94,7 @@ def view(data, at=None):
                    "pc": sum(r["where"] in ("pc", "beide") for r in rows),
                    "both": sum(r["where"] == "beide" for r in rows)},
         "suggestions": titles.suggestions(data),
+        # Mit der Zeile, damit „bearbeiten“ auch Titel öffnet, die weder Besitz noch Wunsch sind
+        "todo": [dict(x, row=row(x["key"], data["titles"][x["key"]], at)) for x in titles.todo(data)],
         "imports": data.get("imports") or {},
     }
