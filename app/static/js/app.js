@@ -110,9 +110,9 @@ const foldAll = `<span class="foldall"><button class="link" data-act="foldall" d
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
-  const c = S.counts, sug = S.suggestions.length;
+  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length;
   const sy = S.sync || {};
-  const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} prüfen` : "";
+  const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
   const cnt = {now: c.now || "", wish: c.wish, lib: c.owned, settings: set};
   $("nav").innerHTML = TABS.map(([k, l]) =>
     `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${cnt[k] !== "" ? `<span class="cnt">${esc(cnt[k])}</span>` : ""}</button>`).join("");
@@ -177,7 +177,8 @@ function badges(r){
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
   if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)">Crossbuy</span>`);
   if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest">kein Crossbuy</span>`);
-  if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="Steam-ID aus Playnite geraten, bitte prüfen">Steam-ID ≈</span>`);
+  if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
+  if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
   return out.join(" ");
 }
 const linksHtml = r => `<span class="links">${r.links.filter(l => safeUrl(l.url)).map(l =>
@@ -287,19 +288,35 @@ function settingsView(){
   const hours = se.hours || 6, last = sy.started ? new Date(sy.started) : null;
   const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
   const rows = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se)).map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
-  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["importe", "Einlesen"], ["sicherung", "Sicherung"]].filter(Boolean);
-  const sugCard = sug ? box("sug", "Derselbe Titel?", `${sug} ${sug === 1 ? "Paar" : "Paare"}`, `
-    <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
+  const todo = S.todo || [], open = sug + todo.length;
+  const jumps = [open && ["todo", "Zu erledigen"], ["abgleich", "Abgleich"], ["importe", "Einlesen"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
       <span class="row2">Zusammenführen als
         <button data-act="merge" data-a="${esc(x.a)}" data-b="${esc(x.b)}" title="Ein Eintrag mit diesem Namen">„${esc(x.a_name)}“</button>
         <button data-act="merge" data-a="${esc(x.b)}" data-b="${esc(x.a)}" title="Ein Eintrag mit diesem Namen">„${esc(x.b_name)}“</button>
-        oder <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></span></div>`).join("")}</div>`) : "";
+        oder <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></span></div>`).join("")}</div>`;
+  const steamTodo = todo.filter(x => x.kind === "steam"), metaTodo = todo.filter(x => x.kind === "meta");
+  const steamList = `<p class="hint">Diese Steam-IDs stammen nur aus einem Namen, und die Prüfung im Steam-Store hat sie nicht bestätigt.</p>
+    <div class="list">${steamTodo.map(x => `<div class="item"><span class="nm">${esc(x.name)} <a href="https://store.steampowered.com/app/${esc(x.steam_appid)}/" target="_blank" rel="noopener noreferrer">Steam ${esc(x.steam_appid)}</a></span>
+      <span class="row2"><span class="hint">${esc(x.why)}</span>
+        <button data-act="steamok" data-k="${esc(x.key)}" title="Die App gehört zu diesem Titel">passt</button>
+        <button data-act="steamwrong" data-k="${esc(x.key)}" title="Steam-ID entfernen; diese App schlägt das Tool nicht wieder vor">falsch</button></span></div>`).join("")}</div>`;
+  const metaList = `<p class="hint">QuestStoreDB fand diese Titel unter keinem ihrer Namen. Unter „bearbeiten“ kannst du einen Link oder die Meta-ID eintragen, dann holt das Tool den Rest.</p>
+    <div class="list">${metaTodo.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
+      <span class="row2"><span class="hint">${esc(x.why)}</span>
+        <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
+        <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
+  const sugCard = open ? box("todo", "Zu erledigen", `${open} offen`, `
+    <p class="hint">Was das Tool nicht selbst klären konnte. Alles andere ordnet es bei jedem Abgleich von allein zu.</p>
+    ${sug ? sub("sug", "Derselbe Titel?", `${S.suggestions.length} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
+    ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", steamTodo.length, steamList) : ""}
+    ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", metaTodo.length, metaList) : ""}`) : "";
   const ll = lastLine(sy);
   const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
   const keyInfo = se.gg_key_set ? `gg.deals-Schlüssel gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}` : "ohne gg.deals-Schlüssel";
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
-    <p class="hint">Holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
+    <p class="hint">Liest deine Konten, ordnet alle Titel zu (Meta-ID, Steam-ID prüfen) und holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     <div class="list">${rows}</div>
     <div class="bar" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
@@ -440,13 +457,13 @@ function previewHtml(p){
 }
 /* ---------------------------------------------------------------- Bearbeiten */
 function openEdit(key){
-  const r = S.library.concat(S.wishlist).find(x => x.key === key);
+  const r = S.library.concat(S.wishlist, (S.todo || []).map(x => x.row)).find(x => x.key === key);
   if(!r) return;
   const cb = r.crossbuy === true ? "yes" : r.crossbuy === false ? "no" : "";
   $("edit").innerHTML = `<form method="dialog" data-form="edit" data-k="${esc(key)}"><h2>${esc(r.name)}</h2>
     <div class="form">
       <label for="f-name">Name</label><input type="text" id="f-name" name="name" value="${esc(r.name)}" required>
-      <label for="f-meta">Meta-ID</label><input type="text" id="f-meta" name="meta_id" value="${esc(r.meta_id)}" inputmode="numeric" placeholder="Zahl aus dem Store-Link">
+      <label for="f-meta">Meta-ID</label><input type="text" id="f-meta" name="meta_id" value="${esc(r.meta_id)}" inputmode="numeric" placeholder="Zahl oder Link (Meta, QuestStoreDB, VRDB)">
       <label for="f-steam">Steam-App-ID</label><input type="text" id="f-steam" name="steam_appid" value="${esc(r.steam_appid)}" inputmode="numeric">
       <label for="f-cb">Crossbuy</label><select id="f-cb" name="crossbuy"><option value="">unbekannt</option><option value="yes" ${cb === "yes" ? "selected" : ""}>ja</option><option value="no" ${cb === "no" ? "selected" : ""}>nein</option></select>
       <span class="full"><label><input type="checkbox" name="wish" ${r.wish ? "checked" : ""}> auf der Wunschliste</label>
@@ -563,6 +580,11 @@ document.addEventListener("click", async ev => {
   }
   else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
+  else if(a === "steamok") act("/api/title", {key: el.dataset.k, steam_sure: true});
+  else if(a === "steamwrong"){
+    const k = el.dataset.k, x = (S.todo || []).find(y => y.key === k) || {};
+    if(await act("/api/title", {key: k, steam_appid: ""})) toast(`Steam-ID von „${x.name || "Titel"}“ entfernt`, x.steam_appid ? () => act("/api/title", {key: k, steam_appid: x.steam_appid}) : null);
+  }
   else if(a === "preview" || a === "apply"){
     const text = $("txt-" + v).value;
     V.txt = Object.assign(V.txt || {}, {[v]: text});

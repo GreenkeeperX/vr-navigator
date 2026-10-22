@@ -94,11 +94,24 @@ def edit_title(body):
                                                  **({"label": "PC"} if side == "pc" else {})})
                 else:
                     t["owned"].pop(side, None)
+        mid = _text(body.get("meta_id"), 500) if body.get("meta_id") is not None else None
+        if mid and not mid.isdigit():
+            # Ein Link statt der Zahl: Meta-ID daraus, QuestStoreDB- und VRDB-Links bleiben stehen
+            link, mid = mid, titles.meta_id_from(mid)
+            if not mid:
+                raise ValueError("In diesem Link steht keine Meta-ID")
+            if titles.link_kind(link) in ("vrdb", "qsdb"):
+                t.setdefault("links", {})[titles.link_kind(link)] = link
+            body = dict(body, meta_id=mid)
         if body.get("meta_id") is not None or body.get("steam_appid") is not None:
             # Neue Kennung von Hand: beim nächsten Abgleich wieder suchen
             t.pop("meta_miss", None)
             t.pop("steam_miss", None)
         titles.set_ids(data, key, body.get("meta_id"), body.get("steam_appid"))
+        if body.get("steam_sure") is True and t.get("steam_appid"):
+            # „passt“ unter „Zu erledigen“: die Steam-ID gilt als geprüft
+            t["steam_sure"] = True
+            t.pop("steam_doubt", None)
         store.save_data(data)
     return state()
 

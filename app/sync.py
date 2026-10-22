@@ -47,6 +47,7 @@ STEAM = "https://store.steampowered.com"
 GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
 STEAM_API = "https://api.steampowered.com"
 APPINFO_MAX = 40            # Store-Seiten je Lauf, um zu prüfen, ob eine App VR kann
+ASSIGN_SEARCH = 15          # QuestStoreDB-Suchen je Lauf für Titel außerhalb der Preisliste
 GG_WISH_PAGES = 10
 SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
 SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
@@ -354,6 +355,8 @@ def _qsdb(targets, upd, log):
                      "at": stamp, "page_at": stamp}
         if g["meta_id"]:
             u["meta_id"] = g["meta_id"]
+        if g["name"]:
+            u["names"] = [g["name"]]
         u["qsdb"] = prices.QSDB + (g["path"] or path)
     log(f"QuestStoreDB, Angebotsliste: {len(sale)} Angebote auf {page - 1} Seiten"
         + (f", von deiner Wunschliste ({len(wished)}): {_few(wished)}" if wished else ", keines von deiner Wunschliste"))
@@ -389,9 +392,10 @@ def _steam(targets, upd, log):
             continue
         progress("Steam: Suche", searches, 0)
         names = {titles.norm(x) for x in titles.store_names(t)}
+        wrong = set(t.get("steam_wrong") or [])
 
         def pick(text):
-            same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) in names]
+            same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) in names and i["appid"] not in wrong]
             return same[0] if len(same) == 1 else None
         hit, n, miss = _search(src, t, lambda name: f"{STEAM}/api/storesearch/?"
                                + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}),
@@ -525,6 +529,8 @@ def apply(upd):
             for f in ("meta_miss", "steam_miss"):
                 if u.get(f):
                     t[f] = u[f]
+            for x in u.get("names") or []:
+                titles.add_alias(t, x)
             ids = {}
             if u.get("meta_id") and not t.get("meta_id"):
                 ids["meta_id"] = u["meta_id"]
@@ -792,6 +798,100 @@ def _sharenite(settings, log):
     return src.result()
 
 
+def _assign(log, budget, rest):
+    """Zuordnung für alle Titel, auch gekaufte: Steam-IDs, die nur aus einem Namen stammen,
+    im Store prüfen (Name und VR), und Titel ohne Meta-ID außerhalb der Preisliste bei
+    QuestStoreDB suchen. Gefundene Namen merkt sich der Titel als weitere Namen. Was offen
+    bleibt, zeigt die Liste „Zu erledigen“ (titles.todo)."""
+    start, stamp = time.monotonic(), titles.now_iso()
+    data = store.load_data()
+    targets = _targets(data)
+    # 1. Steam-IDs „≈“
+    unsure = {k: t["steam_appid"] for k, t in data["titles"].items() if t.get("steam_appid") and not t.get("steam_sure")}
+    apps = dict(data.get("steam_apps") or {})
+    checked = 0
+    if unsure and not rest.get("steam"):
+        steam = _Source("Steam", log)
+        checked = _app_checks(steam, list(dict.fromkeys(unsure.values())), apps, budget, stamp)
+        if steam.blocked:
+            rest["steam"] = _iso(now() + timedelta(hours=REST_H))
+    # 2. Meta-ID suchen, gekaufte bei Meta zuerst
+    todo = [(not (t.get("owned") or {}).get("meta"), bool(t.get("steam_appid")), titles.norm(t["name"]), k)
+            for k, t in data["titles"].items()
+            if k not in targets and not t.get("meta_id") and not (t.get("links") or {}).get("qsdb")]
+    todo.sort()
+    waiting = [k for *_, k in todo if _missed(data["titles"][k], "meta_miss")]
+    queue = [k for *_, k in todo if k not in waiting]
+    hits, missed, searches = {}, [], 0
+    if queue and not rest.get("qsdb"):
+        src = _Source("QuestStoreDB", log, QSDB_HEAD)
+        for k in queue:
+            if searches >= ASSIGN_SEARCH or src.stopped:
+                break
+            t = data["titles"][k]
+            progress("Zuordnung: QuestStoreDB", searches, ASSIGN_SEARCH)
+
+            def url(name):
+                return f"{prices.QSDB}/all_apps/?" + urllib.parse.urlencode({"release_status": "all", "q": name})
+            hit, n, miss = _search(src, t, url, lambda text: _pick(prices.qsdb_cards(text), t), ASSIGN_SEARCH - searches)
+            searches += n
+            if hit and hit.get("meta_id"):
+                hits[k] = hit
+            elif miss:
+                missed.append(k)
+        if src.blocked:
+            rest["qsdb"] = _iso(now() + timedelta(hours=REST_H))
+    # Eintragen
+    sure, doubt, found, merged = [], [], [], 0
+    with store.lock:
+        data = store.load_data()
+        data["steam_apps"] = dict(data.get("steam_apps") or {}, **apps)
+        for k, appid in unsure.items():
+            t = data["titles"].get(k)
+            if not t or t.get("steam_appid") != appid or t.get("steam_sure"):
+                continue
+            ok, why = titles.steam_verdict(t, data["steam_apps"].get(appid))
+            if ok:
+                t["steam_sure"] = True
+                t.pop("steam_doubt", None)
+                titles.add_alias(t, data["steam_apps"][appid]["name"])
+                sure.append(t["name"])
+            elif ok is False:
+                if t.get("steam_doubt") != why:
+                    doubt.append(f"{t['name']} ({why})")
+                t["steam_doubt"] = why
+        for k in missed:
+            if k in data["titles"]:
+                data["titles"][k]["meta_miss"] = stamp
+        for k, hit in hits.items():
+            t = data["titles"].get(k)
+            if not t or t.get("meta_id"):
+                continue
+            n = len(data["titles"])
+            k = titles.set_ids(data, k, meta_id=hit["meta_id"])
+            merged += n - len(data["titles"])
+            t = data["titles"][k]
+            t.pop("meta_miss", None)
+            if hit.get("path"):
+                t.setdefault("links", {})["qsdb"] = prices.QSDB + hit["path"]
+            titles.add_alias(t, hit.get("name"))
+            found.append(t["name"])
+        store.save_data(data)
+        left = titles.todo(data)
+    if unsure:
+        log(f"Zuordnung, Steam-IDs „≈“: {len(unsure)} ungeprüft, {checked} Apps im Store gefragt"
+            + (f"; bestätigt ({len(sure)}): {_few(sure)}" if sure else "")
+            + (f"; passt nicht ({len(doubt)}): {_few(doubt, 6)}" if doubt else ""))
+    if searches or waiting:
+        log(f"Zuordnung, Meta-ID bei QuestStoreDB: {searches} Anfragen für Titel außerhalb der Preisliste"
+            + (f", gefunden ({len(found)}): {_few(found)}" if found else ", nichts gefunden")
+            + (f", davon {merged} mit einem vorhandenen Eintrag zusammengeführt" if merged else "")
+            + (f"; ohne Treffer {len(missed)}" if missed else "")
+            + (f"; {len(queue) - len(found) - len(missed)} folgen beim nächsten Abgleich" if len(queue) > len(found) + len(missed) else "")
+            + (f"; {len(waiting)} ohne Treffer in den letzten {MISS_DAYS} Tagen" if waiting else ""))
+    log(f"Zuordnung: fertig nach {_took(start)}" + (f", {len(left)} Fälle unter „Zu erledigen“" if left else ", nichts offen"))
+
+
 def run(only=None, boot=False, by_hand=False):
     """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. Läuft schon einer,
     kommt False zurück."""
@@ -853,6 +953,13 @@ def run(only=None, boot=False, by_hand=False):
                 log(f"Sharenite: zuletzt gelesen {_ago_text(last['at'])}, wieder nach {SHARENITE_H} Stunden")
             else:
                 do("sharenite", lambda: _sharenite(settings, log))
+        if not only or any(x in only for x in ("qsdb", "steam")):
+            progress("Zuordnung")
+            try:
+                _assign(log, budget, st["rest"])
+            except Exception as e:
+                log(f"Zuordnung: unerwarteter Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers")
+                print("Fehler bei der Zuordnung:", e, file=sys.stderr)
         targets = _targets(store.load_data())
         log(f"Preise für {len(targets)} Wunschtitel, die du noch nicht besitzt")
         do("qsdb", lambda: _qsdb(targets, upd, log))

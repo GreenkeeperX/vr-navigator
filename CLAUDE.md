@@ -38,10 +38,10 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/prices.py`: Preise aus QuestStoreDB-Seiten, Steam- und gg.deals-Antworten lesen (ohne Netz)
 - `app/accounts.py`: Konten ohne Netz lesen und eintragen (Steam Web API, gg.deals-Wunschliste,
   Sharenite)
-- `app/sync.py`: Abgleich je Quelle (erst Konten, dann Preise), Zeitplan, Einstellungen, Verbindungstest (siehe
+- `app/sync.py`: Abgleich je Quelle (erst Konten, dann Zuordnung, dann Preise), Zeitplan, Einstellungen, Verbindungstest (siehe
   `docs/abrufe.md`)
 - `app/titles.py`: Namen vergleichen, Kennungen aus Links, Titel finden, anlegen, zusammenführen,
-  Vorschläge für ähnliche Namen, Suchlinks
+  Vorschläge für ähnliche Namen, Steam-ID prüfen, Liste „Zu erledigen“ (`todo`), Suchlinks
 - `app/imports.py`: Vergleichstabelle, Playnite-CSV, gg.deals-Wunschliste (CSV), Meta-Bestellungen
   und Meta-Wunschliste (Lesezeichen-JSON oder Text), Erkennung der Art (`detect`);
   jeder Import aus Datei oder Text erst als Vorschau; das Lesezeichen „Meta-Käufe lesen“ übergibt

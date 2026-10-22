@@ -55,6 +55,18 @@ Quellen `meta`, `steam`, `gg`, `hand`); von Hand genommene Quellen stehen in `wi
 Gekaufte Spiele aus Steam tragen `owned.pc.src = "steam"`, aus Sharenite `"sharenite"` mit dem
 Laden als `label`.
 
+## Zuordnung (nach den Konten, vor den Preisen)
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Steam, Prüfung einer Steam-ID „≈“ | `store.steampowered.com/api/appdetails?appids=<ID>&cc=de&l=german` | je App einmal, aus demselben Kontingent wie die VR-Prüfung (40 je Lauf) | Name und VR |
+| QuestStoreDB, Suche für Titel außerhalb der Preisliste | `queststoredb.com/all_apps/?release_status=all&q=<Name>` | 15 Anfragen je Lauf, je Titel höchstens alle 7 Tage | Meta-ID, Pfad und Name |
+
+Ergebnis je Titel: `steam_sure` oder `steam_doubt` (Grund), `meta_id` mit `links.qsdb`, gelernte
+Namen in `aliases`, von Hand verworfene Steam-Apps in `steam_wrong`. Die Liste „Zu erledigen“
+rechnet `titles.todo` jedes Mal aus `data.json` aus. Eine Sperre in diesem Schritt lässt die
+Quelle wie sonst 24 Stunden ruhen.
+
 ## QuestStoreDB (Meta-Preise)
 
 | Abruf | Adresse | Wie oft | Liefert |
