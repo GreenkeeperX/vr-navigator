@@ -140,7 +140,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -192,6 +192,27 @@ function match(r){
   return !q || r.name.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
 }
 
+/* Wertungen je Laden. Meta in Sternen (laut QuestStoreDB), Steam als Anteil positiv ab 50
+   Rezensionen; beide Skalen sind verschieden und werden nicht umgerechnet. */
+const num = n => n.toLocaleString("de-DE");
+function ratingHtml(r){
+  const m = r.rating?.meta, s = r.rating?.steam, out = [];
+  if(m) out.push(`<span title="Durchschnitt im Meta Store (1 bis 5), gelesen bei QuestStoreDB">Meta ${String(m.stars).replace(".", ",")}/5${m.n ? ` <span class="hint">(${num(m.n)})</span>` : ""}</span>`);
+  if(s) out.push(s.pct != null ? `<span title="Anteil positiver Steam-Rezensionen">Steam ${s.pct} % <span class="hint">(${num(s.n)})</span></span>`
+    : `<span title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam: ${num(s.n)} Rezensionen</span>`);
+  return out.length ? `<div class="row2">${out.join("")}</div>` : "";
+}
+/* Filter für Wunschliste und Bibliothek (gemeinsam, je Reiter nur die passenden) */
+V.lf = {cb: false, sale: false, good: false};
+const LF = [["cb", "Crossbuy", "Meta-Kauf gilt auch am PC (von Hand, Tabelle oder Recherche)", r => r.crossbuy === true],
+  ["sale", "Im Angebot", "Gerade bei Meta oder Steam reduziert", r => (r.live.meta?.discount || 0) + (r.live.steam?.discount || 0) > 0],
+  ["good", "Gut bewertet", "Meta ab 4,3 von 5 oder Steam ab 85 %", r => (r.rating?.meta?.stars || 0) >= 4.3 || (r.rating?.steam?.pct || 0) >= 85]];
+const lfOk = (r, keys) => LF.every(([k, , , f]) => !keys.includes(k) || !V.lf[k] || f(r));
+const lfChips = keys => LF.filter(([k]) => keys.includes(k)).map(([k, l, tip]) =>
+  `<button data-act="lf" data-v="${k}" title="${esc(tip)}" class="${V.lf[k] ? "on" : ""}">${esc(l)}</button>`).join("");
+// Sortierschlüssel, kleiner zuerst
+const byRating = r => -(r.rating?.score ?? -1), byAdded = r => -(Date.parse(r.added) || 0);
+
 /* Werkzeugzeile: Suche mit eigenem × (Esc leert sie ebenso), dahinter Sortierung und Klappen */
 function searchBar(extra){
   return `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel oder Notiz suchen" aria-label="Titel oder Notiz suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>${extra || ""}</div>`;
@@ -199,9 +220,9 @@ function searchBar(extra){
 
 /* ---------------------------------------------------------------- Wunschliste */
 function wishView(){
-  const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"]];
-  let rows = S.wishlist.filter(match);
-  const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0)}[V.sort];
+  const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"], ["added", "Neu"]];
+  let rows = S.wishlist.filter(r => match(r) && lfOk(r, ["cb", "sale", "good"]));
+  const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0), rating: byRating, added: byAdded}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   // Was du schon besitzt (Meta oder PC), steht in einer eigenen, zugeklappten Gruppe
   const open = rows.filter(r => !r.where), owned = rows.filter(r => r.where);
@@ -209,7 +230,8 @@ function wishView(){
     <input type="text" name="link" placeholder="Link zu VRDB, QuestStoreDB, Meta oder Steam (optional)" aria-label="Link zum Titel (optional)">
     <button class="primary">Hinzufügen</button></form>`;
   const ow = S.counts.owned_wish;
-  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>${ow ? foldAll : ""}`);
+  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>${ow ? foldAll : ""}`)
+    + `<div class="chips" role="group" aria-label="Filter">${lfChips(["cb", "sale", "good"])}</div>`;
   if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Einstellungen oder trage oben einen Titel ein.</p>`;
   return add + head + `<p class="hint">Preise bei Meta und Steam, das günstigere vorn, je Shop gemessen am Bestpreis der letzten 24 Monate:
     <span class="star">★</span> am Bestpreis (bis 2 % darüber), „übliches Angebot“: so tief wie in mindestens zwei Angeboten. Darunter klein gg.deals (Keyshops zählen nicht mit) und die Differenz zwischen Meta und PC. Ohne Abruf gelten die Werte aus deiner Tabelle.</p>
@@ -262,7 +284,7 @@ function wishRow(r, bars){
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
     <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
     <button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>
-    ${prices}${bar}
+    ${prices}${bar}${ratingHtml(r)}
     <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
 }
@@ -454,7 +476,7 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
-  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"]];
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"], ["rating", "Steam-Wertungen (Wunschliste, Bibliothek)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
@@ -575,15 +597,20 @@ function opinionHtml(r){
 function libView(){
   // Gruppen nach Laden: auf beiden Seiten, nur Meta, nur PC; jede klappbar
   const ws = [["beide", "Bei Meta und am PC"], ["meta", "Nur bei Meta"], ["pc", "Nur am PC"]];
-  const rows = S.library.filter(match);
+  const sorts = [["name", "Name"], ["rating", "Wertung"], ["added", "Neu"]], ls = V.lsort || "name";
+  let rows = S.library.filter(r => match(r) && lfOk(r, ["cb", "good"]));
+  const k = {rating: byRating, added: byAdded}[ls];
+  if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Einstellungen deine Meta-Bestellungen und den Playnite-Export.</p>`;
   const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
       ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
-      <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
+      <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${ratingHtml(r)}
       <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
       ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
   const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
-  return searchBar(groups.length > 1 ? foldAll : "") + (groups.map(([w, l, rs]) =>
+  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="lsort" data-v="${v}" class="${ls === v ? "on" : ""}">${l}</button>`).join("")}</span>${groups.length > 1 ? foldAll : ""}`)
+    + `<div class="chips" role="group" aria-label="Filter">${lfChips(["cb", "good"])}</div>`;
+  return head + (groups.map(([w, l, rs]) =>
     grp("l-" + w, l, rs.length, `<div class="list">${rs.map(row).join("")}</div>`)).join("") || `<p class="hint">Kein Treffer.</p>`);
 }
 
@@ -798,6 +825,8 @@ document.addEventListener("click", async ev => {
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
   else if(a === "sort"){ V.sort = v; render(); }
   else if(a === "nowsort"){ V.nowSort = v; render(); }
+  else if(a === "lsort"){ V.lsort = v; render(); }
+  else if(a === "lf"){ V.lf[v] = !V.lf[v]; render(); }
   else if(a === "dmix"){ setMix(v); render(); }
   else if(a === "dmixoff" || a === "dpickoff"){
     // Mischung zurücknehmen: Vorschläge weg; ihre Filter bleiben nur bei „Schließen“

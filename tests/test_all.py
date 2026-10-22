@@ -882,6 +882,37 @@ class TestSync(unittest.TestCase):
         self.assertEqual(len(net.calls), 2)
         self.assertIsNone(prices.steam_details("kein json", "1"))
 
+    def test_rating(self):
+        """Steam-Wertung für Titel des Tools; was Entdecken schon hat, wird übernommen."""
+        d = empty()
+        a, _ = titles.upsert(d, "Comet Chase")
+        b, _ = titles.upsert(d, "Harbor Heist")
+        c, _ = titles.upsert(d, "Ohne Steam")
+        d["titles"][a].update(wish=True, steam_appid="3000030", live={"meta": {"rating": 4.46, "ratings": 120, "price": 9.99}})
+        d["titles"][b].update(wish=True, steam_appid="3000101")
+        store.save_data(d)
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION))
+        col["games"]["steam:3000101"]["rev"] = {"n": 400, "pct": 91, "at": titles.now_iso()}
+        store.save_json(collection.FILE, col)
+        ans = json.dumps({"success": 1, "query_summary": {"total_positive": 30, "total_negative": 10, "total_reviews": 40}})
+        sources.fetch = net = FakeNet({"appreviews/3000030": ans})
+        sync.run(only={"rating"})
+        self.assertEqual(len(net.calls), 1)                     # 3000101 kam aus der Sammlung
+        t = store.load_data()["titles"]
+        self.assertEqual((t[a]["rev"]["n"], t[a]["rev"]["app"], t[b]["rev"]["pct"]), (40, "3000030", 91))
+        ra, rb, rc = (library.rating(t[k]) for k in (a, b, c))
+        self.assertEqual(ra, {"meta": {"stars": 4.5, "n": 120}, "steam": {"pct": None, "n": 40}, "score": 90})
+        self.assertEqual((rb["steam"], rb["score"]), ({"pct": 91, "n": 400}, 91))
+        self.assertEqual(rc, {"meta": None, "steam": None, "score": None})
+        sync.run(only={"rating"})                                # frisch: kein neuer Abruf
+        self.assertEqual(len(net.calls), 1)
+        d = store.load_data()
+        d["titles"][a]["steam_appid"] = "3000031"                # andere Steam-ID: neu fragen
+        store.save_data(d)
+        sync.run(only={"rating"})
+        self.assertEqual(len(net.calls), 2)
+
     def test_ggwish_manual(self):
         """gg.deals sperrt den Server: Wunschliste ab dann per Lesezeichen, unbekannte Namen
         sucht der Abgleich nach; ein neu gespeicherter Link versucht es wieder."""
@@ -1306,8 +1337,9 @@ class TestUi(unittest.TestCase):
         k = next(k for k, t in data["titles"].items() if t["name"] == "Laser Tennis")
         data["titles"][k]["live"] = {
             "meta": {"price": 9.99, "base": 29.99, "discount": 67, "kind": "discount", "until": "2099-01-01",
-                     "low": 9.99, "low_at": "2026-01-01", "at": now},
+                     "low": 9.99, "low_at": "2026-01-01", "at": now, "rating": 4.6, "ratings": 1234567},
             "steam": {"price": 14.99, "base": 24.99, "discount": 40, "at": "2020-01-01T00:00:00+00:00"}}
+        data["titles"][k]["rev"] = {"n": 1234567, "pct": 93, "at": now, "app": "3000001"}
         data["titles"][k]["note"] = "Reddit: " + "sehr lange Notiz ohne Leerzeichen " * 3 + "x" * 120
         data["titles"][k]["opinion"] = {"stand": "2026-10-22", "fassung": "pc", "mehrspieler": "lebendig",
                                         "fazit": "Schnelles Tennis mit vielen Gegnern, " * 4, "crossbuy": True,

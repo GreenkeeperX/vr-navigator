@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.4:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.5:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -201,12 +201,18 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   als 24 Monate ist; ohne jede Preisänderung noch keine Stufe). Darunter klein gg.deals
   (Händler, Keyshop, Allzeit-Tief; Keyshops zählen nicht mit) und die Differenz („PC 3,00 €
   günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter als zwei Tage ist.
-  Sortieren nach Name, „Nah am Bestpreis“ und Rabatt. Ohne Abruf gelten die Werte der Tabelle,
+  Je Titel die Wertungen beider Läden nebeneinander: Meta in Sternen (1 bis 5, über
+  QuestStoreDB) und Steam als Anteil positiver Rezensionen (ab 50; darunter nur die Zahl).
+  Die Skalen werden nicht umgerechnet. Sortieren nach Name, „Nah am Bestpreis“, Rabatt, Wertung
+  (die bessere der beiden, Sterne mal 20) und „Neu“ (zuletzt ins Tool gekommen); Filter
+  „Crossbuy“, „Im Angebot“ und „Gut bewertet“ (Meta ab 4,3 oder Steam ab 85 %). Ohne Abruf gelten die Werte der Tabelle,
   gekennzeichnet mit „Tabelle“ und Datum (Differenz dort: Meta-Tief minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
   QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
   Was du dort findest, gehört in die Notiz.
 - **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
-  „Nur am PC“, mit Suche.
+  „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
+  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“. Meta-Sterne gibt es dort nur für Titel,
+  deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
 - **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
   Mehrspieler-Art (Mehrspieler, Online, Koop, Lokal, Splitscreen, LAN, MMO), Spielerzahl,
   Genres (mehrere wählbar, eines genügt), Laden, Steam-Wertung und „über zwei Jahre in der

@@ -40,7 +40,8 @@ BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger h
 LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
-         "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details"}
+         "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
+         "rating": "Steam-Wertungen"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -57,6 +58,7 @@ REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekannth
 REVIEWS_DAYS = 30           # so alt darf eine Rezensionszahl werden
 DETAILS_MAX = 80            # Steam-Store-Daten je Lauf für Entdecken (Genres, Mehrspieler, Jahr)
 DETAILS_DAYS = 90
+RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
 SECRETS = ("gg_key", "steam_key", "gg_wish")      # bleiben auf dem Server, nie im Protokoll
@@ -850,6 +852,52 @@ def _reviews(log):
     return src.result()
 
 
+def _rating(log):
+    """Steam-Rezensionen für die Titel des Tools (Wunschliste, Bibliothek) mit Steam-ID, damit
+    neben den Meta-Sternen die Steam-Wertung steht. Was Entdecken für dasselbe Spiel schon
+    geholt hat, wird übernommen statt neu gefragt. Nach REVIEWS_DAYS neu."""
+    start = time.monotonic()
+    old = _iso(now() - timedelta(days=REVIEWS_DAYS))
+    col = (store.load_json(collection.FILE, collection.EMPTY).get("games") or {})
+    data = store.load_data()
+    todo = sorted(((t.get("rev") or {}).get("at") or "", k) for k, t in data["titles"].items()
+                  if str(t.get("steam_appid") or "").isdigit()
+                  and (((t.get("rev") or {}).get("at") or "") < old or (t.get("rev") or {}).get("app") != str(t["steam_appid"])))
+    src = _Source("Steam-Wertungen", log)
+    if not todo:
+        log("Steam-Wertungen: alle aktuell")
+        return src.result()
+    got, asked = {}, 0
+    for _, k in todo:
+        gid = str(data["titles"][k]["steam_appid"])
+        rev = (col.get("steam:" + gid) or {}).get("rev") or {}
+        if (rev.get("at") or "") >= old:
+            got[k] = dict(rev, app=gid)     # schon von Entdecken geholt
+            continue
+        if asked >= RATING_MAX:
+            continue
+        progress("Steam-Wertungen", asked, min(RATING_MAX, len(todo)))
+        asked += 1
+        text = src.get(f"{STEAM}/appreviews/{gid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
+                       shown=f"Steam-Wertungen {gid}")
+        if text is None:
+            if src.stopped:
+                break
+            continue
+        got[k] = dict(prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso(), app=gid)
+    with store.lock:
+        data = store.load_data()
+        for k, r in got.items():
+            if k in data["titles"]:
+                data["titles"][k]["rev"] = r
+        store.save_data(data)
+    left = len(todo) - len(got)
+    src.stats = {"read": len(got), "left": left}
+    log(f"Steam-Wertungen: {len(got)} Titel aktualisiert ({asked} Anfragen)"
+        + (f", {left} noch offen (je Lauf {RATING_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+    return src.result()
+
+
 def _checked(d):
     return dict(d, ok=True) if d else {"ok": False}
 
@@ -1117,6 +1165,8 @@ def run(only=None, boot=False, by_hand=False):
             do("reviews", lambda: _reviews(log))
         if not only or "details" in only:
             do("details", lambda: _details(log))
+        if not only or "rating" in only:
+            do("rating", lambda: _rating(log))
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)
