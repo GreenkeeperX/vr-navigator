@@ -150,6 +150,7 @@ def parse_playnite(text, data=None):
     c_feat = _col(header, "features")
     c_src = _col(header, "quelle", "source", "bibliothek", "library", "plattform", "platform")
     c_cat = _col(header, "kategorien", "categories")
+    c_plat = _col(header, "plattformen", "platforms")
     known = {titles.norm(t["name"]) for t in (data or {}).get("titles", {}).values()}
     out = []
     for row in rows[1:]:
@@ -164,6 +165,8 @@ def parse_playnite(text, data=None):
             continue
         gid, src = cell(c_id), cell(c_src)
         store = collection.store_of(src) or collection.store_of(cell(c_cat))
+        if collection.console_only([x.strip() for x in cell(c_plat).split(",")], store):
+            continue                # etwa PSVR auf der PS4: kein Besitz am PC
         steam, sure = "", False
         if gid.isdigit():
             if store:

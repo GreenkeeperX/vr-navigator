@@ -1077,9 +1077,10 @@ def sharenite_html(games, total=None, vr_tags=()):
     opts = '<select name="tag_ids[]" multiple><option value="__none__">No tags</option>' + "".join(
         f'<option value="{v}">{label}</option>' for v, label in vr_tags) + '<option value="t-x">Puzzle</option></select>'
     rows = ""
-    for i, (name, src, tags) in enumerate(games):
+    for i, (name, src, tags, *plat) in enumerate(games):
         pills = f'<span class="games-value-pill games-value-pill--source">{src}</span>' + "".join(
-            f'<span class="games-value-pill games-value-pill--tag">{t}</span>' for t in tags)
+            f'<span class="games-value-pill games-value-pill--tag">{t}</span>' for t in tags) + "".join(
+            f'<span class="games-value-pill games-value-pill--platform">{p}</span>' for p in (plat[0] if plat else []))
         rows += (f'<tr id="game_{i:04d}"><td><div class="d-flex"><strong>{name}</strong></div></td>'
                  f'<td class="d-lg-table-cell d-xxl-none"><div class="games-meta-stack">{pills}'
                  f'<span class="games-value-pill games-value-pill--category games-value-pill--muted">No categories</span></div></td>'
@@ -1107,6 +1108,32 @@ class TestAccounts(unittest.TestCase):
         self.assertEqual(total, 250)
         self.assertEqual(tags, ["t-vr", "t-avr"])
         self.assertEqual([(g["name"], g["source"], g["vr"]) for g in games], [("Sky Garden", "Steam", True), ("Flat Racer", "GOG", False)])
+
+    def test_console_games_left_out(self):
+        self.assertTrue(collection.console_only(["Sony PlayStation 4"]))
+        self.assertFalse(collection.console_only(["Sony PlayStation 4", "PC (Windows)"]))
+        self.assertTrue(collection.console_only([], "PlayStation"))
+        self.assertFalse(collection.console_only([], "Steam"))
+        # Sharenite: PS4-Fassung fällt weg, ein früher daraus eingetragener Besitz ebenso;
+        # dasselbe Spiel zusätzlich am PC zählt
+        d = empty()
+        k, _ = titles.upsert(d, "Comet Chase")
+        d["titles"][k]["owned"] = {"pc": {"src": "sharenite", "label": "PlayStation"}}
+        games = accounts.sharenite_page(sharenite_html([
+            ("Comet Chase", "PlayStation", ["VR"], ["Sony PlayStation 4"]),
+            ("Deep Dive", "PlayStation", ["VR"], ["Sony PlayStation 4"]),
+            ("Sky Garden", "PlayStation", ["VR"], ["Sony PlayStation 4"]),
+            ("Sky Garden", "Steam", ["VR"], ["PC (Windows)"])]))[0]
+        self.assertEqual([g["console"] for g in games], [True, True, True, False])
+        accounts.apply_sharenite(d, games)
+        self.assertNotIn("pc", d["titles"][k]["owned"])
+        self.assertIsNone(titles.find(d, name="Deep Dive"))
+        self.assertEqual(d["titles"][titles.find(d, name="Sky Garden")]["owned"]["pc"]["label"], "Steam")
+        # Playnite-Export mit Plattformen: Sammlung und VR-Import lassen reine Konsolenspiele weg
+        csv_text = ("Name,Spiel-ID,Schlagwörter,Plattformen\nDeep Dive,CUSA00001_00,VR,Sony PlayStation 4\n"
+                    "Sky Garden,3000001,VR,\"PC (Windows), Sony PlayStation 4\"\n")
+        self.assertEqual([e["name"] for e in imports.parse_playnite(csv_text)], ["Sky Garden"])
+        self.assertEqual([g["name"] for g in collection.parse(csv_text).values()], ["Sky Garden"])
 
     def test_wishes_from_sources(self):
         d = empty()
