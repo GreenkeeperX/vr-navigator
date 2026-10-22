@@ -41,7 +41,7 @@ LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
-         "rating": "Steam-Wertungen"}
+         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -58,6 +58,13 @@ REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekannth
 REVIEWS_DAYS = 30           # so alt darf eine Rezensionszahl werden
 DETAILS_MAX = 80            # Steam-Store-Daten je Lauf für Entdecken (Genres, Mehrspieler, Jahr)
 DETAILS_DAYS = 90
+VRDB = "https://vrdb.app"
+VRDB_MAX = 30               # VRDB-Titelseiten je Lauf (Crossbuy, Version, Meta-Wertung)
+VRDB_DAYS = 14
+PLAYERS_MAX = 80            # Spielerzahlen je Lauf (Steam, ohne Schlüssel)
+PLAYERS_H = 20              # so alt darf eine Spielerzahl werden
+PEAK_DAYS = 30              # Spitze über so viele Tage
+NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
@@ -898,6 +905,125 @@ def _rating(log):
     return src.result()
 
 
+def _mine(t):
+    """Titel, für die sich Messwerte lohnen: Wunschliste oder Besitz."""
+    return t.get("wish") or t.get("owned")
+
+
+def _vrdb_url(t):
+    link = (t.get("links") or {}).get("vrdb") or ""
+    if link.startswith(VRDB + "/game/"):
+        return link
+    path = ((t.get("live") or {}).get("meta") or {}).get("path") or ""
+    m = re.search(r"/(?:game|app)/([a-z0-9-]+?)-\d{6,}/", path)
+    slug = m.group(1) if m else re.sub(r"[^a-z0-9]+", "-", titles.norm(t["name"])).strip("-") or "x"
+    return f"{VRDB}/game/{slug}/{t['meta_id']}"
+
+
+def _vrdb(log):
+    """VRDB-Titelseiten für Titel mit Meta-ID: Crossbuy, Version, Meta-Wertung als Anteil 4 und 5
+    Sterne. Ändert sich die Version, merkt sich das Tool den Tag (meta_ver). Nach VRDB_DAYS neu."""
+    start, stamp = time.monotonic(), titles.now_iso()
+    old = _iso(now() - timedelta(days=VRDB_DAYS))
+    data = store.load_data()
+    todo = sorted(((t.get("vrdb") or {}).get("at") or "", k) for k, t in data["titles"].items()
+                  if _mine(t) and t.get("meta_id") and ((t.get("vrdb") or {}).get("at") or "") < old)
+    src = _Source("VRDB", log)
+    if not todo:
+        log("VRDB: alle aktuell")
+        return src.result()
+    got = {}
+    for i, (_, k) in enumerate(todo[:VRDB_MAX]):
+        progress("VRDB", i, min(VRDB_MAX, len(todo)))
+        t = data["titles"][k]
+        text = src.get(_vrdb_url(t), shown=f"VRDB {t['meta_id']}")
+        if text is None:
+            if src.stopped:
+                break
+            got[k] = {"at": stamp, "miss": True}      # nicht gefunden: erst nach VRDB_DAYS wieder
+            continue
+        got[k] = dict(prices.vrdb_game(text) or {"miss": True}, at=stamp)
+    today = stamp[:10]
+    with store.lock:
+        data = store.load_data()
+        for k, r in got.items():
+            t = data["titles"].get(k)
+            if t is None:
+                continue
+            t["vrdb"] = r
+            v = r.get("version") or ""
+            mv = t.get("meta_ver") or {}
+            if v and v != mv.get("v"):
+                # erste Sicht: Tag unbekannt; danach der Tag, an dem die neue Version auftauchte
+                t["meta_ver"] = {"v": v, "since": today if mv.get("v") else ""}
+        store.save_data(data)
+    left = len(todo) - len(got)
+    found = sum(1 for r in got.values() if not r.get("miss"))
+    src.stats = {"read": found, "left": left}
+    log(f"VRDB: {found} Seiten gelesen, {len(got) - found} ohne Treffer"
+        + (f", {left} noch offen (je Lauf {VRDB_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+    return src.result()
+
+
+def _players(log):
+    """Steam: Spieler gerade jetzt (Spitze über PEAK_DAYS Tage aus den eigenen Messungen) und das
+    letzte Update laut Neuigkeiten des Entwicklers. Für Titel mit Steam-ID auf Wunschliste oder
+    im Besitz; Spielerzahl nach PLAYERS_H Stunden, Neuigkeiten nach NEWS_DAYS Tagen neu."""
+    start, stamp = time.monotonic(), titles.now_iso()
+    old_p, old_n = _iso(now() - timedelta(hours=PLAYERS_H)), _iso(now() - timedelta(days=NEWS_DAYS))
+    data = store.load_data()
+    todo = sorted(((t.get("play") or {}).get("at") or "", k) for k, t in data["titles"].items()
+                  if _mine(t) and str(t.get("steam_appid") or "").isdigit()
+                  and (((t.get("play") or {}).get("at") or "") < old_p or ((t.get("news") or {}).get("at") or "") < old_n))
+    src = _Source("Steam-Spieler", log)
+    if not todo:
+        log("Steam-Spieler: alle aktuell")
+        return src.result()
+    got = {}
+    for i, (_, k) in enumerate(todo[:PLAYERS_MAX]):
+        progress("Steam-Spieler", i, min(PLAYERS_MAX, len(todo)))
+        t, gid = data["titles"][k], str(data["titles"][k]["steam_appid"])
+        r = got.setdefault(k, {})
+        if ((t.get("play") or {}).get("at") or "") < old_p:
+            text = src.get(f"{STEAM_API}/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={gid}", shown=f"Spieler {gid}")
+            if text is not None:
+                r["now"] = prices.steam_players(text)
+        if src.stopped:
+            break
+        if ((t.get("news") or {}).get("at") or "") < old_n:
+            text = src.get(f"{STEAM_API}/ISteamNews/GetNewsForApp/v2/?appid={gid}&count=20&maxlength=1", shown=f"Neuigkeiten {gid}")
+            if text is not None:
+                n = prices.steam_news(text)
+                if n is not None:
+                    r["news"] = n
+        if src.stopped:
+            break
+    today, cut = stamp[:10], (now() - timedelta(days=PEAK_DAYS)).strftime("%Y-%m-%d")
+    with store.lock:
+        data = store.load_data()
+        for k, r in got.items():
+            t = data["titles"].get(k)
+            if t is None:
+                continue
+            if "now" in r:
+                p = t.get("play") or {}
+                days = {d: n for d, n in (p.get("days") or []) if isinstance(d, str) and d >= cut}
+                if r["now"] is not None:
+                    days[today] = max(days.get(today, 0), r["now"])
+                peak = max(days.items(), key=lambda x: x[1], default=(None, None))
+                t["play"] = {"now": r["now"], "at": stamp, "days": sorted(days.items()),
+                             "peak": peak[1], "peak_at": peak[0], "since": min(days, default=today)}
+            if "news" in r:
+                t["news"] = dict(r["news"], at=stamp)
+        store.save_data(data)
+    left = max(0, len(todo) - len(got))
+    src.stats = {"read": len(got), "left": left}
+    log(f"Steam-Spieler: {sum(1 for r in got.values() if r.get('now') is not None)} Spielerzahlen, "
+        f"{sum(1 for r in got.values() if (r.get('news') or {}).get('date'))} Update-Daten"
+        + (f", {left} noch offen" if left else "") + f", {_took(start)}")
+    return src.result()
+
+
 def _checked(d):
     return dict(d, ok=True) if d else {"ok": False}
 
@@ -1167,6 +1293,10 @@ def run(only=None, boot=False, by_hand=False):
             do("details", lambda: _details(log))
         if not only or "rating" in only:
             do("rating", lambda: _rating(log))
+        if not only or "players" in only:
+            do("players", lambda: _players(log))
+        if not only or "vrdb" in only:
+            do("vrdb", lambda: _vrdb(log))
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)

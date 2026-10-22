@@ -28,11 +28,13 @@ reiner Konsolenspiele, 0.4.3 die Bestpreis-Leiste in Jetzt und Feinschliff in En
 den Abgleich der Merkmale mit den Steam-Store-Daten (beide einig: bestätigt, sonst „≈“), 0.4.5
 Wertungen beider Läden mit Sortierung und Filtern in Wunschliste und Bibliothek, 0.4.6 eine
 aufgeräumte Zeile je Titel (Leiste zum Bestpreis, eine Wertungsskala, Klappe „Mehr“, Recherche als
-unsicher gekennzeichnet). Als Nächstes:
+unsicher gekennzeichnet), 0.4.7 gemessene Kaufgründe (Steam-Spieler, letztes Steam-Update,
+Meta-Version, Crossbuy und Meta-Wertung von VRDB; gg.deals-Lesezeichen mit Paketen und DLC). Als
+Nächstes:
 
-- 0.4.7 gemessene Kaufgründe: Spielerzahlen jetzt und Spitze (Steam), letztes Update und
-  Version je Shop (Steam-Neuigkeiten, QuestStoreDB), Crossbuy aus einer verlässlichen Quelle
-- 0.4.8 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+- 0.4.8 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis), Recherche
+  nur als Ergänzung
+- 0.4.9 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 

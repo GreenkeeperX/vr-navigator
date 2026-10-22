@@ -140,7 +140,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -177,7 +177,7 @@ function badges(r){
   const out = [];
   if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
-  const cbr = r.crossbuy_src ? ` ≈` : "", cbt = r.crossbuy_src ? " (laut Recherche)" : "";
+  const cbr = r.crossbuy_src === "Recherche" ? ` ≈` : "", cbt = r.crossbuy_src ? ` (laut ${r.crossbuy_src})` : "";
   if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)${cbt}">Crossbuy${cbr}</span>`);
   if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest${cbt}">kein Crossbuy${cbr}</span>`);
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
@@ -200,15 +200,29 @@ const RATE_GAP = 5;
 function ratingHtml(r){
   const m = r.rating?.meta, s = r.rating?.steam;
   if(!m && !s) return "";
-  const mp = m ? Math.round(m.stars * 20) : null, sp = s?.pct ?? null;
+  const mp = m ? m.pos ?? Math.round(m.stars * 20) : null, sp = s?.pct ?? null;
   const win = mp != null && sp != null && Math.abs(mp - sp) >= RATE_GAP ? (mp > sp ? "meta" : "steam") : "";
   const cell = (k, label, v, n, tip) => `<span class="rate${win === k ? " win" : ""}" title="${esc(tip)}">${label} ${v}${n ? ` <span class="hint">(${num(n)})</span>` : ""}</span>`;
   const out = [];
-  if(m) out.push(cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
+  if(m) out.push(m.pos != null ? cell("meta", "Meta", `${mp} %`, m.n, `Meta Store: Anteil 4 und 5 Sterne (laut VRDB), Schnitt ${String(m.stars).replace(".", ",")} von 5`)
+    : cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
   if(s) out.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen")
     : `<span class="hint" title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam: ${num(s.n)} Rezensionen</span>`);
   if(win) out.push(`<span class="b go" title="Mindestens ${RATE_GAP} Punkte Abstand">${win === "meta" ? "Meta" : "Steam"} +${Math.abs(mp - sp)}</span>`);
   return `<div class="row2 rates"><span class="hint">Wertung</span>${out.join("")}</div>`;
+}
+/* Vom Tool gemessen: Spieler bei Steam (jetzt, Spitze aus eigenen Messungen), letztes Update bei
+   Steam laut Entwickler-Meldungen, Meta-Version und seit wann sie gilt */
+function agoDays(d){
+  const n = Math.round((Date.now() - new Date(d + "T12:00:00")) / 864e5);
+  return n < 1 ? "heute" : n < 60 ? `vor ${n} Tagen` : n < 730 ? `vor ${Math.round(n / 30.4)} Monaten` : `vor ${Math.round(n / 365)} Jahren`;
+}
+function measuredHtml(r){
+  const m = r.measured || {}, out = [];
+  if(m.players && m.players.now != null) out.push(`<span title="Steam-Spieler gerade eben (${when(m.players.at)}); Spitze: höchster gemessener Wert seit ${day(m.players.since)}">Steam ${num(m.players.now)} Spieler${m.players.peak > m.players.now ? `, Spitze ${num(m.players.peak)}` : ""}</span>`);
+  if(m.update) out.push(`<span title="${esc(m.update.title)}">Steam-Update ${agoDays(m.update.date)}</span>`);
+  if(m.meta_ver) out.push(`<span title="Version im Meta Store laut VRDB${m.meta_ver.since ? "; das Tool sah sie zuerst am " + day(m.meta_ver.since) : ", zuerst gesehen beim ersten Abruf"}">Meta v${esc(m.meta_ver.v.split("_")[0])}${m.meta_ver.since ? ` seit ${agoDays(m.meta_ver.since).replace("vor ", "")}` : ""}</span>`);
+  return out.length ? `<div class="row2"><span class="hint">Gemessen</span>${out.join("")}</div>` : "";
 }
 /* Filter für Wunschliste und Bibliothek (gemeinsam, je Reiter nur die passenden) */
 V.lf = {cb: false, sale: false, good: false};
@@ -303,7 +317,7 @@ function wishRow(r){
       ${r.gap != null ? `<span>Differenz <span class="price ${r.gap > 0 ? "gap-steam" : r.gap < 0 ? "gap-meta" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span></span>` : ""}
       <span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}</span>` : `<span>keine Preise</span>`}</div>`;
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
-    ${prices}${ratingHtml(r)}${opinionHtml(r)}
+    ${prices}${ratingHtml(r)}${measuredHtml(r)}${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
 }
@@ -485,7 +499,8 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
-  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"], ["rating", "Steam-Wertungen (Wunschliste, Bibliothek)"]];
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"], ["rating", "Steam-Wertungen (Wunschliste, Bibliothek)"],
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
@@ -614,7 +629,7 @@ function libView(){
   if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Einstellungen deine Meta-Bestellungen und den Playnite-Export.</p>`;
   const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
       ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
-      ${ratingHtml(r)}${opinionHtml(r)}
+      ${ratingHtml(r)}${measuredHtml(r)}${opinionHtml(r)}
       ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>`;
   const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
   const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="lsort" data-v="${v}" class="${ls === v ? "on" : ""}">${l}</button>`).join("")}</span>${groups.length > 1 ? foldAll : ""}`)
@@ -630,7 +645,7 @@ function libView(){
    - gg.deals: deine Wunschliste; weitere Seiten holt es mit kurzer Pause nach.
    Dann öffnet es dieses Tool mit den Daten im Adressteil hinter # (geht nicht übers Netz an einen
    Server). Das Tool übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 6;
+const META_HV = 7;
 function metaHelper(tool){ return `(async()=>{
 const gg=/(^|\\.)gg\\.deals$/.test(location.hostname);
 if(!gg&&!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst eine dieser Seiten öffnen, dann das Lesezeichen anklicken: angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay, deine Wunschliste im Meta Store oder deine Wunschliste bei gg.deals.");return}
@@ -640,14 +655,15 @@ const look=(b,main)=>{b.style.cssText="margin:0 8px 6px 0;padding:6px 12px;borde
 const wait=t=>new Promise(r=>setTimeout(r,t));
 let txt,msg,file;
 if(gg){
-const read=d=>[...d.querySelectorAll("a[href*='/game/']")].map(a=>{const m=(a.getAttribute("href")||"").match(/\\/game\\/([a-z0-9-]+)\\/?(?:[?#].*)?$/);return m&&{slug:m[1],name:(a.innerText||a.title||"").trim().replace(/\\s+/g," ").slice(0,200)}}).filter(Boolean);
+const read=d=>[...d.querySelectorAll("a[href]")].map(a=>{const m=(a.getAttribute("href")||"").match(/\\/(game|pack|dlc|bundle)\\/([a-z0-9-]+)\\/?(?:[?#].*)?$/);return m&&{kind:m[1],slug:m[2],name:(a.innerText||a.title||"").trim().replace(/\\s+/g," ").slice(0,200)}}).filter(Boolean);
 let items=read(document);const base=location.href.split(/[?#]/)[0];
 const last=Math.min(30,Math.max(1,...[...document.querySelectorAll("a[href*='page=']")].filter(a=>a.href.split("?")[0]===base).map(a=>+((a.href.match(/[?&]page=(\\d+)/)||[])[1]||1))));
 const pages=[];for(let p=2;p<=last;p++){const u=new URL(location.href);u.searchParams.set("page",p);pages.push(u.href)}
 for(let i=0;i<pages.length;i++){box.textContent="VR-Navigator: lese Seite "+(i+2)+" von "+(pages.length+1)+" …";await wait(1200);try{const r=await fetch(pages[i],{credentials:"include"});items=items.concat(read(new DOMParser().parseFromString(await r.text(),"text/html")))}catch(e){}}
-const by={};items.forEach(x=>{if(!by[x.slug]||(!by[x.slug].name&&x.name))by[x.slug]=x});items=Object.values(by);
+const by={};items.forEach(x=>{const k=x.kind+":"+x.slug;if(!by[k]||(!by[k].name&&x.name))by[k]=x});items=Object.values(by);
+const games=items.filter(x=>x.kind==="game").length;
 txt=JSON.stringify({kind:"gg-wunschliste",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,pages:pages.length+1,items});
-msg="gg.deals-Wunschliste gelesen: "+items.length+" Spiele. Der VR-Navigator übernimmt sie.";file="gg-wunschliste.json";
+msg="gg.deals-Wunschliste gelesen: "+games+" Spiele"+(items.length>games?" und "+(items.length-games)+" Pakete oder DLC":"")+" auf "+(pages.length+1)+" Seiten. Der VR-Navigator übernimmt die Spiele.";file="gg-wunschliste.json";
 }else{
 const wish=/wish/i.test(location.pathname)||/wunschliste|wishlist/i.test(document.title);
 const boxes=()=>[document.scrollingElement||document.documentElement,...[...document.querySelectorAll("div,main,section,ul")].filter(e=>e.scrollHeight>e.clientHeight+50&&/(auto|scroll)/.test(getComputedStyle(e).overflowY))];

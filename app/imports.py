@@ -422,20 +422,41 @@ def _payload_kind(payload):
 
 # ------------------------------------------------------------------ gg.deals-Wunschliste per Lesezeichen
 
-def parse_ggpage(payload):
+GG_KINDS = {"pack": "Pakete", "bundle": "Bundles", "dlc": "DLC"}
+
+
+def parse_ggpage(payload, stats=None):
     """Wunschliste von gg.deals aus dem Lesezeichen: [{slug, name}]. Das Lesezeichen läuft im
-    Browser, der die Prüfseite von Cloudflare schon bestanden hat; der Server kommt dort nicht durch."""
+    Browser, der die Prüfseite von Cloudflare schon bestanden hat; der Server kommt dort nicht durch.
+    Ab Lesezeichen 7 kommen auch Pakete, Bundles und DLC mit (kind); hier
+    bleiben nur Spiele, einmal je Slug (ein Eintrag hat meist mehrere Links). stats zählt, was
+    aussortiert wurde."""
     obj = json.loads(str(payload).strip())
-    out, seen = [], set()
-    for it in (obj.get("items") if isinstance(obj.get("items"), list) else [])[:3000]:
+    out, seen = [], {}
+    st = stats if stats is not None else {}
+    st.update(raw=0, dups=0, other={})
+    for it in (obj.get("items") if isinstance(obj.get("items"), list) else [])[:6000]:
         if not isinstance(it, dict):
             continue
+        st["raw"] += 1
+        kind = str(it.get("kind") or "game")
         slug = str(it.get("slug") or "")
-        if not re.fullmatch(r"[a-z0-9-]{1,150}", slug) or slug in seen:
-            continue
-        seen.add(slug)
         name = " ".join(html.unescape(str(it.get("name") or "")).split())[:200]
-        out.append({"slug": slug, "name": name or slug.replace("-", " ")})
+        if not re.fullmatch(r"[a-z0-9-]{1,150}", slug):
+            continue
+        if (kind, slug) in seen:
+            st["dups"] += 1
+            if name and kind == "game" and seen[(kind, slug)] is not None and not out[seen[(kind, slug)]]["named"]:
+                out[seen[(kind, slug)]].update(name=name, named=True)      # erster Link ohne Text
+            continue
+        if kind != "game":
+            seen[(kind, slug)] = None
+            st["other"].setdefault(kind, []).append(name or slug)
+            continue
+        seen[(kind, slug)] = len(out)
+        out.append({"slug": slug, "name": name or slug.replace("-", " "), "named": bool(name)})
+    for it in out:
+        del it["named"]
     return out
 
 
@@ -443,7 +464,8 @@ def import_ggpage(data, payload, dry=True):
     """Ersetzt, was die gg.deals-Wunschliste zuletzt sagte (wie der Abruf über den Teilen-Link).
     Unbekannte Namen sucht der nächste Abgleich im Steam-Store (data["gg_unknown"])."""
     from . import accounts
-    items = parse_ggpage(payload)
+    st = {}
+    items = parse_ggpage(payload, st)
     if not items:
         raise ValueError("Keine Spiele auf der gg.deals-Wunschliste erkannt. Bitte die Seite neu laden und noch einmal versuchen")
     entries = [{"name": it["name"], "known": k is not None} for it, k in zip(items, accounts.gg_match(data, items))]
@@ -456,6 +478,11 @@ def import_ggpage(data, payload, dry=True):
     res["what"] = "gg.deals-Wunschliste"
     res["note"] = ("Gezählt werden Titel, die das Tool schon kennt. Die übrigen sucht der nächste Abgleich im "
                    "Steam-Store und nimmt sie auf, wenn sie VR können.")
+    # Was nicht als Spiel übernommen wurde, steht in der Vorschau, damit nichts still verschwindet
+    other = [f"{len(v)} {GG_KINDS.get(k, k)} ({', '.join(v[:5])}{' …' if len(v) > 5 else ''})" for k, v in st["other"].items()]
+    if other:
+        res["note"] += f" Nicht als Spiel übernommen: {'; '.join(other)}."
+    res["gg"] = {"raw": st["raw"], "games": len(items), "dups": st["dups"], "other": {k: len(v) for k, v in st["other"].items()}}
     return res
 
 

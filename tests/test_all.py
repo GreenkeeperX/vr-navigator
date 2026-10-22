@@ -260,6 +260,14 @@ class TestImports(unittest.TestCase):
         self.assertIn("Art", str(e.exception))
         res = imports.import_auto(d, SHEET, dry=True)
         self.assertEqual((res["kind"], res["guess"]), ("sheet", False))
+        # Lesezeichen 7: Pakete und DLC kommen mit, übernommen werden nur Spiele, einmal je Slug
+        payload = json.dumps({"kind": "gg-wunschliste", "hv": 7, "items": [
+            {"kind": "game", "slug": "orbit-golf", "name": ""}, {"kind": "game", "slug": "orbit-golf", "name": "Orbit Golf"},
+            {"kind": "pack", "slug": "sky-bundle", "name": "Sky Bundle"}, {"kind": "dlc", "slug": "orbit-golf-holes", "name": "Mehr Löcher"}]})
+        res = imports.import_auto(d, payload, dry=True)
+        self.assertEqual([e["name"] for e in res["entries"]], ["Orbit Golf"])
+        self.assertEqual(res["gg"], {"raw": 4, "games": 1, "dups": 1, "other": {"pack": 1, "dlc": 1}})
+        self.assertIn("1 Pakete (Sky Bundle); 1 DLC (Mehr Löcher)", res["note"])
 
     def test_opinions(self):
         """Meinungen-Datei: erkannt, nur bekannte Titel, Crossbuy nur ohne eigenen Wert."""
@@ -734,7 +742,7 @@ class TestSync(unittest.TestCase):
         # Zweiter Lauf: Titelseiten sind frisch, also nur Angebotsliste und Steam
         net.calls.clear()
         sync.run()
-        self.assertFalse(any("/game/" in u for u in net.calls))
+        self.assertFalse(any("queststoredb.com/game/" in u for u in net.calls))
 
     def test_search_by_link_name(self):
         """Tabellenname weicht vom Store ab: Suche unter dem Namen aus dem VRDB-Link, Treffer über
@@ -932,6 +940,54 @@ class TestSync(unittest.TestCase):
         store.save_data(d)
         sync.run(only={"rating"})
         self.assertEqual(len(net.calls), 2)
+
+    def test_vrdb_and_players(self):
+        """VRDB: Crossbuy, Version (mit Tag des Wechsels), Meta-Wertung als Anteil 4 und 5 Sterne.
+        Steam: Spieler jetzt mit Spitze, letztes Update aus den Meldungen."""
+        def vrdb_page(version, cb="Yes"):
+            bar = lambda n, v: (f'<div aria-label="{round(v)}% of reviews are {n} stars" role="progressbar" value="{v}" '
+                                f'aria-valuemin="0" aria-valuemax="100" aria-valuenow="{v}"></div>')
+            return ("<html><body><script>var x = 1;</script><h2>Ratings and reviews</h2><span>4.3</span><span>Very Positive</span>"
+                    f"<span>1,234 ratings</span>{bar(5, 60.4)}{bar(4, 20.2)}{bar(3, 9.1)}{bar(2, 4.3)}{bar(1, 6.0)}"
+                    "<dl><dt>Game modes:</dt><dd>Multiplayer, Single User</dd><dt>Is Cross-Buy:</dt>"
+                    f"<dd>{cb}</dd><dt>Version:</dt><dd>{version}</dd></dl></body></html>")
+        d = empty()
+        a, _ = titles.upsert(d, "Comet Chase", meta_id="1234567890123456", steam_appid="3000030")
+        b, _ = titles.upsert(d, "Harbor Heist", meta_id="1234567890123457")
+        c, _ = titles.upsert(d, "Nicht gewünscht", meta_id="1234567890123458")
+        d["titles"][a].update(wish=True, links={"vrdb": "https://vrdb.app/game/comet-chase/1234567890123456"})
+        d["titles"][b].update(owned={"meta": {"src": "meta"}})
+        store.save_data(d)
+        news = json.dumps({"appnews": {"appid": 3000030, "newsitems": [
+            {"title": "Sommerfest im Spiel", "date": 1792000000, "feedname": "steam_community_announcements"},
+            {"title": "Patch 1.2 ist da", "date": 1791000000, "feedname": "steam_community_announcements"},
+            {"title": "Update 2.0", "date": 1793000000, "feedname": "pc_gamer"}]}})
+        sources.fetch = net = FakeNet({"comet-chase/1234567890123456": vrdb_page("1.4.0_123"),
+                                       "GetNumberOfCurrentPlayers": '{"response": {"player_count": 42, "result": 1}}',
+                                       "GetNewsForApp": news})
+        sync.run(only={"vrdb", "players"})
+        t = store.load_data()["titles"]
+        self.assertEqual((t[a]["vrdb"]["crossbuy"], t[a]["vrdb"]["pos"], t[a]["vrdb"]["n"], t[a]["meta_ver"]), (True, 81, 1234, {"v": "1.4.0_123", "since": ""}))
+        self.assertTrue(t[b]["vrdb"]["miss"])                    # Seite fehlt: erst in 14 Tagen wieder
+        self.assertNotIn("vrdb", t[c])                           # weder Wunsch noch Besitz
+        self.assertTrue(any("vrdb.app/game/harbor-heist/1234567890123457" in u for u in net.calls))
+        self.assertEqual((t[a]["play"]["now"], t[a]["play"]["peak"], t[a]["news"]["title"]), (42, 42, "Patch 1.2 ist da"))
+        r = library.row(a, t[a], data={"titles": t})
+        self.assertEqual((r["crossbuy"], r["crossbuy_src"], r["rating"]["meta"]["pos"], r["rating"]["score"]), (True, "VRDB", 81, 81))
+        self.assertEqual((r["measured"]["players"]["now"], r["measured"]["update"]["date"], r["measured"]["meta_ver"]["v"]),
+                         (42, "2026-10-03", "1.4.0_123"))
+        # neue Version: Tag des Wechsels; Spitze bleibt, auch wenn jetzt weniger spielen
+        d = store.load_data()
+        d["titles"][a]["vrdb"]["at"] = d["titles"][a]["play"]["at"] = "2000-01-01T00:00:00+00:00"
+        store.save_data(d)
+        net.answers.update({"comet-chase/1234567890123456": vrdb_page("1.5.0_130", "No"),
+                            "GetNumberOfCurrentPlayers": '{"response": {"player_count": 7, "result": 1}}'})
+        sync.run(only={"vrdb", "players"})
+        t = store.load_data()["titles"]
+        self.assertEqual(t[a]["meta_ver"], {"v": "1.5.0_130", "since": sync.now().strftime("%Y-%m-%d")})
+        self.assertEqual((t[a]["play"]["now"], t[a]["play"]["peak"], t[a]["vrdb"]["crossbuy"]), (7, 42, False))
+        self.assertIsNone(prices.steam_players('{"response": {"result": 42}}'))
+        self.assertEqual(prices.steam_news('{"appnews": {"newsitems": []}}'), {})
 
     def test_ggwish_manual(self):
         """gg.deals sperrt den Server: Wunschliste ab dann per Lesezeichen, unbekannte Namen
@@ -1360,6 +1416,10 @@ class TestUi(unittest.TestCase):
                      "low": 9.99, "low_at": "2026-01-01", "at": now, "rating": 4.6, "ratings": 1234567},
             "steam": {"price": 14.99, "base": 24.99, "discount": 40, "at": "2020-01-01T00:00:00+00:00"}}
         data["titles"][k]["rev"] = {"n": 1234567, "pct": 93, "at": now, "app": "3000001"}
+        data["titles"][k].update(play={"now": 123456, "peak": 234567, "since": "2026-10-01", "at": now, "days": []},
+                                 news={"date": "2026-09-01", "title": "Patch " + "sehr lang " * 20, "at": now},
+                                 meta_ver={"v": "12.345.678_9999999", "since": "2026-10-10"},
+                                 vrdb={"pos": 88, "stars": 4.4, "n": 4321, "crossbuy": True, "at": now})
         data["titles"][k]["note"] = "Reddit: " + "sehr lange Notiz ohne Leerzeichen " * 3 + "x" * 120
         data["titles"][k]["opinion"] = {"stand": "2026-10-22", "fassung": "pc", "mehrspieler": "lebendig",
                                         "fazit": "Schnelles Tennis mit vielen Gegnern, " * 4, "crossbuy": True,
