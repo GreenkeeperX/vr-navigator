@@ -328,8 +328,18 @@ class TestImports(unittest.TestCase):
         titles.set_wishes(d, "gg", [a])
         self.assertEqual(lists.check(d), [])
         self.assertRaises(ValueError, lists.apply, d, "egal", [a])
+        # Fehlt auf einer Laden-Wunschliste: Meta-ID, Meta-Wunschliste gelesen, dort nicht
+        d["imports"] = {"metawish": {"at": "2026-10-22"}}
+        f, _ = titles.upsert(d, "Sofa Smash", meta_id="2345678901234567", steam_appid="3000050")
+        titles.set_wishes(d, "gg", [a, f])
+        got = [x for x in lists.check(d, {"gg_wish": "x"}) if x["kind"] == "missing"]
+        self.assertEqual([(x["name"], x["srcs"]) for x in got], [("Sofa Smash", ["meta"])])
+        self.assertEqual([l["label"] for l in got[0]["links"]], ["Meta"])
+        self.assertIn("gg.deals/search/?title=Sofa+Smash", lists.add_links(d["titles"][f])[-1]["url"])
+        lists.apply(d, "ok", [f])
+        self.assertFalse([x for x in lists.check(d, {"gg_wish": "x"}) if x["kind"] == "missing"])
         st = lists.stale(d, datetime(2026, 10, 22, tzinfo=timezone.utc))
-        self.assertEqual([x["src"] for x in st], ["metawish", "meta"])
+        self.assertEqual([x["src"] for x in st], ["meta"])
 
     def test_opinion_crossbuy_needs_evidence(self):
         """Crossbuy gilt nur im Meta Store: eine Begründung mit Steam, Crossplay oder der eigenen
@@ -436,6 +446,20 @@ class TestLibrary(unittest.TestCase):
         hist = {"steam": {"3000030": [["2025-01-01", 24.0], ["2025-06-01", 9.0], ["2025-06-10", 24.0]]}}
         r = library.row(k, d["titles"][k], at=at, hist=hist, data=d)
         self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"].get("src")), (9.0, None))
+
+    def test_grade_and_now(self):
+        """Preisgüte wie im eShopKompass; Jetzt zeigt nur Angebote mit „kaufen“ oder „gut“."""
+        g = library.grade
+        self.assertEqual([g(10.2, 10), g(10.5, 10), g(11.5, 10), g(12.0, 10), g(13.0, 10), g(1.5, 1.0), g(None, 1)],
+                         ["buy", "buy", "good", "good", "wait", "good", ""])
+        d = empty()
+        now = "2026-10-20T10:00:00+00:00"
+        for name, app, price in (("Comet Chase", "3000030", 12.0), ("Orbit Golf", "3000040", 30.0)):
+            k, _ = titles.upsert(d, name, steam_appid=app)
+            d["titles"][k].update(wish=True, live={"steam": {"price": price, "base": 40.0, "discount": 50, "at": now},
+                                                   "gg": {"retail": price, "retail_low": 10.0, "at": now}})
+        v = library.view(d, at=datetime(2026, 10, 20, 12, tzinfo=timezone.utc), hist={})
+        self.assertEqual(([r["name"] for r in v["now"]], [r["name"] for r in v["now_far"]]), (["Comet Chase"], ["Orbit Golf"]))
 
     def test_best_all(self):
         """Bestpreis über beide Läden: war Meta einmal günstiger, ist Steam jetzt nicht am Bestpreis."""
@@ -1477,6 +1501,27 @@ class TestAccounts(unittest.TestCase):
         by = {t["name"]: t for t in d["titles"].values()}
         self.assertEqual(by["Star Ride"]["meta_id"], "5555555555555555")
         self.assertIn("meta", by["Sky Garden"]["wish_src"])
+        # Kacheln wie im Meta Store: Marke, Name, Wertung mit Rubriken, Preis; Rubrik-Links zählen
+        # nicht. Ein früher mit Wertung im Namen angelegter Titel wird berichtigt, ein nur von der
+        # Wunschliste angelegter Eintrag, der dort fehlt, fällt weg
+        d["titles"]["alt"] = {"name": "Star Ride\n4,5 (1.645) • Spiele", "meta_id": "7777777777777777", "wish": True,
+                              "wish_src": {"meta": "2026-10-01"}, "origin": {"metawish": {"at": "2026-10-01"}}}
+        d["titles"]["rubrik"] = {"name": "Startseite", "meta_id": "8888888888888888", "wish": True,
+                                 "wish_src": {"meta": "2026-10-01"}, "origin": {"metawish": {"at": "2026-10-01"}}}
+        wish = json.dumps({"kind": "meta-wunschliste", "page": "/de-de/experiences/section/1234567890123/", "links": [
+            {"href": "https://www.meta.com/de-de/experiences/section/1234567890123/#main", "text": "Zum Hauptinhalt"},
+            {"href": "https://www.meta.com/de-de/experiences/view/8888888888888888/", "text": "Startseite"},
+            {"href": "https://www.meta.com/de-de/experiences/star-ride/7777777777777777/",
+             "text": "Beliebter Artikel\nStar Ride\n4,5 (1.645) • Spiele • Shooter • Action\n19,99 €"},
+            {"href": "https://www.meta.com/de-de/experiences/sky-garden/1111111111111111/",
+             "text": "Top-Bewertung Sky Garden 4,8 (53.492) • Spiele • Sport Kostenlos"}]})
+        self.assertEqual([(e["name"], e["price"]) for e in imports.parse_meta_wishlist(wish)],
+                         [("Star Ride", 19.99), ("Sky Garden", None)])
+        res = imports.import_auto(d, wish, dry=False)
+        # „Star Ride“ aus dem ersten Lesen (andere ID) steht nicht mehr dort und fällt mit weg
+        self.assertEqual((d["titles"]["alt"]["name"], res["dropped"]), ("Star Ride", 2))
+        self.assertNotIn("rubrik", d["titles"])
+        self.assertEqual(d["imports"]["metawish"]["page"], "/de-de/experiences/section/1234567890123/")
         # gg.deals-Wunschliste als CSV: nur bekannte Titel zählen
         res = imports.import_auto(d, "Nr.,Name,Quelle\n1,Laser Tennis,https://gg.deals/wishlist/share/AbC123/\n2,Flat Racer,\n", dry=False)
         self.assertEqual(res["unknown"], ["Flat Racer"])

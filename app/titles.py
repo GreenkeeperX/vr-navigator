@@ -67,8 +67,8 @@ def store_names(t):
 # ------------------------------------------------------------------ Kennungen aus Links
 
 _META_RES = (
-    # meta.com/experiences/123…, auch mit Sprache und Name davor
-    re.compile(r"meta\.com/(?:[a-z]{2}-[a-z]{2}/)?experiences/(?:[^/?#\s]+/)?(\d{6,})", re.I),
+    # meta.com/experiences/123…, auch mit Sprache und Name davor; nicht Rubriken (view, section)
+    re.compile(r"meta\.com/(?:[a-z]{2}-[a-z]{2}/)?experiences/(?!view/|section/)(?:[^/?#\s]+/)?(\d{6,})", re.I),
     re.compile(r"oculus\.com/experiences/(?:quest|rift|go|app)/(?:[^/?#\s]+/)?(\d{6,})", re.I),
     # queststoredb.com/game/<slug>-<ID>/
     re.compile(r"queststoredb\.com/(?:game|app|add-on|bundle)/[^/?#\s]*?-?(\d{6,})(?=[/?#\s]|$)", re.I),

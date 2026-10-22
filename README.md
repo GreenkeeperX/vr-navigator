@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.0:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.1:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -168,13 +168,28 @@ zusammenpasst, steht unter „Zu erledigen“, je Gruppe mit einer Aktion für a
   im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst.
 - **Im Tool entfernt, im Laden noch gewünscht:** der Hinweis geht, sobald der Laden ihn nicht
   mehr führt; „wieder wünschen“ holt ihn zurück.
+- **Fehlt auf einer Laden-Wunschliste:** gewünscht, aber in einem Laden, der den Titel führt,
+  nicht auf deiner Wunschliste (Meta: Meta-ID und die Meta-Wunschliste wurde gelesen; PC:
+  Steam-ID und weder auf der Steam- noch auf der gg.deals-Wunschliste). „+ Meta“, „+ Steam“ und
+  „+ gg.deals“ öffnen die Seite, auf der du ihn mit einem Klick einträgst (bei gg.deals die
+  Spielseite oder die Suche); der nächste Abgleich ordnet ihn dann zu. „so lassen“, wenn du nur
+  eine Fassung willst.
 - **Nur aus der alten Tabelle:** der Wunsch steht auf keiner Wunschliste. Die Tabelle wird nicht
-  mehr gepflegt; „behalten“ führt den Wunsch im Tool weiter (von Hand), „entfernen“ nimmt ihn
-  weg. Hat das Tool die Meta-Wunschliste noch nie (oder vor über 30 Tagen) gelesen, steht davor
-  der Hinweis, sie zuerst zu lesen: was dort steht, ordnet es selbst zu.
+  mehr gepflegt; am schnellsten trägst du ihn mit denselben Links im Laden ein, „behalten“ führt
+  ihn im Tool weiter (von Hand), „entfernen“ nimmt ihn weg. Hat das Tool die Meta-Wunschliste noch
+  nie (oder vor über 30 Tagen) gelesen, steht davor der Hinweis, sie zuerst zu lesen: was dort
+  steht, ordnet es selbst zu. Die Seite deiner Wunschliste merkt es sich beim ersten Lesen und
+  verlinkt sie dann.
 
-In der Wunschliste weist eine Zeile oben darauf hin, Titel nur aus der Tabelle tragen die graue
-Marke „Wunsch · Tabelle“, und die Klappe jeder Karte nennt, woher der Wunsch kommt. Jede Aktion
+In der Wunschliste weist eine Zeile oben darauf hin. Wie im eShopKompass trägt jede Karte eine
+Marke, wenn der Titel auf keiner Laden-Wunschliste steht („auf keiner Laden-Wunschliste“, mit
+„· Tabelle“, wenn er nur aus der Tabelle kommt) oder in einem Laden fehlt („fehlt auf Wunschliste:
+Meta“), daneben die Links zum Eintragen. Die Klappe jeder Karte nennt, woher der Wunsch kommt.
+
+Beim Lesen der Meta-Wunschliste zählen nur Links auf Apps (keine Rubriken wie „Startseite“), der
+Name kommt ohne Marke („Beliebter Artikel“), Wertung und Rubriken aus der Kachel. Namen aus
+einem früheren Lesen mit Wertung darin berichtigt das nächste Lesen, und Einträge, die nur eine
+frühere Meta-Wunschliste angelegt hat und die dort fehlen, fallen weg. Jede Aktion
 lässt sich im Hinweis danach zurücknehmen. Das Tool schreibt in keinen Laden.
 
 Von Hand: unter „bearbeiten“ eine Meta-ID (oder einen Link von Meta, QuestStoreDB oder VRDB) oder Steam-App-ID eintragen. Trägt ein anderer Titel
@@ -215,8 +230,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 
 ## Ansichten
 
-- **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, sortiert nach Nähe
-  zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
+- **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind und dabei nah am
+  Bestpreis beider Läden liegen, mit den Grenzen des eShopKompass: „kaufen“ bis 2 % oder 0,50 €
+  darüber (unter 2 € Bestpreis nur die 2 %), „gut“ bis 15 % oder 2 € darüber. Die übrigen
+  Angebote stehen zugeklappt darunter („Reduziert, aber noch weit über dem Bestpreis“). Sortiert
+  nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
   Wunschliste.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
@@ -227,7 +245,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
     mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis**
     beider Läden, dem niedrigsten Preis von Meta oder Steam der letzten 24 Monate: rot „+3,50 € über
-    Bestpreis“ mit Betrag, Laden und Prozent (unter 1 € und 5 % nicht rot), gold „★ Bestpreis“
+    Bestpreis“ mit Betrag, Laden und Prozent (rot erst über 15 % und 2 €), gold „★ Bestpreis“
     (bis 2 % darüber). Kommt der Bestpreis aus dem anderen Laden, steht klein darunter der
     Tiefstpreis des Ladens selbst („Steam-Tief 12 €“ oder „jetzt“); so sieht Steam nicht golden
     aus, wenn Meta einmal günstiger war. Dazu „übliches Angebot“ (so tief wie in mindestens zwei
