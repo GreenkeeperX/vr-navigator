@@ -97,8 +97,10 @@ still nichts zu übernehmen:
   Steam-App-ID sicher (ebenso, wenn unter `Kategorien` ein bekannter Laden wie Steam, GOG oder
   Epic steht), sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“). Dieselbe
   Datei füllt außerdem die ganze Sammlung für **Entdecken** mit allen Spielen außer den
-  versteckten; ein neuer Export ersetzt sie. Mit einer Spalte `Plattformen` bleiben Spiele nur
-  für Konsolen (etwa PS4) draußen, in Bibliothek und Sammlung; steht auch ein PC dabei, zählen sie.
+  versteckten; ein neuer Export ersetzt sie. Spiele nur für Konsolen bleiben draußen, in
+  Bibliothek und Sammlung: erkannt an der Spalte `Plattformen` (steht auch ein PC dabei, zählen
+  sie) oder, ohne sie, an Kennungen der PlayStation-Bibliothek wie `CUSA01234_00`. Ein Export nur
+  der PlayStation-Bibliothek ändert daher nichts; die Sammlung bleibt dann stehen.
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 - **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere

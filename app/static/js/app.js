@@ -647,7 +647,9 @@ function wishMoves(p){
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
-  const col = p.collection ? ` Dazu die ganze Sammlung für Entdecken: ${p.collection.n} Spiele, ${p.collection.new} neu.` : "";
+  const pc = p.collection, cons = pc?.console ? ` ${pc.console} Spiele nur für Konsole (etwa PS4) bleiben draußen.` : "";
+  const col = !pc ? "" : pc.n ? ` Dazu die ganze Sammlung für Entdecken: ${pc.n} Spiele, ${pc.new} neu.${cons}`
+    : `${cons} Die Sammlung für Entdecken bleibt, wie sie ist${pc.kept ? ` (${pc.kept} Spiele)` : ""}.`;
   if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.${col}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
   return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu.${col} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>

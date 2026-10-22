@@ -84,13 +84,18 @@ def store_of(text):
     return ""
 
 
-def console_only(platforms, source=""):
+# Kennungen aus der PlayStation-Bibliothek von Playnite, etwa CUSA01234_00 oder NPWR01234_00
+_PSN_ID = re.compile(r"^[A-Z]{4}\d{5}(?:_\d{2})?$")
+
+
+def console_only(platforms, source="", gid=""):
     """Nur für Konsolen: alle genannten Plattformen sind Konsolen, oder es gibt keine Plattform und
-    der Laden ist PlayStation. Steht auch ein PC dabei, zählt das Spiel."""
+    der Laden ist PlayStation oder die Kennung eine von PlayStation. Steht auch ein PC dabei,
+    zählt das Spiel."""
     plats = [p for p in platforms if p]
     if plats:
         return not any(_PC.search(p) for p in plats) and any(_CONSOLE.search(p) for p in plats)
-    return store_of(source) == "PlayStation"
+    return store_of(source) == "PlayStation" or bool(_PSN_ID.match(str(gid or "").strip()))
 
 
 def _split(s):
@@ -152,8 +157,9 @@ def game_key(store, gid, name):
     return "name:" + titles.norm(name)
 
 
-def parse(text, rows=None):
-    """Alle Spiele eines Playnite-Exports (versteckte bleiben draußen). rows: schon gelesene Zeilen."""
+def parse(text, rows=None, stats=None):
+    """Alle Spiele eines Playnite-Exports (versteckte und reine Konsolenspiele bleiben draußen).
+    rows: schon gelesene Zeilen; stats bekommt die Zahl der Konsolenspiele unter „console“."""
     from .imports import _col, _rows
     rows = rows if rows is not None else _rows(text)
     if not rows:
@@ -185,7 +191,9 @@ def parse(text, rows=None):
         if not name or cell("hid").casefold() in ("true", "ja", "1", "wahr"):
             continue
         store = store_of(cell("src")) or store_of(cell("cat"))
-        if console_only(_split(cell("plat")), store):
+        if console_only(_split(cell("plat")), store, cell("id")):
+            if stats is not None:
+                stats["console"] = stats.get("console", 0) + 1
             continue
         gid = cell("id")[:40]
         guess = False

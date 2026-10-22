@@ -341,7 +341,7 @@ class TestCollection(unittest.TestCase):
         store.DATA_DIR = tempfile.mkdtemp()
         data = store.load_data()
         res = server.import_collection(data, COLLECTION, dry=True)
-        self.assertEqual(res, {"n": 4, "new": 4})
+        self.assertEqual(res, {"n": 4, "new": 4, "console": 0})
         self.assertNotIn("collection", data["imports"])
         server.import_collection(data, COLLECTION, dry=False)
         self.assertEqual(data["imports"]["collection"]["n"], 4)
@@ -1134,6 +1134,18 @@ class TestAccounts(unittest.TestCase):
                     "Sky Garden,3000001,VR,\"PC (Windows), Sony PlayStation 4\"\n")
         self.assertEqual([e["name"] for e in imports.parse_playnite(csv_text)], ["Sky Garden"])
         self.assertEqual([g["name"] for g in collection.parse(csv_text).values()], ["Sky Garden"])
+        # Export der PlayStation-Bibliothek ohne Plattformen: an den Kennungen erkannt; die
+        # Sammlung bleibt dann stehen
+        ps = "Name,Spiel-ID,Schlagwörter\nDeep Dive,CUSA00001_00,VR\nComet Chase,NPWR00002_00,\n"
+        self.assertEqual(imports.parse_playnite(ps), [])
+        stats = {}
+        self.assertEqual(collection.parse(ps, stats=stats), {})
+        self.assertEqual(stats, {"console": 2})
+        store.DATA_DIR = tempfile.mkdtemp()
+        data = store.load_data()
+        server.import_collection(data, COLLECTION, dry=False)
+        self.assertEqual(server.import_collection(data, ps, dry=False), {"n": 0, "new": 0, "console": 2, "kept": 4})
+        self.assertEqual(len(store.load_json(collection.FILE, {})["games"]), 4)
 
     def test_wishes_from_sources(self):
         d = empty()

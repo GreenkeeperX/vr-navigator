@@ -165,7 +165,7 @@ def parse_playnite(text, data=None):
             continue
         gid, src = cell(c_id), cell(c_src)
         store = collection.store_of(src) or collection.store_of(cell(c_cat))
-        if collection.console_only([x.strip() for x in cell(c_plat).split(",")], store):
+        if collection.console_only([x.strip() for x in cell(c_plat).split(",")], store, gid):
             continue                # etwa PSVR auf der PS4: kein Besitz am PC
         steam, sure = "", False
         if gid.isdigit():
