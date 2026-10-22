@@ -524,14 +524,18 @@ def import_ggwish(data, text, dry=True):
 
 OPINION_MARK = "vr-navigator-meinungen"
 OPINION_TEXT = {"fazit": 600, "fassung_grund": 400, "mehrspieler_stand": 300, "pflege": 400,
-                "komfort": 300, "warnungen": 400, "crossbuy_grund": 300}
+                "komfort": 300, "warnungen": 400, "crossbuy_grund": 300, "crossplay_grund": 300}
 OPINION_ENUM = {"fassung": ("quest", "pc", "gleich", ""), "mehrspieler": ("lebendig", "ruhig", "tot", "keiner", "")}
+# Crossbuy heißt: ein Kauf im Meta Store gilt für Quest und für PC-VR (Meta Link, Air Link) im
+# Meta Store. Steam gehört nie dazu, gemeinsames Spielen über Plattformen ist Crossplay. Eine
+# Begründung, die Steam nennt oder nur deine Zuordnung wiederholt, ist kein Beleg (Entscheidung 22.10.2026).
+CROSSBUY_NOT_EVIDENCE = re.compile(r"steam|zuordnung|tabelle|crossplay", re.I)
 
 
 def parse_opinions(obj):
     """Datei mit recherchierten Meinungen, je Titel: Kurzfazit, bessere Fassung (quest, pc,
     gleich) mit Grund, Mehrspieler (lebendig, ruhig, tot, keiner) mit Stand, Pflege, Crossbuy
-    laut Store und Community, Komfort, Warnungen, Quellen mit Datum. Unbekannte Felder fallen weg,
+    laut Store und Community, Crossplay (Quest und PC zusammen), Komfort, Warnungen, Quellen mit Datum. Unbekannte Felder fallen weg,
     Texte werden gekürzt, Links nur mit http(s)."""
     if not isinstance(obj, dict) or obj.get("app") != OPINION_MARK or not isinstance(obj.get("titles"), list):
         raise ValueError("Keine Meinungen-Datei")
@@ -549,6 +553,10 @@ def parse_opinions(obj):
             v = str(e.get(f) or "").strip().casefold()
             o[f] = v if v in allowed else ""
         o["crossbuy"] = e.get("crossbuy") if e.get("crossbuy") in (True, False) else None
+        if o["crossbuy"] is not None and CROSSBUY_NOT_EVIDENCE.search(o["crossbuy_grund"]):
+            o["crossbuy"], o["crossbuy_dropped"] = None, True
+        cp = e.get("crossplay")
+        o["crossplay"] = cp if cp in (True, False) else None
         o["quellen"] = [{"url": str(q["url"])[:500], "titel": str(q.get("titel") or "")[:200], "datum": str(q.get("datum") or "")[:10]}
                         for q in (e.get("quellen") or [])[:12]
                         if isinstance(q, dict) and re.match(r"https?://", str(q.get("url") or ""))]
@@ -570,15 +578,21 @@ def import_opinions(data, text, dry=True):
         if dry:
             continue
         t = data["titles"][k]
-        rec = {f: v for f, v in o.items() if f not in ("name", "meta_id", "steam_appid") and v not in ("", None, [])}
+        rec = {f: v for f, v in o.items() if f not in ("name", "meta_id", "steam_appid", "crossbuy_dropped") and v not in ("", None, [])}
         rec["at"] = titles.now_iso()
         t["opinion"] = rec
     res = _summary(data, entries, dry, 0)
     if not dry:
         data["imports"]["opinions"] = {"at": titles.now_iso(), "n": len(entries), "new": 0}
     res["what"] = "Meinungen"
+    notes = []
+    dropped = [o["name"] for o in items if o.get("crossbuy_dropped")]
+    if dropped:
+        notes.append(f"Crossbuy ohne Beleg verworfen ({len(dropped)}): Begründung nennt Steam, Crossplay oder deine Zuordnung")
     if unknown:
-        res["note"] = f"Nicht zugeordnet ({len(unknown)}): " + ", ".join(unknown[:20]) + (" …" if len(unknown) > 20 else "")
+        notes.append(f"Nicht zugeordnet ({len(unknown)}): " + ", ".join(unknown[:20]) + (" …" if len(unknown) > 20 else ""))
+    if notes:
+        res["note"] = ". ".join(notes)
     return res
 
 

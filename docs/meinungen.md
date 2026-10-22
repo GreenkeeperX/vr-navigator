@@ -22,6 +22,8 @@ kennt (Meta-ID, Steam-App-ID oder Name). Gespeichert wird nur im Datenordner, ni
       "pflege": "Letztes größeres Update im Frühjahr, Entwickler antwortet im Forum.",
       "crossbuy": false,
       "crossbuy_grund": "Store-Seite nennt kein Crossbuy.",
+      "crossplay": true,
+      "crossplay_grund": "Quest und PC treffen sich in derselben Lobby.",
       "komfort": "Stehen oder Sitzen, Teleport, Runden um 20 Minuten.",
       "warnungen": "",
       "quellen": [{"url": "https://www.reddit.com/r/OculusQuest/", "titel": "Reddit-Thread", "datum": "2026-09-30"}]
@@ -36,10 +38,21 @@ kennt (Meta-ID, Steam-App-ID oder Name). Gespeichert wird nur im Datenordner, ni
 | `fassung`, `fassung_grund` | `quest`, `pc` oder `gleich`, mit Grund (Grafik, Inhalte, Updates) |
 | `mehrspieler`, `mehrspieler_stand` | `lebendig`, `ruhig`, `tot` oder `keiner`, mit Stand |
 | `pflege` | letzte größere Updates, Entwickler aktiv |
-| `crossbuy`, `crossbuy_grund` | `true`, `false` oder weglassen; gilt nur, wo du Crossbuy nicht selbst gesetzt hast, und steht dann mit „≈“ da |
+| `crossbuy`, `crossbuy_grund` | `true`, `false` oder weglassen; gilt nur, wo du Crossbuy nicht selbst gesetzt hast, und steht dann mit „≈“ da. Belegt durch Store-Seite, VRDB oder einen Test, nie durch die eigene Tabelle |
+| `crossplay`, `crossplay_grund` | `true`, `false` oder weglassen: spielen Quest und PC zusammen (gleiche Lobby), mit Grund |
 | `komfort` | Bewegung, Sitzen oder Stehen, Spieldauer |
 | `warnungen` | Bugs, Abbruch der Entwicklung, Bezahlinhalte |
 | `quellen` | Links (nur http/https) mit Titel und Datum |
+
+## Crossbuy und Crossplay
+
+**Crossbuy** heißt: ein Kauf im Meta Store gilt für die Quest und für PC-VR über die Meta-App am
+PC (Link, Air Link). Steam gehört nie dazu; wer bei Steam kauft, hat nur die Steam-Fassung.
+**Crossplay** ist etwas anderes: Spieler auf Quest und PC spielen zusammen, egal wo gekauft.
+
+Eine Crossbuy-Begründung, die Steam, Crossplay, „Tabelle“ oder „Zuordnung“ nennt, ist kein Beleg:
+der Import verwirft den Wert, behält die übrigen Felder und nennt die Zahl in der Vorschau. Die
+Rangfolge bleibt: von Hand vor VRDB vor Tabelle vor Recherche.
 
 Leere Felder fallen weg, Texte werden gekürzt. Eine neue Datei ersetzt die Meinungen eines
 Titels ganz. In der Oberfläche stehen sie unter dem Titel als zugeklappte Zeile

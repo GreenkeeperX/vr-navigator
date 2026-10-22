@@ -31,12 +31,18 @@ unsicher gekennzeichnet), 0.4.7 gemessene Kaufgründe (Steam-Spieler, letztes St
 Meta-Version, Crossbuy und Meta-Wertung von VRDB; gg.deals-Lesezeichen mit Paketen und DLC),
 0.4.8 die Übersicht (Titelkarte mit festen Preisfeldern statt Leiste, Fakten in einer Zeile,
 Menüs für Sortieren und Filter, Legende, Genre-Menü mit „eines davon“ oder „alle“, Herkunft je
-Crossbuy-Wert, Einstellungen in der Reihenfolge der Daten, ruhigeres Protokoll). Als Nächstes:
+Crossbuy-Wert, Einstellungen in der Reihenfolge der Daten, ruhigeres Protokoll), 0.4.9 Aufräumen
+(Bestpreis über beide Läden, Karten über die volle Breite, Fakten im festen Raster, Klappe mit
+Inhaltszeile, Crossbuy-Begriff und Crossplay in der Recherche, ruhigeres Konten-Formular,
+gg.deals-Wunschliste nach einer Woche wieder vom Server). Als Nächstes:
 
-- 0.4.9 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
-  Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe unter „Mehr“; Recherche nur als
+- 0.5.0 eine Stelle für Wünsche: Wunsch im Tool gepflegt, die Wunschlisten bei Meta, Steam und
+  gg.deals als Spiegel, Ansicht „Abweichungen“ mit Aktionen (übernehmen, ignorieren, zum Laden),
+  Widersprüche im Besitz („gekauft, steht noch auf der Wunschliste“); die Tabelle eingefroren
+- 0.5.1 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
+  Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als
   Ergänzung
-- 0.5.0 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+- 0.5.2 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 

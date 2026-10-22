@@ -297,6 +297,27 @@ class TestImports(unittest.TestCase):
         self.assertEqual((rows["Orbit Golf"]["crossbuy"], rows["Orbit Golf"]["crossbuy_src"]), (False, "Recherche"))
         self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, "Hand"))
 
+    def test_opinion_crossbuy_needs_evidence(self):
+        """Crossbuy gilt nur im Meta Store: eine Begründung mit Steam, Crossplay oder der eigenen
+        Zuordnung ist kein Beleg und fällt weg; Crossplay steht als eigenes Feld."""
+        d = empty()
+        a, _ = titles.upsert(d, "Orbit Golf")
+        b, _ = titles.upsert(d, "Comet Chase")
+        c, _ = titles.upsert(d, "Harbor Heist")
+        doc = {"app": "vr-navigator-meinungen", "titles": [
+            {"name": "Orbit Golf", "crossbuy": False, "crossbuy_grund": "Zwischen Meta und Steam nirgends bestätigt."},
+            {"name": "Comet Chase", "crossbuy": False, "crossbuy_grund": "Laut deiner Zuordnung kein Crossbuy."},
+            {"name": "Harbor Heist", "crossbuy": True, "crossbuy_grund": "Store-Seite nennt Quest und Rift.",
+             "crossplay": True, "crossplay_grund": "Quest und PC in einer Lobby."}]}
+        res = imports.import_auto(d, json.dumps(doc), dry=False)
+        self.assertIn("Crossbuy ohne Beleg verworfen (2)", res["note"])
+        self.assertNotIn("crossbuy", d["titles"][a]["opinion"])
+        self.assertNotIn("crossbuy", d["titles"][b]["opinion"])
+        o = d["titles"][c]["opinion"]
+        self.assertEqual((o["crossbuy"], o["crossplay"], o["crossplay_grund"]), (True, True, "Quest und PC in einer Lobby."))
+        self.assertNotIn("crossbuy_dropped", o)
+        self.assertEqual(library.row(c, d["titles"][c])["crossbuy_src"], "Recherche")
+
 
 # Erfundene Sammlung im Aufbau eines Playnite-Exports (alle Spiele, alle Läden)
 COLLECTION = """\ufeffName,Sortiername,Kategorien,Spiel-ID,Schlagwörter,Features,Genres,Erscheinungsdatum,Hinzugefügt,Communitywertung,Expertenwertung,Nutzerwertung,Entwickler,Versteckt
@@ -381,6 +402,28 @@ class TestLibrary(unittest.TestCase):
         hist = {"steam": {"3000030": [["2025-01-01", 24.0], ["2025-06-01", 9.0], ["2025-06-10", 24.0]]}}
         r = library.row(k, d["titles"][k], at=at, hist=hist, data=d)
         self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"].get("src")), (9.0, None))
+
+    def test_best_all(self):
+        """Bestpreis über beide Läden: war Meta einmal günstiger, ist Steam jetzt nicht am Bestpreis."""
+        d = empty()
+        k, _ = titles.upsert(d, "Comet Chase", steam_appid="3000030", meta_id="1234567890123456")
+        now = "2026-10-20T10:00:00+00:00"
+        d["titles"][k].update(wish=True, live={
+            "meta": {"price": 30.0, "base": 30.0, "low": 15.0, "low_at": "2025-12-24", "at": now},
+            "steam": {"price": 18.0, "base": 40.0, "discount": 55, "at": now},
+            "gg": {"retail": 18.0, "retail_low": 18.0, "at": now}})
+        at = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+        r = library.row(k, d["titles"][k], at=at, hist={}, data=d)
+        self.assertEqual((r["best_all"]["best"], r["best_all"]["shop"]), (15.0, "meta"))
+        self.assertIn("QuestStoreDB", r["best_all"]["src"])
+        self.assertEqual(r["best"]["steam"]["level"], "best")
+        self.assertEqual((r["best"]["steam"]["all_level"], r["best"]["steam"]["all_over"]), ("", 3.0))
+        self.assertEqual((r["best"]["meta"]["all_level"], r["best"]["meta"]["all_over"]), ("", 15.0))
+        d["titles"][k]["live"]["steam"]["price"] = 14.0
+        r = library.row(k, d["titles"][k], at=at, hist={}, data=d)
+        self.assertEqual((r["best_all"]["shop"], r["best"]["steam"]["all_level"]), ("steam", "best"))
+        d["titles"][k]["live"] = {}
+        self.assertIsNone(library.row(k, d["titles"][k], at=at, hist={}, data=d)["best_all"])
 
     def test_crossbuy_origin(self):
         """Crossbuy mit Herkunft: von Hand vor VRDB vor Tabelle vor Recherche; ältere Daten ohne
@@ -1054,6 +1097,15 @@ class TestSync(unittest.TestCase):
         cc = next(t for t in d["titles"].values() if t["name"] == "Comet Chase")
         self.assertEqual((cc["steam_appid"], set(cc["wish_src"])), ("3000030", {"gg"}))
         self.assertEqual(d["gg_unknown"], [])
+        # nach einer Woche versucht es der Server wieder selbst
+        st = store.load_json("sync.json", {})
+        st["manual"]["ggwish"] = "2026-01-01T00:00:00+00:00"
+        store.save_json("sync.json", st)
+        net.calls.clear()
+        sync.run()
+        self.assertTrue(any("wishlist/share" in u for u in net.calls))
+        self.assertIn("neuer Versuch", "\n".join(sync.status()["log"]))
+        self.assertGreater(store.load_json("sync.json", {})["manual"]["ggwish"], "2026-01-02")
         sync.save_settings({"gg_wish": "https://gg.deals/wishlist/share/Neu1/"})
         self.assertNotIn("ggwish", store.load_json("sync.json", {}).get("manual") or {})
 

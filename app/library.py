@@ -75,6 +75,24 @@ def _guess(price, low, at, src):
             "full": False, "level": level, "over": round(price - best, 2), "src": src}
 
 
+def _best_all(best, now):
+    """Bestpreis über beide Läden: der niedrigste Bestpreis von Meta und Steam, mit Laden und
+    Herkunft. Daran misst die Oberfläche jeden Laden (Entscheidung 22.10.2026): war Meta einmal
+    günstiger als Steam je, ist Steam jetzt nicht am Bestpreis. Je Laden kommen Stufe und Abstand
+    dazu (all_level, all_over)."""
+    have = [(b["best"], shop, b.get("src") or "", b.get("best_at") or "")
+            for shop, b in best.items() if b and not b.get("thin") and b.get("best") is not None]
+    if not have:
+        return None
+    low, shop, src, at = min(have)
+    tol = 1 + prices.BEST_TOL
+    for s, b in best.items():
+        if b and now.get(s) is not None:
+            b["all_level"] = "best" if now[s] <= low * tol + 0.005 else ""
+            b["all_over"] = round(max(now[s] - low, 0), 2)
+    return {"best": low, "shop": shop, "src": src, "at": at}
+
+
 def row(key, t, at=None, hist=None, data=None):
     sheet = t.get("sheet") or None
     gap = None
@@ -98,6 +116,7 @@ def row(key, t, at=None, hist=None, data=None):
         b = best[shop]
         if (b is None or b.get("thin")) and now_p is not None and isinstance(low, (int, float)) and low > 0:
             best[shop] = _guess(now_p, low, at or "", src)
+    best_all = _best_all(best, {"meta": meta_now, "steam": steam_now})
     return {
         "key": key, "name": t["name"], "meta_id": t.get("meta_id") or "",
         "steam_appid": t.get("steam_appid") or "", "steam_sure": bool(t.get("steam_sure")),
@@ -110,7 +129,7 @@ def row(key, t, at=None, hist=None, data=None):
         "contains": [{"key": k, "name": data["titles"][k]["name"]} for k in t.get("contains") or []
                      if data and k in data["titles"]],
         "sheet": sheet, "gap": gap, "note": t.get("note") or "",
-        "live": live, "pc_best": pc, "best": {k: v for k, v in best.items() if v},
+        "live": live, "pc_best": pc, "best": {k: v for k, v in best.items() if v}, "best_all": best_all,
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt
         "gap_now": round(meta_now - pc["price"], 2) if meta_now is not None and pc else None,
         "links": titles.search_links(t), "added": t.get("added") or "",
