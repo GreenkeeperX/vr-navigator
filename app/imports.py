@@ -9,7 +9,7 @@ import io
 import json
 import re
 
-from . import collection, titles
+from . import collection, library, titles
 
 MAX_ROWS = 20000
 
@@ -119,8 +119,8 @@ def import_sheet(data, text, dry=True):
         titles.note_origin(t, "sheet", f"Zeile {e['row']}")
         if e["steam_appid"]:
             t["steam_sure"] = True
-        if e["crossbuy"] is not None:
-            t["crossbuy"] = e["crossbuy"]
+        if e["crossbuy"] is not None and library.crossbuy_origin(t) != "Hand":
+            t["crossbuy"], t["crossbuy_src"] = e["crossbuy"], "Tabelle"
         if e["sheet"]:
             t["sheet"] = dict(e["sheet"], at=titles.now_iso())
         t["links"] = dict(t.get("links") or {}, **e["links"])

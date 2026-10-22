@@ -173,13 +173,21 @@ function render(anchor){
   if(q && document.activeElement !== q && V.focusQ){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 }
 
+/* Marken neben dem Namen. Crossbuy mit Herkunft: von Hand und VRDB ohne Zeichen, aus deiner
+   Tabelle mit „Tabelle“, aus der Recherche mit „≈“. Widerspricht eine schwächere Quelle, steht
+   sie violett daneben. „ohne Crossbuy“ ist eine Eigenschaft, kein Fehler: grau. */
+const CB_FROM = {Hand: "von dir eingetragen", VRDB: "laut VRDB (Angabe im Meta Store)",
+  Tabelle: "aus deiner Vergleichstabelle, noch nicht von VRDB bestätigt", Recherche: "aus der Recherche, nicht geprüft"};
 function badges(r){
   const out = [];
   if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
-  const cbr = r.crossbuy_src === "Recherche" ? ` ≈` : "", cbt = r.crossbuy_src ? ` (laut ${r.crossbuy_src})` : "";
-  if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)${cbt}">Crossbuy${cbr}</span>`);
-  if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest${cbt}">kein Crossbuy${cbr}</span>`);
+  if(r.crossbuy != null){
+    const s = r.crossbuy_src, mark = s === "Tabelle" ? " · Tabelle" : s === "Recherche" ? " ≈" : "", from = CB_FROM[s] ? ` (${CB_FROM[s]})` : "";
+    out.push(r.crossbuy ? `<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)${from}">Crossbuy${mark}</span>`
+      : `<span class="b" title="Der Meta-Kauf gilt nur auf der Quest${from}">ohne Crossbuy${mark}</span>`);
+    if(r.crossbuy_other) out.push(`<span class="b warn" title="Die Quellen widersprechen sich; es gilt ${esc(s)}">${esc(r.crossbuy_other)}</span>`);
+  }
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
   return out.join(" ");
@@ -192,74 +200,93 @@ function match(r){
   return !q || r.name.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
 }
 
-/* Wertungen je Laden auf einer Skala: Steam als Anteil positiver Rezensionen (ab 50), Meta-Sterne
-   umgerechnet (Sterne × 20, daher „≈“). Liegen beide vor und trennt sie mindestens 5 Punkte,
-   ist der bessere grün hervorgehoben. */
+/* Fakten in einer Zeile, jede mit kleinem grauem Namen davor:
+   Wertung je Laden auf einer Skala (Steam: Anteil positiver Rezensionen ab 50; Meta: Anteil 4 und 5
+   Sterne laut VRDB, sonst Sterne × 20 mit „≈“), der bessere ab 5 Punkten Abstand grün;
+   Steam-Spieler jetzt (Spitze aus eigenen Messungen), letztes Steam-Update, Meta-Version. */
 const num = n => n.toLocaleString("de-DE");
 const RATE_GAP = 5;
-function ratingHtml(r){
-  const m = r.rating?.meta, s = r.rating?.steam;
-  if(!m && !s) return "";
-  const mp = m ? m.pos ?? Math.round(m.stars * 20) : null, sp = s?.pct ?? null;
-  const win = mp != null && sp != null && Math.abs(mp - sp) >= RATE_GAP ? (mp > sp ? "meta" : "steam") : "";
-  const cell = (k, label, v, n, tip) => `<span class="rate${win === k ? " win" : ""}" title="${esc(tip)}">${label} ${v}${n ? ` <span class="hint">(${num(n)})</span>` : ""}</span>`;
-  const out = [];
-  if(m) out.push(m.pos != null ? cell("meta", "Meta", `${mp} %`, m.n, `Meta Store: Anteil 4 und 5 Sterne (laut VRDB), Schnitt ${String(m.stars).replace(".", ",")} von 5`)
-    : cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
-  if(s) out.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen")
-    : `<span class="hint" title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam: ${num(s.n)} Rezensionen</span>`);
-  if(win) out.push(`<span class="b go" title="Mindestens ${RATE_GAP} Punkte Abstand">${win === "meta" ? "Meta" : "Steam"} +${Math.abs(mp - sp)}</span>`);
-  return `<div class="row2 rates"><span class="hint">Wertung</span>${out.join("")}</div>`;
-}
-/* Vom Tool gemessen: Spieler bei Steam (jetzt, Spitze aus eigenen Messungen), letztes Update bei
-   Steam laut Entwickler-Meldungen, Meta-Version und seit wann sie gilt */
+const fact = (label, body, tip) => `<span class="fact"${tip ? ` title="${esc(tip)}"` : ""}><span class="fl">${label}</span> ${body}</span>`;
 function agoDays(d){
   const n = Math.round((Date.now() - new Date(d + "T12:00:00")) / 864e5);
   return n < 1 ? "heute" : n < 60 ? `vor ${n} Tagen` : n < 730 ? `vor ${Math.round(n / 30.4)} Monaten` : `vor ${Math.round(n / 365)} Jahren`;
 }
-function measuredHtml(r){
-  const m = r.measured || {}, out = [];
-  if(m.players && m.players.now != null) out.push(`<span title="Steam-Spieler gerade eben (${when(m.players.at)}); Spitze: höchster gemessener Wert seit ${day(m.players.since)}">Steam ${num(m.players.now)} Spieler${m.players.peak > m.players.now ? `, Spitze ${num(m.players.peak)}` : ""}</span>`);
-  if(m.update) out.push(`<span title="${esc(m.update.title)}">Steam-Update ${agoDays(m.update.date)}</span>`);
-  if(m.meta_ver) out.push(`<span title="Version im Meta Store laut VRDB${m.meta_ver.since ? "; das Tool sah sie zuerst am " + day(m.meta_ver.since) : ", zuerst gesehen beim ersten Abruf"}">Meta v${esc(m.meta_ver.v.split("_")[0])}${m.meta_ver.since ? ` seit ${agoDays(m.meta_ver.since).replace("vor ", "")}` : ""}</span>`);
-  return out.length ? `<div class="row2"><span class="hint">Gemessen</span>${out.join("")}</div>` : "";
+function factsHtml(r){
+  const out = [], m = r.rating?.meta, s = r.rating?.steam, g = r.measured || {};
+  if(m || s){
+    const mp = m ? m.pos ?? Math.round(m.stars * 20) : null, sp = s?.pct ?? null;
+    const win = mp != null && sp != null && Math.abs(mp - sp) >= RATE_GAP ? (mp > sp ? "meta" : "steam") : "";
+    const cell = (k, label, v, n, tip) => `<span class="rate${win === k ? " win" : ""}" title="${esc(tip)}">${label} ${v}${n ? ` <span class="hint">(${num(n)})</span>` : ""}</span>`;
+    const parts = [];
+    if(m) parts.push(m.pos != null ? cell("meta", "Meta", `${mp} %`, m.n, `Meta Store: Anteil 4 und 5 Sterne (laut VRDB), Schnitt ${String(m.stars).replace(".", ",")} von 5`)
+      : cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
+    if(s) parts.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen")
+      : `<span class="hint" title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam ${num(s.n)} Rez.</span>`);
+    if(win) parts.push(`<span class="b go" title="Mindestens ${RATE_GAP} Punkte Abstand">${win === "meta" ? "Meta" : "Steam"} +${Math.abs(mp - sp)}</span>`);
+    out.push(fact("Wertung", parts.join(" ")));
+  }
+  if(g.players && g.players.now != null) out.push(fact("Spieler", `${num(g.players.now)}${g.players.peak > g.players.now ? ` <span class="hint">(Spitze ${num(g.players.peak)})</span>` : ""}`,
+    `Steam-Spieler gerade eben (${when(g.players.at)}); Spitze: höchster gemessener Wert seit ${day(g.players.since)}`));
+  if(g.update) out.push(fact("Update", agoDays(g.update.date), `Steam, laut Meldung des Entwicklers: ${g.update.title}`));
+  if(g.meta_ver) out.push(fact("Meta", `v${esc(g.meta_ver.v.split("_")[0])}${g.meta_ver.since ? ` seit ${agoDays(g.meta_ver.since).replace("vor ", "")}` : ""}`,
+    `Version im Meta Store laut VRDB${g.meta_ver.since ? "; das Tool sah sie zuerst am " + day(g.meta_ver.since) : ", zuerst gesehen beim ersten Abruf"}`));
+  return out.length ? `<div class="facts">${out.join("")}</div>` : "";
 }
-/* Filter für Wunschliste und Bibliothek (gemeinsam, je Reiter nur die passenden) */
-V.lf = {cb: false, sale: false, good: false};
-const LF = [["cb", "Crossbuy", "Meta-Kauf gilt auch am PC (von Hand, Tabelle oder Recherche)", r => r.crossbuy === true],
-  ["sale", "Im Angebot", "Gerade bei Meta oder Steam reduziert", r => (r.live.meta?.discount || 0) + (r.live.steam?.discount || 0) > 0],
-  ["good", "Gut bewertet", "Meta ab 4,3 von 5 oder Steam ab 85 %", r => (r.rating?.meta?.stars || 0) >= 4.3 || (r.rating?.steam?.pct || 0) >= 85]];
-const lfOk = (r, keys) => LF.every(([k, , , f]) => !keys.includes(k) || !V.lf[k] || f(r));
-const lfChips = keys => LF.filter(([k]) => keys.includes(k)).map(([k, l, tip]) =>
-  `<button data-act="lf" data-v="${k}" title="${esc(tip)}" class="${V.lf[k] ? "on" : ""}">${esc(l)}</button>`).join("");
+
+/* Filter für Jetzt, Wunschliste und Bibliothek (gemeinsam, je Reiter nur die passenden) */
+V.lf = {cb: false, sale: false, best: false, good: false};
+const LF = [["cb", "Crossbuy", r => r.crossbuy === true],
+  ["sale", "Im Angebot", r => (r.live.meta?.discount || 0) + (r.live.steam?.discount || 0) > 0],
+  ["best", "Am Bestpreis", r => ["meta", "steam"].some(s => r.best?.[s]?.level === "best")],
+  ["good", "Gut bewertet", r => (r.rating?.score || 0) >= 85]];
+const lfOk = (r, keys) => LF.every(([k, , f]) => !keys.includes(k) || !V.lf[k] || f(r));
 // Sortierschlüssel, kleiner zuerst
 const byRating = r => -(r.rating?.score ?? -1), byAdded = r => -(Date.parse(r.added) || 0);
 
-/* Werkzeugzeile: Suche mit eigenem × (Esc leert sie ebenso), dahinter Sortierung und Klappen */
-function searchBar(extra){
-  return `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel oder Notiz suchen" aria-label="Titel oder Notiz suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>${extra || ""}</div>`;
+/* Werkzeugzeile: Suche mit eigenem × (Esc leert sie ebenso), Sortieren als Auswahl, Filter als
+   aufklappendes Menü mit Häkchen, „?“ für die Legende. Gewählte Filter stehen darunter als
+   Marken mit ×. Menüs schließen bei einem Klick daneben (V.menu merkt, welches offen ist). */
+const menuAttr = k => `data-menu="${k}"${V.menu === k ? " open" : ""}`;
+function listBar(o){
+  const sel = `<label class="kind">Sortieren <select data-sort="${o.sortKey}">${o.sorts.map(([v, l]) => `<option value="${v}"${o.sort === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
+  const fs = LF.filter(([k]) => o.filters.includes(k)), on = fs.filter(([k]) => V.lf[k]);
+  const menu = fs.length ? `<details class="menu" ${menuAttr("lf")}><summary>Filter${on.length ? ` <span class="cnt">${on.length}</span>` : ""}</summary>
+    <div class="pop">${fs.map(([k, l]) => `<label><input type="checkbox" data-lf="${k}"${V.lf[k] ? " checked" : ""}> ${l}</label>`).join("")}</div></details>` : "";
+  const chips = on.length ? `<div class="chips act">${on.map(([k, l]) => `<button data-act="lf" data-v="${k}" title="Filter entfernen">${l} ×</button>`).join("")}</div>` : "";
+  return `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel oder Notiz suchen" aria-label="Titel oder Notiz suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>
+    <span class="tools">${sel}${menu}<button data-act="legend" class="${V.legend ? "on" : ""}" aria-label="Legende" title="Was Farben und Zeichen bedeuten">?</button>${o.extra || ""}</span></div>${chips}${V.legend ? legendHtml() : ""}`;
+}
+// Legende: einmal für alle Listen, statt Erklärtext über jeder Liste (Regeln: docs/oberflaeche.md)
+function legendHtml(){
+  return `<div class="card legend"><h2>Farben und Zeichen <button class="link" data-act="legend">schließen</button></h2>
+    <div class="lg"><span class="over">+7 €</span> über dem Bestpreis der letzten 24 Monate</div>
+    <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
+    <div class="lg"><span class="b deal">−20 %</span> Rabatt jetzt</div>
+    <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler bei gg.deals, ohne Keyshops)</div>
+    <div class="lg"><span class="b go">Crossbuy</span> Meta-Kauf gilt auch am PC; <span class="b">ohne Crossbuy</span> nur auf der Quest</div>
+    <div class="lg"><span class="rate win">Meta 88 %</span> besser bewerteter Laden (ab 5 Punkten Abstand)</div>
+    <div class="lg">ohne Zeichen: vom Tool gemessen · <b>≈</b> abgeleitet oder aus fremder Quelle · <b>Tabelle</b> aus deiner Vergleichstabelle · <span class="ux">violett gestrichelt</span> Recherche · <span class="b warn">violett</span> prüfen</div></div>`;
 }
 
 /* ---------------------------------------------------------------- Wunschliste */
 function wishView(){
   const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"], ["added", "Neu"]];
-  let rows = S.wishlist.filter(r => match(r) && lfOk(r, ["cb", "sale", "good"]));
+  let rows = S.wishlist.filter(r => match(r) && lfOk(r, ["cb", "sale", "best", "good"]));
   const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0), rating: byRating, added: byAdded}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   // Was du schon besitzt (Meta oder PC), steht in einer eigenen, zugeklappten Gruppe
   const open = rows.filter(r => !r.where), owned = rows.filter(r => r.where);
-  const add = `<form class="bar" data-form="add"><input type="text" name="name" placeholder="Neuer Titel" aria-label="Neuer Titel" required>
+  const add = `<form class="bar addform" data-form="add"><input type="text" name="name" placeholder="Neuer Titel" aria-label="Neuer Titel" required>
     <input type="text" name="link" placeholder="Link zu VRDB, QuestStoreDB, Meta oder Steam (optional)" aria-label="Link zum Titel (optional)">
     <button class="primary">Hinzufügen</button></form>`;
-  const ow = S.counts.owned_wish;
-  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>${ow ? foldAll : ""}`)
-    + `<div class="chips" role="group" aria-label="Filter">${lfChips(["cb", "sale", "good"])}</div>`;
   if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Einstellungen oder trage oben einen Titel ein.</p>`;
-  return add + head + `<p class="hint">Preise bei Meta und Steam, das günstigere vorn, je Shop gemessen am Bestpreis der letzten 24 Monate:
-    <span class="star">★</span> am Bestpreis (bis 2 % darüber), „übliches Angebot“: so tief wie in mindestens zwei Angeboten. Darunter klein gg.deals (Keyshops zählen nicht mit) und die Differenz zwischen Meta und PC. Ohne Abruf gelten die Werte aus deiner Tabelle.</p>
-    ${!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
+  const ow = S.counts.owned_wish;
+  const head = listBar({sorts, sort: V.sort, sortKey: "wish", filters: ["cb", "sale", "best", "good"],
+    extra: `<button data-act="addopen" class="${V.add ? "on" : ""}" title="Titel von Hand hinzufügen">+ Titel</button>${ow ? foldAll : ""}`});
+  return (V.add ? add : "") + head +
+    (!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
       : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`) +
-        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true)}`;
+        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true));
 }
 // Sortierschlüssel: wie nah der günstigere Shop an seinem Bestpreis liegt (1 = am Bestpreis)
 function nearBest(r){
@@ -267,39 +294,48 @@ function nearBest(r){
   return q.length ? Math.min(...q) : 1e9;
 }
 
-/* Ein Shop: Preis, Rabatt und darunter die Leiste zum Bestpreis (Farben nach docs/oberflaeche.md);
-   der Abrufzeitpunkt nur, wenn der Preis älter als zwei Tage ist */
-function offerHtml(shop, v, b){
-  const sale = v.discount ? ` <s>${eur(v.base)}</s> <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? " " + until(v.until) : ""}` : "";
-  const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
-  return `<div class="offer"><span>${shop} <span class="price">${eur(v.price)}</span>${sale}${old}</span>${bestBar(shop, v, b)}</div>`;
-}
-/* Leiste: links der Bestpreis, rechts der Normalpreis, gefüllt bis zum Preis jetzt; nur bei einem
-   Angebot oder am Bestpreis, sonst bleibt es bei der Zeile darüber. Am Bestpreis gold. Stammt der Bestpreis nicht aus dem eigenen Verlauf (src), trägt er „≈“. */
-function bestBar(shop, v, b){
-  if(!v || !b || b.thin || b.best == null) return "";
-  const span = (v.base || v.price) - b.best, at = b.level === "best", ap = b.src ? " ≈" : "";
-  const w = at ? 0 : span > 0 ? Math.min(100, Math.max(4, (v.price - b.best) / span * 100)) : 100;
+/* Preise: zwei feste Felder, Meta links, Steam rechts (fehlt ein Laden, bleibt sein Feld grau).
+   Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis: rot „+7 € über Bestpreis“ oder
+   gold „★ Bestpreis“; „≈“, wenn der Bestpreis aus einer fremden Quelle stammt, solange der eigene
+   Verlauf zu kurz ist. Der günstigere Laden bekommt einen grünen Rahmen und den Betrag (ab 1 €). */
+function bestLine(v, b){
+  if(!b || b.thin || b.best == null) return `<div class="bl hint" title="Der eigene Verlauf hat noch keine Preisänderung">Bestpreis noch offen</div>`;
+  const ap = b.src ? " ≈" : "";
+  const from = b.src ? `${b.src}${b.best_at ? ", " + day(b.best_at) : ""}` : `${day(b.best_at)}${b.full ? ", 24 Monate" : ", Verlauf seit " + day(b.since)}`;
+  const tip = `Jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} (${from}), Normalpreis ${eur(v.base || v.price)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
+  if(b.level === "best") return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>`;
   const rel = b.best > 0 ? Math.round((v.price - b.best) / b.best * 100) : 0;
-  const when = b.src ? `${b.src}${b.best_at ? ", " + day(b.best_at) : ""}` : `${day(b.best_at)}${b.full ? ", 24 Monate" : ", Verlauf seit " + day(b.since)}`;
-  const tip = `${shop}: jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} (${when}), Normalpreis ${eur(v.base || v.price)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
-  return `<div class="bbar${at ? " at" : ""}" title="${esc(tip)}">
-    <span class="txt">${at ? `<span class="star">★</span> am Bestpreis${ap}` : `<b>+${eur(v.price - b.best)}</b> über Bestpreis ${eur(b.best)}${ap} (+${rel} %)${b.level === "usual" ? " · übliches Angebot" : ""}`}</span>
-    ${at || v.discount ? `<span class="track" aria-hidden="true"><span class="fill" style="width:${w.toFixed(0)}%"></span></span>` : ""}</div>`;
+  return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(v.price - b.best)}</span> über Bestpreis</div>
+    <div class="bl" title="${esc(tip)}">${eur(b.best)}${ap} <span class="hint">(+${rel} %)</span>${b.level === "usual" ? " · übliches Angebot" : ""}</div>`;
 }
-// Preise je Shop, das günstigere vorn; dazu die Differenz Meta gegenüber dem günstigsten PC-Angebot
-function liveHtml(r){
-  const L = r.live, B = r.best || {};
-  const offers = [["Meta", L.meta, B.meta], ["Steam", L.steam, B.steam]].filter(o => o[1]).sort((a, b) => a[1].price - b[1].price);
-  if(!offers.length) return "";
-  // unter einem Euro ist der Unterschied keine Farbe wert
-  const gap = r.gap_now ? `<span class="gap ${Math.abs(r.gap_now) < 1 ? "hint" : r.gap_now > 0 ? "gap-steam" : "gap-meta"}" title="Meta jetzt gegenüber dem günstigsten PC-Angebot (Steam oder Händler bei gg.deals)">${r.gap_now > 0 ? "PC" : "Meta"} ${eur(Math.abs(r.gap_now))} günstiger</span>` : "";
-  return `<div class="offers">${offers.map(o => offerHtml(...o)).join("")}${gap}</div>`;
+function shopCell(shop, v, b, win, extra){
+  if(!v) return `<div class="shop none"><div class="sl">${shop}</div><div class="bl">kein Preis</div>${extra || ""}</div>`;
+  const sale = v.discount ? ` <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? ` <span class="hint">${until(v.until)}</span>` : ""}` : "";
+  const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
+  return `<div class="shop${win ? " win" : ""}"><div class="sl">${shop}${sale}${old}</div>
+    <div><span class="price big">${eur(v.price)}</span>${v.discount && v.base ? ` <s>${eur(v.base)}</s>` : ""}</div>
+    ${bestLine(v, b)}${extra || ""}${win ? `<div class="cheap">${win}</div>` : ""}</div>`;
+}
+function shopsHtml(r){
+  const L = r.live, B = r.best || {}, g = L.gg, pc = r.pc_best;
+  if(!L.meta && !L.steam && !(g && g.retail != null)) return "";
+  // Betrag gegenüber dem günstigsten PC-Angebot (Steam oder Händler bei gg.deals); unter 1 € kein Rahmen
+  const gap = r.gap_now, big = gap != null && Math.abs(gap) >= 1;
+  const metaWin = big && gap < 0 ? `${eur(-gap)} günstiger` : "";
+  const pcWin = big && gap > 0 ? `${eur(gap)} günstiger${pc?.src !== "Steam" ? " bei Händlern" : ""}` : "";
+  // Händler bei gg.deals unter Steam: als Zeile im Steam-Feld
+  const deal = g && g.retail != null && (!L.steam || g.retail < L.steam.price - 0.005)
+    ? `<div class="bl" title="Günstigster Händler laut gg.deals (Keyshops zählen nicht)">Händler ${eur(g.retail)} <span class="hint">(gg.deals)</span></div>` : "";
+  return `<div class="shops">${shopCell("Meta", L.meta, B.meta, metaWin)}${shopCell("Steam", L.steam, B.steam, pcWin, deal)}</div>`;
 }
 V.more = new Set();
-// Was selten entscheidet, steht in der Klappe „Mehr“: gg.deals, Tabelle, Links, Bearbeiten
+// Was selten entscheidet, steht in der Klappe „Mehr“: Bestpreise im Einzelnen, gg.deals, Tabelle, Links, Bearbeiten
 function moreHtml(r, extra){
-  const g = r.live.gg, s = r.sheet, out = [];
+  const g = r.live.gg, s = r.sheet, B = r.best || {}, out = [];
+  for(const [k, shop] of [["meta", "Meta"], ["steam", "Steam"]]){
+    const b = B[k];
+    if(b && !b.thin && b.best != null) out.push(`<div class="small">${shop}: Bestpreis ${eur(b.best)}${b.src ? ` ≈ (${esc(b.src)}${b.best_at ? ", " + day(b.best_at) : ""})` : ` am ${day(b.best_at)}${b.full ? " (24 Monate)" : ` (Verlauf seit ${day(b.since)})`}`}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}</div>`);
+  }
   if(g && (g.retail != null || g.keyshops != null)) out.push(`<div class="small">gg.deals: ${[
     g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
     g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}
@@ -309,16 +345,18 @@ function moreHtml(r, extra){
   out.push(`<div class="row2"><button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${extra || ""}</div>`);
   return `<details class="more" data-more="${esc(r.key)}" ${V.more.has(r.key) ? "open" : ""}><summary>Mehr</summary>${out.join("")}</details>`;
 }
+// Ohne Abruf: die Werte aus deiner Tabelle, gekennzeichnet
+function sheetHtml(r){
+  const s = r.sheet;
+  if(!s) return `<div class="shops"><div class="shop none"><div class="sl">Meta</div><div class="bl">kein Preis</div></div><div class="shop none"><div class="sl">Steam</div><div class="bl">kein Preis</div></div></div>`;
+  return `<div class="facts" title="Aus deiner Tabelle übernommen, bis ein Abruf eigene Preise liefert">${fact("Tabelle", day(s.at))}
+    ${fact("Meta", `<span class="price">${eur(s.meta)}</span>, Tief ${eur(s.meta_low)}`)}${fact("gg.deals", `<span class="price">${eur(s.gg)}</span>`)}
+    ${r.gap != null ? fact("Differenz", `<span class="${r.gap >= 1 ? "over" : r.gap <= -1 ? "ok" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span>`) : ""}</div>`;
+}
 function wishRow(r){
-  const s = r.sheet, live = liveHtml(r);
-  const prices = live || `<div class="row2">${s ? `<span>Meta <span class="price">${eur(s.meta)}</span></span>
-      <span>Meta-Tief <span class="price">${eur(s.meta_low)}</span></span>
-      <span>gg.deals <span class="price">${eur(s.gg)}</span></span>
-      ${r.gap != null ? `<span>Differenz <span class="price ${r.gap > 0 ? "gap-steam" : r.gap < 0 ? "gap-meta" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span></span>` : ""}
-      <span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}</span>` : `<span>keine Preise</span>`}</div>`;
-  return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
-    ${prices}${ratingHtml(r)}${measuredHtml(r)}${opinionHtml(r)}
-    ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
+  return `<div class="item wi"><div class="hd"><span class="nm">${esc(r.name)}</span>${badges(r)}</div>
+    ${shopsHtml(r) || sheetHtml(r)}<div class="side">${factsHtml(r)}${opinionHtml(r)}
+    ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
 }
 
@@ -327,7 +365,7 @@ function wishRow(r){
    Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
    (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
 let C = null, cLoading = false;
-const D0 = {mp: [], min: 0, g: [], st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
@@ -372,8 +410,8 @@ function dFilter(d){
   return C.games.filter(g => d.mp.every(m => g.mp.includes(m))
     // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
-    // mehrere Genres: eines davon genügt
-    && (!d.g.length || d.g.some(x => g.genres.includes(x))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
+    // mehrere Genres: eines davon genügt, mit gop „and“ alle
+    && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
     && (!d.old || (g.added && g.added < cut))
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))));
 }
@@ -414,7 +452,7 @@ function setMix(k){
   V.d.seed = newSeed();
   V.d.n = D0.n;
 }
-const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g.join(" oder "), d.st,
+const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 function gameRow(g){
@@ -457,20 +495,28 @@ function findView(){
   const stores = [...new Set(C.games.map(g => g.store).filter(Boolean))].sort();
   // ein Klick auf die gewählte Mischung nimmt sie wieder zurück
   const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="${d.mix === k ? "dmixoff" : "dmix"}" data-v="${k}" title="${esc(d.mix === k ? "Zurücknehmen" : tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
-  const kinds = Object.entries(C.mp_label).map(([k, l]) => `<button data-act="dmp" data-v="${k}" class="${d.mp.includes(k) ? "on" : ""}">${esc(l)}</button>`).join("");
+  // Filter als Menüs mit Häkchen. Die Zahl hinter einem Genre: Spiele mit diesem Genre unter den übrigen
+  // Filtern; bei „alle“ zusätzlich mit allen schon gewählten Genres
+  const base = dFilter(Object.assign({}, d, {g: d.gop === "and" ? d.g : []})), gn = {};
+  for(const g of base) for(const x of g.genres) gn[x] = (gn[x] || 0) + 1;
+  const gq = (V.gq || "").trim().toLowerCase();
+  const genres = `<details class="menu" ${menuAttr("g")}><summary>Genre${d.g.length ? ` <span class="cnt">${d.g.length}</span>` : ""}</summary><div class="pop wide">
+    <div class="seg" role="group" aria-label="Mehrere Genres verknüpfen"><button data-act="dgop" data-v="" class="${d.gop !== "and" ? "on" : ""}" title="Spiele mit mindestens einem der Genres">eines davon</button><button data-act="dgop" data-v="and" class="${d.gop === "and" ? "on" : ""}" title="Nur Spiele mit allen gewählten Genres">alle</button></div>
+    <input type="search" data-in="gq" placeholder="Genre suchen" aria-label="Genre suchen" value="${esc(V.gq || "")}">
+    <div class="opts">${C.genres.filter(g => !gq || g.toLowerCase().includes(gq) || d.g.includes(g)).map(g => `<label><input type="checkbox" data-dg="${esc(g)}"${d.g.includes(g) ? " checked" : ""}> ${esc(g)} <span class="n">${gn[g] || 0}</span></label>`).join("")}</div>
+    ${d.g.length ? `<button class="link" data-act="dgclear">keins</button>` : ""}</div></details>`;
+  const kinds = `<details class="menu" ${menuAttr("mp")}><summary>Mehrspieler${d.mp.length ? ` <span class="cnt">${d.mp.length}</span>` : ""}</summary><div class="pop">
+    <p class="hint">Mehrere gewählt: alle müssen passen.</p>
+    ${Object.entries(C.mp_label).map(([k, l]) => `<label><input type="checkbox" data-dmp="${esc(k)}"${d.mp.includes(k) ? " checked" : ""}> ${esc(l)}</label>`).join("")}</div></details>`;
   const label = dLabel(d);
-  const filters = `<details class="sub" ${foldAttr("d-filter", true)}><summary><b>Filter</b> <span class="n">${label ? esc(label) : "keine"}</span></summary>
-    <div class="dfilter">
-      <div class="chips" role="group" aria-label="Mehrspieler-Art">${kinds}</div>
+  const filters = `<div class="dfilter">${kinds}${genres}
       <label>Spieler <select data-dset="min">${opt("min", [[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>
-      <div class="chips" role="group" aria-label="Genre, eines davon genügt">${C.genres.map(g => `<button data-act="dgenre" data-v="${esc(g)}" class="${d.g.includes(g) ? "on" : ""}">${esc(g)}</button>`).join("")}</div>
       <label>Laden <select data-dset="st">${opt("st", [["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>
-      <label>Steam-Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>
-      <label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>
-      ${label ? `<button class="link" data-act="dreset">Filter zurücksetzen</button>` : ""}
-    </div></details>`;
+      <label>Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>
+      <label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label></div>
+    ${label ? `<div class="chips act">${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="Name, Entwickler oder Genre suchen" aria-label="Name, Entwickler oder Genre suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren" aria-label="Suche leeren">×</button>` : ""}</span>
-    <label class="kind">Sortierung <select data-dset="sort">${opt("sort", D_SORTS, d.sort)}</select></label>
+    <label class="kind">Sortieren <select data-dset="sort">${opt("sort", D_SORTS, d.sort)}</select></label>
     ${d.sort === "random" ? `<button data-act="dshuffle">Neu mischen</button>` : ""}</div>`;
   const pickCard = d.mix === "surprise" || d.mix === "wild" ? `<div class="card"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? `<div class="list">${pick.map(gameRow).join("")}</div>` : `<p class="hint">Nichts passt zu den Filtern.</p>`}
@@ -483,18 +529,17 @@ function findView(){
 }
 
 /* ---------------------------------------------------------------- Jetzt */
-/* Abstand zum Bestpreis als Leiste, wie im eShopKompass: links der Bestpreis der letzten 24
-   Monate, rechts der Normalpreis, die Füllung bis zum Preis jetzt; am Bestpreis gold */
+/* Wunschtitel im Angebot, standardmäßig die nah am Bestpreis zuerst */
 function nowView(){
   const last = S.sync?.done;
   if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
   const sort = V.nowSort || "best";
-  let rows = S.now.filter(match);
-  if(sort === "best") rows = rows.slice().sort((a, b) => nearBest(a) - nearBest(b));
-  const sorts = [["best", "Nah am Bestpreis"], ["sale", "Rabatt"]];
-  return searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="nowsort" data-v="${v}" class="${sort === v ? "on" : ""}">${l}</button>`).join("")}</span>`) +
-    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Die Leiste zeigt je Shop den Abstand zum Bestpreis der letzten 24 Monate (links Bestpreis, rechts Normalpreis, gold am Bestpreis); „≈“: Bestpreis aus einer anderen Quelle, solange der eigene Verlauf zu kurz ist. Letzter Abruf: ${when(last) || "–"}.</p>
-    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">Gerade ist kein Wunschtitel reduziert.</p>`}</div>`;
+  let rows = S.now.filter(r => match(r) && lfOk(r, ["cb", "best", "good"]));
+  const k = {best: nearBest, rating: byRating}[sort];
+  if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
+  return listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: ["cb", "best", "good"]}) +
+    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Letzter Abruf: ${when(last) || "–"}.</p>
+    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel reduziert."}</p>`}</div>`;
 }
 
 /* ---------------------------------------------------------------- Abrufe */
@@ -531,7 +576,7 @@ function settingsView(){
   const bad = shown.filter(([k]) => src[k] && !src[k].ok).length, okN = shown.filter(([k]) => src[k]?.ok).length;
   const srcInfo = [okN && `${okN} ok`, bad && `<span class="err">${bad} mit Problem</span>`].filter(Boolean).join(", ") || "noch nicht gelaufen";
   const todo = S.todo || [], open = sug + todo.length;
-  const jumps = [open && ["todo", "Zu erledigen"], ["abgleich", "Abgleich"], ["importe", "Einlesen"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
       <span class="row2">Zusammenführen als
@@ -556,28 +601,23 @@ function settingsView(){
     ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", metaTodo.length, metaList) : ""}`) : "";
   const ll = lastLine(sy);
   const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
-  const keyInfo = se.gg_key_set ? `gg.deals-Schlüssel gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}` : "ohne gg.deals-Schlüssel";
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
-    <p class="hint">Liest deine Konten, ordnet alle Titel zu (Meta-ID, Steam-ID prüfen) und holt Preise für deine Wunschtitel, die du noch nicht besitzt. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen. Nach einer Sperre ruht eine Quelle 24 Stunden.</p>
+    <form data-form="sched" class="bar sched"><label><input type="checkbox" name="auto" data-sched="1"${se.auto ? " checked" : ""}> automatisch alle</label>
+      <input type="number" name="hours" min="2" max="48" value="${esc(hours)}" aria-label="Abstand in Stunden" data-sched="1"> Stunden <span class="err" id="s-err"></span></form>
+    <p class="hint">Liest deine Konten, ordnet alle Titel zu und holt Preise und Messwerte. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen; nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     ${sub("quellen", "Quellen", srcInfo, `<div class="list">${rows}</div>`, !bad)}
     <div class="bar" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Jetzt abrufen"}</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
     ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}
     ${sub("logbox", "Protokoll", logInfo + (sy.started ? ` · <button class="link" data-act="copy" data-v="log">kopieren</button>` : ""), `<pre class="log" id="log"></pre>`, sy.ok !== false && !sy.running, "logfold")}
-    ${sub("zeitplan", "Zeitplan und gg.deals", `${se.auto ? `alle ${esc(hours)} Std.` : "Zeitplan aus"} · ${keyInfo}`, `<form data-form="settings" class="form" style="margin-top:8px">
-      <span class="full"><label><input type="checkbox" name="auto" ${se.auto ? "checked" : ""}> automatisch abrufen</label></span>
-      <label for="s-h">alle … Stunden</label><input type="number" id="s-h" name="hours" min="2" max="48" value="${esc(se.hours)}">
-      <label for="s-gg">gg.deals-Schlüssel</label><input type="password" id="s-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? "gespeichert, leer lassen zum Behalten" : "kostenlos auf gg.deals unter Einstellungen, API"}">
-      ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> Schlüssel löschen</label></span>` : ""}
-      <span class="full"><button class="primary">Speichern</button> <span class="err" id="s-err"></span></span></form>
-      <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p>`, !!se.gg_key_set)}`);
+`);
   const importe = box("importe", "Einlesen", "", `<p class="hint">Bringt Käufe und Wünsche ins Tool: Konten automatisch, Meta per Lesezeichen, alles andere als Datei. Gelöscht wird nichts.</p>
     ${accountsCard()}${metaCard()}${fileCard()}`);
   const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
      <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
      <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div>`);
   return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` +
-    sugCard + abgleich + importe + sicherung;
+    sugCard + importe + abgleich + sicherung;
 }
 /* Protokoll: Zeiten kommen in UTC, gezeigt in der Zeit des Browsers; die Box folgt der neuesten
    Zeile, solange du nicht hochgescrollt hast */
@@ -627,13 +667,12 @@ function libView(){
   const k = {rating: byRating, added: byAdded}[ls];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   if(!S.library.length) return `<p class="hint">Noch nichts im Besitz. Importiere unter Einstellungen deine Meta-Bestellungen und den Playnite-Export.</p>`;
-  const row = r => `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
-      ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}
-      ${ratingHtml(r)}${measuredHtml(r)}${opinionHtml(r)}
+  const row = r => `<div class="item"><div class="hd"><span class="nm">${esc(r.name)}</span>${badges(r)}
+      ${r.wish ? `<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>` : ""}</div>
+      ${factsHtml(r)}${opinionHtml(r)}
       ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>`;
   const groups = ws.map(([w, l]) => [w, l, rows.filter(r => r.where === w)]).filter(g => g[2].length);
-  const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="lsort" data-v="${v}" class="${ls === v ? "on" : ""}">${l}</button>`).join("")}</span>${groups.length > 1 ? foldAll : ""}`)
-    + `<div class="chips" role="group" aria-label="Filter">${lfChips(["cb", "good"])}</div>`;
+  const head = listBar({sorts, sort: ls, sortKey: "lib", filters: ["cb", "good"], extra: groups.length > 1 ? foldAll : ""});
   return head + (groups.map(([w, l, rs]) =>
     grp("l-" + w, l, rs.length, `<div class="list">${rs.map(row).join("")}</div>`)).join("") || `<p class="hint">Kein Treffer.</p>`);
 }
@@ -712,21 +751,23 @@ function fileCard(){
 /* Konten: bei jedem Abgleich automatisch gelesen */
 function accountsCard(){
   const se = S.settings || {};
-  const on = [se.steam_id && "Steam", se.gg_wish_set && "gg.deals", se.sharenite && "Sharenite"].filter(Boolean);
-  return sub("konten", "Konten, automatisch bei jedem Abgleich", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form" style="margin-top:8px">
+  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.sharenite && "Sharenite"].filter(Boolean);
+  return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form" style="margin-top:8px">
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
       ${se.steam_key_set ? `<span class="full"><label><input type="checkbox" name="steam_clear"> Steam-Schlüssel löschen</label></span>` : ""}
       <label for="a-gw">gg.deals-Wunschliste</label><input type="password" id="a-gw" name="gg_wish" autocomplete="off" placeholder="${se.gg_wish_set ? "gespeichert, leer lassen zum Behalten" : "Link aus „Wunschliste teilen“"}">
       ${se.gg_wish_set ? `<span class="full"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
+      <label for="a-gg">gg.deals-Schlüssel</label><input type="password" id="a-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? `gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}, leer lassen zum Behalten` : "für Händlerpreise; kostenlos auf gg.deals unter Einstellungen, API"}">
+      ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> gg.deals-Schlüssel löschen</label></span>` : ""}
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
       <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
-      <li><b>gg.deals:</b> deine geteilte Wunschliste. Es zählen Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
+      <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
-    <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
+    <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server (settings.json im Datenordner), stehen nicht in der Sicherung und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
 }
 function wishMoves(p){
   return [p.wish_added?.length && `Neu auf der Wunschliste: ${p.wish_added.map(esc).join(", ")}.`,
@@ -760,13 +801,15 @@ function bundleEdit(r){
 function openEdit(key){
   const r = S.library.concat(S.wishlist, (S.todo || []).map(x => x.row)).find(x => x.key === key);
   if(!r) return;
-  const cb = r.crossbuy === true ? "yes" : r.crossbuy === false ? "no" : "";
+  // Eigene Angabe oder „automatisch“: dann gilt VRDB, sonst deine Tabelle, sonst die Recherche
+  const cb = r.crossbuy_hand === true ? "yes" : r.crossbuy_hand === false ? "no" : "";
+  const auto = r.crossbuy != null && r.crossbuy_src !== "Hand" ? `automatisch (${r.crossbuy ? "ja" : "nein"} laut ${r.crossbuy_src})` : "automatisch (unbekannt)";
   $("edit").innerHTML = `<form method="dialog" data-form="edit" data-k="${esc(key)}"><h2>${esc(r.name)}</h2>
     <div class="form">
       <label for="f-name">Name</label><input type="text" id="f-name" name="name" value="${esc(r.name)}" required>
       <label for="f-meta">Meta-ID</label><input type="text" id="f-meta" name="meta_id" value="${esc(r.meta_id)}" inputmode="numeric" placeholder="Zahl oder Link (Meta, QuestStoreDB, VRDB)">
       <label for="f-steam">Steam-App-ID</label><input type="text" id="f-steam" name="steam_appid" value="${esc(r.steam_appid)}" inputmode="numeric">
-      <label for="f-cb">Crossbuy</label><select id="f-cb" name="crossbuy"><option value="">unbekannt</option><option value="yes" ${cb === "yes" ? "selected" : ""}>ja</option><option value="no" ${cb === "no" ? "selected" : ""}>nein</option></select>
+      <label for="f-cb">Crossbuy</label><select id="f-cb" name="crossbuy"><option value="">${esc(auto)}</option><option value="yes" ${cb === "yes" ? "selected" : ""}>ja (von Hand)</option><option value="no" ${cb === "no" ? "selected" : ""}>nein (von Hand)</option></select>
       <span class="full"><label><input type="checkbox" name="wish" ${r.wish ? "checked" : ""}> auf der Wunschliste</label>
         <label><input type="checkbox" name="owned_meta" ${r.where === "meta" || r.where === "beide" ? "checked" : ""}> besitze ich bei Meta</label>
         <label><input type="checkbox" name="owned_pc" ${r.where === "pc" || r.where === "beide" ? "checked" : ""}> besitze ich am PC</label></span>
@@ -848,18 +891,18 @@ document.addEventListener("click", async ev => {
   if(a === "thm") themeMenu($("thmMenu").hidden);
   else if(a === "thmset") setTheme(v);
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
-  else if(a === "sort"){ V.sort = v; render(); }
-  else if(a === "nowsort"){ V.nowSort = v; render(); }
-  else if(a === "lsort"){ V.lsort = v; render(); }
   else if(a === "lf"){ V.lf[v] = !V.lf[v]; render(); }
+  else if(a === "legend"){ V.legend = !V.legend; render(); }
+  else if(a === "addopen"){ V.add = !V.add; render(); if(V.add) document.querySelector("form[data-form=add] input")?.focus(); }
   else if(a === "dmix"){ setMix(v); render(); }
   else if(a === "dmixoff" || a === "dpickoff"){
     // Mischung zurücknehmen: Vorschläge weg; ihre Filter bleiben nur bei „Schließen“
     if(a === "dmixoff" && V.d.mix !== "surprise") V.d = Object.assign({}, D0); else V.d.mix = "";
     render();
   }
-  else if(a === "dgenre"){ const g = V.d.g; V.d.g = g.includes(v) ? g.filter(x => x !== v) : g.concat(v); V.d.mix = ""; V.d.n = D0.n; render(); }
-  else if(a === "dmp"){ const m = V.d.mp; V.d.mp = m.includes(v) ? m.filter(x => x !== v) : m.concat(v); V.d.mix = ""; V.d.n = D0.n; render(); }
+  else if(a === "dgoff" || a === "dmpoff"){ const f = a === "dgoff" ? "g" : "mp"; V.d[f] = V.d[f].filter(x => x !== v); V.d.mix = ""; V.d.n = D0.n; render(); }
+  else if(a === "dgop"){ V.d.gop = v; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
+  else if(a === "dgclear"){ V.d.g = []; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort}); render(); }
   else if(a === "dshuffle"){ V.d.seed = newSeed(); render(); }
   else if(a === "dmore"){ V.d.n += D0.n; render(); }
@@ -921,6 +964,10 @@ document.addEventListener("click", async ev => {
 
 document.addEventListener("input", ev => {
   if(ev.target.dataset.in === "q"){ V.q = ev.target.value; V.focusQ = true; render(); V.focusQ = false; }
+  if(ev.target.dataset.in === "gq"){
+    V.gq = ev.target.value; V.menu = "g"; render();
+    const q = document.querySelector("[data-in=gq]"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length);
+  }
   if(ev.target.dataset.in === "dq"){
     V.d.q = ev.target.value; V.d.n = D0.n; render();
     const q = $("dq"); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
@@ -928,7 +975,21 @@ document.addEventListener("input", ev => {
 });
 
 document.addEventListener("change", async ev => {
-  const ds = ev.target.dataset.dset;
+  const t = ev.target, dt = t.dataset;
+  // Sortieren, Filter-Häkchen, Genre und Mehrspieler in Entdecken; ein offenes Menü bleibt offen
+  if(dt.sort){ V[{wish: "sort", now: "nowSort", lib: "lsort"}[dt.sort]] = t.value; render(); return; }
+  if(dt.lf){ V.lf[dt.lf] = t.checked; V.menu = "lf"; render(); return; }
+  if(dt.dg || dt.dmp){
+    const f = dt.dg ? "g" : "mp", x = dt.dg || dt.dmp;
+    V.d[f] = t.checked ? V.d[f].concat(x) : V.d[f].filter(y => y !== x);
+    V.d.mix = ""; V.d.n = D0.n; V.menu = f; render(); return;
+  }
+  if(dt.sched){
+    const f = t.form, body = {auto: f.auto.checked, hours: Number(f.hours.value)};
+    if(await act("/api/settings", body, $("s-err"))) toast("Zeitplan gespeichert");
+    return;
+  }
+  const ds = dt.dset;
   if(ds){
     const el = ev.target;
     V.d[ds] = el.type === "checkbox" ? (el.checked ? 1 : 0) : typeof D0[ds] === "number" ? Number(el.value) || 0 : el.value;
@@ -960,13 +1021,7 @@ document.addEventListener("submit", async ev => {
     ev.preventDefault();
     if(await act("/api/title/new", {name: f.name.value, link: f.link.value})) f.reset();
   }
-  if(kind === "settings"){
-    ev.preventDefault();
-    const body = {auto: f.auto.checked, hours: Number(f.hours.value)};
-    if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();
-    if(f.gg_clear?.checked) body.gg_key = "";
-    if(await act("/api/settings", body, $("s-err"))) toast("Gespeichert");
-  }
+  if(kind === "sched") ev.preventDefault();
   if(kind === "accounts"){
     ev.preventDefault();
     const body = {steam_id: f.steam_id.value.trim(), sharenite: f.sharenite.value.trim()};
@@ -974,6 +1029,8 @@ document.addEventListener("submit", async ev => {
     if(f.steam_clear?.checked) body.steam_key = "";
     if(f.gg_wish.value.trim()) body.gg_wish = f.gg_wish.value.trim();
     if(f.gg_wish_clear?.checked) body.gg_wish = "";
+    if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();
+    if(f.gg_clear?.checked) body.gg_key = "";
     if(await act("/api/settings", body, $("a-err"))) toast("Gespeichert, gilt ab dem nächsten Abgleich");
   }
   if(kind === "edit"){
@@ -997,12 +1054,21 @@ function keepFold(d){
 document.addEventListener("toggle", ev => {
   const d = ev.target.dataset;
   if(d?.kc){ keepFold(ev.target); saveView(); }
+  else if(d?.menu){
+    // ein Menü zur Zeit
+    if(ev.target.open){ V.menu = d.menu; document.querySelectorAll("details.menu[open]").forEach(x => { if(x !== ev.target) x.open = false; }); }
+    else if(V.menu === d.menu) V.menu = "";
+  }
   else if(d?.more) ev.target.open ? V.more.add(d.more) : V.more.delete(d.more);    // nur bis zum Neuladen
 }, true);
-document.addEventListener("click", ev => { if(!ev.target.closest(".thm")) themeMenu(false); });
+document.addEventListener("click", ev => {
+  if(!ev.target.closest(".thm")) themeMenu(false);
+  if(!ev.target.closest("details.menu")){ V.menu = ""; document.querySelectorAll("details.menu[open]").forEach(x => { x.open = false; }); }
+});
 document.addEventListener("keydown", ev => {
   if(ev.key !== "Escape") return;
   themeMenu(false);
+  if(V.menu){ V.menu = ""; document.querySelectorAll("details.menu[open]").forEach(x => { x.open = false; }); }
   if(ev.target.id === "q" && V.q){ ev.preventDefault(); V.q = ""; render(); $("q")?.focus(); }
   if(ev.target.id === "dq" && V.d.q){ ev.preventDefault(); V.d.q = ""; render(); $("dq")?.focus(); }
 });

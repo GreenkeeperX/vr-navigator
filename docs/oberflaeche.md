@@ -12,18 +12,33 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 | Farbe | Token | Bedeutung | Beispiele |
 |---|---|---|---|
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
-| Gold | `--best` | am Bestpreis (niedrigster Preis des Shops in 24 Monaten, bis 2 % darüber) | ★ hinter dem Preis (`.star`), Marke „am Bestpreis“ (`.b.best`), Leiste in Jetzt am Bestpreis (`.bbar.at`; sonst grau) |
-| Grün | `--go` | spricht für den Kauf, gelingt | Crossbuy, Meta günstiger (`.gap-meta`), besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
-| Rot | `--stop` | spricht gegen den Kauf, misslingt | Betrag, um den Meta teurer ist (`+5 €`, `.gap-steam`), sanft als Marke „kein Crossbuy“ (`.b.stop`), Fehler einer Quelle |
-| Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, Recherche (gestrichelte Linie links, „≈ Recherche“) |
-| Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“ |
+| Gold | `--best` | am Bestpreis (niedrigster Preis des Shops in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
+| Grün | `--go` | spricht für dich, gelingt | günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
+| Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
+| Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
+| Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
 
-Geschätzte oder übernommene Werte tragen „≈“ oder „Tabelle“ samt Datum. Links stehen in
-Textfarbe, unterstrichen.
+Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle;
+„Tabelle“ (samt Datum, wo Platz ist) aus der Vergleichstabelle; violett gestrichelt Recherche.
+Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Legende („?“), nicht
+über jeder Liste; über einer Liste höchstens eine Zeile.
 
-Eine Titelzeile zeigt, was entscheidet: Preise je Shop mit Leiste zum Bestpreis (bei Angebot
-oder am Bestpreis), Differenz (unter 1 € grau), Wertung, Recherche, Notiz. Alles andere steht in
-der Klappe „Mehr“ (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“).
+## Titelkarte
+
+Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
+
+1. Kopf (`.hd`): Name, Marken.
+2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
+   `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
+   „+x € über Bestpreis“ und der Bestpreis oder gold „★ Bestpreis“. Der günstigere Laden:
+   `.shop.win` mit „x € günstiger“.
+3. Fakten (`.facts`): Wertung, Spieler, Update, Meta-Version, jeweils mit kleinem grauem Namen
+   (`.fl`); nur was es gibt.
+4. Recherche, Notiz.
+5. „Mehr“ (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“): Bestpreise im
+   Einzelnen, gg.deals, Tabelle, Links, Bearbeiten.
+
+Ab 900 px stehen Preise und Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und „Mehr“.
 
 ## Hell, dunkel, System
 
@@ -53,12 +68,17 @@ der Klappe „Mehr“ (`details.more`, nicht gemerkt, nicht bei „alle aufklapp
 - Reiter: Jetzt, Wunschliste, Bibliothek, Entdecken, Einstellungen. Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
-- Einstellungen: Sprungleiste oben (bleibt beim Scrollen stehen), darunter „Derselbe Titel?“
-  (nur wenn etwas zu entscheiden ist), Abgleich (Quellen, „Jetzt abrufen“, „Verbindung testen“,
-  darunter klappbar Verbindungstest, Protokoll, Zeitplan und gg.deals), Einlesen (Konten,
-  Meta per Lesezeichen, ein Feld für jede Datei) und Sicherung. Das Protokoll ist zu, außer der letzte Lauf hatte
-  Fehler.
-- Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter Sortierung als Chips.
+- Einstellungen in der Reihenfolge der Daten: Sprungleiste oben (bleibt beim Scrollen stehen),
+  „Zu erledigen“ (nur wenn etwas offen ist), Einlesen (Konten und Schlüssel, Lesezeichen, ein
+  Feld für jede Datei), Abgleich (oben „automatisch alle … Stunden“, speichert sofort; Quellen,
+  „Jetzt abrufen“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung.
+  Das Protokoll ist zu, außer der letzte Lauf hatte Fehler.
+- Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter „Sortieren“ als Auswahl,
+  Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
+  Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle
+  Zeilenbreite auf. Gewählte Filter stehen darunter als Marken mit × (`.chips.act`).
+- Entdecken: Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
+  müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und
   bietet sieben Sekunden „Rückgängig“. Rückfragen bleiben für Dinge, die alles ersetzen
   (Sicherung einspielen).

@@ -105,7 +105,14 @@ def edit_title(body):
         if isinstance(body.get("contains"), list):
             titles.set_bundle(data, key, body["contains"])
         if "crossbuy" in body:
-            t["crossbuy"] = body["crossbuy"] if body["crossbuy"] in (True, False) else None
+            # Eigene Angabe (ja, nein) oder „automatisch“ (None): dann gelten VRDB und Tabelle;
+            # ein Tabellenwert bleibt dabei stehen
+            cb = body["crossbuy"] if body["crossbuy"] in (True, False) else None
+            if cb is not None:
+                t["crossbuy"], t["crossbuy_src"] = cb, "Hand"
+            elif library.crossbuy_origin(t) == "Hand":
+                t["crossbuy"] = None
+                t.pop("crossbuy_src", None)
         for side in ("meta", "pc"):
             f = "owned_" + side
             if f in body:

@@ -19,6 +19,11 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
 
 - **Protokoll:** jede Quelle schreibt, was sie tut, live während des Laufs (letzte 200 Zeilen,
   Zeit in UTC, die Oberfläche zeigt die Zeit des Browsers). Unter Einstellungen, Protokoll, zum Lesen und Kopieren.
+  Die zweite Zeile ist eine Kurzfassung nach dem Lauf: Wunschtitel im Angebot, günstiger
+  gewordene, neue Meta-Tiefstpreise, Quellen mit Fehler, Ergebnis der Selbstprüfung.
+  Warteschlangen (Steam-Konto, Rezensionen, Details, Wertungen, Spieler, VRDB) nennen, wie viele
+  Läufe sie noch brauchen. Preisänderungen unter 0,50 € und unter 5 % zählen als „kleine
+  Schwankungen“ und stehen nur als Zahl da.
   Je Lauf: Anlass (von Hand, nach Zeitplan, nach dem Start); je Quelle Angebote samt
   Wunschtiteln darin, gelesene und noch aktuelle Titelseiten, was folgt, Suchen mit Treffern,
   Titeln ohne Treffer und dem Tag der nächsten Suche, Dauer und Anfragen; danach
@@ -168,7 +173,10 @@ Für Titel mit Steam-ID, ohne Schlüssel.
 | Neuigkeiten | `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=<App-ID>&count=20&maxlength=1` | jeder nach 7 Tagen | jüngste Entwickler-Meldung, die nach Update klingt (Update, Patch, Hotfix, Version, v1.2) |
 
 Abgelegt unter `play` (jetzt, Tageshöchstwerte der letzten 30 Tage, Spitze) und `news`. Die
-Spitze ist die höchste eigene Messung, keine Angabe von Steam.
+Spitze ist die höchste eigene Messung, keine Angabe von Steam. Antwortet Steam bei der
+Spielerzahl mit 404, hat die App keine (unveröffentlicht, Demo, nie gestartet): Das zählt nicht
+als Fehler, steht als „Apps ohne Zahl bei Steam“ in der Summenzeile und wird nach 20 Stunden
+wieder gefragt.
 
 ## Ablage im Datenordner
 

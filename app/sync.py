@@ -65,6 +65,7 @@ PLAYERS_MAX = 80            # Spielerzahlen je Lauf (Steam, ohne Schlüssel)
 PLAYERS_H = 20              # so alt darf eine Spielerzahl werden
 PEAK_DAYS = 30              # Spitze über so viele Tage
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
+SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
@@ -185,7 +186,9 @@ class _Source:
         self.stopped, self.blocked = why, True
         self.log(f"{self.name}: {why} bei {where}, Quelle ruht {REST_H} Stunden")
 
-    def get(self, url, shown=None):
+    def get(self, url, shown=None, absent=()):
+        """Text der Antwort, None bei Fehler. Statuscodes in absent heißen „gibt es nicht“: dann
+        "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler)."""
         if self.stopped:
             return None
         if self.n:
@@ -201,6 +204,8 @@ class _Source:
                     self.log(f"{self.name}: keine Verbindung bei {where}, zweiter Versuch")
                     sleep(NET_RETRY)
                     continue
+                if e.status in absent:
+                    return ""
                 if e.status in sources.BLOCKED:
                     self._stop(f"gesperrt (HTTP {e.status})", where)
                 else:
@@ -527,7 +532,8 @@ def apply(upd):
     Titel, die es inzwischen nicht mehr gibt, fallen weg."""
     day = now().strftime("%Y-%m-%d")
     jumps = 0
-    moves = {"down": [], "up": [], "low": []}     # fürs Protokoll: günstiger, teurer, neuer Tiefstpreis
+    # fürs Protokoll: günstiger, teurer, neuer Tiefstpreis; Cent-Schwankungen nur gezählt
+    moves = {"down": [], "up": [], "low": [], "small": []}
     with store.lock:
         data = store.load_data()
         hist = store.load_json("history.json", {})
@@ -545,7 +551,8 @@ def apply(upd):
                     was = (live.get(src) or {}).get("price" if src != "gg" else "retail")
                     new = v.get("price" if src != "gg" else "retail")
                     if was is not None and new is not None and new != was:
-                        moves["down" if new < was else "up"].append(f"{t['name']} ({SHOPS[src]} {_eur(was)} → {_eur(new)})")
+                        small = abs(new - was) < SMALL_EUR and abs(new - was) < SMALL_REL * was
+                        moves["small" if small else "down" if new < was else "up"].append(f"{t['name']} ({SHOPS[src]} {_eur(was)} → {_eur(new)})")
                     if src == "meta":
                         prev = live.get("meta") or {}
                         for f in ("low", "low_at", "rating", "ratings", "version", "path", "page_at"):
@@ -581,7 +588,17 @@ def apply(upd):
             _history(hist, "gg", t.get("steam_appid"), best, day)
         store.save_data(data)
         store.save_json("history.json", hist)
-    return {"jumps": jumps, "moves": moves, "coverage": _coverage(data)}
+    sale = sum(1 for t in _targets(data).values()
+               if any(((t.get("live") or {}).get(x) or {}).get("discount") for x in ("meta", "steam")))
+    return {"jumps": jumps, "moves": moves, "coverage": _coverage(data), "sale": sale}
+
+
+def _runs(left, per, sep=" "):
+    """„(noch etwa 4 Läufe)“: wie viele Abgleiche eine Warteschlange noch braucht."""
+    n = -(-left // per) if per else 0
+    if n <= 1:
+        return ""
+    return f"{sep}noch etwa {n} Läufe" if sep == ", " else f" (noch etwa {n} Läufe)"
 
 
 def _eur(v):
@@ -595,6 +612,18 @@ def _coverage(data):
     has = {s: sum(1 for t in tg if ((t.get("live") or {}).get(s) or {})) for s in ("meta", "steam", "gg")}
     bare = [t["name"] for t in tg if not any((t.get("live") or {}).get(s) for s in ("meta", "steam", "gg"))]
     return {"n": len(tg), "has": has, "bare": bare}
+
+
+def summary(applied, warnings, results):
+    """Eine Zeile fürs Protokoll: was für dich neu ist, dann was nicht stimmt."""
+    mv, sale = applied["moves"], applied.get("sale", 0)
+    news = [f"{sale} Wunschtitel im Angebot" if sale else "kein Wunschtitel im Angebot",
+            f"{len(mv['down'])} günstiger" if mv["down"] else "",
+            f"{len(mv['low'])} neuer Meta-Tiefstpreis" if mv["low"] else ""]
+    bad = [NAMES.get(k, k) for k, r in results.items() if not r.get("ok")]
+    return ("Kurz: " + ", ".join(x for x in news if x)
+            + (f"; Fehler bei {', '.join(bad)}" if bad else "")
+            + (f"; Selbstprüfung: {len(warnings)} Hinweis{'e' if len(warnings) > 1 else ''}" if warnings else "; alles glaubhaft"))
 
 
 def self_check(results, prev, applied):
@@ -700,7 +729,7 @@ def _steam_account(settings, log, budget):
     rest = res["unchecked"]
     if checked or rest:
         log(f"Steam-Konto: {checked} Apps auf VR geprüft"
-            + (f", {rest} noch ungeprüft, weiter beim nächsten Abgleich" if rest else ""))
+            + (f", {rest} noch ungeprüft, weiter beim nächsten Abgleich{_runs(rest, APPINFO_MAX)}" if rest else ""))
     log(f"Steam-Konto: fertig nach {_took(start)}, {src.n} Anfragen" + (f", {src.errors} Fehler" if src.errors else ""))
     src.stats = {"owned": len(owned) if owned is not None else None, "wish": len(wished) if wished is not None else None,
                  "vr_owned": res["owned"], "vr_wish": len(res["wish_keys"])}
@@ -855,7 +884,7 @@ def _reviews(log):
     if got is not None:
         known = sum(1 for r in got.values() if r.get("n"))
         log(f"Steam-Rezensionen: {len(got)} Spiele gelesen, {known} mit Rezensionen"
-            + (f", {left} noch offen (je Lauf {REVIEWS_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+            + (f", {left} noch offen (je Lauf {REVIEWS_MAX}{_runs(left, REVIEWS_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
 
@@ -901,7 +930,7 @@ def _rating(log):
     left = len(todo) - len(got)
     src.stats = {"read": len(got), "left": left}
     log(f"Steam-Wertungen: {len(got)} Titel aktualisiert ({asked} Anfragen)"
-        + (f", {left} noch offen (je Lauf {RATING_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+        + (f", {left} noch offen (je Lauf {RATING_MAX}{_runs(left, RATING_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
 
@@ -961,7 +990,7 @@ def _vrdb(log):
     found = sum(1 for r in got.values() if not r.get("miss"))
     src.stats = {"read": found, "left": left}
     log(f"VRDB: {found} Seiten gelesen, {len(got) - found} ohne Treffer"
-        + (f", {left} noch offen (je Lauf {VRDB_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+        + (f", {left} noch offen (je Lauf {VRDB_MAX}{_runs(left, VRDB_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
 
@@ -985,7 +1014,10 @@ def _players(log):
         t, gid = data["titles"][k], str(data["titles"][k]["steam_appid"])
         r = got.setdefault(k, {})
         if ((t.get("play") or {}).get("at") or "") < old_p:
-            text = src.get(f"{STEAM_API}/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={gid}", shown=f"Spieler {gid}")
+            # 404: Steam kennt für diese App keine Spielerzahl (unveröffentlicht, Demo); gilt als
+            # gefragt, beim nächsten Mal nach PLAYERS_H Stunden
+            text = src.get(f"{STEAM_API}/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={gid}",
+                           shown=f"Spieler {gid}", absent=(404,))
             if text is not None:
                 r["now"] = prices.steam_players(text)
         if src.stopped:
@@ -1018,9 +1050,11 @@ def _players(log):
         store.save_data(data)
     left = max(0, len(todo) - len(got))
     src.stats = {"read": len(got), "left": left}
-    log(f"Steam-Spieler: {sum(1 for r in got.values() if r.get('now') is not None)} Spielerzahlen, "
-        f"{sum(1 for r in got.values() if (r.get('news') or {}).get('date'))} Update-Daten"
-        + (f", {left} noch offen" if left else "") + f", {_took(start)}")
+    none = sum(1 for r in got.values() if "now" in r and r["now"] is None)
+    log(f"Steam-Spieler: {sum(1 for r in got.values() if r.get('now') is not None)} Spielerzahlen"
+        + (f" ({none} Apps ohne Zahl bei Steam)" if none else "")
+        + f", {sum(1 for r in got.values() if (r.get('news') or {}).get('date'))} Update-Daten"
+        + (f", {left} noch offen{_runs(left, PLAYERS_MAX)}" if left else "") + f", {_took(start)}")
     return src.result()
 
 
@@ -1039,7 +1073,7 @@ def _details(log):
     if got is not None:
         ok = sum(1 for r in got.values() if r.get("ok"))
         log(f"Steam-Details: {len(got)} Spiele gelesen, {ok} im Store"
-            + (f", {left} noch offen (je Lauf {DETAILS_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+            + (f", {left} noch offen (je Lauf {DETAILS_MAX}{_runs(left, DETAILS_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
 
@@ -1306,7 +1340,8 @@ def run(only=None, boot=False, by_hand=False):
             log("Preise: " + "; ".join(x for x in (
                 f"günstiger ({len(mv['down'])}): {_few(mv['down'], 8)}" if mv["down"] else "",
                 f"teurer ({len(mv['up'])}): {_few(mv['up'], 8)}" if mv["up"] else "",
-                f"neuer Meta-Tiefstpreis ({len(mv['low'])}): {_few(mv['low'], 8)}" if mv["low"] else "") if x))
+                f"neuer Meta-Tiefstpreis ({len(mv['low'])}): {_few(mv['low'], 8)}" if mv["low"] else "",
+                f"kleine Schwankungen unter {_eur(SMALL_EUR)} ({len(mv['small'])})" if mv["small"] else "") if x))
         else:
             log("Preise: keine Änderung seit dem letzten Abgleich")
         cov = applied["coverage"]
@@ -1321,6 +1356,10 @@ def run(only=None, boot=False, by_hand=False):
         if not _old_misses["ignore"] or not only:
             st["search_v"] = SEARCH_V
         log(f"fertig nach {_took(begun)}, {len(upd)} Titel aktualisiert" + ("" if st["ok"] else ", mit Fehlern"))
+        # Kurzfassung als zweite Zeile, damit das Wichtigste oben steht
+        if st["log"]:
+            st["log"].insert(1, st["log"][-1][:9] + summary(applied, st["warnings"], results))
+            del st["log"][:-LOG_LINES]
         store.save_json("sync.json", st)
         return True
     finally:

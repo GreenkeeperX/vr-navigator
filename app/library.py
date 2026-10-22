@@ -84,13 +84,7 @@ def row(key, t, at=None, hist=None, data=None):
     o = t.get("owned") or {}
     live = _live(t, at)
     pc = _pc_best(live)
-    # Crossbuy von Hand oder aus der Tabelle geht vor, dann VRDB (Store-Angabe), zuletzt die
-    # Recherche (gekennzeichnet)
-    cb, cb_src = t.get("crossbuy"), ""
-    if cb is None and (t.get("vrdb") or {}).get("crossbuy") is not None:
-        cb, cb_src = t["vrdb"]["crossbuy"], "VRDB"
-    if cb is None and (t.get("opinion") or {}).get("crossbuy") is not None:
-        cb, cb_src = t["opinion"]["crossbuy"], "Recherche"
+    cb, cb_src, cb_other = crossbuy(t)
     meta_now = (live.get("meta") or {}).get("price")
     today = (at or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     hist = hist or {}
@@ -110,7 +104,8 @@ def row(key, t, at=None, hist=None, data=None):
         "steam_doubt": t.get("steam_doubt") or "", "bundle": titles.is_bundle(t),
         "where": _where(t), "pc_label": (o.get("pc") or {}).get("label") or "",
         "meta_price": (o.get("meta") or {}).get("price"),
-        "wish": bool(t.get("wish")), "crossbuy": cb, "crossbuy_src": cb_src,
+        "wish": bool(t.get("wish")), "crossbuy": cb, "crossbuy_src": cb_src, "crossbuy_other": cb_other,
+        "crossbuy_hand": t.get("crossbuy") if crossbuy_origin(t) == "Hand" else None,
         "opinion": t.get("opinion") or None, "origin": titles.origins(t, data),
         "contains": [{"key": k, "name": data["titles"][k]["name"]} for k in t.get("contains") or []
                      if data and k in data["titles"]],
@@ -121,6 +116,30 @@ def row(key, t, at=None, hist=None, data=None):
         "links": titles.search_links(t), "added": t.get("added") or "",
         "rating": rating(t), "measured": measured(t),
     }
+
+
+def crossbuy_origin(t):
+    """Woher t["crossbuy"] stammt: gespeichert seit 0.4.8; ältere Daten haben keine Angabe, dann
+    gilt sie als aus der Tabelle, wenn eine Tabellenzeile da ist (die Vergleichstabelle war bis
+    dahin der einzige Weg neben dem Bearbeiten), sonst als von Hand."""
+    if t.get("crossbuy") is None:
+        return ""
+    return t.get("crossbuy_src") or ("Tabelle" if t.get("sheet") else "Hand")
+
+
+def crossbuy(t):
+    """Crossbuy mit Herkunft: von Hand vor VRDB (Angabe im Store) vor der Tabelle vor der
+    Recherche. Dazu, was eine schwächere Quelle anders sagt (etwa „Tabelle: nein“), sonst ""."""
+    own, src = t.get("crossbuy"), crossbuy_origin(t)
+    vrdb, op = (t.get("vrdb") or {}).get("crossbuy"), (t.get("opinion") or {}).get("crossbuy")
+    ranked = [(own if src == "Hand" else None, "Hand"), (vrdb if isinstance(vrdb, bool) else None, "VRDB"),
+              (own if src == "Tabelle" else None, "Tabelle"), (op if isinstance(op, bool) else None, "Recherche")]
+    have = [(v, s) for v, s in ranked if v is not None]
+    if not have:
+        return None, "", ""
+    cb, cb_src = have[0]
+    other = next((f"{s}: {'ja' if v else 'nein'}" for v, s in have[1:] if v != cb and s != "Recherche"), "")
+    return cb, cb_src, other
 
 
 def measured(t):
