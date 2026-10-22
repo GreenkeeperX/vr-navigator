@@ -203,7 +203,7 @@ function wishListBadge(r){
   const miss = r.wish_missing || [];
   if(!r.wish_src?.length) return `<span class="b warn" title="Steht auf keiner Wunschliste eines Ladens, nur ${r.sheet ? "in deiner alten Tabelle" : "im Tool"}">auf keiner Laden-Wunschliste${r.sheet ? " · Tabelle" : ""}</span> ${addLinks(r.add_links || [])}`;
   if(!miss.length) return "";
-  const names = {meta: "Meta", pc: "Steam/gg.deals"};
+  const names = {meta: "Meta", pc: S.settings?.steam_wish === false ? "gg.deals" : "Steam/gg.deals"};
   return `<span class="b warn" title="Den Titel gibt es dort, er steht aber nicht auf deiner Wunschliste">fehlt auf Wunschliste: ${miss.map(m => names[m]).join(", ")}</span> ${addLinks(r.add_links, l => miss.includes(l.label === "Meta" ? "meta" : "pc"))}`;
 }
 const linksHtml = r => `<span class="links">${r.links.filter(l => safeUrl(l.url)).map(l =>
@@ -839,6 +839,7 @@ function accountsCard(){
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
       ${se.steam_key_set ? `<span class="clr"><label><input type="checkbox" name="steam_clear"> Steam-Schlüssel löschen</label></span>` : ""}
+      <span class="clr"><label><input type="checkbox" name="steam_wish"${se.steam_wish === false ? "" : " checked"}> Steam-Wunschliste lesen (aus, wenn du sie nicht pflegst und am PC gg.deals nutzt)</label></span>
       <label for="a-gw">gg.deals-Wunschliste</label><input type="password" id="a-gw" name="gg_wish" autocomplete="off" placeholder="${se.gg_wish_set ? "gespeichert, leer lassen zum Behalten" : "Link aus „Wunschliste teilen“"}">
       ${se.gg_wish_set ? `<span class="clr"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
       <label for="a-gg">gg.deals-Schlüssel</label><input type="password" id="a-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? `gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}, leer lassen zum Behalten` : "für Händlerpreise; kostenlos auf gg.deals unter Einstellungen, API"}">
@@ -846,7 +847,7 @@ function accountsCard(){
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
-      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
+      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs; die Wunschliste lässt sich abschalten, dann zählt am PC nur gg.deals. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
       <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
@@ -1119,6 +1120,7 @@ document.addEventListener("submit", async ev => {
     const body = {steam_id: f.steam_id.value.trim(), sharenite: f.sharenite.value.trim()};
     if(f.steam_key.value.trim()) body.steam_key = f.steam_key.value.trim();
     if(f.steam_clear?.checked) body.steam_key = "";
+    body.steam_wish = f.steam_wish.checked;
     if(f.gg_wish.value.trim()) body.gg_wish = f.gg_wish.value.trim();
     if(f.gg_wish_clear?.checked) body.gg_wish = "";
     if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();

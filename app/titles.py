@@ -323,6 +323,27 @@ def set_wishes(data, src, keys, stamp=None):
     return added, removed
 
 
+def drop_wish_source(data, src):
+    """Eine Wunschliste zählt nicht mehr als Quelle (etwa die Steam-Wunschliste, wenn du sie
+    nicht mehr pflegst). Titel behalten ihren Wunsch; trug nur diese Quelle ihn, steht er danach
+    ohne Quelle da und erscheint unter „Wunschliste abgleichen“ zum Nachtragen oder Entfernen.
+    Liefert die Zahl der geänderten Titel."""
+    n = 0
+    for t in data["titles"].values():
+        ws, off = t.get("wish_src") or {}, t.get("wish_off") or []
+        if src not in ws and src not in off:
+            continue
+        ws = {k: v for k, v in ws.items() if k != src}
+        off = [x for x in off if x != src]
+        for key, val in (("wish_src", ws), ("wish_off", off)):
+            if val:
+                t[key] = val
+            else:
+                t.pop(key, None)
+        n += 1
+    return n
+
+
 def add_wish(data, src, keys, stamp=None):
     """Titel einer Quelle auf die Wunschliste nehmen, ohne die übrigen dieser Quelle anzutasten."""
     stamp = stamp or now_iso()
