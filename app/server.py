@@ -51,7 +51,10 @@ def settings_view():
     """Einstellungen für die Oberfläche: der Schlüssel selbst geht nie zurück an den Browser."""
     s = sync.load_settings()
     key = s.pop("gg_key")
-    return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "")
+    steam = s.pop("steam_key")
+    wish = s.pop("gg_wish")
+    return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "",
+                steam_key_set=bool(steam), gg_wish_set=bool(wish))
 
 
 def state():
@@ -79,8 +82,8 @@ def edit_title(body):
             titles.add_alias(t, old)
         if "note" in body:
             t["note"] = _text(body["note"], 2000)
-        if "wish" in body:
-            t["wish"] = bool(body["wish"])
+        if "wish" in body and bool(body["wish"]) != bool(t.get("wish")):
+            titles.wish_by_hand(t, bool(body["wish"]))
         if "crossbuy" in body:
             t["crossbuy"] = body["crossbuy"] if body["crossbuy"] in (True, False) else None
         for side in ("meta", "pc"):
@@ -115,7 +118,7 @@ def new_title(body):
         if titles.steam_id_from(link):
             t["steam_sure"] = True
         if body.get("wish", True) and not t.get("owned"):
-            t["wish"] = True
+            titles.wish_by_hand(t, True)
         store.save_data(data)
     return state()
 
@@ -217,12 +220,13 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body(50_000_000 if big else 1_000_000)
             if path == "/api/import":
                 kind = str(body.get("kind") or "")
-                if kind not in imports.IMPORTERS:
+                if kind != "auto" and kind not in imports.IMPORTERS:
                     raise ValueError("unbekannte Art des Imports")
                 dry = body.get("dry") is not False
+                fn = imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
                 with store.lock:
                     data = store.load_data()
-                    res = imports.IMPORTERS[kind](data, str(body.get("text") or ""), dry=dry)
+                    res = fn(data, str(body.get("text") or ""), dry=dry)
                     if not dry:
                         store.save_data(data)
                 self._send(200, dict(res, state=None if dry else state()))

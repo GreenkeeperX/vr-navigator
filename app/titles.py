@@ -169,6 +169,10 @@ def merge(data, keep, gone):
     owned.update(a.get("owned") or {})
     a["owned"] = owned
     a["wish"] = bool(a.get("wish") or b.get("wish"))
+    ws = dict(b.get("wish_src") or {})
+    ws.update(a.get("wish_src") or {})
+    if ws:
+        a["wish_src"] = ws
     if a.get("crossbuy") is None:
         a["crossbuy"] = b.get("crossbuy")
     if b.get("sheet") and (not a.get("sheet") or (b["sheet"].get("at") or "") > (a["sheet"].get("at") or "")):
@@ -208,6 +212,68 @@ def upsert(data, name, meta_id="", steam_appid=""):
             merge(data, k, other)
         t[field] = val
     return k, False
+
+
+# ------------------------------------------------------------------ Wunschliste aus Quellen
+
+WISH_SOURCES = {"meta": "Meta-Wunschliste", "steam": "Steam-Wunschliste", "gg": "gg.deals-Wunschliste",
+                "hand": "von Hand"}
+
+
+def set_wishes(data, src, keys, stamp=None):
+    """Die Wunschliste einer Quelle übernehmen. keys: Titel, die dort stehen. Sie kommen auf die
+    Wunschliste (auch wenn du sie schon besitzt; die Oberfläche zeigt sie dann gesondert).
+    Wer die Quelle trug und dort fehlt, verliert sie; ohne Quelle fällt er von der Wunschliste.
+    Titel ganz ohne Quellenangabe (aus der Tabelle, vor 0.3) bleiben, wie sie sind.
+    Hast du einen Titel von Hand entfernt (wish_off), holt ihn dieselbe Quelle erst zurück,
+    nachdem er dort einmal gefehlt hat. Liefert (dazu, entfernt) als Namenslisten."""
+    stamp = stamp or now_iso()
+    keys = set(keys)
+    added, removed = [], []
+    for k, t in data["titles"].items():
+        ws = dict(t.get("wish_src") or {})
+        off = list(t.get("wish_off") or [])
+        if k in keys:
+            if src in off:
+                continue
+            ws.setdefault(src, stamp)
+            if not t.get("wish"):
+                t["wish"] = True
+                added.append(t["name"])
+        else:
+            if src in off:
+                off.remove(src)
+            if src in ws:
+                del ws[src]
+                if not ws and t.get("wish"):
+                    t["wish"] = False
+                    removed.append(t["name"])
+        if ws:
+            t["wish_src"] = ws
+        else:
+            t.pop("wish_src", None)
+        if off:
+            t["wish_off"] = off
+        else:
+            t.pop("wish_off", None)
+    return added, removed
+
+
+def wish_by_hand(t, on):
+    """Wunsch von Hand setzen oder nehmen. Beim Nehmen merkt sich der Titel die Quellen, die ihn
+    führten, damit der nächste Abgleich ihn nicht gleich zurückholt."""
+    ws = dict(t.get("wish_src") or {})
+    if on:
+        t["wish"] = True
+        ws["hand"] = now_iso()
+        t["wish_src"] = ws
+        t.pop("wish_off", None)
+    else:
+        t["wish"] = False
+        off = [s for s in ws if s != "hand"]
+        if off:
+            t["wish_off"] = sorted(set(off) | set(t.get("wish_off") or []))
+        t.pop("wish_src", None)
 
 
 def suggestions(data):

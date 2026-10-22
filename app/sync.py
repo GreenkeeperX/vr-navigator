@@ -17,13 +17,14 @@ Versuch.
 Das Protokoll entsteht live (STATE), die Oberfläche liest es während des Laufs; am Ende landet
 es mit dem Ergebnis je Quelle und der Selbstprüfung in sync.json.
 """
+import re
 import sys
 import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import prices, sources, store, titles
+from . import accounts, prices, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -38,13 +39,20 @@ NET_RETRY = 5.0             # Pause vor dem zweiten Versuch nach einem Netzfehle
 BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger her ist
 LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
-NAMES = {"qsdb": "QuestStoreDB", "steam": "Steam", "gg": "gg.deals"}
+NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
+         "gg": "gg.deals"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
 GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
+STEAM_API = "https://api.steampowered.com"
+APPINFO_MAX = 40            # Store-Seiten je Lauf, um zu prüfen, ob eine App VR kann
+GG_WISH_PAGES = 10
+SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
+SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
 
-SETTINGS = {"gg_key": "", "auto": True, "hours": 6}
+SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
+SECRETS = ("gg_key", "steam_key", "gg_wish")      # bleiben auf dem Server, nie im Protokoll
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
@@ -67,6 +75,27 @@ def save_settings(body):
     s = load_settings()
     if "gg_key" in body:
         s["gg_key"] = str(body["gg_key"] or "").strip()[:100]
+    if "steam_key" in body:
+        k = str(body["steam_key"] or "").strip()
+        if k and not re.fullmatch(r"[0-9A-Fa-f]{32}", k):
+            raise ValueError("Der Steam-Schlüssel hat 32 Zeichen aus 0–9 und A–F")
+        s["steam_key"] = k
+    if "steam_id" in body:
+        v = str(body["steam_id"] or "").strip()[:200]
+        if v and not accounts.steam_id_input(v)[0]:
+            raise ValueError("SteamID: die 17-stellige Zahl oder der Link zu deinem Steam-Profil")
+        s["steam_id"] = v
+    if "gg_wish" in body:
+        v = str(body["gg_wish"] or "").strip()[:300]
+        if v and not re.match(r"https://gg\.deals/(?:[a-z]{2}/)?wishlist/share/[A-Za-z0-9_-]+/?$", v):
+            raise ValueError("gg.deals: den Link aus „Wunschliste teilen“ einfügen (https://gg.deals/wishlist/share/…)")
+        s["gg_wish"] = v
+    if "sharenite" in body:
+        v = str(body["sharenite"] or "").strip()[:300]
+        m = re.match(r"https://(?:www\.)?sharenite\.link/profiles/([A-Za-z0-9_-]+)(?:/games)?/?$", v)
+        if v and not m:
+            raise ValueError("Sharenite: den Link zu deinem Profil einfügen (https://www.sharenite.link/profiles/…/games)")
+        s["sharenite"] = f"https://www.sharenite.link/profiles/{m.group(1)}/games" if m else ""
     if "auto" in body:
         s["auto"] = bool(body["auto"])
     if "hours" in body:
@@ -197,6 +226,14 @@ def _few(names, n=12):
     """Namen fürs Protokoll, höchstens n."""
     names = list(names)
     return ", ".join(names[:n]) + (f" und {len(names) - n} weitere" if len(names) > n else "")
+
+
+def _ago_text(iso):
+    d = _ago(iso, now())
+    if d is None:
+        return "?"
+    h = int(d.total_seconds() // 3600)
+    return f"vor {h} Stunden" if h else f"vor {int(d.total_seconds() // 60)} Minuten"
 
 
 def _took(start):
@@ -536,6 +573,225 @@ def self_check(results, prev, applied):
     return w
 
 
+def _app_checks(src, appids, apps, budget, stamp):
+    """Fragt für unbekannte App-IDs die Store-Seite, ob die App VR kann (höchstens budget["apps"]
+    je Lauf). Ergebnis in apps (Name, VR); Apps, die Steam nicht mehr zeigt, gelten als ohne VR."""
+    n = 0
+    for a in appids:
+        if a in apps:
+            continue
+        if budget["apps"] <= 0 or src.stopped:
+            break
+        budget["apps"] -= 1
+        n += 1
+        progress("Steam: Apps prüfen", n, 0)
+        text = src.get(f"{STEAM}/api/appdetails?appids={a}&cc=de&l=german")
+        if text is None:
+            continue
+        try:
+            info = accounts.steam_app(text, a)
+        except ValueError:
+            continue
+        apps[a] = {"name": (info or {}).get("name", ""), "vr": bool(info and info["vr"]), "at": stamp}
+    return n
+
+
+def _steam_account(settings, log, budget):
+    """Steam-Konto: Besitz (mit Schlüssel) und Wunschliste, unbekannte Apps auf VR prüfen,
+    eintragen. Liefert das Ergebnis für sync.json."""
+    src = _Source("Steam-Konto", log)
+    start, stamp = time.monotonic(), titles.now_iso()
+    key = settings["steam_key"]
+    kind, val = accounts.steam_id_input(settings["steam_id"])
+    sid = val if kind == "id" else ""
+    if kind == "vanity":
+        if not key:
+            log("Steam-Konto: Für einen Profilnamen statt der Zahl braucht es den Steam-Schlüssel, nicht abgefragt")
+            return dict(src.result(), ok=False, msg="Profilname ohne Schlüssel")
+        text = src.get(f"{STEAM_API}/ISteamUser/ResolveVanityURL/v1/?vanityurl={urllib.parse.quote(val)}&key={key}",
+                       shown=f"{STEAM_API}/ISteamUser/ResolveVanityURL/v1/?vanityurl={val}")
+        sid = accounts.steam_vanity(text) if text else ""
+        if not sid:
+            log(f"Steam-Konto: Profilname „{val}“ nicht gefunden")
+            return dict(src.result(), ok=False, msg="Profil nicht gefunden")
+    owned = wished = None
+    if key:
+        text = src.get(f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?steamid={sid}&include_appinfo=1"
+                       f"&include_played_free_games=1&key={key}",
+                       shown=f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?steamid=…")
+        try:
+            owned = accounts.steam_owned(text) if text else None
+        except ValueError as e:
+            log(str(e))
+    else:
+        log("Steam-Konto: ohne Schlüssel nur die Wunschliste")
+    text = src.get(f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid={sid}",
+                   shown=f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid=…")
+    try:
+        wished = accounts.steam_wishlist(text) if text else None
+    except ValueError as e:
+        log(str(e))
+    data = store.load_data()
+    if wished == [] and any("steam" in (t.get("wish_src") or {}) for t in data["titles"].values()):
+        # Leer, obwohl zuletzt Titel darauf standen: eher privat gestellt als leer geräumt
+        log("Steam-Konto: Wunschliste leer oder nicht öffentlich, die zuletzt gelesene gilt weiter")
+        wished = None
+    apps = dict(data.get("steam_apps") or {})
+    have = {t.get("steam_appid") for t in data["titles"].values()}
+    todo = [a for a in wished or [] if a not in have]
+    todo += [g["appid"] for g in owned or [] if g["appid"] not in have
+             and not titles.find(data, "", g["appid"], g["name"])]
+    checked = _app_checks(src, todo, apps, budget, stamp)
+    with store.lock:
+        data = store.load_data()
+        data["steam_apps"] = dict(data.get("steam_apps") or {}, **apps)
+        res = accounts.apply_steam(data, owned, wished, data["steam_apps"], stamp)
+        store.save_data(data)
+    if owned is not None:
+        log(f"Steam-Konto, Besitz: {len(owned)} Spiele, davon {res['owned']} VR-Titel"
+            + (f", neu ({len(res['owned_new'])}): {_few(res['owned_new'])}" if res["owned_new"] else ""))
+    if wished is not None:
+        log(f"Steam-Konto, Wunschliste: {len(wished)} Apps, davon {len(res['wish_keys'])} VR-Titel"
+            + (f"; neu auf der Wunschliste ({len(res['wish_added'])}): {_few(res['wish_added'])}" if res["wish_added"] else "")
+            + (f"; nicht mehr auf der Steam-Wunschliste und damit von deiner ({len(res['wish_removed'])}): "
+               f"{_few(res['wish_removed'])}" if res["wish_removed"] else ""))
+    rest = res["unchecked"]
+    if checked or rest:
+        log(f"Steam-Konto: {checked} Apps auf VR geprüft"
+            + (f", {rest} noch ungeprüft, weiter beim nächsten Abgleich" if rest else ""))
+    log(f"Steam-Konto: fertig nach {_took(start)}, {src.n} Anfragen" + (f", {src.errors} Fehler" if src.errors else ""))
+    src.stats = {"owned": len(owned) if owned is not None else None, "wish": len(wished) if wished is not None else None,
+                 "vr_owned": res["owned"], "vr_wish": len(res["wish_keys"])}
+    r = src.result()
+    if owned is None and wished is None:
+        r.update(ok=False, msg=r["msg"] or "nichts lesbar")
+    return r
+
+
+def _gg_wish(settings, log, budget):
+    """Geteilte Wunschliste von gg.deals lesen und eintragen. Unbekannte Namen sucht das Tool im
+    Steam-Store (nur genau gleicher Name) und nimmt sie auf, wenn die App VR kann."""
+    src = _Source("gg.deals-Wunschliste", log)
+    start, stamp = time.monotonic(), titles.now_iso()
+    url = settings["gg_wish"].rstrip("/") + "/"
+    items, seen, pages, page = [], set(), 1, 1
+    while page <= min(pages, GG_WISH_PAGES):
+        progress("gg.deals: Wunschliste", page, pages)
+        text = src.get(url + (f"?page={page}" if page > 1 else ""), shown=f"gg.deals-Wunschliste, Seite {page}")
+        if text is None:
+            break
+        got, n = accounts.gg_wishlist(text)
+        pages = max(pages, n)
+        page += 1
+        fresh = [i for i in got if i["slug"] not in seen]
+        if not fresh:
+            break
+        seen.update(i["slug"] for i in fresh)
+        items += fresh
+    if not items:
+        log("gg.deals-Wunschliste: keine Spiele erkannt" + ("" if src.stopped else
+            " (Seite geändert oder Link abgelaufen? „Verbindung testen“ zeigt die Antwort)") + ", die zuletzt gelesene gilt weiter")
+        return dict(src.result(), ok=False, msg=src.stopped or "nichts erkannt")
+    with store.lock:
+        data = store.load_data()
+        res = accounts.apply_gg_wishes(data, items, stamp)
+        store.save_data(data)
+    # Unbekannte Namen: im Steam-Store suchen, nur VR-Apps aufnehmen
+    steam = _Source("Steam", log)
+    data = store.load_data()
+    tried = dict(data.get("gg_tried") or {})
+    old = (now() - timedelta(days=MISS_DAYS)).isoformat(timespec="seconds")
+    found, todo = {}, [n for n in res["unknown"] if (tried.get(titles.norm(n)) or "") < old][:budget["search"]]
+    for name in todo:
+        budget["search"] -= 1
+        text = steam.get(f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}))
+        if text is None:
+            break
+        tried[titles.norm(name)] = stamp
+        same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) == titles.norm(name)]
+        if len(same) == 1:
+            found[same[0]["appid"]] = name
+    apps = dict(data.get("steam_apps") or {})
+    _app_checks(steam, list(found), apps, budget, stamp)
+    added = []
+    with store.lock:
+        data = store.load_data()
+        data["steam_apps"] = dict(data.get("steam_apps") or {}, **apps)
+        data["gg_tried"] = tried
+        keys = list(res["keys"])
+        for appid, name in found.items():
+            if (apps.get(appid) or {}).get("vr"):
+                k, _ = titles.upsert(data, name, "", appid)
+                data["titles"][k]["steam_sure"] = True
+                keys.append(k)
+                added.append(name)
+        if added:
+            titles.set_wishes(data, "gg", keys, stamp)
+        store.save_data(data)
+    unknown = [n for n in res["unknown"] if n not in added]
+    log(f"gg.deals-Wunschliste: {len(items)} Spiele auf {page - 1} Seiten, davon {len(res['keys']) + len(added)} VR-Titel im Tool"
+        + (f"; neu auf der Wunschliste ({len(res['wish_added']) + len(added)}): {_few(res['wish_added'] + added)}"
+           if res["wish_added"] or added else "")
+        + (f"; nicht mehr bei gg.deals und damit von deiner ({len(res['wish_removed'])}): {_few(res['wish_removed'])}"
+           if res["wish_removed"] else ""))
+    if unknown:
+        log(f"gg.deals-Wunschliste, nicht zugeordnet (kein VR laut Steam oder nicht gefunden, {len(unknown)}): {_few(unknown)}")
+    log(f"gg.deals-Wunschliste: fertig nach {_took(start)}, {src.n + steam.n} Anfragen")
+    src.stats = {"items": len(items), "vr": len(res["keys"]) + len(added)}
+    return src.result()
+
+
+def _sharenite(settings, log):
+    """PC-Bibliothek aus einem öffentlichen Sharenite-Profil (Playnite online, alle Läden). Liest
+    erst Seite 1 für die Kennungen der VR-Schlagwörter, dann nur die gefilterte Liste; fehlt der
+    Filter, die ganze Liste und sortiert selbst aus."""
+    src = _Source("Sharenite", log)
+    start, stamp = time.monotonic(), titles.now_iso()
+    base = settings["sharenite"]
+    text = src.get(base + "?sort=name_asc", shown="Sharenite, Seite 1")
+    if text is None:
+        return src.result()
+    games, total, vr_tags = accounts.sharenite_page(text)
+    if vr_tags:
+        q = "&".join("tag_ids%5B%5D=" + urllib.parse.quote(v) for v in vr_tags)
+        games, page = [], 1
+        while page <= SHARENITE_PAGES:
+            progress("Sharenite: VR-Spiele", page, 0)
+            text = src.get(f"{base}?{q}&sort=name_asc&page={page}", shown=f"Sharenite, VR-Spiele Seite {page}")
+            got = accounts.sharenite_page(text)[0] if text else []
+            if not got:
+                break
+            games += got
+            page += 1
+            if len(got) < 100:
+                break
+        how = f"gefiltert nach {len(vr_tags)} VR-Schlagwörtern"
+    else:
+        pages = min(SHARENITE_PAGES, -(-(total or 100) // 100))
+        for page in range(2, pages + 1):
+            progress("Sharenite: Seiten", page, pages)
+            text = src.get(f"{base}?sort=name_asc&page={page}", shown=f"Sharenite, Seite {page}")
+            if text is None:
+                break
+            games += accounts.sharenite_page(text)[0]
+        how = f"ganze Liste, {pages} Seiten"
+    if not games:
+        log("Sharenite: keine Spiele erkannt (Profil privat oder Seite geändert? „Verbindung testen“ zeigt die Antwort)")
+        return dict(src.result(), ok=False, msg=src.stopped or "nichts erkannt")
+    with store.lock:
+        data = store.load_data()
+        known, new = accounts.apply_sharenite(data, games, stamp)
+        store.save_data(data)
+    vr = sum(g["vr"] for g in games)
+    shops = sorted({g["source"] for g in games if g["vr"] and g["source"]})
+    log(f"Sharenite: {total if total is not None else '?'} Spiele im Profil, {vr} mit VR-Schlagwort ({how})"
+        + (f", aus {', '.join(shops)}" if shops else "") + f"; {known} schon im Tool"
+        + (f", neu als Besitz am PC ({len(new)}): {_few(new)}" if new else ""))
+    log(f"Sharenite: fertig nach {_took(start)}, {src.n} Anfragen")
+    src.stats = {"games": total, "vr": vr, "new": len(new)}
+    return src.result()
+
+
 def run(only=None, boot=False, by_hand=False):
     """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. Läuft schon einer,
     kommt False zurück."""
@@ -555,31 +811,26 @@ def run(only=None, boot=False, by_hand=False):
 
         begun = time.monotonic()
         settings = load_settings()
-        targets = _targets(store.load_data())
-        log(f"VR-Navigator {sources.VERSION}, Abgleich für {len(targets)} Wunschtitel, "
+        log(f"VR-Navigator {sources.VERSION}, Abgleich "
             + ("von Hand" if by_hand else "nach dem Start" if boot else "nach Zeitplan")
             + (", nur " + ", ".join(NAMES[x] for x in NAMES if x in only) if only else ""))
         _old_misses["ignore"] = prev.get("search_v") != SEARCH_V
         if _old_misses["ignore"] and prev:
             log("Suche geändert: Titel ohne Treffer werden diesmal neu gesucht")
         upd, results = {}, {}
-        steps = [("qsdb", _qsdb), ("steam", _steam)]
-        if settings["gg_key"]:
-            steps.append(("gg", lambda t, u, lg: _gg(t, u, settings["gg_key"], lg)))
-        else:
-            log("gg.deals: kein Schlüssel eingetragen, nicht abgefragt")
-        for name, step in steps:
+
+        def do(name, fn):
             if only and name not in only:
-                continue
+                return
             if st["rest"].get(name):
                 until = datetime.fromisoformat(st["rest"][name])
                 log(f"{NAMES[name]}: ruht nach einer Sperre bis {until.strftime('%d.%m. %H:%M')} UTC, nicht abgefragt")
                 results[name] = {"at": titles.now_iso(), "ok": False, "msg": "ruht", "until": st["rest"][name],
                                  "requests": 0, "errors": 0}
-                continue
+                return
             progress(NAMES[name])
             try:
-                results[name] = step(targets, upd, log)
+                results[name] = fn()
             except Exception as e:          # ein Fehler im Lesen soll die anderen Quellen nicht aufhalten
                 log(f"{NAMES[name]}: unerwarteter Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers")
                 print(f"Fehler beim Abgleich {name}:", e, file=sys.stderr)
@@ -587,6 +838,29 @@ def run(only=None, boot=False, by_hand=False):
             if results[name].get("blocked"):
                 st["rest"][name] = _iso(now() + timedelta(hours=REST_H))
                 results[name]["until"] = st["rest"][name]
+
+        # Erst die Konten (Besitz, Wunschlisten), damit neue Wunschtitel gleich Preise bekommen
+        budget = {"apps": APPINFO_MAX, "search": 15}
+        if settings["steam_id"]:
+            do("steamacc", lambda: _steam_account(settings, log, budget))
+        if settings["gg_wish"]:
+            do("ggwish", lambda: _gg_wish(settings, log, budget))
+        if settings["sharenite"]:
+            last = ((prev.get("sources") or {}).get("sharenite") or {})
+            fresh = last.get("ok") and (last.get("at") or "") > _iso(now() - timedelta(hours=SHARENITE_H))
+            if fresh and not by_hand and not only:
+                results["sharenite"] = last
+                log(f"Sharenite: zuletzt gelesen {_ago_text(last['at'])}, wieder nach {SHARENITE_H} Stunden")
+            else:
+                do("sharenite", lambda: _sharenite(settings, log))
+        targets = _targets(store.load_data())
+        log(f"Preise für {len(targets)} Wunschtitel, die du noch nicht besitzt")
+        do("qsdb", lambda: _qsdb(targets, upd, log))
+        do("steam", lambda: _steam(targets, upd, log))
+        if settings["gg_key"]:
+            do("gg", lambda: _gg(targets, upd, settings["gg_key"], log))
+        else:
+            log("gg.deals: kein Schlüssel eingetragen, nicht abgefragt")
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)
@@ -646,7 +920,8 @@ def diagnose():
     Server, Kodierung, was die Leser erkennen). Nimmt, wo es geht, einen Titel deiner
     Wunschliste. Speichert nichts; der gg.deals-Schlüssel erscheint nie im Ergebnis."""
     data = store.load_data()
-    key = load_settings()["gg_key"]
+    settings = load_settings()
+    key = settings["gg_key"]
     targets = list(_targets(data).values())
     lines = [f"VR-Navigator {sources.VERSION}, Test vom {now().strftime('%d.%m.%Y %H:%M')} UTC"]
     hosts = set()
@@ -741,6 +1016,30 @@ def diagnose():
                     f"Keyshops {eur(p['keyshops'])} (Tief {eur(p['keyshops_low'])})")
         q = urllib.parse.urlencode({"ids": appid, "region": "de"})
         probe("gg.deals, Preise", f"{GG_API}?{q}&key={urllib.parse.quote(key)}", gg_info, shown=f"{GG_API}?{q}")
-    if key:
-        lines = [x.replace(key, "…").replace(urllib.parse.quote(key), "…") for x in lines]
+    # Konten, soweit eingerichtet
+    kind, val = accounts.steam_id_input(settings["steam_id"])
+    if kind == "id":
+        if settings["steam_key"]:
+            probe("Steam-Konto, Besitz", f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?steamid={val}&include_appinfo=1&key={settings['steam_key']}",
+                  lambda text: f"{len(accounts.steam_owned(text))} Spiele", shown=f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/")
+        probe("Steam-Konto, Wunschliste", f"{STEAM_API}/IWishlistService/GetWishlist/v1/?steamid={val}",
+              lambda text: f"{len(accounts.steam_wishlist(text))} Apps")
+    elif kind == "vanity":
+        lines.append("Steam-Konto: Profilname eingetragen, der Test braucht die Zahl (wird beim Abgleich aufgelöst)")
+    if settings["gg_wish"]:
+        def ggw_info(text):
+            items, pages = accounts.gg_wishlist(text)
+            return (f"{len(items)} Spiele erkannt, {pages} Seiten" + (f", erstes: {items[0]['name']}" if items else "")
+                    + ("" if items else f". Anfang: {' '.join(re.sub(r'<[^>]+>', ' ', text)[:300].split())}"))
+        probe("gg.deals-Wunschliste", settings["gg_wish"], ggw_info, shown="gg.deals-Wunschliste")
+    if settings["sharenite"]:
+        def sn_info(text):
+            games, total, vr_tags = accounts.sharenite_page(text)
+            return (f"{total if total is not None else '?'} Spiele im Profil, {len(games)} Zeilen auf Seite 1, "
+                    f"{len(vr_tags)} VR-Schlagwörter im Filter" + (f", erstes: {games[0]['name']} ({games[0]['source'] or 'ohne Laden'})" if games else
+                    f". Anfang: {' '.join(re.sub(r'<[^>]+>', ' ', text)[:300].split())}"))
+        probe("Sharenite", settings["sharenite"] + "?sort=name_asc", sn_info)
+    for secret in (key, settings["steam_key"], settings["gg_wish"]):
+        if secret:
+            lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]
     return lines

@@ -260,7 +260,9 @@ function nowView(){
 }
 
 /* ---------------------------------------------------------------- Abrufe */
-const SOURCES = [["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"]];
+const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"]];
+const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
   const rest = x.until && new Date(x.until) > new Date();
@@ -284,8 +286,8 @@ function settingsView(){
   const sy = S.sync || {}, se = S.settings || {}, src = sy.sources || {}, sug = S.suggestions.length;
   const hours = se.hours || 6, last = sy.started ? new Date(sy.started) : null;
   const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
-  const rows = SOURCES.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
-  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["importe", "Importe"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const rows = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se)).map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
+  const jumps = [sug && ["sug", "Derselbe Titel?"], ["abgleich", "Abgleich"], ["importe", "Einlesen"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugCard = sug ? box("sug", "Derselbe Titel?", `${sug} ${sug === 1 ? "Paar" : "Paare"}`, `
     <p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
@@ -310,8 +312,8 @@ function settingsView(){
       ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> Schlüssel löschen</label></span>` : ""}
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="s-err"></span></span></form>
       <p class="hint">Der Schlüssel bleibt auf deinem Server (settings.json im Datenordner). Er steht nicht in der Sicherung, nicht im Protokoll und geht nie an den Browser zurück.</p>`, !!se.gg_key_set)}`);
-  const importe = box("importe", "Importe", "", `<p class="hint">Bringen deine Käufe und Wünsche ins Tool. Jeder Import ergänzt nur; nichts wird gelöscht.</p>
-    ${importCard("meta")}${importCard("sheet")}${importCard("playnite")}`);
+  const importe = box("importe", "Einlesen", "", `<p class="hint">Bringt Käufe und Wünsche ins Tool: Konten automatisch, Meta per Lesezeichen, alles andere als Datei. Gelöscht wird nichts.</p>
+    ${accountsCard()}${metaCard()}${fileCard()}`);
   const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
      <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
      <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div>`);
@@ -361,52 +363,79 @@ function libView(){
    Bestellseite oder den Transaktionen bei Meta, scrollt, bis alles geladen ist, und öffnet dann
    dieses Tool mit Seitentext und Links im Adressteil hinter # (geht nicht übers Netz an einen
    Server). Das Tool liest die Käufe dort und übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 3;
+const META_HV = 4;
 function metaHelper(tool){ return `(async()=>{
-if(!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst angemeldet deine Meta-Bestellungen (meta.com/my/orders) oder die Transaktionen von Meta Pay öffnen, dann das Lesezeichen anklicken.");return}
-const box=document.createElement("div");box.style.cssText="position:fixed;z-index:2147483647;top:12px;right:12px;width:min(420px,90vw);background:#fff;color:#111;border:2px solid #24383b;border-radius:8px;padding:12px;font:14px sans-serif";box.textContent="VR-Navigator: lade alle Käufe …";document.body.appendChild(box);
+if(!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay oder deine Wunschliste im Meta Store öffnen, dann das Lesezeichen anklicken.");return}
+const wish=/wish/i.test(location.pathname)||/wunschliste|wishlist/i.test(document.title);
+const box=document.createElement("div");box.style.cssText="position:fixed;z-index:2147483647;top:12px;right:12px;width:min(420px,90vw);background:#fff;color:#111;border:2px solid #24383b;border-radius:8px;padding:12px;font:14px sans-serif";box.textContent="VR-Navigator: lade alles …";document.body.appendChild(box);
 const look=(b,main)=>{b.style.cssText="margin:0 8px 6px 0;padding:6px 12px;border-radius:6px;font:600 13px sans-serif;cursor:pointer;"+(main?"background:#24383b;color:#fff;border:1px solid #24383b":"background:#f3f4f1;color:#1b2224;border:1px solid #9aa3a1");return b};
 const wait=t=>new Promise(r=>setTimeout(r,t));
 const boxes=()=>[document.scrollingElement||document.documentElement,...[...document.querySelectorAll("div,main,section,ul")].filter(e=>e.scrollHeight>e.clientHeight+50&&/(auto|scroll)/.test(getComputedStyle(e).overflowY))];
-let h=0,same=0;for(let i=0;i<60&&same<3;i++){const bs=boxes();bs.forEach(e=>{e.scrollTop=e.scrollHeight});await wait(1200);const n=bs.reduce((a,e)=>a+e.scrollHeight,0)+document.querySelectorAll("a[href]").length;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alle Käufe … ("+(i+1)+")"}
+let h=0,same=0;for(let i=0;i<60&&same<3;i++){const bs=boxes();bs.forEach(e=>{e.scrollTop=e.scrollHeight});await wait(1200);const n=bs.reduce((a,e)=>a+e.scrollHeight,0)+document.querySelectorAll("a[href]").length;same=n===h?same+1:0;h=n;box.textContent="VR-Navigator: lade alles … ("+(i+1)+")"}
 boxes().forEach(e=>{e.scrollTop=0});box.remove();
-const links=[...document.querySelectorAll("a[href]")].filter(a=>/\\/(experiences|order)\\//.test(a.href)).slice(0,3000).map(a=>({href:a.href,text:(a.innerText||"").trim().slice(0,200)}));
-const txt=JSON.stringify({kind:"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),links,text:document.body.innerText.slice(0,400000)});
-document.body.appendChild(box);box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent="Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
+const links=[...document.querySelectorAll("a[href]")].filter(a=>/\\/(experiences|order)\\//.test(a.href)).slice(0,3000).map(a=>({href:a.href,text:(a.innerText||a.getAttribute("aria-label")||(a.querySelector("img")||{}).alt||"").trim().slice(0,200)}));
+const txt=JSON.stringify({kind:wish?"meta-wunschliste":"meta-bestellungen",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,links,text:document.body.innerText.slice(0,400000)});
+document.body.appendChild(box);box.textContent="";const p=document.createElement("p");p.style.margin="0 0 8px";p.textContent=wish?"Wunschliste gelesen. Der VR-Navigator übernimmt sie.":"Seite gelesen. Der VR-Navigator erkennt die Käufe und übernimmt sie.";
 const go=look(document.createElement("button"),true);go.textContent="Im VR-Navigator übernehmen";go.onclick=()=>{window.open(${JSON.stringify(tool)}+"/#meta="+encodeURIComponent(txt),"_blank");box.remove()};
-const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download="meta-bestellungen.json";document.body.appendChild(a);a.click();a.remove()};
+const f=look(document.createElement("button"));f.textContent="Als Datei sichern";f.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download=wish?"meta-wunschliste.json":"meta-bestellungen.json";document.body.appendChild(a);a.click();a.remove()};
 const b=look(document.createElement("button"));b.textContent="Schließen";b.onclick=()=>box.remove();
 box.append(p,go,f,b);
 })();`; }
 const metaBm = () => "javascript:" + encodeURIComponent(metaHelper(location.origin));
 
-const IMPORTS = {
-  sheet: {title: "Vergleichstabelle (CSV)", what: "Deine Tabelle mit Spiel, meta, Bestpreis, gg.deals best, Crossbuy und Links. Die Titel landen auf der Wunschliste, sofern du sie nicht schon besitzt.", accept: ".csv,text/csv"},
-  playnite: {title: "Playnite-Export (CSV)", what: "Bibliothek aus Playnite. Übernommen werden Spiele mit VR-Schlagwort und alle, die schon in deiner Liste stehen. Sie gelten als Besitz am PC.", accept: ".csv,text/csv"},
-  meta: {title: "Meta-Käufe", what: "", accept: ".json,.txt,application/json,text/plain"},
-};
-function importCard(kind){
-  const c = IMPORTS[kind], last = S.imports[kind], p = V.prev[kind];
-  const info = last ? `zuletzt ${day(last.at)}: ${last.n} erkannt, ${last.new} neu` : "noch nie";
-  const manual = `<div class="bar"><input type="file" accept="${c.accept}" data-file="${kind}" aria-label="${esc(c.title)}: Datei wählen"></div>
-    <textarea id="txt-${kind}" aria-label="${esc(c.title)}: Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.[kind] || "")}</textarea>
-    <div class="bar"><button data-act="preview" data-v="${kind}">Vorschau</button>
-      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="${kind}">${p.n} übernehmen</button>` : ""}</div>`;
-  const body = kind === "meta" ? `<ol>
-      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta-Käufe lesen</a>
+const KINDS = {sheet: "Vergleichstabelle", playnite: "Playnite-Export", meta: "Meta-Käufe", metawish: "Meta-Wunschliste", ggwish: "gg.deals-Wunschliste"};
+/* Meta-Lesezeichen: Käufe und Wunschliste, beides ohne Datei */
+function metaCard(){
+  const p = V.prev.meta, lm = S.imports.meta, lw = S.imports.metawish;
+  const info = [lm && `Käufe ${day(lm.at)}`, lw && `Wunschliste ${day(lw.at)}`].filter(Boolean).join(", ") || "noch nie";
+  return sub("imp-meta", "Meta: Käufe und Wunschliste", info, `<ol>
+      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Meta lesen</a>
         <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></li>
-      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a> oder <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
-      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt die Käufe. Die Daten stehen nur in der Adresse hinter #.</li></ol>
-      ${p ? previewHtml(p) : ""}
-      ${sub("meta-manual", "Ohne Lesezeichen", "Datei aus „Als Datei sichern“ oder Seitentext, mit Vorschau", manual, !(p && !p.done) && !V.txt?.meta)}`
-    : `<p class="hint">${c.what}</p>${manual}${p ? previewHtml(p) : ""}`;
-  return sub("imp-" + kind, c.title, info, body, !!last && !p, "imp-" + kind);
+      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder deine Wunschliste im Meta Store und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.</li>
+      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt Käufe oder Wunschliste. Die Daten stehen nur in der Adresse hinter #.</li></ol>
+      ${p ? previewHtml(p) : ""}`, !!(lm || lw) && !p, "imp-meta");
+}
+/* Ein Feld für jede Datei: das Tool erkennt die Art selbst und zeigt erst eine Vorschau */
+function fileCard(){
+  const p = V.prev.file, last = ["sheet", "playnite", "ggwish"].map(k => S.imports[k] && `${KINDS[k]} ${day(S.imports[k].at)}`).filter(Boolean);
+  return sub("imp-file", "Datei oder Text einlesen", last.join(", ") || "noch nie", `
+    <p class="hint">Vergleichstabelle (CSV), Playnite-Export (CSV), eine gg.deals-Wunschliste (CSV), die Datei des Meta-Lesezeichens oder kopierter Text deiner Meta-Bestellungen. Das Tool erkennt die Art am Aufbau und zeigt erst, was es übernehmen würde.</p>
+    <div class="bar"><input type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" data-file="file" aria-label="Datei wählen"></div>
+    <textarea id="txt-file" aria-label="Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.file || "")}</textarea>
+    <div class="bar"><button data-act="preview" data-v="file">Vorschau</button>
+      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="file">${p.n} übernehmen</button>` : ""}</div>
+    ${p ? previewHtml(p) : ""}`, !p && !V.txt?.file, "imp-file");
+}
+/* Konten: bei jedem Abgleich automatisch gelesen */
+function accountsCard(){
+  const se = S.settings || {};
+  const on = [se.steam_id && "Steam", se.gg_wish_set && "gg.deals", se.sharenite && "Sharenite"].filter(Boolean);
+  return sub("konten", "Konten, automatisch bei jedem Abgleich", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form" style="margin-top:8px">
+      <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
+      <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
+      ${se.steam_key_set ? `<span class="full"><label><input type="checkbox" name="steam_clear"> Steam-Schlüssel löschen</label></span>` : ""}
+      <label for="a-gw">gg.deals-Wunschliste</label><input type="password" id="a-gw" name="gg_wish" autocomplete="off" placeholder="${se.gg_wish_set ? "gespeichert, leer lassen zum Behalten" : "Link aus „Wunschliste teilen“"}">
+      ${se.gg_wish_set ? `<span class="full"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
+      <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
+      <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
+    <ul class="hint">
+      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey; im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
+      <li><b>gg.deals:</b> deine geteilte Wunschliste. Es zählen Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
+      <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
+    </ul>
+    <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
+}
+function wishMoves(p){
+  return [p.wish_added?.length && `Neu auf der Wunschliste: ${p.wish_added.map(esc).join(", ")}.`,
+    p.wish_removed?.length && `Nicht mehr auf dieser Wunschliste und damit von deiner: ${p.wish_removed.map(esc).join(", ")}.`,
+    p.unknown?.length && `Nicht zugeordnet (${p.unknown.length}): ${p.unknown.slice(0, 30).map(esc).join(", ")}${p.unknown.length > 30 ? " …" : ""}.`]
+    .filter(Boolean).map(x => `<p class="hint">${x}</p>`).join("");
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
-  if(p.done) return `<p class="ok">Übernommen: ${p.n} erkannt, ${p.new} neu angelegt.</p>` + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
+  if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
-  return `<div class="prev">${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.<ul>${p.entries.slice(0, 300).map(e =>
+  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>: ` : ""}${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
 /* ---------------------------------------------------------------- Bearbeiten */
@@ -467,8 +496,8 @@ async function metaHandOver(){
   try{
     const res = await api("/api/import", {kind: "meta", text: META_IN, dry: false});
     S = res.state || S;
-    V.prev.meta = {done: true, n: res.n, new: res.new, entries: res.entries};
-    toast(res.n ? `${res.n} Meta-Käufe gelesen, ${res.new} neu` : "Keine Käufe erkannt. Bitte die Seite neu laden und noch einmal versuchen");
+    V.prev.meta = Object.assign({done: true}, res, {state: null});
+    toast(res.n ? `${res.what || "Meta-Käufe"}: ${res.n} gelesen, ${res.new} neu` : "Nichts erkannt. Bitte die Seite neu laden und noch einmal versuchen");
   }catch(e){ V.prev.meta = {error: e.message}; }
   render();
   $("imp-meta")?.scrollIntoView({block: "start"});
@@ -539,8 +568,8 @@ document.addEventListener("click", async ev => {
     V.txt = Object.assign(V.txt || {}, {[v]: text});
     el.disabled = true;
     try{
-      const res = await api("/api/import", {kind: v, text, dry: a === "preview"});
-      V.prev[v] = a === "apply" ? {done: true, n: res.n, new: res.new} : res;
+      const res = await api("/api/import", {kind: v === "file" ? "auto" : v, text, dry: a === "preview"});
+      V.prev[v] = a === "apply" ? Object.assign({done: true}, res, {state: null}) : res;
       if(res.state) S = res.state;
       if(a === "apply") V.txt[v] = "";
     }catch(e){ V.prev[v] = {error: e.message}; }
@@ -581,6 +610,15 @@ document.addEventListener("submit", async ev => {
     if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();
     if(f.gg_clear?.checked) body.gg_key = "";
     if(await act("/api/settings", body, $("s-err"))) toast("Gespeichert");
+  }
+  if(kind === "accounts"){
+    ev.preventDefault();
+    const body = {steam_id: f.steam_id.value.trim(), sharenite: f.sharenite.value.trim()};
+    if(f.steam_key.value.trim()) body.steam_key = f.steam_key.value.trim();
+    if(f.steam_clear?.checked) body.steam_key = "";
+    if(f.gg_wish.value.trim()) body.gg_wish = f.gg_wish.value.trim();
+    if(f.gg_wish_clear?.checked) body.gg_wish = "";
+    if(await act("/api/settings", body, $("a-err"))) toast("Gespeichert, gilt ab dem nächsten Abgleich");
   }
   if(kind === "edit"){
     ev.preventDefault();
