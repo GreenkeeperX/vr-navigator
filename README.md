@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.3:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.4:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -221,7 +221,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
   Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
   Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Laden, der nur aus der Kennung
-  vermutet ist, trägt „≈“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
+  vermutet ist, trägt „≈“. Bei Steam-Spielen gleicht der Abgleich Genres, Mehrspieler-Arten und
+  Jahr mit den Steam-Store-Daten ab (80 je Lauf): was Playnite und Steam beide sagen, steht ohne
+  Zeichen, was nur eine Quelle sagt, bleibt drin und trägt „≈“ (Steam kennt nur grobe Genres,
+  Puzzle oder Horror etwa nicht). Spiele ohne Abgleich tragen „nur Playnite“, Steam-Spiele mit
+  VR die Marke „VR“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
   die der Abgleich nach und nach holt (100 je Lauf, siehe [docs/abrufe.md](docs/abrufe.md));
   die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
   unzuverlässig). Die Zahl der Rezensionen zeigt die Bekanntheit. Der Geheimtipp-Wert

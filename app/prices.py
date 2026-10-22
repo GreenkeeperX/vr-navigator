@@ -184,6 +184,41 @@ def steam_reviews(text):
     return {"n": n, "pct": round(100 * pos / n) if n else None, "desc": str(q.get("review_score_desc") or "")[:40]}
 
 
+# Feste Kennungen der Steam-Store-Daten (gleich in jeder Sprache)
+STEAM_GENRES = {"1": "Action", "2": "Strategie", "3": "Rollenspiel", "4": "Casual", "9": "Rennen", "18": "Sport",
+                "25": "Abenteuer", "28": "Simulation"}
+STEAM_MP = {"multi": {1, 9, 20, 24, 27, 36, 37, 38, 39, 44, 47, 48, 49}, "online": {20, 27, 36, 38},
+            "coop": {9, 38, 39, 48}, "couch": {24, 37, 39, 44}, "split": {24, 37, 39}, "lan": {47, 48}, "mmo": {20}}
+STEAM_VR = {31, 53, 54}
+
+
+def steam_details(text, appid):
+    """appdetails einer App: Genre-Gruppen, Mehrspieler-Arten aus den Kategorien, Erscheinungsjahr,
+    VR, Zahl der Empfehlungen. None, wenn Steam die App nicht (mehr) liefert."""
+    try:
+        v = (json.loads(text) or {}).get(str(appid)) or {}
+    except (ValueError, AttributeError):
+        return None
+    d = v.get("data") if v.get("success") else None
+    if not isinstance(d, dict):
+        return None
+    cats = set()
+    for c in d.get("categories") or []:
+        try:
+            cats.add(int(c.get("id")))
+        except (TypeError, ValueError, AttributeError):
+            pass
+    gids = [str(g.get("id")) for g in d.get("genres") or [] if isinstance(g, dict)]
+    m = re.search(r"(19|20)\d\d", str((d.get("release_date") or {}).get("date") or ""))
+    if "29" in gids:
+        cats.add(20)                    # Genre „Massively Multiplayer“ zählt wie die Kategorie MMO
+    return {"type": str(d.get("type") or ""), "name": str(d.get("name") or "")[:200],
+            "genres": [STEAM_GENRES[x] for x in gids if x in STEAM_GENRES],
+            "mp": [k for k, ids in STEAM_MP.items() if cats & ids], "vr": bool(cats & STEAM_VR),
+            "year": m.group(0) if m else "",
+            "recs": int(((d.get("recommendations") or {}).get("total")) or 0)}
+
+
 def steam_search(text):
     """storesearch: Liste von {appid, name} (nur Spiele, keine Zusatzinhalte-Typen)."""
     try:

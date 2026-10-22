@@ -224,7 +224,7 @@ def replace(col, games, src="playnite"):
         if o is None:
             new += 1
             continue
-        for f in ("rev", "mark"):
+        for f in ("rev", "steam", "mark"):
             if f in o:
                 g[f] = o[f]
     col["games"] = games
@@ -257,6 +257,30 @@ def gem(g):
     return round((w - 70) / 30 * max(0.0, 1 - math.log10(n + 1) / 5), 2), False
 
 
+STEAM_CAN = {"Action", "Strategie", "Rollenspiel", "Casual", "Rennen", "Sport", "Abenteuer", "Simulation"}
+
+
+def check(r, st):
+    """Playnite mit den Steam-Details abgleichen. Was beide sagen, gilt als bestätigt (gc, mpc,
+    year_ok); was nur eine Quelle sagt, bleibt drin und wird in der Oberfläche mit ≈ markiert.
+    Genres, die Steam gar nicht kennt (Puzzle, Horror …), kann Steam weder bestätigen noch
+    widerlegen: sie stehen in gx. src: „steam“ (abgeglichen) oder „playnite“ (nur eine Quelle)."""
+    r["src"], r["gc"], r["gx"], r["mpc"], r["year_ok"], r["vr"] = "playnite", [], [], [], False, False
+    if not st.get("ok"):
+        return
+    r["src"], r["vr"], r["guess"] = "steam", bool(st.get("vr")), False
+    sg, sm = set(st.get("genres") or []), set(st.get("mp") or [])
+    r["gc"] = [x for x in r["genres"] if x in sg]
+    r["gx"] = [x for x in r["genres"] if x not in STEAM_CAN]
+    r["genres"] = r["genres"] + sorted(sg - set(r["genres"]))
+    r["mpc"] = [x for x in r["mp"] if x in sm]
+    r["mp"] = r["mp"] + [x for x in MP_LABEL if x in sm and x not in r["mp"]]
+    y = st.get("year") or ""
+    r["year_ok"], r["syear"] = bool(y) and y == r["year"], y
+    if y and not r["year"]:
+        r["year"] = y                   # nur Steam kennt das Jahr: übernommen, ≈
+
+
 def view(col):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele)."""
     rows = []
@@ -273,6 +297,7 @@ def view(col):
             r["score"], r["score_src"] = rev["pct"], "Steam"
         if r["guess"] and r["reviews"]:
             r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
+        check(r, g.get("steam") or {})
         rows.append(r)
     rows.sort(key=lambda r: titles.norm(r["name"]))
     return {"at": col.get("at") or "", "n": len(rows), "games": rows, "mp_label": MP_LABEL,

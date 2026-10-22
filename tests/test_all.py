@@ -849,6 +849,39 @@ class TestSync(unittest.TestCase):
         self.assertIsNone(prices.steam_reviews('{"success": 2}'))
         self.assertEqual(prices.steam_reviews('{"success": 1, "query_summary": {"total_reviews": 0}}')["pct"], None)
 
+    def test_details(self):
+        """Steam-Details gleichen Playnite ab: was beide sagen, ist bestätigt, der Rest bleibt mit ≈."""
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION))
+        store.save_json(collection.FILE, col)
+        app = {"3000101": {"success": True, "data": {
+            "type": "game", "name": "Harbor Heist", "release_date": {"date": "12 Mar, 2019"},
+            "genres": [{"id": "1", "description": "Action"}, {"id": "23", "description": "Indie"}],
+            "categories": [{"id": 1}, {"id": 9}, {"id": 54}], "recommendations": {"total": 1234}}}}
+        net = FakeNet({"appids=3000101&l=english": json.dumps(app), "appids=3000103&l=english": '{"3000103": {"success": false}}'})
+        sources.fetch = net
+        sync.run(only={"details"})
+        self.assertEqual(len(net.calls), 2)
+        g = store.load_json(collection.FILE, {})["games"]
+        self.assertEqual((g["steam:3000101"]["steam"]["mp"], g["steam:3000101"]["steam"]["vr"]), (["multi", "coop"], True))
+        self.assertFalse(g["steam:3000103"]["steam"]["ok"])
+        rows = {r["key"]: r for r in collection.view({"games": g})["games"]}
+        h = rows["steam:3000101"]
+        self.assertEqual((h["src"], h["vr"], h["year"], h["year_ok"]), ("steam", True, "2019", True))
+        self.assertEqual((h["mp"], h["mpc"]), (["multi", "online", "coop"], ["multi", "coop"]))   # Online nur laut Playnite
+        self.assertEqual((h["genres"], h["gc"]), (["Shooter", "Action"], []))                      # Action nur laut Steam
+        q = rows["steam:3000103"]                               # Steam kennt die App nicht: bleibt vermutet
+        self.assertEqual((q["src"], q["guess"]), ("playnite", True))
+        self.assertEqual(rows["epic:abc123def"]["src"], "playnite")
+        # ein neuer Import behält die Details, ein zweiter Lauf fragt nicht erneut
+        col = store.load_json(collection.FILE, {})
+        collection.replace(col, collection.parse(COLLECTION))
+        self.assertTrue(col["games"]["steam:3000101"]["steam"]["ok"])
+        store.save_json(collection.FILE, col)
+        sync.run(only={"details"})
+        self.assertEqual(len(net.calls), 2)
+        self.assertIsNone(prices.steam_details("kein json", "1"))
+
     def test_ggwish_manual(self):
         """gg.deals sperrt den Server: Wunschliste ab dann per Lesezeichen, unbekannte Namen
         sucht der Abgleich nach; ein neu gespeicherter Link versucht es wieder."""

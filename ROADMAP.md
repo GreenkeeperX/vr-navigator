@@ -24,11 +24,10 @@ Plan (22.10.2026): erstes Recherche-Paket (etwa 20 Wunschtitel), dann das Urteil
 ## 0.4 Entdecken
 
 0.4.0 brachte die Sammlung und den Reiter, 0.4.1 die Steam-Rezensionen, 0.4.2 das Ausklammern
-reiner Konsolenspiele, 0.4.3 die Bestpreis-Leiste in Jetzt und Feinschliff in Entdecken. Als
+reiner Konsolenspiele, 0.4.3 die Bestpreis-Leiste in Jetzt und Feinschliff in Entdecken, 0.4.4
+den Abgleich der Merkmale mit den Steam-Store-Daten (beide einig: bestätigt, sonst „≈“). Als
 Nächstes:
 
-- 0.4.4 Merkmale abgleichen: Genres, Erscheinungsjahr und Mehrspieler aus den Steam-Store-Daten
-  holen und mit Playnite vergleichen; was beide sagen, gilt als bestätigt, der Rest trägt „≈“
 - 0.4.5 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
