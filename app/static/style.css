@@ -131,3 +131,9 @@ details.sub details.sub{margin-left:12px;padding-left:10px;border-top:0;border-l
 .card,details.sub{scroll-margin-top:48px}
 .bundle input{display:block;width:100%;margin:4px 0}
 label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind select{min-width:0;max-width:100%}
+/* Entdecken: Mischungen oben, Filter in einer Klappe */
+.chips.mix{margin-bottom:8px}
+.dfilter{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:8px;font-size:14px}
+.dfilter .chips{flex-basis:100%}
+.dfilter label{display:flex;gap:6px;align-items:center;max-width:100%}
+.dfilter select{min-width:0;max-width:100%}

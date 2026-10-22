@@ -7,8 +7,8 @@ in der Git-Geschichte.
 
 ## 0.3 Wo kaufen
 
-Plan (22.10.2026): 0.4 Entdecken (Empfehlungen für die ganze PC-Sammlung, Konzept-Doc), erstes Recherche-Paket (etwa 20 Wunschtitel), dann 0.3.4 Urteil (misst am üblichen
-Angebot, wenn der Bestpreis einmalig war).
+Plan (22.10.2026): erstes Recherche-Paket (etwa 20 Wunschtitel), dann das Urteil (misst am
+üblichen Angebot, wenn der Bestpreis einmalig war).
 
 - Bestpreis am PC über 24 Monate mit IsThereAnyDeal (optionaler Schlüssel), solange der eigene
   Steam-Verlauf kürzer ist; kleine Verlaufslinie im Bearbeiten-Fenster
@@ -20,6 +20,17 @@ Angebot, wenn der Bestpreis einmalig war).
 - Gutscheine mit Shop, Prozent oder Betrag und Ablaufdatum
 - Legende („?“ oben) nach `docs/oberflaeche.md`
 - VRDB-Link aus der QuestStoreDB-Seite, Bundles mit den enthaltenen Spielen verknüpfen
+
+## 0.4 Entdecken
+
+0.4.0 bringt die Sammlung und den Reiter. Als Nächstes:
+
+- 0.4.1 Steam-Rezensionen schonend abrufen (Anzahl und Anteil positiv, eigene Quelle im
+  Abgleich, je Lauf begrenzt, nach 30 Tagen neu): Bekanntheit, echter Geheimtipp-Wert, vermutete
+  Steam-IDs dabei prüfen
+- 0.4.2 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+  Mischung „Liegt brach“, Gespieltes ausblenden
+- eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 
 ## Danach
 

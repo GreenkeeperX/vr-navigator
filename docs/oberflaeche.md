@@ -46,7 +46,7 @@ Textfarbe, unterstrichen.
 
 ## Reiter und Werkzeuge
 
-- Reiter: Jetzt, Wunschliste, Bibliothek, Einstellungen. Am Reiter eine graue Zahl oder ein
+- Reiter: Jetzt, Wunschliste, Bibliothek, Entdecken, Einstellungen. Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
 - Einstellungen: Sprungleiste oben (bleibt beim Scrollen stehen), darunter „Derselbe Titel?“

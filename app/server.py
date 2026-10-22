@@ -10,7 +10,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import imports, library, sources, store, sync, titles
+from . import collection, imports, library, sources, store, sync, titles
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -55,6 +55,19 @@ def settings_view():
     wish = s.pop("gg_wish")
     return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "",
                 steam_key_set=bool(steam), gg_wish_set=bool(wish))
+
+
+def import_collection(data, text, dry):
+    """Der Playnite-Export füllt neben der Bibliothek (VR-Titel) auch die ganze Sammlung für
+    Entdecken. Die Zusammenfassung steht unter imports.collection in data.json."""
+    games = collection.parse(text)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    if dry:
+        return {"n": len(games), "new": sum(k not in (col.get("games") or {}) for k in games)}
+    new = collection.replace(col, games)
+    store.save_json(collection.FILE, col)
+    data["imports"]["collection"] = {"at": col["at"], "n": len(games), "new": new}
+    return {"n": len(games), "new": new}
 
 
 def state():
@@ -218,8 +231,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, state())
             elif path == "/api/status":
                 self._send(200, sync.status())
+            elif path == "/api/collection":
+                self._send(200, collection.view(store.load_json(collection.FILE, collection.EMPTY)))
             elif path == "/api/export":
-                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data()},
+                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
+                                 "collection": store.load_json(collection.FILE, collection.EMPTY)},
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
             else:
                 self._send(404, {"error": "nicht gefunden"})
@@ -240,9 +256,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("unbekannte Art des Imports")
                 dry = body.get("dry") is not False
                 fn = imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
+                text = str(body.get("text") or "")
                 with store.lock:
                     data = store.load_data()
-                    res = fn(data, str(body.get("text") or ""), dry=dry)
+                    res = fn(data, text, dry=dry)
+                    if (res.get("kind") or kind) == "playnite":
+                        res["collection"] = import_collection(data, text, dry)
                     if not dry:
                         store.save_data(data)
                 self._send(200, dict(res, state=None if dry else state()))
@@ -297,8 +316,13 @@ class Handler(BaseHTTPRequestHandler):
                 bad = [k for k, t in d["titles"].items() if not isinstance(t, dict) or not t.get("name")]
                 if bad:
                     raise ValueError(f"{len(bad)} Einträge ohne Namen, Sicherung nicht übernommen")
+                col = body.get("collection")
                 with store.lock:
                     store.save_data(d)
+                    # Sicherungen vor 0.4.0 haben keine Sammlung: dann bleibt die vorhandene
+                    if isinstance(col, dict) and isinstance(col.get("games"), dict):
+                        games = {str(k): g for k, g in col["games"].items() if isinstance(g, dict) and g.get("name")}
+                        store.save_json(collection.FILE, dict(col, games=games, n=len(games)))
                 self._send(200, state())
             else:
                 self._send(404, {"error": "nicht gefunden"})

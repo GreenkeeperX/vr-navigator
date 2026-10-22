@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.3.4:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.0:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -92,7 +92,10 @@ still nichts zu übernehmen:
   Steam-App-ID). Die Titel landen auf der Wunschliste, solange du sie nicht besitzt.
 - **Playnite (CSV):** Spiele mit Schlagwort oder Feature „VR“ und alle, deren Name schon in
   deiner Liste steht, als Besitz am PC. Mit einer Spalte `Quelle` oder `Bibliothek` ist die
-  Steam-App-ID sicher, sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“).
+  Steam-App-ID sicher (ebenso, wenn unter `Kategorien` ein bekannter Laden wie Steam, GOG oder
+  Epic steht), sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“). Dieselbe
+  Datei füllt außerdem die ganze Sammlung für **Entdecken** mit allen Spielen außer den
+  versteckten; ein neuer Export ersetzt sie.
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 - **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere
@@ -195,6 +198,21 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Was du dort findest, gehört in die Notiz.
 - **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
   „Nur am PC“, mit Suche.
+- **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
+  Mehrspieler-Art (Mehrspieler, Online, Koop, Lokal, Splitscreen, LAN, MMO), Spielerzahl,
+  Genre, Laden, Mindestwertung und „über zwei Jahre in der Sammlung“; sortiert nach Wertung,
+  Geheimtipp, neu in der Sammlung, Jahr, Name oder Zufall. Mischungen setzen Filter mit einem
+  Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“, „Geheimtipps“, „Gut, lange her“.
+  „Überrasch mich“ zieht drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen
+  öfter), „Wilde Mischung“ würfelt dazu eine Mehrspieler-Art und ein Genre. Filter und Zufall
+  stehen in der Adresse (`#entdecken?…`), eine Mischung lässt sich so als Lesezeichen merken.
+  Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
+  Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
+  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen, die Wertung aus Community- oder
+  Expertenwertung mit Angabe der Quelle. Ein Laden, der nur aus der Kennung vermutet ist,
+  trägt „≈“. Der Geheimtipp-Wert G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5)
+  braucht die Zahl der Steam-Rezensionen; bis sie abgerufen sind, ist er grob geschätzt und
+  ohne Marke.
 
 Farben haben je eine Bedeutung: Rabatt blau, ★ und „am Bestpreis“ Gold, Prüfen und Veraltetes
 violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den
@@ -206,7 +224,8 @@ Suchfeld leert × oder Esc. Oben rechts: hell, dunkel oder wie das Gerät. Regel
 ## Sicherung
 
 Unter Einstellungen, Sicherung: alle Titel, Notizen und Zuordnungen als eine JSON-Datei herunterladen
-und wieder einspielen. Die Datei enthält deine Käufe; sie gehört nicht ins Repository. Der
+und wieder einspielen, dazu die Sammlung für Entdecken (`collection.json`; Sicherungen ohne
+Sammlung lassen die vorhandene stehen). Die Datei enthält deine Käufe; sie gehört nicht ins Repository. Der
 gg.deals-Schlüssel und der Preisverlauf (`history.json`) sind nicht darin.
 
 ## Betrieb und Sicherheit

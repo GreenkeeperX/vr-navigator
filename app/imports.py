@@ -9,7 +9,7 @@ import io
 import json
 import re
 
-from . import titles
+from . import collection, titles
 
 MAX_ROWS = 20000
 
@@ -149,6 +149,7 @@ def parse_playnite(text, data=None):
     c_tags = _col(header, "schlagwörter", "tags")
     c_feat = _col(header, "features")
     c_src = _col(header, "quelle", "source", "bibliothek", "library", "plattform", "platform")
+    c_cat = _col(header, "kategorien", "categories")
     known = {titles.norm(t["name"]) for t in (data or {}).get("titles", {}).values()}
     out = []
     for row in rows[1:]:
@@ -162,13 +163,17 @@ def parse_playnite(text, data=None):
         if not vr and titles.norm(name) not in known:
             continue
         gid, src = cell(c_id), cell(c_src)
+        store = collection.store_of(src) or collection.store_of(cell(c_cat))
         steam, sure = "", False
         if gid.isdigit():
-            if c_src is not None:
+            if store:
+                # Laden bekannt, auch wenn er nur als Kategorie dasteht
+                steam, sure = (gid, True) if store == "Steam" else ("", False)
+            elif c_src is not None:
                 steam, sure = (gid, True) if "steam" in src.casefold() else ("", False)
             elif int(gid) < 10_000_000:
                 steam = gid           # Steam-IDs liegen darunter, GOG-IDs sind zehnstellig
-        out.append({"name": name, "steam_appid": steam, "steam_sure": sure, "label": src or "PC", "vr": vr})
+        out.append({"name": name, "steam_appid": steam, "steam_sure": sure, "label": src or store or "PC", "vr": vr})
     return out
 
 

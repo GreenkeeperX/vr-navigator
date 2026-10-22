@@ -13,7 +13,7 @@ const when = iso => iso ? new Date(iso).toLocaleString("de-DE", {day: "2-digit",
 const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
 
 let S = null;                                   // Zustand vom Server
-const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["lib", "Bibliothek"], ["settings", "Einstellungen"]];
+const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["lib", "Bibliothek"], ["find", "Entdecken"], ["settings", "Einstellungen"]];
 const V = {tab: "wish", q: "", sort: "name", prev: {}, folds: {}};
 // Ansicht je Browser (vn.view): Reiter und Klappzustände. Bis 0.2.1 gab es die Reiter Abrufe
 // und Import, beide stehen jetzt unter Einstellungen.
@@ -113,7 +113,7 @@ function renderNav(){
   const c = S.counts, sug = S.suggestions.length + (S.todo || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
-  const cnt = {now: c.now || "", wish: c.wish, lib: c.owned, settings: set};
+  const cnt = {now: c.now || "", wish: c.wish, lib: c.owned, find: S.imports.collection?.n || "", settings: set};
   $("nav").innerHTML = TABS.map(([k, l]) =>
     `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${cnt[k] !== "" ? `<span class="cnt">${esc(cnt[k])}</span>` : ""}</button>`).join("");
   renderHead();
@@ -163,7 +163,8 @@ function render(anchor){
   renderNav();
   saveView();
   $("main").innerHTML = V.tab === "lib" ? banners() + libView() : V.tab === "now" ? banners() + nowView()
-    : V.tab === "settings" ? settingsView() : banners() + wishView();
+    : V.tab === "find" ? findView() : V.tab === "settings" ? settingsView() : banners() + wishView();
+  findHash();
   showLog();
   const b = anchor && $(anchor);
   if(b && top !== null) scrollBy(0, b.getBoundingClientRect().top - top);
@@ -262,6 +263,147 @@ function wishRow(r){
     ${prices}
     <div class="row2">${linksHtml(r)}</div>${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
+}
+
+/* ---------------------------------------------------------------- Entdecken
+   Die ganze PC-Sammlung aus dem Playnite-Export (eigene Datei, beim ersten Öffnen geladen).
+   Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
+   (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
+let C = null, cLoading = false;
+const D0 = {mp: [], min: 0, g: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 50};
+V.d = Object.assign({}, D0);
+const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
+// Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
+const MIXES = [
+  ["surprise", "Überrasch mich", "Drei Spiele per Zufall aus dem, was die Filter gerade zeigen; gut bewertete und Geheimtipps kommen öfter", null],
+  ["duo", "Koop zu zweit", "Koop-Spiele für zwei, die besten zuerst", {mp: ["coop"], min: 2}],
+  ["couch", "Couch-Abend", "Lokal an einem Rechner: Couch-Koop oder Splitscreen", {mp: ["couch"]}],
+  ["big", "Große Runde", "Mindestens vier Spieler", {min: 4}],
+  ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt; bis die Steam-Rezensionen abgerufen sind nur grob geschätzt", {sc: 80, sort: "gem"}],
+  ["old", "Gut, lange her", "Wertung ab 80, seit über zwei Jahren in der Sammlung, in zufälliger Folge", {sc: 80, old: 1, sort: "random"}],
+  ["wild", "Wilde Mischung", "Würfelt eine Mehrspieler-Art und ein Genre zusammen und zieht drei Vorschläge", null],
+];
+const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
+
+function findHash(){
+  if(V.tab !== "find"){ if(location.hash.startsWith("#entdecken")) history.replaceState(null, "", location.pathname + location.search); return; }
+  const d = V.d, p = new URLSearchParams();
+  for(const [k, v] of Object.entries(d)) if(k !== "n" && String(v) !== String(D0[k])) p.set(k, Array.isArray(v) ? v.join(",") : v);
+  const h = "#entdecken" + (String(p) ? "?" + p : "");
+  if(location.hash !== h) history.replaceState(null, "", location.pathname + location.search + h);
+}
+function readFindHash(){
+  if(!location.hash.startsWith("#entdecken")) return;
+  V.tab = "find";
+  const p = new URLSearchParams(location.hash.split("?")[1] || ""), d = Object.assign({}, D0);
+  for(const [k, v] of p){
+    if(!(k in D0) || k === "n") continue;
+    d[k] = Array.isArray(D0[k]) ? v.split(",").filter(Boolean) : typeof D0[k] === "number" ? (Number(v) || 0) : v;
+  }
+  V.d = d;
+}
+async function loadCollection(){
+  if(cLoading) return;
+  cLoading = true;
+  try{ C = await api("/api/collection"); }catch(e){ C = {error: e.message, games: []}; }
+  cLoading = false;
+  if(V.tab === "find" && !document.querySelector("dialog[open]")) render();
+}
+function dFilter(d){
+  const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+  return C.games.filter(g => d.mp.every(m => g.mp.includes(m))
+    // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
+    && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
+    && (!d.g || g.genres.includes(d.g)) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
+    && (!d.old || (g.added && g.added < cut))
+    && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q)));
+}
+function dSort(rows, d){
+  const by = {score: g => -(g.score ?? -1), gem: g => -g.gem, added: g => g.added ? -Date.parse(g.added) : 0,
+              year: g => -(Number(g.year) || 0)}[d.sort];
+  if(d.sort === "random"){
+    const r = mulberry(d.seed || 1), a = rows.slice();
+    for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  return by ? rows.slice().sort((a, b) => by(a) - by(b) || a.name.localeCompare(b.name, "de")) : rows;
+}
+// Drei Vorschläge, gewichtet: Wertung über 60 und Geheimtipp-Wert machen ein Spiel wahrscheinlicher
+function dPick(rows, seed, k = 3){
+  const r = mulberry(seed || 1), pool = rows.slice(), out = [];
+  const w = g => 1 + Math.max(0, (g.score ?? 60) - 60) / 10 + g.gem * 4;
+  while(out.length < k && pool.length){
+    let x = r() * pool.reduce((s, g) => s + w(g), 0), i = 0;
+    while(i < pool.length - 1 && (x -= w(pool[i])) > 0) i++;
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out;
+}
+function setMix(k){
+  const m = MIXES.find(x => x[0] === k);
+  if(!m) return;
+  if(k === "wild"){
+    // würfeln, bis mindestens drei Spiele übrig bleiben
+    const kinds = ["coop", "couch", "online", "lan", "", ""], r = mulberry(newSeed());
+    for(let i = 0; i < 30; i++){
+      const d = Object.assign({}, D0, {mp: [kinds[Math.floor(r() * kinds.length)]].filter(Boolean),
+        g: C.genres[Math.floor(r() * C.genres.length)] || "", sc: r() < .5 ? 70 : 0});
+      if(dFilter(d).length >= 3 || i === 29){ V.d = d; break; }
+    }
+  } else if(m[3]) V.d = Object.assign({}, D0, m[3]);
+  V.d.mix = k;
+  V.d.seed = newSeed();
+  V.d.n = 50;
+}
+const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g, d.st,
+  d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.q && `„${d.q}“`].filter(Boolean).join(", ");
+
+function gameRow(g){
+  const mp = g.mp.filter(m => m !== "multi" || g.mp.length === 1).map(m => `<span class="b">${esc(C.mp_label[m] || m)}</span>`).join(" ");
+  const name = safeUrl(g.url) ? `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">${esc(g.name)}</a>` : esc(g.name);
+  return `<div class="item"><span class="nm">${name}</span>${mp}
+    ${g.players ? `<span class="b" title="Höchste Spielerzahl laut Playnite">bis ${g.players}</span>` : ""}
+    ${g.gem >= 0.2 && !g.gem_guess ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
+    <div class="row2">${g.score != null ? `<span title="Aus Playnite übernommen: ${g.score_src === "Kritik" ? "Expertenwertung" : "Communitywertung"}">${esc(g.score_src)} ${g.score}</span>` : ""}
+      ${g.genres.length ? `<span>${g.genres.map(esc).join(", ")}</span>` : ""}
+      ${g.year ? `<span>${esc(g.year)}</span>` : ""}
+      ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
+      ${g.dev ? `<span>${esc(g.dev)}</span>` : ""}</div></div>`;
+}
+function findView(){
+  if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
+  if(C.error) return `<p class="err">Sammlung nicht lesbar: ${esc(C.error)}</p>`;
+  if(!C.games.length) return `<div class="card"><h2>Entdecken</h2><p class="hint">Hier filterst du deine ganze PC-Sammlung nach Mehrspieler, Spielerzahl, Genre und Wertung und lässt dir Spiele vorschlagen.
+    Dafür braucht das Tool einmal den Playnite-Export mit allen Spielen: unter Einstellungen bei „Datei oder Text einlesen“.</p>
+    <button class="link" data-act="tab" data-v="settings">Zu den Einstellungen</button></div>`;
+  const d = V.d, rows = dSort(dFilter(d), d), pick = d.mix === "surprise" || d.mix === "wild" ? dPick(rows, d.seed) : [];
+  const opt = (k, list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
+  const stores = [...new Set(C.games.map(g => g.store).filter(Boolean))].sort();
+  const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="dmix" data-v="${k}" title="${esc(tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
+  const kinds = Object.entries(C.mp_label).map(([k, l]) => `<button data-act="dmp" data-v="${k}" class="${d.mp.includes(k) ? "on" : ""}">${esc(l)}</button>`).join("");
+  const label = dLabel(d);
+  const filters = `<details class="sub" ${foldAttr("d-filter", true)}><summary><b>Filter</b> <span class="n">${label ? esc(label) : "keine"}</span></summary>
+    <div class="dfilter">
+      <div class="chips" role="group" aria-label="Mehrspieler-Art">${kinds}</div>
+      <label>Spieler <select data-dset="min">${opt("min", [[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>
+      <label>Genre <select data-dset="g">${opt("g", [["", "alle"]].concat(C.genres.map(g => [g, g])), d.g)}</select></label>
+      <label>Laden <select data-dset="st">${opt("st", [["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>
+      <label>Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60"], [70, "ab 70"], [80, "ab 80"], [90, "ab 90"]], d.sc)}</select></label>
+      <label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>
+      ${label ? `<button class="link" data-act="dreset">Filter zurücksetzen</button>` : ""}
+    </div></details>`;
+  const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="Name oder Entwickler suchen" aria-label="Name oder Entwickler suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren" aria-label="Suche leeren">×</button>` : ""}</span>
+    <label class="kind">Sortierung <select data-dset="sort">${opt("sort", D_SORTS, d.sort)}</select></label>
+    ${d.sort === "random" ? `<button data-act="dshuffle">Neu mischen</button>` : ""}</div>`;
+  const pickCard = d.mix === "surprise" || d.mix === "wild" ? `<div class="card"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
+    ${pick.length ? `<div class="list">${pick.map(gameRow).join("")}</div>` : `<p class="hint">Nichts passt zu den Filtern.</p>`}
+    <div class="actions"><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
+  const at = S.imports.collection?.at;
+  return mixes + filters + bar + pickCard +
+    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Wertung, Genres und Mehrspieler stammen aus Playnite; ≈ heißt geschätzt.</p>
+    <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
+    ${rows.length > d.n ? `<div class="actions"><button data-act="dmore">${Math.min(50, rows.length - d.n)} weitere zeigen</button></div>` : ""}`;
 }
 
 /* ---------------------------------------------------------------- Jetzt */
@@ -474,7 +616,7 @@ function fileCard(){
       <label class="kind">Art <select id="kind-file">${[["auto", "erkennen"], ...Object.entries(FILE_KINDS)].map(([k, l]) => `<option value="${k}" ${V.kindFile === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
     <textarea id="txt-file" aria-label="Inhalt einfügen" placeholder="… oder Inhalt hier einfügen">${esc(V.txt?.file || "")}</textarea>
     <div class="bar"><button data-act="preview" data-v="file">Vorschau</button>
-      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="file">${p.n} übernehmen</button>` : ""}</div>
+      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="file">${p.collection ? "Übernehmen" : p.n + " übernehmen"}</button>` : ""}</div>
     ${p ? previewHtml(p) : ""}`, !p && !V.txt?.file, "imp-file");
 }
 /* Konten: bei jedem Abgleich automatisch gelesen */
@@ -504,9 +646,10 @@ function wishMoves(p){
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
-  if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
+  const col = p.collection ? ` Dazu die ganze Sammlung für Entdecken: ${p.collection.n} Spiele, ${p.collection.new} neu.` : "";
+  if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.${col}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
-  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu. Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
+  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu.${col} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
 /* ---------------------------------------------------------------- Bearbeiten */
@@ -614,6 +757,12 @@ document.addEventListener("click", async ev => {
   else if(a === "thmset") setTheme(v);
   else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
   else if(a === "sort"){ V.sort = v; render(); }
+  else if(a === "dmix"){ setMix(v); render(); }
+  else if(a === "dmp"){ const m = V.d.mp; V.d.mp = m.includes(v) ? m.filter(x => x !== v) : m.concat(v); V.d.mix = ""; V.d.n = 50; render(); }
+  else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort}); render(); }
+  else if(a === "dshuffle"){ V.d.seed = newSeed(); render(); }
+  else if(a === "dmore"){ V.d.n += 50; render(); }
+  else if(a === "dqclear"){ V.d.q = ""; render(); $("dq")?.focus(); }
   else if(a === "qclear"){ V.q = ""; render(); $("q")?.focus(); }
   else if(a === "foldall"){ $("main").querySelectorAll("details[data-kc]").forEach(d => { d.open = !!v; keepFold(d); }); saveView(); }
   else if(a === "jump"){
@@ -663,7 +812,7 @@ document.addEventListener("click", async ev => {
       const res = await api("/api/import", {kind: v === "file" ? V.kindFile || "auto" : v, text, dry: a === "preview"});
       V.prev[v] = a === "apply" ? Object.assign({done: true}, res, {state: null}) : res;
       if(res.state) S = res.state;
-      if(a === "apply") V.txt[v] = "";
+      if(a === "apply"){ V.txt[v] = ""; if(res.collection) C = null; }
     }catch(e){ V.prev[v] = {error: e.message}; }
     render("imp-" + v);
   }
@@ -671,9 +820,23 @@ document.addEventListener("click", async ev => {
 
 document.addEventListener("input", ev => {
   if(ev.target.dataset.in === "q"){ V.q = ev.target.value; V.focusQ = true; render(); V.focusQ = false; }
+  if(ev.target.dataset.in === "dq"){
+    V.d.q = ev.target.value; V.d.n = 50; render();
+    const q = $("dq"); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+  }
 });
 
 document.addEventListener("change", async ev => {
+  const ds = ev.target.dataset.dset;
+  if(ds){
+    const el = ev.target;
+    V.d[ds] = el.type === "checkbox" ? (el.checked ? 1 : 0) : typeof D0[ds] === "number" ? Number(el.value) || 0 : el.value;
+    if(ds === "sort" && el.value === "random") V.d.seed = newSeed();
+    if(ds !== "sort") V.d.mix = "";
+    V.d.n = 50;
+    render();
+    return;
+  }
   const kind = ev.target.dataset.file;
   if(!kind || !ev.target.files[0]) return;
   const f = ev.target.files[0];
@@ -682,7 +845,7 @@ document.addEventListener("change", async ev => {
   if(kind === "restore"){
     let obj;
     try{ obj = JSON.parse(text); }catch(e){ alert("Keine gültige Sicherung"); return; }
-    if(confirm(`Sicherung einspielen? Sie ersetzt alle ${S.counts.all} Titel.`)) act("/api/restore", {data: obj.data || obj});
+    if(confirm(`Sicherung einspielen? Sie ersetzt alle ${S.counts.all} Titel.`)) act("/api/restore", {data: obj.data || obj, collection: obj.collection});
     return;
   }
   V.txt = Object.assign(V.txt || {}, {[kind]: text});
@@ -736,9 +899,11 @@ document.addEventListener("keydown", ev => {
   if(ev.key !== "Escape") return;
   themeMenu(false);
   if(ev.target.id === "q" && V.q){ ev.preventDefault(); V.q = ""; render(); $("q")?.focus(); }
+  if(ev.target.id === "dq" && V.d.q){ ev.preventDefault(); V.d.q = ""; render(); $("dq")?.focus(); }
 });
 addEventListener("resize", navFade);
 $("nav").addEventListener("scroll", navFade);
 
 renderTheme();
+readFindHash();
 load().then(() => { if(META_IN !== null && S) metaHandOver(); });
