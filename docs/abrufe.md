@@ -113,8 +113,11 @@ der Schlüssel angenommen wird, und den Anfang der Antwort.
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils
   mit Zeitpunkt `at`. Werte älter als 48 Stunden markiert die Oberfläche. Ein Meta-Angebot,
   dessen Ende vorbei ist, zeigt sie wieder zum Normalpreis.
-- `history.json`: eigener Preisverlauf, je Quelle und Kennung (Meta-ID, Steam-App-ID) eine
-  Liste `[Tag, Preis]`; ein Eintrag nur, wenn sich der Preis ändert.
+- `history.json`: Preisverlauf, je Quelle und Kennung (Meta-ID, Steam-App-ID) eine
+  Liste `[Tag, Preis]`; ein Eintrag nur, wenn sich der Preis ändert. Bei Meta kommt der
+  Verlauf der QuestStoreDB-Titelseite dazu (je Tag gilt der eigene Wert). Daraus rechnet die
+  Ansicht den Bestpreis der letzten 24 Monate je Shop (`prices.best_of`); gespeichert wird er
+  nicht.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.

@@ -7,9 +7,11 @@ in der Git-Geschichte.
 
 ## 0.3 Wo kaufen
 
-Plan (22.10.2026): 0.3.2 Bestpreis je Shop aus 24 Monaten
-statt Abstand als Mittelpunkt, Abrufzeit nur bei Veraltung, 0.3.3 Meinungen als Datei
-einlesen, 0.3.4 Urteil.
+Plan (22.10.2026): 0.3.3 Meinungen als Datei einlesen, 0.3.4 Urteil (misst am üblichen
+Angebot, wenn der Bestpreis einmalig war).
+
+- Bestpreis am PC über 24 Monate mit IsThereAnyDeal (optionaler Schlüssel), solange der eigene
+  Steam-Verlauf kürzer ist; kleine Verlaufslinie im Bearbeiten-Fenster
 
 - Crossbuy aus der VRDB-Liste, Updates je Shop (Steam-Patchmeldungen, VRDB-Versions-Tracker)
 - Spielerzahl auf Steam mit eigenem Verlauf, Bewertungen je Shop

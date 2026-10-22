@@ -196,10 +196,9 @@ function searchBar(extra){
 
 /* ---------------------------------------------------------------- Wunschliste */
 function wishView(){
-  const sorts = [["name", "Name"], ["gap", "Abstand"], ["low", "Meta-Tief"]];
-  // Was du schon besitzt (Meta oder PC), fällt von der Wunschliste, außer du lässt es zeigen
+  const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"]];
   let rows = S.wishlist.filter(match);
-  const k = {gap: r => r.gap_now ?? r.gap ?? 1e9, low: r => r.live.meta?.low ?? r.sheet?.meta_low ?? 1e9}[V.sort];
+  const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0)}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   // Was du schon besitzt (Meta oder PC), steht in einer eigenen, zugeklappten Gruppe
   const open = rows.filter(r => !r.where), owned = rows.filter(r => r.where);
@@ -209,30 +208,43 @@ function wishView(){
   const ow = S.counts.owned_wish;
   const head = searchBar(`<span class="chips">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${V.sort === v ? "on" : ""}">${l}</button>`).join("")}</span>${ow ? foldAll : ""}`);
   if(!S.wishlist.length) return add + `<p class="hint">Noch keine Wunschtitel. Importiere deine Vergleichstabelle unter Einstellungen oder trage oben einen Titel ein.</p>`;
-  return add + head + `<p class="hint">Live-Preise von QuestStoreDB (Meta), Steam und gg.deals, Stand jeweils dabei; ohne Abruf gelten die Werte aus deiner Tabelle.
-    Abstand = Meta jetzt minus günstigstes PC-Angebot jetzt (bei Tabellenwerten: Meta-Tief minus gg.deals): <span class="gap-steam">+ PC günstiger</span>, <span class="gap-meta">− Meta günstiger</span>.</p>
+  return add + head + `<p class="hint">Preise bei Meta und Steam, das günstigere vorn, je Shop gemessen am Bestpreis der letzten 24 Monate:
+    <span class="star">★</span> am Bestpreis (bis 2 % darüber), „übliches Angebot“: so tief wie in mindestens zwei Angeboten. Darunter klein gg.deals (Keyshops zählen nicht mit) und die Differenz zwischen Meta und PC. Ohne Abruf gelten die Werte aus deiner Tabelle.</p>
     ${!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(wishRow).join("")}</div>`
       : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(wishRow).join("")}</div>`) +
         grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(wishRow).join("")}</div>`, true)}`;
 }
-
-function gapHtml(g, label){
-  return g != null ? `<span>${label} <span class="price ${g > 0 ? "gap-steam" : g < 0 ? "gap-meta" : ""}">${g > 0 ? "+" : ""}${eur(g)}</span></span>` : "";
+// Sortierschlüssel: wie nah der günstigere Shop an seinem Bestpreis liegt (1 = am Bestpreis)
+function nearBest(r){
+  const q = ["meta", "steam"].map(s => r.best?.[s] && r.live[s] ? r.live[s].price / r.best[s].best : null).filter(x => x != null);
+  return q.length ? Math.min(...q) : 1e9;
 }
-const stamp = (v, src) => `<span class="${v.stale ? "b warn" : ""}" title="${v.stale ? "Älter als zwei Tage: Abruf prüfen" : "Zeitpunkt des Abrufs"}">${src}, ${when(v.at)}</span>`;
-function liveHtml(r){
-  const L = r.live, m = L.meta, st = L.steam, g = L.gg, out = [];
-  if(m){
-    const sale = m.discount ? ` <span class="b deal">−${m.discount} %${m.kind === "coupon" ? " Gutschein" : ""}</span> ${until(m.until)}` : "";
-    out.push(`<span>Meta ${m.at_low ? `<span class="star" title="So günstig war der Titel bei Meta noch nie">★</span>` : ""}<span class="price">${eur(m.price)}</span>${m.discount ? ` <s>${eur(m.base)}</s>` : ""}${sale}${m.at_low ? ` <span class="b best" title="So günstig war der Titel bei Meta noch nie">Tiefstpreis</span>` : ""}</span>`);
-    if(m.low != null) out.push(`<span title="Tiefstpreis laut QuestStoreDB${m.low_at ? ", " + day(m.low_at) : ""}">Meta-Tief <span class="price">${eur(m.low)}</span></span>`);
+
+/* Ein Shop: Preis, Rabatt, Stufe zum Bestpreis (Farben nach docs/oberflaeche.md); der
+   Abrufzeitpunkt nur, wenn der Preis älter als zwei Tage ist */
+function offerHtml(shop, v, b){
+  const sale = v.discount ? ` <s>${eur(v.base)}</s> <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? " " + until(v.until) : ""}` : "";
+  let lv = "";
+  if(b && !b.thin){
+    const tip = `Bestpreis bei ${shop} ${b.full ? "in den letzten 24 Monaten" : "seit " + day(b.since)}: ${eur(b.best)} am ${day(b.best_at)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
+    if(b.level === "best") lv = ` <span class="star" title="${esc(tip)}">★</span><span class="b best" title="${esc(tip)}">am Bestpreis${b.full ? "" : " seit " + day(b.since)}</span>`;
+    else if(b.level === "usual") lv = ` <span class="hint" title="${esc(tip)}">übliches Angebot</span>`;
+    else lv = ` <span class="hint" title="${esc(tip)}">Bestpreis${b.full ? "" : " seit " + day(b.since)} ${eur(b.best)}${b.once && b.usual != null ? " einmalig, sonst " + eur(b.usual) : ""} (+${eur(b.over)})</span>`;
   }
-  if(st) out.push(`<span>Steam <span class="price">${eur(st.price)}</span>${st.discount ? ` <s>${eur(st.base)}</s> <span class="b deal">−${st.discount} %</span>` : ""}</span>`);
-  if(g && (g.retail != null || g.keyshops != null)) out.push(`<span title="gg.deals: Händler / Keyshops, darunter das bisherige Tief">gg.deals <span class="price">${eur(g.retail)}</span> / <span class="price">${eur(g.keyshops)}</span></span>`);
-  if(!out.length) return "";
-  out.push(gapHtml(r.gap_now, "Abstand"));
-  const st2 = [m && stamp(m, "QSDB"), st && stamp(st, "Steam"), g && stamp(g, "gg.deals")].filter(Boolean).join(" ");
-  return `<div class="row2">${out.join("")}</div><div class="row2 small">${st2}</div>`;
+  const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
+  return `<span>${shop} <span class="price">${eur(v.price)}</span>${sale}${lv}${old}</span>`;
+}
+function liveHtml(r){
+  const L = r.live, B = r.best || {}, g = L.gg;
+  const offers = [["Meta", L.meta, B.meta], ["Steam", L.steam, B.steam]].filter(o => o[1]).sort((a, b) => a[1].price - b[1].price);
+  const small = [];
+  if(g && (g.retail != null || g.keyshops != null)) small.push(`<span title="gg.deals: günstigster Händler und Keyshop. Keyshops zählen nicht für Bestpreis und Differenz.">gg.deals ${[
+    g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
+    g.retail_low != null && "Allzeit-Tief " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}</span>`);
+  if(r.gap_now) small.push(`<span title="Differenz: Meta jetzt gegenüber dem günstigsten PC-Angebot (Steam oder Händler)">${r.gap_now > 0 ? "PC" : "Meta"} ${eur(Math.abs(r.gap_now))} günstiger</span>`);
+  if(!offers.length && !small.length) return "";
+  return (offers.length ? `<div class="row2">${offers.map(o => offerHtml(...o)).join("")}</div>` : "") +
+    (small.length ? `<div class="row2 small">${small.join("")}</div>` : "");
 }
 
 function wishRow(r){
@@ -241,7 +253,7 @@ function wishRow(r){
     : `<div class="row2">${s ? `<span>Meta <span class="price">${eur(s.meta)}</span></span>
       <span>Meta-Tief <span class="price">${eur(s.meta_low)}</span></span>
       <span>gg.deals <span class="price">${eur(s.gg)}</span></span>
-      ${r.gap != null ? `<span>Abstand <span class="price ${r.gap > 0 ? "gap-steam" : r.gap < 0 ? "gap-meta" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span></span>` : ""}
+      ${r.gap != null ? `<span>Differenz <span class="price ${r.gap > 0 ? "gap-steam" : r.gap < 0 ? "gap-meta" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span></span>` : ""}
       <span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}</span>` : `<span>keine Preise</span>`}</div>`;
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
     <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>

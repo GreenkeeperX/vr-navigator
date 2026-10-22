@@ -357,6 +357,8 @@ def _qsdb(targets, upd, log):
             u["meta_id"] = g["meta_id"]
         if g["name"]:
             u["names"] = [g["name"]]
+        if g["hist"]:
+            u["meta_hist"] = g["hist"]
         u["qsdb"] = prices.QSDB + (g["path"] or path)
     log(f"QuestStoreDB, Angebotsliste: {len(sale)} Angebote auf {page - 1} Seiten"
         + (f", von deiner Wunschliste ({len(wished)}): {_few(wished)}" if wished else ", keines von deiner Wunschliste"))
@@ -479,6 +481,20 @@ def _gg(targets, upd, key, log):
     return src.result()
 
 
+def _merge_history(hist, src, ident, rows):
+    """Verlauf einer Quelle (QuestStoreDB) mit dem eigenen zusammenlegen: je Tag ein Preis, der
+    eigene Wert gilt, wo beide einen haben. Folgende gleiche Preise fallen weg."""
+    if not ident or not rows:
+        return
+    by_day = {str(d): p for d, p in rows if isinstance(p, (int, float))}
+    by_day.update({d: p for d, p in hist.get(src, {}).get(str(ident), [])})
+    out = []
+    for d in sorted(by_day):
+        if not out or out[-1][1] != by_day[d]:
+            out.append([d, by_day[d]])
+    hist.setdefault(src, {})[str(ident)] = out
+
+
 def _history(hist, src, ident, price, day):
     if not ident or price is None:
         return
@@ -538,6 +554,7 @@ def apply(upd):
                 ids["steam_appid"] = u["steam_appid"]
             if ids:
                 titles.set_ids(data, k, **ids)
+            _merge_history(hist, "meta", t.get("meta_id"), u.get("meta_hist"))
             _history(hist, "meta", t.get("meta_id"), (live.get("meta") or {}).get("price"), day)
             _history(hist, "steam", t.get("steam_appid"), (live.get("steam") or {}).get("price"), day)
             g = live.get("gg") or {}
