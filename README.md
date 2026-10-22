@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.3.3:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.3.4:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -38,7 +38,10 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   Ergebnis bleibt gespeichert); übernommen werden nur VR-Apps.
 - **gg.deals-Wunschliste:** der Link aus „Wunschliste teilen“. Es zählen Titel, die das Tool
   kennt (Name, früherer Name, Name aus einem Link), und Spiele, die es im Steam-Store unter
-  genau diesem Namen als VR-App findet.
+  genau diesem Namen als VR-App findet. Zeigt gg.deals dem Server eine Prüfseite (Cloudflare),
+  liest das Tool die Liste ab dann nur noch mit dem Lesezeichen „Seite lesen“ auf gg.deals und
+  versucht es erst wieder, wenn du den Link neu speicherst. Unbekannte Namen sucht der nächste
+  Abgleich nach.
 - **Sharenite:** der Link zu deinem öffentlichen Profil (Playnite online, mit allen Läden wie
   Steam, GOG, Epic). Übernommen werden Spiele mit einem Schlagwort „VR“ als Besitz am PC, mit
   dem Laden als Marke; gelesen wird höchstens alle 20 Stunden.
@@ -53,16 +56,18 @@ Vergleichstabelle tragen keine Quelle und bleiben, bis du sie nimmst. Nimmst du 
 Hand von der Liste, holt dieselbe Quelle ihn erst zurück, nachdem er dort einmal fehlte. Ist
 eine Wunschliste plötzlich leer, obwohl zuletzt Titel darauf standen, gilt die alte weiter.
 
-### Meta per Lesezeichen
+### Meta und gg.deals per Lesezeichen
 
-Meta hat keine Schnittstelle für die eigenen Käufe, und das Tool bekommt nie dein Passwort.
-Stattdessen ein Lesezeichen, wie „Käufe lesen“ im eShopKompass:
+Meta hat keine Schnittstelle für die eigenen Käufe, gg.deals lässt den Server nicht an die
+Wunschliste, und das Tool bekommt nie dein Passwort. Stattdessen ein Lesezeichen, wie „Käufe
+lesen“ im eShopKompass:
 
-1. Den Knopf „Meta lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“ und ein
+1. Den Knopf „Seite lesen“ einmal in die Lesezeichenleiste ziehen (oder „Code kopieren“ und ein
    Lesezeichen von Hand anlegen).
 2. Angemeldet die Transaktionen von Meta Pay, die Bestellseite für digitale Produkte oder deine
    Wunschliste im Meta Store öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in
-   Listen mit eigenem Rollbalken), bis alles geladen ist.
+   Listen mit eigenem Rollbalken), bis alles geladen ist. Auf deiner Wunschliste bei gg.deals
+   liest es alle Seiten (mit kurzer Pause dazwischen).
 3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt Käufe
    oder Wunschliste ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse
    hinter #, gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie
@@ -76,7 +81,10 @@ sagte. „Als Datei sichern“ im Kasten lädt die Daten stattdessen herunter.
 
 ### Datei oder Text
 
-Ein Feld für jede Datei; das Tool erkennt die Art am Aufbau und zeigt erst eine Vorschau:
+Ein Feld für jede Datei; das Tool erkennt die Art am Aufbau und zeigt erst eine Vorschau mit
+der erkannten Art. Liegt es daneben, wählst du die Art unter „Art“. Passt gar nichts sicher, liest
+es den Text als Meta-Bestellseite; findet es dort keinen einzigen Preis, meldet es das, statt
+still nichts zu übernehmen:
 
 - **Vergleichstabelle (CSV):** eine Zeile je Titel mit den Spalten `Spiel`, `meta`
   (Normalpreis im Meta Store), `Bestpreis` (Meta-Tief), `gg.deals best`, `Crossbuy` (Yes/No) und
@@ -102,6 +110,19 @@ und „Moon Rover (Bundle)“), führt das Tool nicht still zusammen. Es zeigt s
 Einstellungen, „Derselbe Titel?“: Ein Klick auf einen der beiden Namen führt zusammen und behält diesen Namen,
 „Verschieden“ trennt sie dauerhaft. Der andere Name bleibt als zweiter Name bekannt, damit ein
 späterer Import den Titel wiederfindet; dasselbe gilt nach dem Umbenennen unter „bearbeiten“.
+
+## Herkunft und Bundles
+
+Jeder Titel weiß, woher er kommt: Vergleichstabelle mit Zeile, Playnite, Meta-Käufe,
+Meta-, Steam- oder gg.deals-Wunschliste, Steam-Besitz, Sharenite, von Hand oder ein Bundle.
+Das steht unter „bearbeiten“ und bei jedem Fall unter „Zu erledigen“. Titel aus der Zeit vor
+0.3.4 zeigen eine vermutete Herkunft („≈“), abgeleitet aus Besitz, Wunschquellen und dem
+Zeitpunkt der Importe.
+
+Bei einem Bundle trägst du unter „bearbeiten“ die Spiele darin ein, je Feld ein Name oder Link,
+„+ Spiel“ fügt ein Feld an. Jedes Spiel wird ein eigener Titel mit dem Bundle als Herkunft;
+besitzt du das Bundle, besitzt du die Spiele auf derselben Seite. Ein Bundle mit Inhalt fällt
+aus „Ohne Meta-ID“ heraus.
 
 ## Zuordnung und „Zu erledigen“
 

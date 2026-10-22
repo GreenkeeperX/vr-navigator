@@ -84,6 +84,8 @@ def edit_title(body):
             t["note"] = _text(body["note"], 2000)
         if "wish" in body and bool(body["wish"]) != bool(t.get("wish")):
             titles.wish_by_hand(t, bool(body["wish"]))
+        if isinstance(body.get("contains"), list):
+            titles.set_bundle(data, key, body["contains"])
         if "crossbuy" in body:
             t["crossbuy"] = body["crossbuy"] if body["crossbuy"] in (True, False) else None
         for side in ("meta", "pc"):
@@ -125,6 +127,7 @@ def new_title(body):
         link = _text(body.get("link"), 500)
         k, _ = titles.upsert(data, name, titles.meta_id_from(link), titles.steam_id_from(link))
         t = data["titles"][k]
+        titles.note_origin(t, "hand")
         kind = titles.link_kind(link)
         if kind in ("vrdb", "qsdb"):
             t["links"][kind] = link

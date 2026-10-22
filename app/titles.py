@@ -178,6 +178,12 @@ def merge(data, keep, gone):
         a["wish_src"] = ws
     if a.get("crossbuy") is None:
         a["crossbuy"] = b.get("crossbuy")
+    if a.get("contains") or b.get("contains"):
+        a["contains"] = list(dict.fromkeys(list(a.get("contains") or []) + list(b.get("contains") or [])))
+    org = dict(b.get("origin") or {})
+    org.update(a.get("origin") or {})
+    if org:
+        a["origin"] = org
     if b.get("opinion") and (b["opinion"].get("at") or "") > ((a.get("opinion") or {}).get("at") or ""):
         a["opinion"] = b["opinion"]
     if b.get("sheet") and (not a.get("sheet") or (b["sheet"].get("at") or "") > (a["sheet"].get("at") or "")):
@@ -219,6 +225,54 @@ def upsert(data, name, meta_id="", steam_appid=""):
     return k, False
 
 
+# ------------------------------------------------------------------ Herkunft
+
+ORIGINS = {"sheet": "Vergleichstabelle", "playnite": "Playnite-Export", "meta": "Meta-Käufe",
+           "metawish": "Meta-Wunschliste", "steam": "Steam-Besitz", "steamwish": "Steam-Wunschliste",
+           "gg": "gg.deals-Wunschliste", "sharenite": "Sharenite", "hand": "von Hand",
+           "bundle": "Inhalt eines Bundles"}
+_IMPORT_ORIGIN = {"sheet": "sheet", "playnite": "playnite", "meta": "meta", "metawish": "metawish", "ggwish": "gg"}
+
+
+def note_origin(t, src, detail=""):
+    """Woher ein Titel kommt: je Quelle der erste Zeitpunkt und eine Angabe wie „Zeile 128“."""
+    o = t.setdefault("origin", {})
+    o.setdefault(src, {"at": now_iso()})
+    if detail:
+        o[src]["detail"] = str(detail)[:200]
+
+
+def origins(t, data=None):
+    """Herkunft zum Anzeigen: [{src, label, detail, at, guess}]. Titel aus der Zeit vor 0.3.4
+    tragen keine Herkunft; dann folgt sie aus Besitz, Wunschquellen und dem Zeitpunkt, zu dem
+    der Titel angelegt wurde (gleich dem eines Imports), und ist als vermutet markiert."""
+    out = {s: {"src": s, "label": ORIGINS.get(s, s), "detail": v.get("detail", ""), "at": v.get("at", ""), "guess": False}
+           for s, v in (t.get("origin") or {}).items() if isinstance(v, dict)}
+
+    def guess(src, at=""):
+        out.setdefault(src, {"src": src, "label": ORIGINS[src], "detail": "", "at": at, "guess": True})
+    o = t.get("owned") or {}
+    if (o.get("meta") or {}).get("src") == "meta":
+        guess("meta", o["meta"].get("at", ""))
+    pc = (o.get("pc") or {}).get("src")
+    if pc in ("playnite", "steam", "sharenite"):
+        guess(pc, o["pc"].get("at", ""))
+    for s in t.get("wish_src") or {}:
+        guess({"meta": "metawish", "steam": "steamwish", "gg": "gg", "hand": "hand"}.get(s, "hand"))
+    if t.get("sheet") is not None:
+        guess("sheet", t["sheet"].get("at", ""))
+    added = t.get("added") or ""
+    for imp, src in _IMPORT_ORIGIN.items():
+        at = ((data or {}).get("imports") or {}).get(imp, {}).get("at") or ""
+        try:
+            near = abs((datetime.fromisoformat(at) - datetime.fromisoformat(added)).total_seconds()) < 180
+        except ValueError:
+            near = False
+        if near:
+            guess(src, at)
+    return sorted(out.values(), key=lambda x: x["at"] or "~")
+
+
 # ------------------------------------------------------------------ Wunschliste aus Quellen
 
 WISH_SOURCES = {"meta": "Meta-Wunschliste", "steam": "Steam-Wunschliste", "gg": "gg.deals-Wunschliste",
@@ -241,6 +295,7 @@ def set_wishes(data, src, keys, stamp=None):
         if k in keys:
             if src in off:
                 continue
+            note_origin(t, {"meta": "metawish", "steam": "steamwish"}.get(src, src))
             ws.setdefault(src, stamp)
             if not t.get("wish"):
                 t["wish"] = True
@@ -264,6 +319,17 @@ def set_wishes(data, src, keys, stamp=None):
     return added, removed
 
 
+def add_wish(data, src, keys, stamp=None):
+    """Titel einer Quelle auf die Wunschliste nehmen, ohne die übrigen dieser Quelle anzutasten."""
+    stamp = stamp or now_iso()
+    for k in keys:
+        t = data["titles"].get(k)
+        if t and src not in (t.get("wish_off") or []):
+            t["wish_src"] = dict(t.get("wish_src") or {}, **{src: (t.get("wish_src") or {}).get(src, stamp)})
+            t["wish"] = True
+            note_origin(t, {"meta": "metawish", "steam": "steamwish"}.get(src, src))
+
+
 def wish_by_hand(t, on):
     """Wunsch von Hand setzen oder nehmen. Beim Nehmen merkt sich der Titel die Quellen, die ihn
     führten, damit der nächste Abgleich ihn nicht gleich zurückholt."""
@@ -271,6 +337,7 @@ def wish_by_hand(t, on):
     if on:
         t["wish"] = True
         ws["hand"] = now_iso()
+        note_origin(t, "hand")
         t["wish_src"] = ws
         t.pop("wish_off", None)
     else:
@@ -363,6 +430,49 @@ def steam_verdict(t, info):
     return True, ""
 
 
+def _link_name(link):
+    for rx in _SLUG_RES:
+        m = rx.search(link)
+        if m:
+            return m.group(1).replace("-", " ")
+    m = re.search(r"meta\.com/(?:[a-z]{2}-[a-z]{2}/)?experiences/([^/?#\s]+)/\d{6,}", link, re.I)
+    return m.group(1).replace("-", " ") if m and not m.group(1).isdigit() else ""
+
+
+def set_bundle(data, key, items):
+    """Inhalt eines Bundles festlegen: items sind Namen oder Links (Meta, QuestStoreDB, VRDB,
+    Steam). Jeder Eintrag wird als Titel gefunden oder angelegt und trägt das Bundle als Herkunft.
+    Besitzt du das Bundle, besitzt du die Spiele darin auf derselben Seite. Liefert die Schlüssel."""
+    t = data["titles"][key]
+    keys = []
+    for raw in items[:40]:
+        raw = str(raw or "").strip()[:500]
+        if not raw:
+            continue
+        link = raw if re.match(r"https?://", raw) else ""
+        mid, sid = meta_id_from(link), steam_id_from(link)
+        name = _link_name(link) if link else raw
+        if link and not (mid or sid):
+            raise ValueError(f"In diesem Link steht keine Meta- oder Steam-ID: {raw[:80]}")
+        k = find(data, mid, sid, name) if (name or mid or sid) else None
+        if k is None:
+            k, _ = upsert(data, name or f"Meta {mid}" if mid else name or f"Steam {sid}", mid, sid)
+        if k == key:
+            continue
+        it = data["titles"][k]
+        kind = link_kind(link)
+        if kind in ("vrdb", "qsdb"):
+            it.setdefault("links", {})[kind] = link
+        if sid:
+            it["steam_sure"] = True
+        note_origin(it, "bundle", t["name"])
+        for side, v in (t.get("owned") or {}).items():
+            it.setdefault("owned", {}).setdefault(side, {"src": "bundle", "label": t["name"][:60], "at": now_iso()})
+        keys.append(k)
+    t["contains"] = list(dict.fromkeys(keys))
+    return t["contains"]
+
+
 def todo(data):
     """Was das Tool nicht selbst klären konnte, je Titel mit Grund: Steam-IDs, die die Prüfung
     nicht bestätigt hat, und Titel, die QuestStoreDB unter keinem ihrer Namen fand (Meta-Käufe
@@ -372,7 +482,7 @@ def todo(data):
         if t.get("steam_appid") and not t.get("steam_sure") and t.get("steam_doubt"):
             out.append({"key": k, "name": t["name"], "kind": "steam", "steam_appid": t["steam_appid"],
                         "why": t["steam_doubt"]})
-        if t.get("meta_miss") and not t.get("meta_id") and \
+        if t.get("meta_miss") and not t.get("meta_id") and not t.get("contains") and \
                 ((t.get("owned") or {}).get("meta") or not t.get("steam_appid")):
             why = "bei QuestStoreDB nicht gefunden, gesucht als " + ", ".join(f"„{x}“" for x in store_names(t)[:4])
             if is_bundle(t):

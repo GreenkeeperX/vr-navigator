@@ -141,6 +141,7 @@ def apply_steam(data, owned, wished, apps, stamp=None):
         if k is None:
             continue
         t = data["titles"][k]
+        titles.note_origin(t, "steam")
         if not (t.get("owned") or {}).get("pc"):
             t.setdefault("owned", {})["pc"] = {"src": "steam", "label": "Steam", "at": stamp}
             if new:
@@ -157,18 +158,23 @@ def apply_steam(data, owned, wished, apps, stamp=None):
     return out
 
 
+def gg_match(data, items):
+    """Zu jedem Spiel einer gg.deals-Wunschliste der Schlüssel des Titels im Tool oder None:
+    Name, früherer Name, Name aus einem Link oder der Name aus der gg.deals-Adresse."""
+    names = {}
+    for k, t in data["titles"].items():
+        for x in titles.store_names(t) + list(t.get("aliases") or []):
+            names.setdefault(titles.base_norm(x), k)
+    return [titles.find(data, "", "", it["name"]) or names.get(titles.base_norm(it["name"]))
+            or names.get(titles.base_norm((it.get("slug") or "").replace("-", " "))) for it in items]
+
+
 def apply_gg_wishes(data, items, stamp=None):
     """Wunschliste von gg.deals eintragen. Ohne Steam-ID lässt sich nicht prüfen, ob ein Spiel VR
     kann; deshalb zählen nur Titel, die das Tool schon kennt (Name, früherer Name oder Name
     aus einem Link). Die übrigen nennt das Protokoll."""
     keys, unknown = [], []
-    names = {}
-    for k, t in data["titles"].items():
-        for x in titles.store_names(t) + list(t.get("aliases") or []):
-            names.setdefault(titles.base_norm(x), k)
-    for it in items:
-        k = titles.find(data, "", "", it["name"]) or names.get(titles.base_norm(it["name"])) \
-            or names.get(titles.base_norm(it["slug"].replace("-", " ")))
+    for it, k in zip(items, gg_match(data, items)):
         if k:
             keys.append(k)
         else:
@@ -232,6 +238,7 @@ def apply_sharenite(data, games, stamp=None):
         else:
             known += 1
         t = data["titles"][k]
+        titles.note_origin(t, "sharenite", g["source"])
         pc = (t.get("owned") or {}).get("pc")
         if not pc or pc.get("src") in ("playnite", "sharenite"):
             t.setdefault("owned", {})["pc"] = {"src": "sharenite", "label": g["source"] or "PC", "at": stamp}

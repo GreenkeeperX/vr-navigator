@@ -81,14 +81,14 @@ def parse_sheet(text):
     c_gg = _col(header, contains=("gg.deals", "ggdeals", "gg deals"))
     c_cb = _col(header, contains=("crossbuy", "cross-buy", "cross buy"))
     out = []
-    for row in rows[1:]:
+    for line, row in enumerate(rows[1:], start=2):
         name = row[c_name] if c_name < len(row) else ""
         if not name or re.match(r"https?://", name):
             continue
 
         def cell(c):
             return row[c] if c is not None and c < len(row) else ""
-        e = {"name": name, "meta_id": "", "steam_appid": "", "links": {},
+        e = {"name": name, "meta_id": "", "steam_appid": "", "links": {}, "row": line,
              "crossbuy": yes_no(cell(c_cb)),
              "sheet": {"meta": num(cell(c_meta)), "meta_low": num(cell(c_low)), "gg": num(cell(c_gg))}}
         for c in row:
@@ -116,6 +116,7 @@ def import_sheet(data, text, dry=True):
             continue
         k, _ = titles.upsert(data, e["name"], e["meta_id"], e["steam_appid"])
         t = data["titles"][k]
+        titles.note_origin(t, "sheet", f"Zeile {e['row']}")
         if e["steam_appid"]:
             t["steam_sure"] = True
         if e["crossbuy"] is not None:
@@ -183,6 +184,7 @@ def import_playnite(data, text, dry=True):
         k, _ = titles.upsert(data, e["name"], "", e["steam_appid"])
         t = data["titles"][k]
         t["steam_sure"] = bool(t.get("steam_sure") or e["steam_sure"])
+        titles.note_origin(t, "playnite", e["label"] if e["label"] != "PC" else "")
         t["owned"]["pc"] = {"src": "playnite", "label": e["label"], "at": titles.now_iso()}
     if not dry:
         data["imports"]["playnite"] = {"at": titles.now_iso(), "n": len(entries), "new": new}
@@ -359,6 +361,8 @@ def parse_meta(payload):
 
 
 def import_meta(data, payload, dry=True):
+    if _payload_kind(payload) == "gg-wunschliste":
+        return import_ggpage(data, payload, dry)
     if meta_is_wishlist(payload):
         return import_meta_wishlist(data, payload, dry)
     entries = parse_meta(payload)
@@ -372,6 +376,7 @@ def import_meta(data, payload, dry=True):
         k, _ = titles.upsert(data, e["name"], e["meta_id"], "")
         t = data["titles"][k]
         t["owned"]["meta"] = {"src": "meta", "at": titles.now_iso(), "price": e["price"]}
+        titles.note_origin(t, "meta")
     if not dry:
         data["imports"]["meta"] = {"at": titles.now_iso(), "n": len(entries), "new": new}
     return _summary(data, entries, dry, new)
@@ -396,6 +401,53 @@ def import_meta_wishlist(data, payload, dry=True):
         res["wish_added"], res["wish_removed"] = titles.set_wishes(data, "meta", keys)
         data["imports"]["metawish"] = {"at": titles.now_iso(), "n": len(entries), "new": new}
     res["what"] = "Meta-Wunschliste"
+    return res
+
+
+def _payload_kind(payload):
+    try:
+        obj = json.loads(str(payload or "").strip())
+    except ValueError:
+        return ""
+    return str(obj.get("kind") or "") if isinstance(obj, dict) else ""
+
+
+# ------------------------------------------------------------------ gg.deals-Wunschliste per Lesezeichen
+
+def parse_ggpage(payload):
+    """Wunschliste von gg.deals aus dem Lesezeichen: [{slug, name}]. Das Lesezeichen läuft im
+    Browser, der die Prüfseite von Cloudflare schon bestanden hat; der Server kommt dort nicht durch."""
+    obj = json.loads(str(payload).strip())
+    out, seen = [], set()
+    for it in (obj.get("items") if isinstance(obj.get("items"), list) else [])[:3000]:
+        if not isinstance(it, dict):
+            continue
+        slug = str(it.get("slug") or "")
+        if not re.fullmatch(r"[a-z0-9-]{1,150}", slug) or slug in seen:
+            continue
+        seen.add(slug)
+        name = " ".join(html.unescape(str(it.get("name") or "")).split())[:200]
+        out.append({"slug": slug, "name": name or slug.replace("-", " ")})
+    return out
+
+
+def import_ggpage(data, payload, dry=True):
+    """Ersetzt, was die gg.deals-Wunschliste zuletzt sagte (wie der Abruf über den Teilen-Link).
+    Unbekannte Namen sucht der nächste Abgleich im Steam-Store (data["gg_unknown"])."""
+    from . import accounts
+    items = parse_ggpage(payload)
+    if not items:
+        raise ValueError("Keine Spiele auf der gg.deals-Wunschliste erkannt. Bitte die Seite neu laden und noch einmal versuchen")
+    entries = [{"name": it["name"], "known": k is not None} for it, k in zip(items, accounts.gg_match(data, items))]
+    res = _summary(data, entries, dry, 0)
+    if not dry:
+        r = accounts.apply_gg_wishes(data, items)
+        res.update(wish_added=r["wish_added"], wish_removed=r["wish_removed"], unknown=r["unknown"])
+        data["gg_unknown"] = r["unknown"]
+        data["imports"]["ggwish"] = {"at": titles.now_iso(), "n": len(items), "new": 0, "via": "Lesezeichen"}
+    res["what"] = "gg.deals-Wunschliste"
+    res["note"] = ("Gezählt werden Titel, die das Tool schon kennt. Die übrigen sucht der nächste Abgleich im "
+                   "Steam-Store und nimmt sie auf, wenn sie VR können.")
     return res
 
 
@@ -513,7 +565,7 @@ def detect(text):
             obj = json.loads(t)
         except ValueError:
             raise ValueError("Die Datei sieht nach JSON aus, ist aber keins")
-        if isinstance(obj, dict) and str(obj.get("kind") or "").startswith("meta"):
+        if isinstance(obj, dict) and (str(obj.get("kind") or "").startswith("meta") or obj.get("kind") == "gg-wunschliste"):
             return "meta"
         if isinstance(obj, dict) and obj.get("app") == OPINION_MARK:
             return "opinions"
@@ -534,9 +586,21 @@ def detect(text):
 
 
 def import_auto(data, text, dry=True):
+    """Art erkennen und einlesen. Passt nichts sicher, liest das Tool den Text als Seite der
+    Meta-Bestellungen (guess); findet es dort nichts, meldet es das, statt still nichts zu tun."""
     kind = detect(text)
-    res = IMPORTERS[kind](data, text, dry=dry)
-    res["kind"] = kind
+    guess = kind == "meta" and not str(text or "").lstrip("\ufeff").lstrip().startswith("{")
+    try:
+        res = IMPORTERS[kind](data, text, dry=dry)
+    except ValueError:
+        if guess:
+            raise ValueError("Die Art der Datei ist nicht zu erkennen. Wähle sie oben unter „Art“ aus.")
+        raise
+    if guess and not any(e.get("price") is not None or e.get("meta_id") for e in res.get("entries") or []):
+        # Text der Bestellseite trägt Preise; ohne einen einzigen ist es wohl etwas anderes
+        raise ValueError("Die Art der Datei ist nicht zu erkennen: kein Kopf einer bekannten Tabelle und keine Käufe "
+                         "im Text. Wähle sie oben unter „Art“ aus.")
+    res.update(kind=kind, guess=guess)
     res.setdefault("what", KINDS[kind])
     return res
 
