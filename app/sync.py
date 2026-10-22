@@ -24,7 +24,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, prices, sources, store, titles
+from . import accounts, collection, prices, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -40,7 +40,7 @@ BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger h
 LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
-         "gg": "gg.deals"}
+         "gg": "gg.deals", "reviews": "Steam-Rezensionen"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -52,6 +52,8 @@ ASSIGN_SEARCH = 15          # QuestStoreDB-Suchen je Lauf für Titel außerhalb 
 GG_WISH_PAGES = 10
 SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
 SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
+REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekanntheit, Geheimtipps)
+REVIEWS_DAYS = 30           # so alt darf eine Rezensionszahl werden
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "gg_wish": "", "sharenite": ""}
 SECRETS = ("gg_key", "steam_key", "gg_wish")      # bleiben auf dem Server, nie im Protokoll
@@ -795,6 +797,46 @@ def _gg_pending(log, budget):
     return {"at": stamp, "ok": True, "requests": n, "errors": 0, "msg": "", "via": "Lesezeichen"}
 
 
+def _reviews(log):
+    """Steam-Rezensionen für die Sammlung (Entdecken): Anzahl und Anteil positiv je Steam-Spiel,
+    zuerst die ohne Wert, dann die ältesten; höchstens REVIEWS_MAX je Lauf, nach REVIEWS_DAYS
+    neu. Bei einem vermuteten Laden bestätigt eine Antwort mit Rezensionen die Steam-ID."""
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    old = _iso(now() - timedelta(days=REVIEWS_DAYS))
+    todo = sorted(((g.get("rev") or {}).get("at") or "", k) for k, g in (col.get("games") or {}).items()
+                  if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
+                  and ((g.get("rev") or {}).get("at") or "") < old)
+    src = _Source("Steam-Rezensionen", log)
+    if not todo:
+        log("Steam-Rezensionen: alle aktuell" if col.get("games") else "Steam-Rezensionen: keine Sammlung, nichts zu tun")
+        return src.result()
+    start, got = time.monotonic(), {}
+    batch = todo[:REVIEWS_MAX]
+    for i, (_, k) in enumerate(batch):
+        progress("Steam-Rezensionen", i, len(batch))
+        g = col["games"][k]
+        text = src.get(f"{STEAM}/appreviews/{g['id']}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
+                       shown=f"Rezensionen {g['id']}")
+        if text is None:
+            if src.stopped:
+                break
+            continue
+        r = prices.steam_reviews(text)
+        got[k] = dict(r or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso())
+    with store.lock:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        for k, r in got.items():
+            if k in col.get("games", {}):
+                col["games"][k]["rev"] = r
+        store.save_json(collection.FILE, col)
+    known = sum(1 for r in got.values() if r.get("n"))
+    left = len(todo) - len(got)
+    log(f"Steam-Rezensionen: {len(got)} Spiele gelesen, {known} mit Rezensionen"
+        + (f", {left} noch offen (je Lauf {REVIEWS_MAX})" if left else ", alle aktuell") + f", {_took(start)}")
+    src.stats = {"read": len(got), "left": left}
+    return src.result()
+
+
 def _sharenite(settings, log):
     """PC-Bibliothek aus einem öffentlichen Sharenite-Profil (Playnite online, alle Läden). Liest
     erst Seite 1 für die Kennungen der VR-Schlagwörter, dann nur die gefilterte Liste; fehlt der
@@ -1038,6 +1080,8 @@ def run(only=None, boot=False, by_hand=False):
             do("gg", lambda: _gg(targets, upd, settings["gg_key"], log))
         else:
             log("gg.deals: kein Schlüssel eingetragen, nicht abgefragt")
+        if not only or "reviews" in only:
+            do("reviews", lambda: _reviews(log))
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)
@@ -1174,6 +1218,11 @@ def diagnose():
     sname = (st or t or {}).get("name") or "vr"
     probe("Steam, Suche", f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": sname, "l": "german", "cc": "DE"}),
           lambda text: f"{len(prices.steam_search(text))} Treffer für „{sname}“")
+
+    def rev_info(text):
+        r = prices.steam_reviews(text)
+        return f"App {appid}: {r['n']} Rezensionen, {r['pct']} % positiv" if r and r["n"] else f"App {appid}: keine Rezensionen erkannt"
+    probe("Steam, Rezensionen", f"{STEAM}/appreviews/{appid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
 
     if not key:
         lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")
