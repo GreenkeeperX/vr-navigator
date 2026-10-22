@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.0:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.1:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -210,9 +210,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
   Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen, die Wertung aus Community- oder
   Expertenwertung mit Angabe der Quelle. Ein Laden, der nur aus der Kennung vermutet ist,
-  trägt „≈“. Der Geheimtipp-Wert G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5)
-  braucht die Zahl der Steam-Rezensionen; bis sie abgerufen sind, ist er grob geschätzt und
-  ohne Marke.
+  trägt „≈“. Für Steam-Spiele holt der Abgleich nach und nach die Steam-Rezensionen (100 je
+  Lauf, siehe [docs/abrufe.md](docs/abrufe.md)): ab 50 Rezensionen gilt die Wertung „Steam“
+  (Anteil positiv), die Zahl zeigt die Bekanntheit (Sortierung „Bekanntheit“). Der
+  Geheimtipp-Wert G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5) ist hoch bei guter
+  Wertung und wenigen Rezensionen; die Marke „Geheimtipp“ steht ab 0,2. Ohne Rezensionszahl ist
+  er grob geschätzt und ohne Marke.
 
 Farben haben je eine Bedeutung: Rabatt blau, ★ und „am Bestpreis“ Gold, Prüfen und Veraltetes
 violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den

@@ -140,7 +140,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -272,14 +272,14 @@ function wishRow(r){
 let C = null, cLoading = false;
 const D0 = {mp: [], min: 0, g: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 50};
 V.d = Object.assign({}, D0);
-const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
+const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
 const MIXES = [
   ["surprise", "Überrasch mich", "Drei Spiele per Zufall aus dem, was die Filter gerade zeigen; gut bewertete und Geheimtipps kommen öfter", null],
   ["duo", "Koop zu zweit", "Koop-Spiele für zwei, die besten zuerst", {mp: ["coop"], min: 2}],
   ["couch", "Couch-Abend", "Lokal an einem Rechner: Couch-Koop oder Splitscreen", {mp: ["couch"]}],
   ["big", "Große Runde", "Mindestens vier Spieler", {min: 4}],
-  ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt; bis die Steam-Rezensionen abgerufen sind nur grob geschätzt", {sc: 80, sort: "gem"}],
+  ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt (wenige Steam-Rezensionen); wo die Zahl noch fehlt, grob geschätzt", {sc: 80, sort: "gem"}],
   ["old", "Gut, lange her", "Wertung ab 80, seit über zwei Jahren in der Sammlung, in zufälliger Folge", {sc: 80, old: 1, sort: "random"}],
   ["wild", "Wilde Mischung", "Würfelt eine Mehrspieler-Art und ein Genre zusammen und zieht drei Vorschläge", null],
 ];
@@ -320,7 +320,7 @@ function dFilter(d){
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q)));
 }
 function dSort(rows, d){
-  const by = {score: g => -(g.score ?? -1), gem: g => -g.gem, added: g => g.added ? -Date.parse(g.added) : 0,
+  const by = {score: g => -(g.score ?? -1), gem: g => -g.gem, known: g => -(g.reviews ?? -1), added: g => g.added ? -Date.parse(g.added) : 0,
               year: g => -(Number(g.year) || 0)}[d.sort];
   if(d.sort === "random"){
     const r = mulberry(d.seed || 1), a = rows.slice();
@@ -365,7 +365,8 @@ function gameRow(g){
   return `<div class="item"><span class="nm">${name}</span>${mp}
     ${g.players ? `<span class="b" title="Höchste Spielerzahl laut Playnite">bis ${g.players}</span>` : ""}
     ${g.gem >= 0.2 && !g.gem_guess ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
-    <div class="row2">${g.score != null ? `<span title="Aus Playnite übernommen: ${g.score_src === "Kritik" ? "Expertenwertung" : "Communitywertung"}">${esc(g.score_src)} ${g.score}</span>` : ""}
+    <div class="row2">${g.score != null ? `<span title="${g.score_src === "Steam" ? "Anteil positiver Steam-Rezensionen" : "Aus Playnite übernommen: " + (g.score_src === "Kritik" ? "Expertenwertung" : "Communitywertung")}">${esc(g.score_src)} ${g.score}${g.score_src === "Steam" ? " %" : ""}</span>` : ""}
+      ${g.reviews != null ? `<span title="Zahl der Steam-Rezensionen: Maß für die Bekanntheit">${g.reviews.toLocaleString("de-DE")} Rezensionen</span>` : ""}
       ${g.genres.length ? `<span>${g.genres.map(esc).join(", ")}</span>` : ""}
       ${g.year ? `<span>${esc(g.year)}</span>` : ""}
       ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
@@ -401,7 +402,7 @@ function findView(){
     <div class="actions"><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
   const at = S.imports.collection?.at;
   return mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Wertung, Genres und Mehrspieler stammen aus Playnite; ≈ heißt geschätzt.</p>
+    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler stammen aus Playnite, die Wertung von Steam (ab 50 Rezensionen) oder aus Playnite; ≈ heißt geschätzt.</p>
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
     ${rows.length > d.n ? `<div class="actions"><button data-act="dmore">${Math.min(50, rows.length - d.n)} weitere zeigen</button></div>` : ""}`;
 }
@@ -417,7 +418,7 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
-  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"]];
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;

@@ -170,6 +170,20 @@ def steam_prices(text):
     return out
 
 
+def steam_reviews(text):
+    """appreviews mit num_per_page=0: Zahl der Rezensionen und Anteil positiv in Prozent.
+    None, wenn Steam die App nicht kennt oder die Antwort nicht passt."""
+    try:
+        d = json.loads(text)
+    except ValueError:
+        return None
+    q = d.get("query_summary") if isinstance(d, dict) and d.get("success") == 1 else None
+    if not isinstance(q, dict) or not isinstance(q.get("total_reviews"), int):
+        return None
+    n, pos = q["total_reviews"], int(q.get("total_positive") or 0)
+    return {"n": n, "pct": round(100 * pos / n) if n else None, "desc": str(q.get("review_score_desc") or "")[:40]}
+
+
 def steam_search(text):
     """storesearch: Liste von {appid, name} (nur Spiele, keine Zusatzinhalte-Typen)."""
     try:

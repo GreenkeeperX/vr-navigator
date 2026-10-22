@@ -109,6 +109,18 @@ Nur mit eigenem, kostenlosem Schlüssel (gg.deals, Einstellungen, API). Der Schl
 Das Antwortformat ist noch nicht gegen die echte API geprüft. „Verbindung testen“ zeigt, ob
 der Schlüssel angenommen wird, und den Anfang der Antwort.
 
+## Steam-Rezensionen (Entdecken)
+
+Nur mit einer Sammlung (Playnite-Export). Ohne Schlüssel, nach den Preisen.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Rezensionen | `https://store.steampowered.com/appreviews/<App-ID>?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary` | je Lauf höchstens 100 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 30 Tagen neu | Zahl der Rezensionen und Anteil positiv |
+
+Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. Hat ein Spiel mit
+nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter
+`rev` in `collection.json`; ein neuer Playnite-Export behält es.
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils
@@ -122,3 +134,5 @@ der Schlüssel angenommen wird, und den Anfang der Antwort.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
+- `collection.json`: die ganze PC-Sammlung für Entdecken, je Spiel Merkmale aus Playnite und
+  `rev` (Steam-Rezensionen).

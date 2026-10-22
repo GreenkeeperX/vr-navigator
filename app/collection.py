@@ -241,6 +241,13 @@ def view(col):
              "score_src": g.get("score_src") or "", "year": (g.get("released") or "")[:4],
              "added": g.get("added") or "", "dev": g.get("dev") or "", "url": link(k, g)}
         r["gem"], r["gem_guess"] = gem(g)
+        rev = g.get("rev") or {}
+        r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
+        if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
+            # Wertung von Steam, sobald genug Rezensionen da sind; Playnite bleibt Rückfall
+            r["score"], r["score_src"] = rev["pct"], "Steam"
+        if r["guess"] and r["reviews"]:
+            r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
         rows.append(r)
     rows.sort(key=lambda r: titles.norm(r["name"]))
     return {"at": col.get("at") or "", "n": len(rows), "games": rows, "mp_label": MP_LABEL,

@@ -822,6 +822,30 @@ class TestSync(unittest.TestCase):
         server.edit_title({"key": gk, "steam_sure": True})
         self.assertTrue(store.load_data()["titles"][gk]["steam_sure"])
 
+    def test_reviews(self):
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION))
+        col["games"]["steam:3000101"]["rev"] = {"n": 10, "pct": 90, "at": titles.now_iso()}   # frisch: kein Abruf
+        store.save_json(collection.FILE, col)
+        ans = json.dumps({"success": 1, "query_summary": {"num_reviews": 0, "review_score": 8, "review_score_desc": "Very Positive",
+                                                          "total_positive": 276, "total_negative": 24, "total_reviews": 300}})
+        net = FakeNet({"appreviews/3000103": ans})
+        sources.fetch = net
+        sync.run(only={"reviews"})
+        self.assertEqual(len(net.calls), 1)
+        self.assertIn("num_per_page=0", net.calls[0])
+        g = store.load_json(collection.FILE, {})["games"]
+        self.assertEqual((g["steam:3000103"]["rev"]["n"], g["steam:3000103"]["rev"]["pct"]), (300, 92))
+        self.assertEqual(g["steam:3000101"]["rev"]["n"], 10)
+        rows = {r["key"]: r for r in collection.view({"games": g})["games"]}
+        q = rows["steam:3000103"]
+        self.assertEqual((q["score"], q["score_src"], q["reviews"], q["guess"], q["gem"], q["gem_guess"]),
+                         (92, "Steam", 300, False, 0.37, False))
+        self.assertEqual(rows["steam:3000101"]["score_src"], "Community")   # unter 50 Rezensionen
+        self.assertIn("reviews", store.load_json("sync.json", {})["sources"])
+        self.assertIsNone(prices.steam_reviews('{"success": 2}'))
+        self.assertEqual(prices.steam_reviews('{"success": 1, "query_summary": {"total_reviews": 0}}')["pct"], None)
+
     def test_ggwish_manual(self):
         """gg.deals sperrt den Server: Wunschliste ab dann per Lesezeichen, unbekannte Namen
         sucht der Abgleich nach; ein neu gespeicherter Link versucht es wieder."""
