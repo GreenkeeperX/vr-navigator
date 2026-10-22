@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.1:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.2:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -44,7 +44,9 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   Abgleich nach.
 - **Sharenite:** der Link zu deinem öffentlichen Profil (Playnite online, mit allen Läden wie
   Steam, GOG, Epic). Übernommen werden Spiele mit einem Schlagwort „VR“ als Besitz am PC, mit
-  dem Laden als Marke; gelesen wird höchstens alle 20 Stunden.
+  dem Laden als Marke; gelesen wird höchstens alle 20 Stunden. Spiele nur für Konsolen (alle
+  Plattformen PlayStation, Xbox oder Nintendo, oder Laden PlayStation ohne Plattform) zählen
+  nicht als Besitz am PC; gibt es dasselbe Spiel auch für den PC, zählt dieser Eintrag.
 
 Schlüssel und Wunschlisten-Link bleiben auf deinem Server, nicht in der Sicherung, nicht im
 Protokoll, nie zurück im Browser.
@@ -95,7 +97,10 @@ still nichts zu übernehmen:
   Steam-App-ID sicher (ebenso, wenn unter `Kategorien` ein bekannter Laden wie Steam, GOG oder
   Epic steht), sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“). Dieselbe
   Datei füllt außerdem die ganze Sammlung für **Entdecken** mit allen Spielen außer den
-  versteckten; ein neuer Export ersetzt sie.
+  versteckten; ein neuer Export ersetzt sie. Spiele nur für Konsolen bleiben draußen, in
+  Bibliothek und Sammlung: erkannt an der Spalte `Plattformen` (steht auch ein PC dabei, zählen
+  sie) oder, ohne sie, an Kennungen der PlayStation-Bibliothek wie `CUSA01234_00`. Ein Export nur
+  der PlayStation-Bibliothek ändert daher nichts; die Sammlung bleibt dann stehen.
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 - **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere

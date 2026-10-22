@@ -13,7 +13,7 @@ import html
 import json
 import re
 
-from . import titles
+from . import collection, titles
 
 # Kategorien im Steam-Store: VR Support, VR Supported, VR Only
 VR_CATEGORIES = {31, 53, 54}
@@ -214,8 +214,10 @@ def sharenite_page(text):
             if v and v not in pills[kind.lower()]:
                 pills[kind.lower()].append(v)
         tags = pills.get("tag", []) + pills.get("category", [])
-        games.append({"name": name[:200], "source": (pills.get("source") or [""])[0],
-                      "tags": tags, "vr": any(_VR.search(x) for x in tags)})
+        source = (pills.get("source") or [""])[0]
+        games.append({"name": name[:200], "source": source, "platforms": pills.get("platform", []),
+                      "tags": tags, "vr": any(_VR.search(x) for x in tags),
+                      "console": collection.console_only(pills.get("platform", []), source)})
     m = _SN_TOTAL.search(text or "")
     total = int(re.sub(r"\D", "", m.group(1))) if m else None
     vr_tags = [v for v, label in _SN_OPTION.findall(text or "") if _VR.search(_txt(label)) and v != "__none__"]
@@ -230,6 +232,13 @@ def apply_sharenite(data, games, stamp=None):
     known, new = 0, []
     for g in games:
         k = titles.find(data, "", "", g["name"])
+        if g.get("console"):
+            # Nur für Konsole (etwa PS4): kein Besitz am PC. Ein früher so eingetragener Besitz
+            # fällt weg; hast du das Spiel auch am PC, trägt es der PC-Eintrag wieder ein.
+            pc = ((data["titles"].get(k) or {}).get("owned") or {}).get("pc") if k else None
+            if pc and pc.get("src") == "sharenite" and collection.store_of(pc.get("label")) == "PlayStation":
+                del data["titles"][k]["owned"]["pc"]
+            continue
         if k is None and not g["vr"]:
             continue
         if k is None:

@@ -60,14 +60,19 @@ def settings_view():
 def import_collection(data, text, dry):
     """Der Playnite-Export füllt neben der Bibliothek (VR-Titel) auch die ganze Sammlung für
     Entdecken. Die Zusammenfassung steht unter imports.collection in data.json."""
-    games = collection.parse(text)
+    stats = {}
+    games = collection.parse(text, stats=stats)
     col = store.load_json(collection.FILE, collection.EMPTY)
+    console = stats.get("console", 0)
+    if not games:
+        # etwa ein Export nur der PlayStation-Bibliothek: die vorhandene Sammlung bleibt
+        return {"n": 0, "new": 0, "console": console, "kept": len(col.get("games") or {})}
     if dry:
-        return {"n": len(games), "new": sum(k not in (col.get("games") or {}) for k in games)}
+        return {"n": len(games), "new": sum(k not in (col.get("games") or {}) for k in games), "console": console}
     new = collection.replace(col, games)
     store.save_json(collection.FILE, col)
     data["imports"]["collection"] = {"at": col["at"], "n": len(games), "new": new}
-    return {"n": len(games), "new": new}
+    return {"n": len(games), "new": new, "console": console}
 
 
 def state():
