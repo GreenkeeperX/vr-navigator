@@ -403,6 +403,23 @@ def qsdb_list(*cards, pages=1):
 
 
 class TestPrices(unittest.TestCase):
+    def test_best_of(self):
+        """Bestpreis aus 24 Monaten: ein einmaliges Tief und das übliche Angebot daneben."""
+        hist = [["2023-01-01", 5.0], ["2024-01-01", 30.0], ["2025-03-01", 15.0], ["2025-03-10", 30.0],
+                ["2025-11-01", 12.0], ["2025-11-08", 30.0], ["2026-03-01", 15.2], ["2026-03-08", 30.0]]
+        b = prices.best_of(hist, "2026-10-22")
+        self.assertEqual((b["best"], b["best_at"], b["once"], b["usual"]), (12.0, "2025-11-01", True, 15.0))
+        self.assertEqual(b["since"], "2024-10-22")         # das Tief von 2023 liegt davor
+        self.assertIsNone(prices.best_of([], "2026-10-22"))
+        lvl = lambda p: library._best({"meta": {"1": hist}}, "meta", "1", p, "2026-10-22")
+        self.assertEqual(lvl(12.2)["level"], "best")
+        self.assertEqual(lvl(15.0)["level"], "usual")
+        self.assertEqual((lvl(30.0)["level"], lvl(30.0)["over"]), ("", 18.0))
+        # QuestStoreDB-Verlauf und eigener Verlauf: je Tag ein Preis, der eigene gilt
+        h = {"meta": {"1": [["2026-10-20", 9.0]]}}
+        sync._merge_history(h, "meta", "1", [["2026-01-01", 20.0], ["2026-10-20", 8.0], ["2026-10-21", 9.0]])
+        self.assertEqual(h["meta"]["1"], [["2026-01-01", 20.0], ["2026-10-20", 9.0]])
+
     def test_qsdb_game(self):
         g = prices.qsdb_game(qsdb_game_html("Sky Garden", "1111111111111111", 4.49, 8.99, "2026-11-02",
                                             [(1700000000000, 8.99), (1750000000000, 3.99), (1790000000000, 4.49)]))
@@ -530,8 +547,17 @@ class TestSync(unittest.TestCase):
         v = library.view(d)
         self.assertEqual([r["name"] for r in v["now"]], ["Laser Tennis", "Deep Dive"])
         r = next(r for r in v["wishlist"] if r["name"] == "Deep Dive")
-        self.assertEqual(r["pc_best"], {"price": 11.0, "src": "gg.deals Keyshop"})
-        self.assertEqual(r["gap_now"], 8.99)
+        # Keyshops zählen nicht für das PC-Angebot
+        self.assertEqual(r["pc_best"], {"price": 14.99, "src": "Steam"})
+        self.assertEqual(r["gap_now"], 5.0)
+        # Bestpreis aus dem Verlauf: Meta mit dem Verlauf von QuestStoreDB, Steam aus dem eigenen
+        v = library.view(store.load_data(), hist=store.load_json("history.json", {}))
+        lt = next(r for r in v["wishlist"] if r["name"] == "Laser Tennis")
+        self.assertEqual(lt["best"]["meta"]["best"], 9.0)
+        self.assertEqual(lt["best"]["meta"]["level"], "best")
+        self.assertLess(lt["best"]["meta"]["since"], "2025-01-01")
+        dd2 = next(r for r in v["wishlist"] if r["name"] == "Deep Dive")
+        self.assertEqual(dd2["best"]["steam"]["since"], sync.now().strftime("%Y-%m-%d"))
         # Zweiter Lauf: Titelseiten sind frisch, also nur Angebotsliste und Steam
         net.calls.clear()
         sync.run()

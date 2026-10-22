@@ -58,7 +58,7 @@ def settings_view():
 
 
 def state():
-    return dict(library.view(store.load_data()), version=sources.VERSION,
+    return dict(library.view(store.load_data(), hist=store.load_json("history.json", {})), version=sources.VERSION,
                 sync=sync.status(), settings=settings_view())
 
 

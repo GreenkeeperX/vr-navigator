@@ -6,7 +6,7 @@ Werte. So lassen sie sich mit gespeicherten Beispielen prüfen. Alle Preise in E
 import html
 import json
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 QSDB = "https://queststoredb.com"
 
@@ -48,7 +48,7 @@ def qsdb_game(text):
     offer = next((o for o in app.get("offers") or [] if o.get("priceCurrency") == "EUR"), None)
     out = {"name": html.unescape(app.get("name") or ""), "meta_id": "", "price": None, "base": None,
            "until": "", "low": None, "low_at": "", "rating": None, "ratings": None,
-           "version": app.get("softwareVersion") or "", "path": ""}
+           "version": app.get("softwareVersion") or "", "path": "", "hist": []}
     url = app.get("url") or ""
     pm = re.search(r"queststoredb\.com(/(?:game|app|bundle|add-on)/[a-z0-9-]*?-?(\d{6,})/)", url)
     if pm:
@@ -68,12 +68,48 @@ def qsdb_game(text):
         except ValueError:
             pts = []
         if pts:
+            out["hist"] = [[_ts_day(p["x"]), p["y"]] for p in sorted(
+                (p for p in pts if isinstance(p.get("x"), (int, float))), key=lambda p: p["x"])]
             low = min(pts, key=lambda p: (p["y"], -p.get("x", 0)))
             out["low"] = low["y"]
             out["low_at"] = _ts_day(low["x"]) if isinstance(low.get("x"), (int, float)) else ""
     if out["price"] is None and out["low"] is None:
         return None
     return out
+
+
+BEST_MONTHS = 24
+BEST_TOL = 0.02         # bis 2 % darüber zählt als „am Bestpreis“ oder „am üblichen Angebot“
+
+
+def best_of(hist, today, months=BEST_MONTHS):
+    """Bestpreis aus einem Verlauf [[Tag, Preis]] (je Eintrag der Preis ab diesem Tag) über die
+    letzten `months` Monate. Liefert {best, best_at, since, once, usual} oder None:
+    best ist der niedrigste Preis (best_at der letzte Tag damit), since der Beginn des
+    Zeitraums (später als vor 24 Monaten, wenn der Verlauf kürzer ist; full ist dann False). once: der Bestpreis kam
+    nur in einem einzigen Zeitraum vor. usual: der niedrigste Preis, der in mindestens zwei
+    getrennten Zeiträumen galt (bis 2 % darüber), das übliche Angebot; None ohne Wiederholung."""
+    d = date.fromisoformat(today)
+    y, m = divmod(d.year * 12 + d.month - 1 - months, 12)
+    cut = date(y, m + 1, min(d.day, 28)).isoformat()
+    rows = sorted((str(d), float(p)) for d, p in (r for r in hist or [] if isinstance(r, (list, tuple)) and len(r) == 2)
+                  if d and isinstance(p, (int, float)))
+    if not rows:
+        return None
+    before = [r for r in rows if r[0] < cut]
+    win = ([(cut, before[-1][1])] if before else []) + [r for r in rows if r[0] >= cut]
+
+    def episodes(limit):
+        n, inside = 0, False
+        for _, p in win:
+            hit = p <= limit * (1 + BEST_TOL) + 0.005
+            n += hit and not inside
+            inside = hit
+        return n
+    best = min(p for _, p in win)
+    usual = next((p for p in sorted({p for _, p in win}) if episodes(p) >= 2), None)
+    return {"best": best, "best_at": max(d for d, p in win if p == best), "since": win[0][0],
+            "once": episodes(best) < 2, "usual": usual, "full": bool(before)}
 
 
 def qsdb_cards(text):

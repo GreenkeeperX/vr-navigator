@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.3.1:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.3.2:** Bibliothek, Wunschliste, Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -127,7 +127,7 @@ Unter **Einstellungen**, Abgleich, startet „Jetzt abrufen“ einen Abgleich; d
 alle 6 Stunden). Erst liest er die eingerichteten Konten, dann Preise für die Wunschtitel, die du
 noch nicht besitzt:
 
-- **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Tiefstpreis,
+- **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Preisverlauf,
   Bewertung, App-Version). Fehlt die Meta-ID, sucht das Tool den Titel per Namen.
 - **Steam-Store:** Preise in Euro. Fehlt die Steam-App-ID, sucht das Tool im Store nach genau
   demselben Namen.
@@ -151,21 +151,27 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 ## Ansichten
 
 - **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, der größte Rabatt
-  zuerst, mit Ende des Angebots und „Tiefstpreis“, wenn es bei Meta nie günstiger war.
+  zuerst, mit Ende des Angebots und der Stufe zum Bestpreis.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   „nicht mehr wünschen“ nimmt einen Titel von der Liste (mit Rückgängig).
-  Je Titel Meta jetzt (mit Rabatt und Ende), Meta-Tief, Steam, gg.deals (Händler / Keyshops)
-  und der Abstand: Meta jetzt minus günstigstes PC-Angebot jetzt; Plus heißt PC günstiger.
-  Jeder Wert trägt Quelle und Zeitpunkt, ältere als zwei Tage sind violett markiert. Ohne Abruf
-  gelten die Werte der Tabelle, gekennzeichnet mit „Tabelle“ und Datum (Abstand dort: Meta-Tief
-  minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
+  Je Titel eine Zeile mit Meta und Steam, das günstigere vorn, mit Rabatt und Ende. Jeder Preis
+  wird am **Bestpreis** seines Shops gemessen, dem niedrigsten Preis der letzten 24 Monate:
+  ★ „am Bestpreis“ (bis 2 % darüber), „übliches Angebot“ (so tief wie in mindestens zwei
+  getrennten Angeboten) oder grau „Bestpreis 9,99 € (+5,00 €)“. Gab es den Bestpreis nur einmal,
+  steht „einmalig, sonst …“ mit dem üblichen Angebot dabei. Für Meta reicht der Verlauf von
+  QuestStoreDB Jahre zurück, für Steam zählt der eigene Verlauf („seit …“, solange er kürzer
+  als 24 Monate ist; ohne jede Preisänderung noch keine Stufe). Darunter klein gg.deals
+  (Händler, Keyshop, Allzeit-Tief; Keyshops zählen nicht mit) und die Differenz („PC 3,00 €
+  günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter als zwei Tage ist.
+  Sortieren nach Name, „Nah am Bestpreis“ und Rabatt. Ohne Abruf gelten die Werte der Tabelle,
+  gekennzeichnet mit „Tabelle“ und Datum (Differenz dort: Meta-Tief minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
   QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
   Was du dort findest, gehört in die Notiz.
 - **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
   „Nur am PC“, mit Suche.
 
-Farben haben je eine Bedeutung: Rabatt blau, ★ und „Tiefstpreis“ Gold, Prüfen und Veraltetes
+Farben haben je eine Bedeutung: Rabatt blau, ★ und „am Bestpreis“ Gold, Prüfen und Veraltetes
 violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den
 Betrag, um den Meta teurer ist. Gruppen und Karten klappen, der Browser merkt sich, was du
 zuklappst; „alle aufklappen · alle zuklappen“ steht darüber, eine Suche öffnet alles. Das
