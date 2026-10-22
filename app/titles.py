@@ -36,6 +36,31 @@ def base_norm(title):
     return n or norm(title)
 
 
+_SLUG_RES = (
+    re.compile(r"vrdb\.app/game/([^/?#\s]+)/\d{6,}", re.I),
+    re.compile(r"queststoredb\.com/(?:game|app|add-on|bundle)/([^/?#\s]+?)-\d{6,}", re.I),
+)
+
+
+def store_names(t):
+    """Namen, unter denen die Shops den Titel wohl führen: der eigene Name, derselbe ohne
+    Klammer am Ende und, wenn ein VRDB- oder QuestStoreDB-Link da ist, der Name aus dessen
+    Adresse. Der passt zur Meta-ID, auch wenn der Name aus einer Tabelle anders lautet."""
+    out = [t["name"], re.sub(r"\s*[(\[][^)\]]*[)\]]\s*$", "", t["name"])]
+    if t.get("meta_id"):
+        for link in (t.get("links") or {}).values():
+            for rx in _SLUG_RES:
+                m = rx.search(str(link or ""))
+                if m:
+                    out.append(m.group(1).replace("-", " "))
+    seen, names = set(), []
+    for x in out:
+        if x and norm(x) not in seen:
+            seen.add(norm(x))
+            names.append(x)
+    return names
+
+
 # ------------------------------------------------------------------ Kennungen aus Links
 
 _META_RES = (
@@ -187,19 +212,24 @@ def upsert(data, name, meta_id="", steam_appid=""):
 
 def suggestions(data):
     """Paare, die wohl derselbe Titel sind, aber nicht sicher: gleicher Name ohne Klammer- und
-    VR-Zusatz, einer nur mit Meta-, der andere nur mit Steam- oder PC-Seite. Abgelehnte Paare
-    (data["not_same"]) kommen nicht wieder."""
+    VR-Zusatz, einer nur mit Meta-, der andere nur mit Steam- oder PC-Seite. Verglichen werden
+    auch die Namen aus VRDB- und QuestStoreDB-Links (store_names) und alles ohne Leerzeichen
+    („Sky-Glider“ ist „SkyGlider“), so findet ein Tabellentitel
+    mit abweichendem Namen seinen Meta-Kauf. Abgelehnte Paare (data["not_same"]) kommen nicht wieder."""
     rejected = {tuple(sorted(p)) for p in data.get("not_same") or [] if isinstance(p, list) and len(p) == 2}
     by_base = {}
     for k, t in data["titles"].items():
-        by_base.setdefault(base_norm(t["name"]), []).append(k)
-    out = []
+        for b in dict.fromkeys(base_norm(x).replace(" ", "") for x in store_names(t)):
+            by_base.setdefault(b, []).append(k)
+    out, seen = [], set()
     for keys in by_base.values():
         for i, a in enumerate(keys):
             for b in keys[i + 1:]:
                 ta, tb = data["titles"][a], data["titles"][b]
-                if tuple(sorted((a, b))) in rejected:
+                pair = tuple(sorted((a, b)))
+                if a == b or pair in rejected or pair in seen:
                     continue
+                seen.add(pair)
                 if (ta.get("meta_id") and tb.get("meta_id")) or (ta.get("steam_appid") and tb.get("steam_appid")):
                     continue          # zwei Kennungen derselben Art: sicher verschiedene Einträge
                 out.append({"a": a, "b": b, "a_name": ta["name"], "b_name": tb["name"]})

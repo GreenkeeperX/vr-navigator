@@ -524,6 +524,54 @@ class TestSync(unittest.TestCase):
         sync.run()
         self.assertFalse(any("/game/" in u for u in net.calls))
 
+    def test_search_by_link_name(self):
+        """Tabellenname weicht vom Store ab: Suche unter dem Namen aus dem VRDB-Link, Treffer über
+        die Meta-ID. Fehlschläge einer älteren Suche (search_v) zählen nicht."""
+        d = empty()
+        k, _ = titles.upsert(d, "Sternfahrt (Fassung aus der Tabelle)", meta_id="4444444444444444")
+        t = d["titles"][k]
+        t.update(wish=True, meta_miss=titles.now_iso(), steam_miss=titles.now_iso())
+        t["links"]["vrdb"] = "https://vrdb.app/game/star-ride/4444444444444444"
+        o, _ = titles.upsert(d, "Star Ride")
+        d["titles"][o]["owned"] = {"meta": {"src": "meta"}}
+        store.save_data(d)
+        self.assertEqual(titles.store_names(t), ["Sternfahrt (Fassung aus der Tabelle)", "Sternfahrt", "star ride"])
+        self.assertEqual([(x["a_name"], x["b_name"]) for x in titles.suggestions(d)],
+                         [("Sternfahrt (Fassung aus der Tabelle)", "Star Ride")])
+        store.save_json("sync.json", {"started": "2026-10-20T10:00:00+00:00", "search_v": 1})
+        sources.fetch = net = FakeNet({
+            "q=star+ride": qsdb_list(qsdb_card("Star Ride", "4444444444444444", 12.0, kind="base")),
+            "all_apps": qsdb_list(),
+            "/game/star-ride-4444444444444444/": qsdb_game_html("Star Ride", "4444444444444444", 12.0, 12.0),
+            "storesearch": json.dumps({"items": []}),
+            "/on_sale/": qsdb_list(),
+        })
+        sync.run()
+        searches = [u for u in net.calls if "all_apps" in u]
+        self.assertEqual(len(searches), 3)          # voller Name, ohne Klammer, Name aus dem Link
+        t = store.load_data()["titles"][k]
+        self.assertEqual(t["live"]["meta"]["price"], 12.0)
+        log = "\n".join(sync.status()["log"])
+        self.assertIn("Suche geändert", log)
+        self.assertIn("QuestStoreDB, Suche: 3 Anfragen, 1 Titel gefunden", log)
+        self.assertIn("Abgleich für 1 Wunschtitel, nach Zeitplan", log)
+        self.assertIn("Stand: 1 Wunschtitel, mit Preis bei Meta 1", log)
+        # Nächster Lauf: neue Suche gilt, der Steam-Fehlschlag wartet seine 7 Tage ab
+        net.calls.clear()
+        sync.run()
+        self.assertFalse(any("storesearch" in u for u in net.calls))
+        self.assertIn("nächste Suche ab", "\n".join(sync.status()["log"]))
+
+    def test_price_moves_in_log(self):
+        d = empty()
+        k, _ = titles.upsert(d, "Laser Tennis", meta_id="2222222222222222")
+        d["titles"][k].update(wish=True, live={"meta": {"price": 10.0, "base": 10.0, "low": 9.0}})
+        store.save_data(d)
+        got = sync.apply({k: {"meta": {"price": 8.0, "base": 10.0}}})
+        self.assertEqual(got["moves"]["down"], ["Laser Tennis (Meta 10,00 € → 8,00 €)"])
+        self.assertEqual(got["moves"]["low"], ["Laser Tennis 8,00 €"])
+        self.assertEqual(got["coverage"]["has"]["meta"], 1)
+
     def test_blocked_source_stops(self):
         self.seed()
         sources.fetch = net = FakeNet({"queststoredb.com": 429, "storesearch": json.dumps({"items": []}),

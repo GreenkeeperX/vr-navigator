@@ -5,11 +5,6 @@ Reihenfolge nach Nutzen. Das Konzept dahinter: Kaufentscheidung erst nach Qualit
 Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md), wann es dazukam,
 in der Git-Geschichte.
 
-## Offen aus 0.2
-
-- das gg.deals-Format gegen die echte Antwort prüfen (sobald ein Schlüssel da ist; „Verbindung
-  testen“ zeigt den Anfang der Antwort)
-
 ## 0.3 Wo kaufen
 
 - Steam-Besitz und -Wunschliste über die Steam Web API (Schlüssel in den Einstellungen)

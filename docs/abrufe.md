@@ -19,6 +19,11 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
 
 - **Protokoll:** jede Quelle schreibt, was sie tut, live während des Laufs (letzte 200 Zeilen,
   Zeit in UTC, die Oberfläche zeigt die Zeit des Browsers). Unter Einstellungen, Protokoll, zum Lesen und Kopieren.
+  Je Lauf: Anlass (von Hand, nach Zeitplan, nach dem Start); je Quelle Angebote samt
+  Wunschtiteln darin, gelesene und noch aktuelle Titelseiten, was folgt, Suchen mit Treffern,
+  Titeln ohne Treffer und dem Tag der nächsten Suche, Dauer und Anfragen; danach
+  Preisänderungen (günstiger, teurer, neuer Meta-Tiefstpreis), der Stand der Wunschliste je
+  Quelle mit den Titeln ganz ohne Preis, die Selbstprüfung und die Gesamtdauer.
 - **Selbstprüfung** nach jedem Lauf: keine Angebote erkannt, obwohl es beim letzten Lauf welche
   gab; Titelseiten ohne lesbaren Preis; keine Preise für bekannte App-IDs bei Steam oder
   gg.deals; Normalpreise, die sich um mehr als 50 % ändern. Treffer stehen im Protokoll und als
@@ -41,9 +46,12 @@ Das Tool schickt das Cookie `currency=EUR`, damit Listen und Preisverlauf in Eur
 Titelseite trägt die Preise als strukturierte Daten (JSON-LD, ein Angebot je Währung) und den
 Preisverlauf als JSON für das Diagramm; daraus stammt der Tiefstpreis.
 
-Die Suche gilt als Treffer, wenn die Meta-ID gleich ist oder genau ein Ergebnis denselben
-Namen trägt. Ohne Treffer sucht das Tool sieben Tage nicht erneut nach dem Titel; eine von Hand
-eingetragene Meta-ID hebt die Pause auf.
+Gesucht wird nacheinander unter dem Namen, dem Namen ohne Klammer am Ende und, bei bekannter
+Meta-ID, dem Namen aus dem VRDB- oder QuestStoreDB-Link (der passt zur ID, auch wenn der Name
+aus der Tabelle anders lautet). Die Suche gilt als Treffer, wenn die Meta-ID gleich ist oder
+genau ein Ergebnis einen dieser Namen trägt. Ohne Treffer sucht das Tool sieben Tage nicht
+erneut nach dem Titel; eine von Hand eingetragene Meta-ID hebt die Pause auf, ebenso eine
+geänderte Suche (`search_v` in `sync.json`). Die Steam-Suche geht genauso vor.
 
 ## Steam-Store
 

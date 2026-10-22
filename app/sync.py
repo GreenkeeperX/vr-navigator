@@ -32,12 +32,14 @@ MAX_PAGES = 60
 MAX_SEARCH = 30
 MAX_ERRORS = 5
 MISS_DAYS = 7               # nicht gefundene Titel erst nach so vielen Tagen erneut suchen
+SEARCH_V = 2                # Stand der Suche; ändert sie sich, gelten alte Fehlschläge nicht mehr
 REST_H = 24                 # Ruhezeit einer Quelle nach Sperre oder Prüfseite
 NET_RETRY = 5.0             # Pause vor dem zweiten Versuch nach einem Netzfehler
 BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger her ist
 LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"qsdb": "QuestStoreDB", "steam": "Steam", "gg": "gg.deals"}
+SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
 GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
@@ -45,6 +47,7 @@ GG_API = "https://api.gg.deals/v1/prices/by-steam-app-id/"
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6}
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
+_old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
 _running = threading.Lock()
 # Stand des laufenden Abgleichs, live für die Oberfläche
 STATE = {"started": "", "step": "", "done": 0, "total": 0, "log": []}
@@ -176,22 +179,65 @@ def _targets(data):
 
 def _missed(t, field):
     """Suche nach diesem Titel schlug vor weniger als MISS_DAYS fehl."""
+    if _old_misses["ignore"]:
+        return False
     return (t.get(field) or "") > (now() - timedelta(days=MISS_DAYS)).isoformat(timespec="seconds")
 
 
+def _retry_day(items, field):
+    """Tag, an dem die erste der übersprungenen Suchen wieder fällig ist."""
+    first = min((t.get(field) or "" for t in items), default="")
+    try:
+        return (datetime.fromisoformat(first) + timedelta(days=MISS_DAYS)).strftime("%d.%m.")
+    except ValueError:
+        return "?"
+
+
+def _few(names, n=12):
+    """Namen fürs Protokoll, höchstens n."""
+    names = list(names)
+    return ", ".join(names[:n]) + (f" und {len(names) - n} weitere" if len(names) > n else "")
+
+
+def _took(start):
+    s = int(time.monotonic() - start)
+    return f"{s // 60}:{s % 60:02d} min"
+
+
 def _pick(cards, t):
-    """Den passenden Treffer einer Suche: gleiche Meta-ID, sonst genau ein gleicher Name."""
+    """Den passenden Treffer einer Suche: gleiche Meta-ID, sonst genau einer, dessen Name zu
+    einem der Namen aus titles.store_names passt."""
     if t.get("meta_id"):
         hit = [c for c in cards if c["meta_id"] == t["meta_id"]]
         if hit:
             return hit[0]
-    same = [c for c in cards if titles.norm(c["name"]) == titles.norm(t["name"])]
+    names = {titles.norm(x) for x in titles.store_names(t)}
+    same = [c for c in cards if titles.norm(c["name"]) in names]
     return same[0] if len(same) == 1 else None
+
+
+def _search(src, t, url, pick, budget):
+    """Sucht den Titel unter jedem Namen aus titles.store_names, bis einer passt. Liefert
+    (Treffer, Zahl der Suchen, ohne Treffer). ohne Treffer ist False, wenn eine Anfrage scheiterte
+    oder das Budget nicht für alle Namen reichte; dann gilt die Suche nicht als fehlgeschlagen."""
+    n = 0
+    for name in titles.store_names(t):
+        if n >= budget or src.stopped:
+            return None, n, False
+        n += 1
+        text = src.get(url(name))
+        if text is None:
+            return None, n, False
+        hit = pick(text)
+        if hit:
+            return hit, n, False
+    return None, n, True
 
 
 def _qsdb(targets, upd, log):
     src = _Source("QuestStoreDB", log, QSDB_HEAD)
     stamp = titles.now_iso()
+    start = time.monotonic()
     # 1. Angebotsliste
     sale, pages, page = {}, 1, 1
     while page <= min(pages, MAX_SALE_PAGES):
@@ -204,9 +250,11 @@ def _qsdb(targets, upd, log):
         for c in prices.qsdb_cards(text):
             sale.setdefault(c["meta_id"], c)
         page += 1
+    wished = []
     for k, t in targets.items():
         c = sale.get(t.get("meta_id") or "")
         if c and c["price"] is not None:
+            wished.append(t["name"])
             u = upd.setdefault(k, {})
             u["meta"] = {"price": c["price"], "base": c["base"], "discount": c["discount"],
                          "until": c["until"], "kind": c["kind"], "at": stamp}
@@ -215,9 +263,14 @@ def _qsdb(targets, upd, log):
     todo = sorted((((t.get("live") or {}).get("meta") or {}).get("page_at") or "", k)
                   for k, t in targets.items())
     searches = pages_done = parsed = 0
+    fresh, later, found, missed, waiting, unread = 0, 0, [], [], [], []
     due_n = min(MAX_PAGES, sum(p <= old for p, _ in todo))
     for page_at, k in todo:
-        if page_at > old or pages_done >= MAX_PAGES or src.stopped:
+        if page_at > old:
+            fresh += 1
+            continue
+        if pages_done >= MAX_PAGES or src.stopped:
+            later += 1
             continue
         progress("QuestStoreDB: Titelseiten", pages_done, due_n)
         t = targets[k]
@@ -226,23 +279,30 @@ def _qsdb(targets, upd, log):
         if not path and link.startswith(prices.QSDB + "/"):
             path = link[len(prices.QSDB):]
         if not path:
-            if searches >= MAX_SEARCH or _missed(t, "meta_miss"):
+            if _missed(t, "meta_miss"):
+                waiting.append(t)
                 continue
-            searches += 1
-            q = urllib.parse.urlencode({"release_status": "all", "q": t["name"]})
-            text = src.get(f"{prices.QSDB}/all_apps/?{q}")
-            hit = _pick(prices.qsdb_cards(text), t) if text else None
+            if searches >= MAX_SEARCH:
+                later += 1
+                continue
+
+            def url(name):
+                return f"{prices.QSDB}/all_apps/?" + urllib.parse.urlencode({"release_status": "all", "q": name})
+            hit, n, miss = _search(src, t, url, lambda text: _pick(prices.qsdb_cards(text), t), MAX_SEARCH - searches)
+            searches += n
             if not hit:
-                if text is not None:
+                if miss:
                     upd.setdefault(k, {})["meta_miss"] = stamp
+                    missed.append(t["name"])
                 continue
+            found.append(t["name"])
             path = hit["path"]
         text = src.get(prices.QSDB + path)
         pages_done += 1
         g = prices.qsdb_game(text) if text else None
         if not g:
             if text is not None:
-                log(f"QuestStoreDB: kein Preis lesbar auf {path}")
+                unread.append(path)
             continue
         parsed += 1
         u = upd.setdefault(k, {})
@@ -258,7 +318,18 @@ def _qsdb(targets, upd, log):
         if g["meta_id"]:
             u["meta_id"] = g["meta_id"]
         u["qsdb"] = prices.QSDB + (g["path"] or path)
-    log(f"QuestStoreDB: {len(sale)} Angebote, {pages_done} Titelseiten ({parsed} lesbar), {searches} Suchen")
+    log(f"QuestStoreDB, Angebotsliste: {len(sale)} Angebote auf {page - 1} Seiten"
+        + (f", von deiner Wunschliste ({len(wished)}): {_few(wished)}" if wished else ", keines von deiner Wunschliste"))
+    log(f"QuestStoreDB, Titelseiten: {pages_done} gelesen ({parsed} lesbar), {fresh} aktuell (jünger als {PAGE_AGE_H} h)"
+        + (f", {later} folgen beim nächsten Abgleich" if later else ""))
+    if unread:
+        log(f"QuestStoreDB, Titelseiten ohne lesbaren Preis ({len(unread)}): {_few(unread, 6)}")
+    if searches or waiting:
+        log(f"QuestStoreDB, Suche: {searches} Anfragen, {len(found)} Titel gefunden"
+            + (f", ohne Treffer ({len(missed)}): {_few(missed)}" if missed else "")
+            + (f"; {len(waiting)} ohne Treffer in den letzten {MISS_DAYS} Tagen, nächste Suche ab {_retry_day(waiting, 'meta_miss')}"
+               if waiting else ""))
+    log(f"QuestStoreDB: fertig nach {_took(start)}, {src.n} Anfragen" + (f", {src.errors} Fehler" if src.errors else ""))
     src.stats = {"sale": len(sale), "pages": pages_done, "parsed": parsed, "searches": searches}
     return src.result()
 
@@ -266,26 +337,46 @@ def _qsdb(targets, upd, log):
 def _steam(targets, upd, log):
     src = _Source("Steam", log)
     stamp = titles.now_iso()
+    start = time.monotonic()
     ids = {}
-    searches = 0
+    searches, later, hits, missed, waiting = 0, 0, [], [], []
     for k, t in targets.items():
         if t.get("steam_appid"):
             ids[k] = t["steam_appid"]
             continue
-        if searches >= MAX_SEARCH or src.stopped or _missed(t, "steam_miss"):
+        if _missed(t, "steam_miss"):
+            waiting.append(t)
             continue
-        searches += 1
+        if searches >= MAX_SEARCH or src.stopped:
+            later += 1
+            continue
         progress("Steam: Suche", searches, 0)
-        q = urllib.parse.urlencode({"term": t["name"], "l": "german", "cc": "DE"})
-        text = src.get(f"{STEAM}/api/storesearch/?{q}")
-        same = [i for i in prices.steam_search(text or "") if titles.norm(i["name"]) == titles.norm(t["name"])]
-        if len(same) == 1:
-            ids[k] = same[0]["appid"]
-            upd.setdefault(k, {})["steam_appid"] = same[0]["appid"]
-        elif text is not None:
+        names = {titles.norm(x) for x in titles.store_names(t)}
+
+        def pick(text):
+            same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) in names]
+            return same[0] if len(same) == 1 else None
+        hit, n, miss = _search(src, t, lambda name: f"{STEAM}/api/storesearch/?"
+                               + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}),
+                               pick, MAX_SEARCH - searches)
+        searches += n
+        if hit:
+            ids[k] = hit["appid"]
+            upd.setdefault(k, {})["steam_appid"] = hit["appid"]
+            hits.append(t["name"])
+        elif miss:
             upd.setdefault(k, {})["steam_miss"] = stamp
+            missed.append(t["name"])
+    if searches or waiting or later:
+        # Viele Quest-Titel gibt es auf Steam nicht; ohne Treffer ist hier der Normalfall
+        log(f"Steam, Suche: {searches} Anfragen, {len(hits)} App-IDs gefunden"
+            + (f" ({_few(hits)})" if hits else "")
+            + (f", ohne Treffer {len(missed)}" if missed else "")
+            + (f"; {len(waiting)} ohne Treffer in den letzten {MISS_DAYS} Tagen, nächste Suche ab {_retry_day(waiting, 'steam_miss')}"
+               if waiting else "")
+            + (f"; {later} folgen beim nächsten Abgleich" if later else ""))
     keys = list(ids)
-    found = 0
+    found, sale, none = 0, [], []
     for i in range(0, len(keys), 50):
         chunk = keys[i:i + 50]
         progress("Steam: Preise", i // 50 + 1, (len(keys) + 49) // 50)
@@ -299,7 +390,14 @@ def _steam(targets, upd, log):
             if p:
                 found += 1
                 upd.setdefault(k, {})["steam"] = dict(p, at=stamp)
-    log(f"Steam: {found} Preise für {len(keys)} App-IDs, {searches} Suchen")
+                if p.get("discount"):
+                    sale.append(targets[k]["name"])
+            else:
+                none.append(targets[k]["name"])
+    log(f"Steam, Preise: {found} Preise für {len(keys)} App-IDs"
+        + (f", im Angebot ({len(sale)}): {_few(sale)}" if sale else ", keiner im Angebot")
+        + (f"; ohne Preis im deutschen Store ({len(none)}): {_few(none, 6)}" if none else ""))
+    log(f"Steam: fertig nach {_took(start)}, {src.n} Anfragen" + (f", {src.errors} Fehler" if src.errors else ""))
     src.stats = {"ids": len(keys), "found": found, "searches": searches}
     return src.result()
 
@@ -313,7 +411,7 @@ def _gg(targets, upd, key, log):
         if a:
             ids.setdefault(a, []).append(k)
     apps = list(ids)
-    found = 0
+    found, retail, keyshop, seen = 0, 0, 0, set()
     for i in range(0, len(apps), 100):
         progress("gg.deals: Preise", i // 100 + 1, (len(apps) + 99) // 100)
         q = urllib.parse.urlencode({"ids": ",".join(apps[i:i + 100]), "region": "de"})
@@ -328,10 +426,14 @@ def _gg(targets, upd, key, log):
             src.stopped = "abgelehnt"
             break
         for a, p in got.items():
+            seen.add(a)
+            retail += p["retail"] is not None
+            keyshop += p["keyshops"] is not None
             for k in ids.get(a, []):
                 found += 1
                 upd.setdefault(k, {})["gg"] = dict(p, at=stamp)
-    log(f"gg.deals: {found} Preise für {len(apps)} App-IDs")
+    log(f"gg.deals: {found} Preise für {len(apps)} App-IDs, {retail} mit Händlerpreis, {keyshop} mit Keyshop-Preis"
+        + (f", {len(apps) - len(seen)} ohne Eintrag bei gg.deals" if len(seen) < len(apps) else ""))
     src.stats = {"ids": len(apps), "found": found}
     return src.result()
 
@@ -349,6 +451,7 @@ def apply(upd):
     Titel, die es inzwischen nicht mehr gibt, fallen weg."""
     day = now().strftime("%Y-%m-%d")
     jumps = 0
+    moves = {"down": [], "up": [], "low": []}     # fürs Protokoll: günstiger, teurer, neuer Tiefstpreis
     with store.lock:
         data = store.load_data()
         hist = store.load_json("history.json", {})
@@ -363,12 +466,18 @@ def apply(upd):
                     old = (live.get(src) or {}).get("base")
                     if old and v.get("base") is not None and abs(v["base"] - old) > JUMP * old:
                         jumps += 1
+                    was = (live.get(src) or {}).get("price" if src != "gg" else "retail")
+                    new = v.get("price" if src != "gg" else "retail")
+                    if was is not None and new is not None and new != was:
+                        moves["down" if new < was else "up"].append(f"{t['name']} ({SHOPS[src]} {_eur(was)} → {_eur(new)})")
                     if src == "meta":
                         prev = live.get("meta") or {}
                         for f in ("low", "low_at", "rating", "ratings", "version", "path", "page_at"):
                             if v.get(f) is None and prev.get(f) is not None:
                                 v[f] = prev[f]
                         if v.get("price") is not None and (v.get("low") is None or v["price"] < v["low"]):
+                            if prev.get("low") is not None:
+                                moves["low"].append(f"{t['name']} {_eur(v['price'])}")
                             v["low"], v["low_at"] = v["price"], day
                     live[src] = v
             links = t.setdefault("links", {})
@@ -393,7 +502,20 @@ def apply(upd):
             _history(hist, "gg", t.get("steam_appid"), best, day)
         store.save_data(data)
         store.save_json("history.json", hist)
-    return {"jumps": jumps}
+    return {"jumps": jumps, "moves": moves, "coverage": _coverage(data)}
+
+
+def _eur(v):
+    return f"{v:.2f} €".replace(".", ",")
+
+
+def _coverage(data):
+    """Stand der Wunschliste nach dem Lauf: je Quelle, wie viele Titel einen Preis haben, und
+    welche gar keinen."""
+    tg = list(_targets(data).values())
+    has = {s: sum(1 for t in tg if ((t.get("live") or {}).get(s) or {})) for s in ("meta", "steam", "gg")}
+    bare = [t["name"] for t in tg if not any((t.get("live") or {}).get(s) for s in ("meta", "steam", "gg"))]
+    return {"n": len(tg), "has": has, "bare": bare}
 
 
 def self_check(results, prev, applied):
@@ -414,7 +536,7 @@ def self_check(results, prev, applied):
     return w
 
 
-def run(only=None, boot=False):
+def run(only=None, boot=False, by_hand=False):
     """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. Läuft schon einer,
     kommt False zurück."""
     if not _running.acquire(blocking=False):
@@ -431,10 +553,15 @@ def run(only=None, boot=False):
             del st["log"][:-LOG_LINES]
             print(msg, flush=True)
 
+        begun = time.monotonic()
         settings = load_settings()
         targets = _targets(store.load_data())
-        log(f"VR-Navigator {sources.VERSION}, Abgleich für {len(targets)} Wunschtitel"
-            + (" (nach dem Start)" if boot else ""))
+        log(f"VR-Navigator {sources.VERSION}, Abgleich für {len(targets)} Wunschtitel, "
+            + ("von Hand" if by_hand else "nach dem Start" if boot else "nach Zeitplan")
+            + (", nur " + ", ".join(NAMES[x] for x in NAMES if x in only) if only else ""))
+        _old_misses["ignore"] = prev.get("search_v") != SEARCH_V
+        if _old_misses["ignore"] and prev:
+            log("Suche geändert: Titel ohne Treffer werden diesmal neu gesucht")
         upd, results = {}, {}
         steps = [("qsdb", _qsdb), ("steam", _steam)]
         if settings["gg_key"]:
@@ -464,11 +591,26 @@ def run(only=None, boot=False):
         applied = apply(upd)
         st["sources"].update(results)
         st["warnings"] = self_check(results, prev.get("sources") or {}, applied)
+        mv = applied["moves"]
+        if any(mv.values()):
+            log("Preise: " + "; ".join(x for x in (
+                f"günstiger ({len(mv['down'])}): {_few(mv['down'], 8)}" if mv["down"] else "",
+                f"teurer ({len(mv['up'])}): {_few(mv['up'], 8)}" if mv["up"] else "",
+                f"neuer Meta-Tiefstpreis ({len(mv['low'])}): {_few(mv['low'], 8)}" if mv["low"] else "") if x))
+        else:
+            log("Preise: keine Änderung seit dem letzten Abgleich")
+        cov = applied["coverage"]
+        log(f"Stand: {cov['n']} Wunschtitel, mit Preis bei Meta {cov['has']['meta']}, Steam {cov['has']['steam']}, "
+            f"gg.deals {cov['has']['gg']}" + (f"; ohne jeden Preis ({len(cov['bare'])}): {_few(cov['bare'])}" if cov["bare"] else ""))
         for w in st["warnings"]:
             log("Selbstprüfung: " + w)
+        if not st["warnings"]:
+            log("Selbstprüfung: alles glaubhaft")
         st["ok"] = all(r.get("ok") for r in results.values())
         st["finished"] = st["done"] = _iso(now())
-        log(f"fertig, {len(upd)} Titel aktualisiert" + ("" if st["ok"] else ", mit Fehlern"))
+        if not _old_misses["ignore"] or not only:
+            st["search_v"] = SEARCH_V
+        log(f"fertig nach {_took(begun)}, {len(upd)} Titel aktualisiert" + ("" if st["ok"] else ", mit Fehlern"))
         store.save_json("sync.json", st)
         return True
     finally:
@@ -480,7 +622,7 @@ def start(only=None):
     """Lauf im Hintergrund starten. False, wenn schon einer läuft."""
     if _running.locked():
         return False
-    threading.Thread(target=run, args=(only,), daemon=True).start()
+    threading.Thread(target=run, args=(only,), kwargs={"by_hand": True}, daemon=True).start()
     return True
 
 
@@ -590,8 +732,13 @@ def diagnose():
             except ValueError as e:
                 return f"{e}. Anfang: {' '.join(text[:200].split())}"
             p = got.get(appid)
-            return ("Schlüssel angenommen, " + (f"App {appid}: Händler {p['retail']} €, Keyshops {p['keyshops']} €" if p
-                    else f"für App {appid} kein Eintrag") + f". Anfang: {' '.join(text[:200].split())}")
+            if not p:
+                return f"Schlüssel angenommen, für App {appid} kein Eintrag. Anfang: {' '.join(text[:200].split())}"
+
+            def eur(v):
+                return "keins" if v is None else f"{v} €"
+            return (f"Schlüssel angenommen, App {appid}: Händler {eur(p['retail'])} (Tief {eur(p['retail_low'])}), "
+                    f"Keyshops {eur(p['keyshops'])} (Tief {eur(p['keyshops_low'])})")
         q = urllib.parse.urlencode({"ids": appid, "region": "de"})
         probe("gg.deals, Preise", f"{GG_API}?{q}&key={urllib.parse.quote(key)}", gg_info, shown=f"{GG_API}?{q}")
     if key:
