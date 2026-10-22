@@ -79,8 +79,6 @@ pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto}
 .links{display:inline-flex;flex-wrap:wrap;gap:2px 8px;min-width:0}
 .links a{font-size:13px}
 .price{font-variant-numeric:tabular-nums;color:var(--ink)}
-.gap-meta{color:var(--go)}
-.gap-steam{color:var(--stop)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
 .card h2{font-size:17px;margin:0 0 6px}
 .card ol{margin:6px 0;padding-left:20px}
@@ -132,26 +130,80 @@ details.sub details.sub{margin-left:12px;padding-left:10px;border-top:0;border-l
 .card,details.sub{scroll-margin-top:48px}
 .bundle input{display:block;width:100%;margin:4px 0}
 label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind select{min-width:0;max-width:100%}
-/* Entdecken: Mischungen oben, Filter in einer Klappe */
-.chips.mix{margin-bottom:8px}
-.dfilter{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:8px;font-size:14px}
-.dfilter .chips{flex-basis:100%}
+/* Entdecken: Mischungen in einer wischbaren Zeile, Filter als Menüs */
+.chips.mix{margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+.chips.mix button{white-space:nowrap}
+.dfilter{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px;font-size:14px}
 .dfilter label{display:flex;gap:6px;align-items:center;max-width:100%}
 .dfilter select{min-width:0;max-width:100%}
-/* Jetzt: Abstand zum Bestpreis als Leiste (links Bestpreis, rechts Normalpreis) */
-.offers{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:14px}
-.offer{min-width:0}
-.gap{grid-column:1/-1;font-size:13px;font-weight:600}
-.bbar{display:grid;gap:2px;font-size:12px;color:var(--muted);min-width:0;margin-top:3px}
-.bbar .txt{min-width:0;overflow-wrap:anywhere}
-.bbar .track{height:6px;border-radius:3px;background:var(--chip);overflow:hidden;max-width:320px}
-.bbar .fill{display:block;height:100%;background:var(--muted);opacity:.6}
-.bbar.at .track{background:var(--best-bg);box-shadow:inset 4px 0 0 var(--best)}
-.bbar.at .txt{color:var(--best);font-weight:600}
-.rates .rate{color:var(--ink)}
-.rates .rate.win{color:var(--go);font-weight:600}
+/* Titelkarte (Jetzt, Wunschliste): Kopf, zwei feste Preisfelder (Meta links, Steam rechts),
+   Fakten, Recherche, „Mehr“. Am Desktop Preise und Fakten nebeneinander. */
+.item .hd{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.item .hd .nm{flex:1 1 200px}
+.item.wi{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.item.wi>.side:empty{display:none}
+@media (min-width:900px){
+  .item.wi{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:18px;align-items:start}
+  .item.wi>.hd,.item.wi>details.more{grid-column:1/-1}
+}
+.shops{display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:0}
+.shop{border:1px solid var(--line);border-radius:8px;padding:5px 8px;min-width:0;font-size:13px;color:var(--muted)}
+.shop .sl{display:flex;flex-wrap:wrap;gap:2px 6px;align-items:baseline;color:var(--ink);font-weight:600;font-size:13px}
+.shop .big{font-size:17px;font-weight:600}
+.shop s{font-size:12px}
+.shop .bl{font-size:12px;overflow-wrap:anywhere}
+.shop .bl.at{color:var(--best);font-weight:600}
+.shop.none{background:var(--bg);border-style:dashed}
+.shop.win{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
+.shop .cheap{color:var(--go);font-weight:600;font-size:12px}
+.over{color:var(--stop);font-weight:600}
+.facts{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:13px;color:var(--ink);min-width:0;flex-basis:100%}
+.fact{min-width:0;overflow-wrap:anywhere}
+.fact .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:2px}
+.item.wi .side{display:flex;flex-direction:column;gap:4px;min-width:0}
+/* Werkzeugzeile: Suche, Sortieren, Menüs, Legende */
+.bar .tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bar .tools>button{padding:4px 10px}
+.bar .tools>button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+details.menu{position:relative}
+/* zu: ganz aus dem Fluss (Chromium legt den Inhalt geschlossener details sonst unsichtbar an) */
+details.menu:not([open]) .pop{display:none}
+details.menu>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:var(--card);white-space:nowrap}
+details.menu>summary::-webkit-details-marker{display:none}
+details.menu>summary::after{content:" ▾";color:var(--muted)}
+details.menu[open]>summary{border-color:var(--accent)}
+details.menu .cnt{background:var(--accent);color:var(--bg);border-radius:999px;padding:0 6px;font-size:11px;margin-left:2px}
+details.menu .pop{position:absolute;z-index:7;top:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  box-shadow:0 4px 14px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:4px;min-width:190px;max-width:calc(100vw - 32px)}
+details.menu .pop.wide{width:300px}
+details.menu .pop label{display:flex;gap:6px;align-items:center;font-size:14px;white-space:nowrap}
+details.menu .pop .n{color:var(--muted);font-size:12px;margin-left:auto;padding-left:8px}
+details.menu .opts{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+details.menu input[type=search]{width:100%}
+.seg{display:flex}
+.seg button{flex:1;border-radius:0;padding:3px 8px;font-size:13px}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0;margin-left:-1px}
+.seg button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.chips.act{margin:-4px 0 10px;align-items:center}
+.chips.act .link{font-size:13px}
+.legend .lg{font-size:13px;margin:4px 0}
+.legend h2{display:flex;justify-content:space-between;align-items:baseline}
+.legend h2 .link{font-size:13px;font-weight:400}
+.legend .shopmark{border:2px solid var(--go);border-radius:6px;padding:0 5px}
+.legend .best-t{color:var(--best);font-weight:600}
+.sched{font-size:14px}
+.sched input[type=number]{width:64px}
+.rate{color:var(--ink)}
+.rate.win{color:var(--go);font-weight:600}
 details.more{flex-basis:100%;font-size:13px;color:var(--muted)}
 details.more>summary{cursor:pointer;width:max-content}
 details.more>div{margin:4px 0 0 14px}
 details.op.unsure{border-left:3px dashed var(--warn);padding-left:8px}
 details.op .ux{color:var(--warn)}
+/* Am Handy klappen Menüs über die volle Breite der Zeile auf, statt rechts aus dem Bild zu ragen */
+.bar,.dfilter{position:relative}
+@media (max-width:620px){
+  details.menu{position:static}
+  details.menu .pop,details.menu .pop.wide{left:0;right:0;width:auto;max-width:none}
+}

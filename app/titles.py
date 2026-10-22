@@ -176,8 +176,10 @@ def merge(data, keep, gone):
     ws.update(a.get("wish_src") or {})
     if ws:
         a["wish_src"] = ws
-    if a.get("crossbuy") is None:
-        a["crossbuy"] = b.get("crossbuy")
+    if a.get("crossbuy") is None and b.get("crossbuy") is not None:
+        a["crossbuy"] = b["crossbuy"]
+        if b.get("crossbuy_src"):
+            a["crossbuy_src"] = b["crossbuy_src"]
     if a.get("contains") or b.get("contains"):
         a["contains"] = list(dict.fromkeys(list(a.get("contains") or []) + list(b.get("contains") or [])))
     org = dict(b.get("origin") or {})

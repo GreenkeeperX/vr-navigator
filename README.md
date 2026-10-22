@@ -7,9 +7,9 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.7:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
-und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
-[ROADMAP](ROADMAP.md)).
+**Stand 0.4.8:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
+VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
 ## Starten
 
@@ -160,7 +160,9 @@ Zusammenführen und Löschen fragen nicht vorher, der Hinweis danach bietet „R
 ## Preise abrufen
 
 Unter **Einstellungen**, Abgleich, startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
-alle 6 Stunden). Erst liest er die eingerichteten Konten, dann Preise für die Wunschtitel, die du
+alle 6 Stunden; die Zeile „automatisch alle … Stunden“ oben in der Karte speichert sofort).
+Die Einstellungen folgen dem Weg der Daten: „Zu erledigen“ (nur wenn etwas offen ist),
+Einlesen, Abgleich, Sicherung. Erst liest er die eingerichteten Konten, dann Preise für die Wunschtitel, die du
 noch nicht besitzt:
 
 - **QuestStoreDB** für Meta: Angebotsliste, Titelseiten (Preis, Angebotsende, Preisverlauf,
@@ -168,7 +170,7 @@ noch nicht besitzt:
 - **Steam-Store:** Preise in Euro. Fehlt die Steam-App-ID, sucht das Tool im Store nach genau
   demselben Namen.
 - **gg.deals:** bester Preis bei Händlern und in Keyshops. Dafür einen kostenlosen Schlüssel von
-  gg.deals unter Einstellungen eintragen. Er bleibt auf dem Server.
+  gg.deals unter Einstellungen, Einlesen, „Konten und Schlüssel“ eintragen. Er bleibt auf dem Server.
 
 Oben steht, wie alt die Preise sind und wann der nächste Abgleich kommt; während eines Laufs
 der Schritt mit Fortschritt. „Aktualisieren“ startet einen Lauf sofort.
@@ -177,7 +179,10 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 
 - **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
   Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
-- **Protokoll** (klappbar, zu außer nach Fehlern): live während des Laufs, zum Kopieren.
+- **Protokoll** (klappbar, zu außer nach Fehlern): live während des Laufs, zum Kopieren. Die
+  zweite Zeile fasst zusammen („Kurz: 4 Wunschtitel im Angebot, 2 günstiger; alles glaubhaft“).
+  Warteschlangen nennen die Läufe bis zum Ende („noch etwa 12 Läufe“), Cent-Schwankungen unter
+  0,50 € und 5 % stehen nur als Zahl da, Apps ohne Spielerzahl bei Steam ebenso.
 
 Nach einer Sperre (403, 429 oder Prüfseite) ruht eine Quelle 24 Stunden. Probleme stehen als
 Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“: noch kein Abgleich, eine ruhende
@@ -187,50 +192,62 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 ## Ansichten
 
 - **Jetzt:** Wunschtitel, die gerade bei Meta oder Steam reduziert sind, sortiert nach Nähe
-  zum Bestpreis (oder nach Rabatt), mit Ende des Angebots. Je Shop eine Leiste wie im
-  eShopKompass: links der Bestpreis der letzten 24 Monate, rechts der Normalpreis, gefüllt bis
-  zum Preis jetzt, daneben der Abstand („+3,50 € über Bestpreis 14,00 € (+25 %)“); am Bestpreis
-  gold mit ★. Die Leiste steht auch in der Wunschliste, sobald ein Shop reduziert ist. Ist der
-  eigene Verlauf noch zu kurz, gilt als Bestpreis das Allzeit-Tief einer anderen Quelle, mit
-  „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Händler-Angebot laut gg.deals.
+  zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
+  Wunschliste.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
-  „nicht mehr wünschen“ nimmt einen Titel von der Liste (mit Rückgängig).
-  Je Titel eine Zeile mit Meta und Steam, das günstigere vorn, mit Rabatt und Ende. Jeder Preis
-  wird am **Bestpreis** seines Shops gemessen, dem niedrigsten Preis der letzten 24 Monate:
-  ★ „am Bestpreis“ (bis 2 % darüber), „übliches Angebot“ (so tief wie in mindestens zwei
-  getrennten Angeboten) oder grau „Bestpreis 9,99 € (+5,00 €)“. Gab es den Bestpreis nur einmal,
-  steht „einmalig, sonst …“ mit dem üblichen Angebot dabei. Für Meta reicht der Verlauf von
-  QuestStoreDB Jahre zurück, für Steam zählt der eigene Verlauf („seit …“, solange er kürzer
-  als 24 Monate ist; ohne jede Preisänderung noch keine Stufe). Darunter klein gg.deals
-  (Händler, Keyshop, Allzeit-Tief; Keyshops zählen nicht mit) und die Differenz („PC 3,00 €
-  günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter als zwei Tage ist.
-  Je Titel die Wertungen beider Läden auf einer Skala: Steam als Anteil positiver Rezensionen
-  (ab 50; darunter nur die Zahl), Meta-Sterne über QuestStoreDB umgerechnet (Sterne × 20, daher
-  „≈“). Trennen beide mindestens 5 Punkte, ist der bessere grün mit Abstand („Meta +8“).
-  Liest VRDB die Meta-Seite, ist die Meta-Wertung der Anteil der 4- und 5-Sterne-Bewertungen
-  (ohne „≈“, passt zu Steams Anteil positiv). Darunter „Gemessen“: Steam-Spieler gerade jetzt und
-  die Spitze aus den eigenen Messungen der letzten 30 Tage, das letzte Steam-Update laut
-  Entwickler-Meldungen und die Meta-Version mit dem Tag, an dem das Tool sie zuerst sah.
-  Crossbuy kommt von Hand oder aus der Tabelle, sonst von VRDB, zuletzt aus der Recherche (≈).
-  Sichtbar bleiben Preise, Wertung, Gemessenes, Recherche und Notiz; gg.deals, Tabellenwerte, Links und
-  „bearbeiten“ stehen in der Klappe „Mehr“. Die Recherche ist violett gestrichelt und trägt „≈“,
-  weil sie nicht vom Tool gemessen ist. Sortieren nach Name, „Nah am Bestpreis“, Rabatt, Wertung
-  (die bessere der beiden, Sterne mal 20) und „Neu“ (zuletzt ins Tool gekommen); Filter
-  „Crossbuy“, „Im Angebot“ und „Gut bewertet“ (Meta ab 4,3 oder Steam ab 85 %). Ohne Abruf gelten die Werte der Tabelle,
-  gekennzeichnet mit „Tabelle“ und Datum (Differenz dort: Meta-Tief minus gg.deals). Dazu Crossbuy, Besitz auf der anderen Plattform und Links: Meta, VRDB,
-  QuestStoreDB, Steam sowie fertige Suchen auf Reddit und Google nach „Quest vs Steam“.
-  Was du dort findest, gehört in die Notiz.
+  „nicht mehr wünschen“ (unter „Mehr“) nimmt einen Titel von der Liste (mit Rückgängig);
+  „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
+  Je Titel eine Karte mit festem Aufbau:
+  - **Kopf:** Name, Crossbuy-Marke mit Herkunft (siehe unten), Besitz, Bundle, „Steam-ID ≈“.
+  - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
+    mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis** des
+    Shops, dem niedrigsten Preis der letzten 24 Monate: rot „+3,50 € über Bestpreis“ mit Betrag und
+    Prozent, gold „★ Bestpreis“ (bis 2 % darüber), dazu „übliches Angebot“ (so tief wie in
+    mindestens zwei getrennten Angeboten). Für Meta reicht der Verlauf von QuestStoreDB Jahre
+    zurück, für Steam zählt der eigene Verlauf; ohne jede Preisänderung steht „Bestpreis noch
+    offen“. Ist der eigene Verlauf noch zu kurz, gilt das Allzeit-Tief einer anderen Quelle, mit
+    „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Händler-Angebot laut gg.deals. Ist
+    ein Händler bei gg.deals günstiger als Steam, steht er im Steam-Feld. Der günstigere Laden
+    (gegen das günstigste PC-Angebot ohne Keyshops) bekommt ab 1 € Unterschied einen grünen
+    Rahmen und den Betrag („5 € günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter
+    als zwei Tage ist.
+  - **Fakten** in einer Zeile: Wertung beider Läden auf einer Skala (Steam: Anteil positiver
+    Rezensionen ab 50, darunter nur die Zahl; Meta: Anteil der 4- und 5-Sterne-Bewertungen laut
+    VRDB, sonst Sterne × 20 über QuestStoreDB mit „≈“; ab 5 Punkten Abstand der bessere grün mit
+    „Meta +8“), Steam-Spieler gerade jetzt mit der Spitze aus den eigenen Messungen der letzten
+    30 Tage, das letzte Steam-Update laut Entwickler-Meldungen und die Meta-Version mit dem Tag,
+    an dem das Tool sie zuerst sah.
+  - **Recherche** violett gestrichelt mit „≈“, weil sie nicht vom Tool gemessen ist; die Notiz.
+  - **Mehr** (zugeklappt): Bestpreise mit Datum und Quelle, gg.deals (Händler, Keyshop,
+    Allzeit-Tief), die Werte deiner Tabelle, Links (Meta, VRDB, QuestStoreDB, Steam, fertige
+    Suchen auf Reddit und Google nach „Quest vs Steam“), „bearbeiten“.
+
+  Ohne Abruf gelten die Werte der Tabelle, gekennzeichnet mit „Tabelle“ und Datum (Differenz
+  dort: Meta-Tief minus gg.deals). Am Desktop stehen Preise und Fakten nebeneinander.
+  Werkzeugzeile in Jetzt, Wunschliste und Bibliothek: Suche, „Sortieren“ (Name, „Nah am
+  Bestpreis“, Rabatt, Wertung, „Neu“), das Menü „Filter“ mit Häkchen (Crossbuy, Im Angebot,
+  Am Bestpreis, Gut bewertet: die bessere Wertung ab 85) und „?“ für die Legende der Farben und
+  Zeichen. Gewählte Filter stehen darunter als Marken mit ×.
+- **Crossbuy und Herkunft:** Crossbuy kommt von Hand, von VRDB (Angabe im Meta Store), aus deiner
+  Tabelle oder aus der Recherche, in dieser Rangfolge. Die Marke zeigt die Herkunft: ohne
+  Zeichen von Hand oder VRDB, „Crossbuy · Tabelle“ aus der Tabelle, „Crossbuy ≈“ aus der
+  Recherche; „ohne Crossbuy“ ist grau. Widersprechen sich Quellen, gilt die stärkere und die
+  andere steht violett daneben („Tabelle: nein“). Unter „bearbeiten“ heißt „automatisch“: keine
+  eigene Angabe. Titel aus der Zeit vor 0.4.8 ohne gespeicherte Herkunft gelten als „Tabelle“,
+  wenn eine Tabellenzeile da ist, sonst als von Hand.
 - **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
   „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
-  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“. Meta-Sterne gibt es dort nur für Titel,
+  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und „Mehr“. Meta-Sterne gibt es dort nur für Titel,
   deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
 - **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
-  Mehrspieler-Art (Mehrspieler, Online, Koop, Lokal, Splitscreen, LAN, MMO), Spielerzahl,
-  Genres (mehrere wählbar, eines genügt), Laden, Steam-Wertung und „über zwei Jahre in der
-  Sammlung“; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, Jahr, Name
+  Mehrspieler-Art (Menü mit Häkchen; mehrere gewählt: alle müssen passen: Mehrspieler, Online,
+  Koop, Lokal, Splitscreen, LAN, MMO), Genre (Menü mit Suche und Häkchen, umschaltbar zwischen
+  „eines davon“ und „alle“; die Zahl hinter einem Genre zählt, was mit den übrigen Filtern übrig
+  bliebe), Spielerzahl, Laden, Steam-Wertung und „über zwei Jahre in der Sammlung“; gewählte
+  Mehrspieler-Arten und Genres stehen als Marken mit × darunter; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, Jahr, Name
   oder Zufall. Die Suche findet Name, Entwickler und Genre. Die Liste lädt beim Scrollen weiter.
-  Mischungen setzen Filter mit einem Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“,
+  Mischungen (eine Zeile, am Handy seitlich wischbar) setzen Filter mit einem Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“,
   „Geheimtipps“, „Gut, lange her“; ein zweiter Klick nimmt sie zurück. „Überrasch mich“ zieht
   drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen öfter), „Wilde Mischung“
   würfelt dazu eine Mehrspieler-Art und ein Genre; „Schließen“ blendet die Vorschläge aus.
@@ -250,9 +267,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5) ist hoch bei guter Wertung und
   wenigen Rezensionen; die Marke „Geheimtipp“ steht ab 0,2.
 
-Farben haben je eine Bedeutung: Rabatt blau, ★ und „am Bestpreis“ Gold, Prüfen und Veraltetes
-violett, Grün für das, was für einen Kauf spricht (Crossbuy, Meta günstiger), Rot nur für den
-Betrag, um den Meta teurer ist. Gruppen und Karten klappen, der Browser merkt sich, was du
+Farben haben je eine Bedeutung: Rabatt blau, ★ und „Bestpreis“ Gold, Prüfen, Veraltetes und
+Recherche violett, Grün für das, was für dich spricht (günstigerer Laden, Crossbuy, bessere
+Wertung), Rot für den Aufpreis über dem Bestpreis, Grau für Eigenschaften ohne Wertung („ohne
+Crossbuy“). Gruppen und Karten klappen, der Browser merkt sich, was du
 zuklappst; „alle aufklappen · alle zuklappen“ steht darüber, eine Suche öffnet alles. Das
 Suchfeld leert × oder Esc. Oben rechts: hell, dunkel oder wie das Gerät. Regeln für Änderungen:
 [docs/oberflaeche.md](docs/oberflaeche.md).

@@ -295,7 +295,7 @@ class TestImports(unittest.TestCase):
         self.assertNotIn("fassung", d["titles"][b]["opinion"])
         rows = {r["name"]: r for r in library.view(d)["wishlist"] + [library.row(k, t) for k, t in d["titles"].items()]}
         self.assertEqual((rows["Orbit Golf"]["crossbuy"], rows["Orbit Golf"]["crossbuy_src"]), (False, "Recherche"))
-        self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, ""))
+        self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, "Hand"))
 
 
 # Erfundene Sammlung im Aufbau eines Playnite-Exports (alle Spiele, alle Läden)
@@ -381,6 +381,29 @@ class TestLibrary(unittest.TestCase):
         hist = {"steam": {"3000030": [["2025-01-01", 24.0], ["2025-06-01", 9.0], ["2025-06-10", 24.0]]}}
         r = library.row(k, d["titles"][k], at=at, hist=hist, data=d)
         self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"].get("src")), (9.0, None))
+
+    def test_crossbuy_origin(self):
+        """Crossbuy mit Herkunft: von Hand vor VRDB vor Tabelle vor Recherche; ältere Daten ohne
+        Angabe gelten mit Tabellenzeile als Tabelle. Widerspruch: der stärkere gilt, der andere
+        steht daneben."""
+        d = empty()
+        k, _ = titles.upsert(d, "Comet Chase")
+        t = d["titles"][k]
+        t.update(crossbuy=False, sheet={"meta": 9.99, "at": "2026-10-21T10:00:00+00:00"})
+        self.assertEqual(library.crossbuy(t), (False, "Tabelle", ""))
+        t["opinion"] = {"crossbuy": True}
+        self.assertEqual(library.crossbuy(t), (False, "Tabelle", ""))       # Recherche zählt nicht als Widerspruch
+        t["vrdb"] = {"crossbuy": True}
+        self.assertEqual(library.crossbuy(t), (True, "VRDB", "Tabelle: nein"))
+        t.update(crossbuy=False, crossbuy_src="Hand")
+        self.assertEqual(library.crossbuy(t), (False, "Hand", "VRDB: ja"))
+        t.update(crossbuy=None, crossbuy_src=None, sheet=None, vrdb={})
+        self.assertEqual(library.crossbuy(t), (True, "Recherche", ""))
+        t.update(crossbuy=True, opinion=None)
+        self.assertEqual(library.crossbuy(t), (True, "Hand", ""))           # alte Daten ohne Tabelle: von Hand
+        imports.import_sheet(d, SHEET, dry=False)
+        self.assertTrue(all(x.get("crossbuy_src") == "Tabelle" for x in d["titles"].values()
+                            if x.get("crossbuy") is not None and x["name"] != "Comet Chase"))
 
     def test_gap_and_where(self):
         d = empty()
@@ -492,6 +515,11 @@ class TestServer(unittest.TestCase):
         code, raw = self.call("/api/title/new", {"name": "Weg und zurück"})
         key = [r["key"] for r in json.loads(raw)["wishlist"] if r["name"] == "Weg und zurück"][0]
         self.call("/api/title", {"key": key, "note": "bleibt erhalten"})
+        # Crossbuy: „ja“ von Hand gilt, „automatisch“ nimmt die eigene Angabe zurück
+        self.call("/api/title", {"key": key, "crossbuy": True})
+        self.assertEqual(library.crossbuy(store.load_data()["titles"][key])[:2], (True, "Hand"))
+        self.call("/api/title", {"key": key, "crossbuy": None})
+        self.assertIsNone(store.load_data()["titles"][key].get("crossbuy"))
         res = json.loads(self.call("/api/title/delete", {"key": key})[1])
         self.assertNotIn(key, [r["key"] for r in res["wishlist"]])
         self.assertEqual(res["undo"][key]["note"], "bleibt erhalten")
@@ -986,6 +1014,19 @@ class TestSync(unittest.TestCase):
         t = store.load_data()["titles"]
         self.assertEqual(t[a]["meta_ver"], {"v": "1.5.0_130", "since": sync.now().strftime("%Y-%m-%d")})
         self.assertEqual((t[a]["play"]["now"], t[a]["play"]["peak"], t[a]["vrdb"]["crossbuy"]), (7, 42, False))
+        # 404: Steam hat für die App keine Spielerzahl; zählt still, ohne Fehler, gilt als gefragt
+        d = store.load_data()
+        d["titles"][a]["play"]["at"] = "2000-01-01T00:00:00+00:00"
+        store.save_data(d)
+        net.answers["GetNumberOfCurrentPlayers"] = 404
+        sync.run(only={"players"})
+        st, t = sync.status(), store.load_data()["titles"]
+        self.assertIsNone(t[a]["play"]["now"])
+        self.assertEqual((t[a]["play"]["peak"], st["sources"]["players"]["errors"]), (42, 0))
+        log = "\n".join(st["log"])
+        self.assertIn("1 Apps ohne Zahl bei Steam", log)
+        self.assertNotIn("HTTP 404", log)
+        self.assertIn("Kurz: kein Wunschtitel im Angebot", st["log"][1])
         self.assertIsNone(prices.steam_players('{"response": {"result": 42}}'))
         self.assertEqual(prices.steam_news('{"appnews": {"newsitems": []}}'), {})
 
