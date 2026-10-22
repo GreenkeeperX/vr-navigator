@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.9:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.0:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -155,6 +155,27 @@ Was offen bleibt, steht in den Einstellungen unter „Zu erledigen“: „Dersel
 Steam-IDs, die die Prüfung nicht bestätigt hat („passt“ oder „falsch“; eine falsche App schlägt
 die Suche nicht wieder vor), und Titel, die QuestStoreDB nicht fand. Bundles sind dort als
 solche markiert.
+
+## Wunschliste abgleichen
+
+Deine Wünsche führt das Tool; die Wunschlisten bei Meta, Steam und gg.deals sind Spiegel, die
+der Abgleich liest (Steam und gg.deals selbst, Meta per Lesezeichen). Steht ein Titel auf einer
+davon, ist er gewünscht; fehlt er überall, fällt er von der Liste. Was danach nicht
+zusammenpasst, steht unter „Zu erledigen“, je Gruppe mit einer Aktion für alle:
+
+- **Gekauft, noch auf der Wunschliste:** du besitzt ihn (Meta-Käufe, Steam-Konto, Sharenite,
+  Playnite). Links führen zur Liste im Laden, wo er noch steht; „von der Wunschliste“ nimmt ihn
+  im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst.
+- **Im Tool entfernt, im Laden noch gewünscht:** der Hinweis geht, sobald der Laden ihn nicht
+  mehr führt; „wieder wünschen“ holt ihn zurück.
+- **Nur aus der alten Tabelle:** der Wunsch steht auf keiner Wunschliste. Die Tabelle wird nicht
+  mehr gepflegt; „behalten“ führt den Wunsch im Tool weiter (von Hand), „entfernen“ nimmt ihn
+  weg. Hat das Tool die Meta-Wunschliste noch nie (oder vor über 30 Tagen) gelesen, steht davor
+  der Hinweis, sie zuerst zu lesen: was dort steht, ordnet es selbst zu.
+
+In der Wunschliste weist eine Zeile oben darauf hin, Titel nur aus der Tabelle tragen die graue
+Marke „Wunsch · Tabelle“, und die Klappe jeder Karte nennt, woher der Wunsch kommt. Jede Aktion
+lässt sich im Hinweis danach zurücknehmen. Das Tool schreibt in keinen Laden.
 
 Von Hand: unter „bearbeiten“ eine Meta-ID (oder einen Link von Meta, QuestStoreDB oder VRDB) oder Steam-App-ID eintragen. Trägt ein anderer Titel
 dieselbe ID, gehen beide in einem auf; Besitz, Wunsch, Links und Notizen bleiben erhalten.

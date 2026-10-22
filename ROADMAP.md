@@ -34,17 +34,20 @@ Menüs für Sortieren und Filter, Legende, Genre-Menü mit „eines davon“ ode
 Crossbuy-Wert, Einstellungen in der Reihenfolge der Daten, ruhigeres Protokoll), 0.4.9 Aufräumen
 (Bestpreis über beide Läden, Karten über die volle Breite, Fakten im festen Raster, Klappe mit
 Inhaltszeile, Crossbuy-Begriff und Crossplay in der Recherche, ruhigeres Konten-Formular,
-gg.deals-Wunschliste nach einer Woche wieder vom Server). Als Nächstes:
+gg.deals-Wunschliste nach einer Woche wieder vom Server), 0.5.0 eine Stelle für Wünsche
+(Wunschlisten der Läden als Spiegel, „Wunschliste abgleichen“ mit Aktionen für ganze Gruppen,
+Herkunft des Wunsches je Titel, die Tabelle eingefroren). Grundsatz (Entscheidung 22.10.2026): so wenig
+Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
+Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- 0.5.0 eine Stelle für Wünsche: Wunsch im Tool gepflegt, die Wunschlisten bei Meta, Steam und
-  gg.deals als Spiegel, Ansicht „Abweichungen“ mit Aktionen (übernehmen, ignorieren, zum Laden),
-  Widersprüche im Besitz („gekauft, steht noch auf der Wunschliste“); die Tabelle eingefroren
 - 0.5.1 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als
   Ergänzung
 - 0.5.2 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
+- Besitz mit zweiter Quelle bestätigen (Steam-Konto und Sharenite, Meta-Käufe und VRDB) und
+  Widersprüche melden statt sie nachzufragen
 
 ## Danach
 

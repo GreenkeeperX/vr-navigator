@@ -49,6 +49,8 @@ Weitere feste Regeln (wie im eShopKompass):
   hinter `#meta=` und übernimmt direkt (Entscheidung 21.10.2026)
 - `app/collection.py`: ganze PC-Sammlung für Entdecken (`collection.json`) aus dem Playnite-Export,
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
+- `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur
+  aus der Tabelle), Aktionen für ganze Gruppen, lange nicht gelesene Lesezeichen-Listen
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
 - `app/server.py`: Webserver und JSON-Schnittstelle
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);
