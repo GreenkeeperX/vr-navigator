@@ -14,9 +14,9 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
 | Gold | `--best` | Tiefstpreis | ★ vor dem Preis (`.star`), Marke „Tiefstpreis“ (`.b.best`) |
 | Grün | `--go` | spricht für den Kauf, gelingt | Crossbuy, Meta günstiger (`.gap-meta`), Quelle „ok“ |
-| Rot | `--stop` | nur der Betrag, um den Meta teurer ist | `+5 €` (`.gap-steam`), Fehler einer Quelle |
+| Rot | `--stop` | spricht gegen den Kauf, misslingt | Betrag, um den Meta teurer ist (`+5 €`, `.gap-steam`), sanft als Marke „kein Crossbuy“ (`.b.stop`), Fehler einer Quelle |
 | Violett | `--warn` | prüfen, veraltet, geschätzt | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben |
-| Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „kein Crossbuy“, „Wunsch“ |
+| Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“ |
 
 Geschätzte oder übernommene Werte tragen „≈“ oder „Tabelle“ samt Datum. Links stehen in
 Textfarbe, unterstrichen.

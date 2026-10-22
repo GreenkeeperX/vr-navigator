@@ -176,7 +176,7 @@ function badges(r){
   if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
   if(r.crossbuy === true) out.push(`<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)">Crossbuy</span>`);
-  if(r.crossbuy === false) out.push(`<span class="b" title="Meta-Kauf gilt nur auf der Quest">kein Crossbuy</span>`);
+  if(r.crossbuy === false) out.push(`<span class="b stop" title="Spricht gegen Meta: der Kauf gilt nur auf der Quest">kein Crossbuy</span>`);
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="Steam-ID aus Playnite geraten, bitte prüfen">Steam-ID ≈</span>`);
   return out.join(" ");
 }
@@ -244,6 +244,7 @@ function wishRow(r){
       <span title="Aus deiner Tabelle übernommen">Tabelle, ${day(s.at)}</span>` : `<span>keine Preise</span>`}</div>`;
   return `<div class="item"><span class="nm">${esc(r.name)}</span>${badges(r)}
     <button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>
+    <button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>
     ${prices}
     <div class="row2">${linksHtml(r)}</div>
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>`;
@@ -526,6 +527,10 @@ document.addEventListener("click", async ev => {
   else if(a === "showlog"){
     V.tab = "settings"; V.folds.logbox = false; render();
     $("logfold")?.scrollIntoView({block: "start"});
+  }
+  else if(a === "unwish"){
+    const k = el.dataset.k, name = (S.wishlist.find(r => r.key === k) || {}).name || "Titel";
+    if(await act("/api/title", {key: k, wish: false})) toast(`„${name}“ von der Wunschliste genommen`, () => act("/api/title", {key: k, wish: true}));
   }
   else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
