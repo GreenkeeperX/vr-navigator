@@ -121,6 +121,20 @@ Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. 
 nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter
 `rev` in `collection.json`; ein neuer Playnite-Export behält es.
 
+## Steam-Details (Entdecken)
+
+Nur mit einer Sammlung. Ohne Schlüssel, nach den Rezensionen.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Details | `https://store.steampowered.com/api/appdetails?appids=<App-ID>&l=english` | je Lauf höchstens 80 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 90 Tagen neu | Genres, Kategorien (Mehrspieler-Arten, VR), Erscheinungsjahr |
+
+Steam-Genres werden auf die Gruppen von Entdecken abgebildet (Action, Strategie, Rollenspiel,
+Casual, Rennen, Sport, Abenteuer, Simulation), Kategorien auf die Mehrspieler-Arten. Was Playnite
+und Steam beide sagen, gilt als bestätigt; der Rest bleibt mit „≈“. Liefert Steam die App, ist
+ein nur vermuteter Laden bestätigt. Abgelegt je Spiel unter `steam` in `collection.json`
+(`ok: false`, wenn Steam die App nicht kennt); ein neuer Playnite-Export behält es.
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils
@@ -135,4 +149,4 @@ nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je 
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
 - `collection.json`: die ganze PC-Sammlung für Entdecken, je Spiel Merkmale aus Playnite und
-  `rev` (Steam-Rezensionen).
+  `rev` (Steam-Rezensionen) und `steam` (Steam-Details).

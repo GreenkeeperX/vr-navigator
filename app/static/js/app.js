@@ -140,7 +140,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -363,16 +363,24 @@ const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 function gameRow(g){
-  const mp = g.mp.filter(m => m !== "multi" || g.mp.length === 1).map(m => `<span class="b">${esc(C.mp_label[m] || m)}</span>`).join(" ");
+  // Mit Steam-Details abgeglichen (src „steam“): was Playnite und Steam beide sagen, steht ohne Zeichen,
+  // was nur eine Quelle sagt, mit ≈. Ohne Steam-Details gilt alles nur laut Playnite.
+  const chk = g.src === "steam", ok = (list, x) => !chk || (list || []).includes(x);
+  const mp = g.mp.filter(m => m !== "multi" || g.mp.length === 1).map(m => `<span class="b"${ok(g.mpc, m) ? "" : ` title="Nur eine Quelle (Playnite oder Steam)"`}>${esc(C.mp_label[m] || m)}${ok(g.mpc, m) ? "" : " ≈"}</span>`).join(" ");
   const name = safeUrl(g.url) ? `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">${esc(g.name)}</a>` : esc(g.name);
+  const gen = g.genres.map(x => esc(x) + (ok(g.gc, x) ? "" : " ≈")).join(", ");
+  const yr = chk && !g.year_ok ? `${esc(g.year)} ≈` : esc(g.year);
+  const yrTip = chk ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : "Laut Playnite";
   return `<div class="item"><span class="nm">${name}</span>${mp}
+    ${g.vr ? `<span class="b" title="Laut Steam mit VR-Unterstützung">VR</span>` : ""}
     ${g.players ? `<span class="b" title="Höchste Spielerzahl laut Playnite">bis ${g.players}</span>` : ""}
     ${g.gem >= 0.2 ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
     <div class="row2">${g.score != null ? `<span title="Anteil positiver Steam-Rezensionen">Steam ${g.score} % <span class="hint">(${g.reviews.toLocaleString("de-DE")})</span></span>`
         : g.reviews != null ? `<span title="Steam-Rezensionen; eine Wertung gibt es ab 50">${g.reviews.toLocaleString("de-DE")} Rezensionen</span>` : ""}
-      ${g.genres.length ? `<span>${g.genres.map(esc).join(", ")}</span>` : ""}
-      ${g.year ? `<span>${esc(g.year)}</span>` : ""}
-      ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}</div></div>`;
+      ${g.genres.length ? `<span title="${chk ? "Ohne ≈: Playnite und Steam einig. ≈: nur eine Quelle; Steam kennt z. B. Puzzle oder Horror nicht als Genre" : "Laut Playnite"}">${gen}</span>` : ""}
+      ${g.year ? `<span title="${esc(yrTip)}">${yr}</span>` : ""}
+      ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : chk ? "Laden von Steam bestätigt" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
+      ${chk ? "" : `<span class="hint" title="Noch nicht mit Steam abgeglichen (nur Steam-Spiele, je Lauf ein Teil)">nur Playnite</span>`}</div></div>`;
 }
 // Entdecken lädt beim Scrollen weiter: kommt „weitere zeigen“ in Sicht, klickt es sich selbst
 let moreObs = null;
@@ -414,7 +422,7 @@ function findView(){
     <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
   const at = S.imports.collection?.at;
   return mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler stammen aus Playnite, die Wertung aus Steam-Rezensionen (ab 50, nach und nach abgerufen: ${C.games.filter(g => g.reviews != null).length} bisher); ≈ heißt vermutet.</p>
+    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler aus Playnite, mit Steam abgeglichen: ${C.games.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${C.games.filter(g => g.reviews != null).length} abgerufen).</p>
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
     ${rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : ""}`;
 }
@@ -446,7 +454,7 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
-  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"]];
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
