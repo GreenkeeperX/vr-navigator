@@ -147,6 +147,29 @@ Hat Entdecken dasselbe Spiel in den letzten 30 Tagen schon gefragt, wird der Wer
 statt neu abgerufen. Abgelegt je Titel unter `rev` in `data.json` (mit `app`, der Steam-ID). Die
 Meta-Sterne kommen ohne eigenen Abruf aus der QuestStoreDB-Titelseite (`live.meta.rating`).
 
+## VRDB (Wunschliste, Bibliothek)
+
+Für Titel mit Meta-ID, ohne Schlüssel, nach den Steam-Spielern.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Titelseite | gespeicherter VRDB-Link, sonst `https://vrdb.app/game/<Slug>/<Meta-ID>` (Slug aus der QuestStoreDB-Seite) | je Lauf höchstens 30 Titel; jeder nach 14 Tagen neu, auch nach einem Fehlschlag | Crossbuy, Version, Spielmodi, Meta-Wertung mit Anteil der 4- und 5-Sterne-Bewertungen |
+
+Abgelegt je Titel unter `vrdb`; ändert sich die Version, steht unter `meta_ver` der Tag, an dem
+das Tool sie zuerst sah (bei der ersten Sicht leer).
+
+## Steam-Spieler und Updates (Wunschliste, Bibliothek)
+
+Für Titel mit Steam-ID, ohne Schlüssel.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Spieler | `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=<App-ID>` | je Lauf höchstens 80 Titel, jeder nach 20 Stunden | Spieler gerade jetzt |
+| Neuigkeiten | `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=<App-ID>&count=20&maxlength=1` | jeder nach 7 Tagen | jüngste Entwickler-Meldung, die nach Update klingt (Update, Patch, Hotfix, Version, v1.2) |
+
+Abgelegt unter `play` (jetzt, Tageshöchstwerte der letzten 30 Tage, Spitze) und `news`. Die
+Spitze ist die höchste eigene Messung, keine Angabe von Steam.
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils

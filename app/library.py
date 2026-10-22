@@ -84,8 +84,11 @@ def row(key, t, at=None, hist=None, data=None):
     o = t.get("owned") or {}
     live = _live(t, at)
     pc = _pc_best(live)
-    # Crossbuy von Hand oder aus der Tabelle geht vor; sonst der aus der Recherche, gekennzeichnet
+    # Crossbuy von Hand oder aus der Tabelle geht vor, dann VRDB (Store-Angabe), zuletzt die
+    # Recherche (gekennzeichnet)
     cb, cb_src = t.get("crossbuy"), ""
+    if cb is None and (t.get("vrdb") or {}).get("crossbuy") is not None:
+        cb, cb_src = t["vrdb"]["crossbuy"], "VRDB"
     if cb is None and (t.get("opinion") or {}).get("crossbuy") is not None:
         cb, cb_src = t["opinion"]["crossbuy"], "Recherche"
     meta_now = (live.get("meta") or {}).get("price")
@@ -116,23 +119,42 @@ def row(key, t, at=None, hist=None, data=None):
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt
         "gap_now": round(meta_now - pc["price"], 2) if meta_now is not None and pc else None,
         "links": titles.search_links(t), "added": t.get("added") or "",
-        "rating": rating(t),
+        "rating": rating(t), "measured": measured(t),
     }
+
+
+def measured(t):
+    """Vom Tool selbst gemessene Kaufgründe: Spieler bei Steam (jetzt und Spitze aus den eigenen
+    Messungen), letztes Steam-Update, Meta-Version und seit wann, Spielmodi laut VRDB."""
+    p, n, v, mv = t.get("play") or {}, t.get("news") or {}, t.get("vrdb") or {}, t.get("meta_ver") or {}
+    out = {}
+    if p.get("at"):
+        out["players"] = {"now": p.get("now"), "peak": p.get("peak"), "since": p.get("since") or "", "at": p["at"]}
+    if n.get("date"):
+        out["update"] = {"date": n["date"], "title": n.get("title") or ""}
+    if mv.get("v"):
+        out["meta_ver"] = {"v": mv["v"], "since": mv.get("since") or ""}
+    if v.get("modes"):
+        out["modes"] = v["modes"]
+    return out
 
 
 def rating(t):
     """Wertungen je Laden: Meta-Sterne (über QuestStoreDB) und Steam-Anteil positiv. Steam erst
     ab 50 Rezensionen wie in Entdecken; darunter nur die Zahl. score: 0 bis 100 zum Sortieren
     (Sterne mal 20), der bessere der beiden."""
-    m = ((t.get("live") or {}).get("meta") or {})
+    m, vd = ((t.get("live") or {}).get("meta") or {}), t.get("vrdb") or {}
     meta = None
     if isinstance(m.get("rating"), (int, float)) and 0 < m["rating"] <= 5:
         meta = {"stars": round(float(m["rating"]), 1), "n": m.get("ratings") if isinstance(m.get("ratings"), int) else None}
+    if isinstance(vd.get("pos"), (int, float)) and vd.get("stars"):
+        # Anteil 4 und 5 Sterne laut VRDB: passt zu Steams Anteil positiver Rezensionen
+        meta = {"stars": vd["stars"], "n": vd.get("n") or (meta or {}).get("n"), "pos": round(vd["pos"])}
     rev = t.get("rev") or {}
     steam = None
     if isinstance(rev.get("n"), int) and rev["n"] > 0:
         steam = {"pct": rev.get("pct") if rev["n"] >= 50 else None, "n": rev["n"]}
-    vals = ([meta["stars"] * 20] if meta else []) + ([steam["pct"]] if steam and steam["pct"] is not None else [])
+    vals = ([meta.get("pos", meta["stars"] * 20)] if meta else []) + ([steam["pct"]] if steam and steam["pct"] is not None else [])
     score = round(max(vals)) if vals else None
     return {"meta": meta, "steam": steam, "score": score}
 

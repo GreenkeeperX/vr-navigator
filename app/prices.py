@@ -262,3 +262,67 @@ def gg_prices(text):
             "url": v.get("url") or "",
         }
     return out
+
+
+def steam_players(text):
+    """GetNumberOfCurrentPlayers: Spieler gerade jetzt, None ohne gültige Antwort."""
+    try:
+        r = (json.loads(text) or {}).get("response") or {}
+    except (ValueError, AttributeError):
+        return None
+    n = r.get("player_count")
+    return n if r.get("result") == 1 and isinstance(n, int) and n >= 0 else None
+
+
+_UPDATE = re.compile(r"\b(update|patch|hotfix|version|v\d+(?:\.\d+)+|release notes?|changelog)\b", re.I)
+
+
+def steam_news(text):
+    """GetNewsForApp: jüngste Meldung des Entwicklers, die nach Update klingt ({date, title}),
+    oder {} wenn keine dabei ist; None ohne gültige Antwort."""
+    try:
+        items = ((json.loads(text) or {}).get("appnews") or {}).get("newsitems")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(items, list):
+        return None
+    best = {}
+    for it in items:
+        if not isinstance(it, dict) or not isinstance(it.get("date"), int):
+            continue
+        if it.get("feedname") != "steam_community_announcements" or not _UPDATE.search(str(it.get("title") or "")):
+            continue
+        if it["date"] > best.get("ts", 0):
+            day = datetime.fromtimestamp(it["date"], timezone.utc).strftime("%Y-%m-%d")
+            best = {"ts": it["date"], "date": day, "title": html.unescape(str(it.get("title") or ""))[:160]}
+    best.pop("ts", None)
+    return best
+
+
+def _vrdb_text(page):
+    t = re.sub(r"<script.*?</script>|<style.*?</style>|<!--.*?-->", "", page, flags=re.S)
+    t = html.unescape(re.sub(r"<[^>]+>", "|", t))
+    return re.sub(r"(\|\s*)+", "|", re.sub(r"\s+", " ", t))
+
+
+def vrdb_game(page):
+    """VRDB-Titelseite: Crossbuy, Version, Spielmodi, Meta-Wertung (Sterne, Anzahl, Anteil 4 und
+    5 Sterne). None, wenn die Seite keinen dieser Werte trägt."""
+    t = _vrdb_text(page)
+
+    def field(name):
+        m = re.search(r"\|" + re.escape(name) + r":\|([^|]{1,200})\|", t)
+        return m.group(1).strip() if m else ""
+    cb = field("Is Cross-Buy").lower()
+    share = {}
+    for m in re.finditer(r'aria-label="\d+% of reviews are (\d) stars?"[^>]*?aria-valuenow="([\d.]+)"', page):
+        share.setdefault(int(m.group(1)), float(m.group(2)))
+    stars = re.search(r"\|(\d(?:\.\d)?)\|[A-Za-z ]{0,40}\|([\d,.]+) ratings\|", t)
+    out = {"crossbuy": True if cb == "yes" else False if cb == "no" else None,
+           "version": field("Version")[:60], "modes": field("Game modes")[:120],
+           "stars": float(stars.group(1)) if stars else None,
+           "n": int(re.sub(r"[,.]", "", stars.group(2))) if stars else None,
+           "pos": round(share.get(5, 0) + share.get(4, 0)) if len(share) >= 2 else None}
+    if out["crossbuy"] is None and not out["version"] and out["pos"] is None:
+        return None
+    return out

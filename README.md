@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.6:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.7:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals. Crossbuy aus VRDB, Updates, Spielerzahlen und das Urteil „wo kaufen“ folgen (siehe
 [ROADMAP](ROADMAP.md)).
 
@@ -70,7 +70,9 @@ lesen“ im eShopKompass:
    Wunschliste im Meta Store öffnen und das Lesezeichen anklicken. Es scrollt selbst (auch in
    Listen mit eigenem Rollbalken), bis alles geladen ist. Auf deiner Wunschliste bei gg.deals
    liest es alle Seiten bis zur höchsten Seitenzahl der Seitenleiste (höchstens 30, mit kurzer
-   Pause dazwischen). Unbekannte Namen daraus sucht der Abgleich bei Steam nach, 40 je Lauf.
+   Pause dazwischen). Es nimmt auch Pakete, Bundles und DLC mit; übernommen werden nur Spiele,
+   der Rest steht mit Zahl und Namen im Ergebnis. Unbekannte Namen daraus sucht der Abgleich bei
+   Steam nach, 40 je Lauf.
 3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt Käufe
    oder Wunschliste ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse
    hinter #, gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie
@@ -206,7 +208,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Je Titel die Wertungen beider Läden auf einer Skala: Steam als Anteil positiver Rezensionen
   (ab 50; darunter nur die Zahl), Meta-Sterne über QuestStoreDB umgerechnet (Sterne × 20, daher
   „≈“). Trennen beide mindestens 5 Punkte, ist der bessere grün mit Abstand („Meta +8“).
-  Sichtbar bleiben Preise, Wertung, Recherche und Notiz; gg.deals, Tabellenwerte, Links und
+  Liest VRDB die Meta-Seite, ist die Meta-Wertung der Anteil der 4- und 5-Sterne-Bewertungen
+  (ohne „≈“, passt zu Steams Anteil positiv). Darunter „Gemessen“: Steam-Spieler gerade jetzt und
+  die Spitze aus den eigenen Messungen der letzten 30 Tage, das letzte Steam-Update laut
+  Entwickler-Meldungen und die Meta-Version mit dem Tag, an dem das Tool sie zuerst sah.
+  Crossbuy kommt von Hand oder aus der Tabelle, sonst von VRDB, zuletzt aus der Recherche (≈).
+  Sichtbar bleiben Preise, Wertung, Gemessenes, Recherche und Notiz; gg.deals, Tabellenwerte, Links und
   „bearbeiten“ stehen in der Klappe „Mehr“. Die Recherche ist violett gestrichelt und trägt „≈“,
   weil sie nicht vom Tool gemessen ist. Sortieren nach Name, „Nah am Bestpreis“, Rabatt, Wertung
   (die bessere der beiden, Sterne mal 20) und „Neu“ (zuletzt ins Tool gekommen); Filter
