@@ -52,6 +52,7 @@ ASSIGN_APPS = 25            # Steam-Store-Abfragen je Lauf, um Steam-IDs „≈�
 ASSIGN_SEARCH = 15          # QuestStoreDB-Suchen je Lauf für Titel außerhalb der Preisliste
 GG_WISH_PAGES = 10
 GG_PENDING = 40             # Namen je Lauf aus der per Lesezeichen gelesenen gg.deals-Wunschliste
+GG_RETRY_DAYS = 7           # so lange per Lesezeichen, dann versucht der Server die gg.deals-Wunschliste wieder
 SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze Liste gelesen
 SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
 REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekanntheit, Geheimtipps)
@@ -1278,6 +1279,10 @@ def run(only=None, boot=False, by_hand=False):
         manual = st["manual"] = dict(prev.get("manual") or {})
         if st["rest"].pop("ggwish", None):
             manual["ggwish"] = _iso(now())          # Sperre aus einer Version vor 0.3.4
+        if settings["gg_wish"] and manual.get("ggwish") and manual["ggwish"] < _iso(now() - timedelta(days=GG_RETRY_DAYS)):
+            # Einmal die Woche ein neuer Versuch: Cloudflare lässt den Server manchmal wieder durch
+            manual.pop("ggwish")
+            log(f"gg.deals-Wunschliste: neuer Versuch über den Server (seit {GG_RETRY_DAYS} Tagen per Lesezeichen)")
         if settings["gg_wish"] and not manual.get("ggwish"):
             do("ggwish", lambda: _gg_wish(settings, log, budget))
             if (results.get("ggwish") or {}).get("blocked"):
@@ -1285,8 +1290,8 @@ def run(only=None, boot=False, by_hand=False):
                 st["rest"].pop("ggwish", None)
                 results["ggwish"] = dict(results["ggwish"], ok=True, manual=True, msg="per Lesezeichen", until=None)
                 log("gg.deals-Wunschliste: gg.deals lässt den Server nicht durch (Prüfseite von Cloudflare). Lies die "
-                    "Wunschliste ab jetzt mit dem Lesezeichen „Seite lesen“ auf gg.deals; der Server versucht es erst "
-                    "wieder, wenn du den Link neu speicherst.")
+                    f"Wunschliste mit dem Lesezeichen „Seite lesen“ auf gg.deals; der Server versucht es in {GG_RETRY_DAYS} Tagen "
+                    "wieder oder sofort, wenn du den Link neu speicherst.")
         if store.load_data().get("gg_unknown") and (not only or "ggwish" in only):
             # eigenes Kontingent: eine lange Wunschliste soll in wenigen Läufen durch sein
             r = _gg_pending(log, {"apps": GG_PENDING, "search": GG_PENDING})

@@ -206,7 +206,7 @@ function match(r){
    Steam-Spieler jetzt (Spitze aus eigenen Messungen), letztes Steam-Update, Meta-Version. */
 const num = n => n.toLocaleString("de-DE");
 const RATE_GAP = 5;
-const fact = (label, body, tip) => `<span class="fact"${tip ? ` title="${esc(tip)}"` : ""}><span class="fl">${label}</span> ${body}</span>`;
+const fact = (label, body, tip) => `<span class="fact"${tip ? ` title="${esc(tip)}"` : ""}><span class="fl">${label}</span><span class="fv">${body}</span></span>`;
 function agoDays(d){
   const n = Math.round((Date.now() - new Date(d + "T12:00:00")) / 864e5);
   return n < 1 ? "heute" : n < 60 ? `vor ${n} Tagen` : n < 730 ? `vor ${Math.round(n / 30.4)} Monaten` : `vor ${Math.round(n / 365)} Jahren`;
@@ -237,7 +237,7 @@ function factsHtml(r){
 V.lf = {cb: false, sale: false, best: false, good: false};
 const LF = [["cb", "Crossbuy", r => r.crossbuy === true],
   ["sale", "Im Angebot", r => (r.live.meta?.discount || 0) + (r.live.steam?.discount || 0) > 0],
-  ["best", "Am Bestpreis", r => ["meta", "steam"].some(s => r.best?.[s]?.level === "best")],
+  ["best", "Am Bestpreis", r => ["meta", "steam"].some(s => (r.best?.[s]?.all_level ?? r.best?.[s]?.level) === "best")],
   ["good", "Gut bewertet", r => (r.rating?.score || 0) >= 85]];
 const lfOk = (r, keys) => LF.every(([k, , f]) => !keys.includes(k) || !V.lf[k] || f(r));
 // Sortierschlüssel, kleiner zuerst
@@ -260,7 +260,8 @@ function listBar(o){
 function legendHtml(){
   return `<div class="card legend"><h2>Farben und Zeichen <button class="link" data-act="legend">schließen</button></h2>
     <div class="lg"><span class="over">+7 €</span> über dem Bestpreis der letzten 24 Monate</div>
-    <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
+    <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis beider Läden; darunter klein der Tiefstpreis des Ladens selbst; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
+    <div class="lg">≈ am Bestpreis: übernommen (QuestStoreDB oder gg.deals), solange der eigene Preisverlauf zu kurz ist</div>
     <div class="lg"><span class="b deal">−20 %</span> Rabatt jetzt</div>
     <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler bei gg.deals, ohne Keyshops)</div>
     <div class="lg"><span class="b go">Crossbuy</span> Meta-Kauf gilt auch am PC; <span class="b">ohne Crossbuy</span> nur auf der Quest</div>
@@ -288,33 +289,47 @@ function wishView(){
       : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`) +
         grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true));
 }
-// Sortierschlüssel: wie nah der günstigere Shop an seinem Bestpreis liegt (1 = am Bestpreis)
+// Sortierschlüssel: wie nah der günstigere Shop am Bestpreis beider Läden liegt (1 = am Bestpreis)
 function nearBest(r){
-  const q = ["meta", "steam"].map(s => r.best?.[s] && r.live[s] ? r.live[s].price / r.best[s].best : null).filter(x => x != null);
+  const low = r.best_all?.best;
+  const q = ["meta", "steam"].map(s => r.best?.[s] && r.live[s] ? r.live[s].price / (low || r.best[s].best) : null).filter(x => x != null);
   return q.length ? Math.min(...q) : 1e9;
 }
 
 /* Preise: zwei feste Felder, Meta links, Steam rechts (fehlt ein Laden, bleibt sein Feld grau).
-   Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis: rot „+7 € über Bestpreis“ oder
-   gold „★ Bestpreis“; „≈“, wenn der Bestpreis aus einer fremden Quelle stammt, solange der eigene
-   Verlauf zu kurz ist. Der günstigere Laden bekommt einen grünen Rahmen und den Betrag (ab 1 €). */
-function bestLine(v, b){
-  if(!b || b.thin || b.best == null) return `<div class="bl hint" title="Der eigene Verlauf hat noch keine Preisänderung">Bestpreis noch offen</div>`;
-  const ap = b.src ? " ≈" : "";
-  const from = b.src ? `${b.src}${b.best_at ? ", " + day(b.best_at) : ""}` : `${day(b.best_at)}${b.full ? ", 24 Monate" : ", Verlauf seit " + day(b.since)}`;
-  const tip = `Jetzt ${eur(v.price)}, Bestpreis ${eur(b.best)} (${from}), Normalpreis ${eur(v.base || v.price)}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}`;
-  if(b.level === "best") return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>`;
-  const rel = b.best > 0 ? Math.round((v.price - b.best) / b.best * 100) : 0;
-  return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(v.price - b.best)}</span> über Bestpreis</div>
-    <div class="bl" title="${esc(tip)}">${eur(b.best)}${ap} <span class="hint">(+${rel} %)</span>${b.level === "usual" ? " · übliches Angebot" : ""}</div>`;
+   Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis beider Läden (Entscheidung
+   22.10.2026): rot „+7 € über Bestpreis“ (unter 1 € und 5 % nicht rot) oder gold „★ Bestpreis“;
+   klein darunter der Tiefstpreis des Ladens selbst zum Vergleich. „≈“, wenn ein Bestpreis aus einer
+   fremden Quelle stammt, solange der eigene Verlauf zu kurz ist. Der günstigere Laden bekommt einen
+   grünen Rahmen und den Betrag (ab 1 €). */
+const SHOP = {meta: "Meta", steam: "Steam"};
+function bestFrom(b){
+  return b.src ? `${b.src}${b.best_at ? ", " + day(b.best_at) : ""}` : `${day(b.best_at)}${b.full ? ", 24 Monate" : ", Verlauf seit " + day(b.since)}`;
 }
-function shopCell(shop, v, b, win, extra){
+function bestLine(v, b, A, shop){
+  const own = b && !b.thin && b.best != null;
+  if(!own && !A) return `<div class="bl hint" title="Der eigene Verlauf hat noch keine Preisänderung">Bestpreis noch offen</div>`;
+  A = A || {best: b.best, shop, src: b.src, at: b.best_at};
+  const ap = A.src ? " ≈" : "", other = A.shop !== shop;
+  const tip = `Jetzt ${eur(v.price)}, Bestpreis beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? " (" + A.src + ")" : ""}` +
+    (own ? `; ${SHOP[shop]} selbst: ${eur(b.best)} (${bestFrom(b)})${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}` : `; ${SHOP[shop]} selbst: noch offen`) +
+    `, Normalpreis ${eur(v.base || v.price)}`;
+  // Vergleich: der Tiefstpreis des Ladens selbst, wenn der Bestpreis aus dem anderen Laden kommt
+  const cmp = !other ? "" : own ? `<div class="bl hint">${SHOP[shop]}-Tief ${v.price <= b.best * 1.02 + 0.005 ? "jetzt" : eur(b.best)}${b.src ? " ≈" : ""}</div>`
+    : `<div class="bl hint">${SHOP[shop]}-Tief noch offen</div>`;
+  if(v.price <= A.best * 1.02 + 0.005) return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>${cmp}`;
+  const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0, small = over < 1 && rel < 5;
+  return `<div class="bl" title="${esc(tip)}"><span class="${small ? "" : "over"}">+${eur(over)}</span> über Bestpreis</div>
+    <div class="bl" title="${esc(tip)}">${eur(A.best)}${ap}${other ? " bei " + SHOP[A.shop] : ""} <span class="hint">(+${rel} %)</span>${own && !other && b.level === "usual" ? " · übliches Angebot" : ""}</div>${cmp}`;
+}
+function shopCell(key, v, b, A, win, extra){
+  const shop = SHOP[key];
   if(!v) return `<div class="shop none"><div class="sl">${shop}</div><div class="bl">kein Preis</div>${extra || ""}</div>`;
   const sale = v.discount ? ` <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? ` <span class="hint">${until(v.until)}</span>` : ""}` : "";
   const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
   return `<div class="shop${win ? " win" : ""}"><div class="sl">${shop}${sale}${old}</div>
     <div><span class="price big">${eur(v.price)}</span>${v.discount && v.base ? ` <s>${eur(v.base)}</s>` : ""}</div>
-    ${bestLine(v, b)}${extra || ""}${win ? `<div class="cheap">${win}</div>` : ""}</div>`;
+    ${bestLine(v, b, A, key)}${extra || ""}${win ? `<div class="cheap">${win}</div>` : ""}</div>`;
 }
 function shopsHtml(r){
   const L = r.live, B = r.best || {}, g = L.gg, pc = r.pc_best;
@@ -326,24 +341,25 @@ function shopsHtml(r){
   // Händler bei gg.deals unter Steam: als Zeile im Steam-Feld
   const deal = g && g.retail != null && (!L.steam || g.retail < L.steam.price - 0.005)
     ? `<div class="bl" title="Günstigster Händler laut gg.deals (Keyshops zählen nicht)">Händler ${eur(g.retail)} <span class="hint">(gg.deals)</span></div>` : "";
-  return `<div class="shops">${shopCell("Meta", L.meta, B.meta, metaWin)}${shopCell("Steam", L.steam, B.steam, pcWin, deal)}</div>`;
+  return `<div class="shops">${shopCell("meta", L.meta, B.meta, r.best_all, metaWin)}${shopCell("steam", L.steam, B.steam, r.best_all, pcWin, deal)}</div>`;
 }
 V.more = new Set();
-// Was selten entscheidet, steht in der Klappe „Mehr“: Bestpreise im Einzelnen, gg.deals, Tabelle, Links, Bearbeiten
+// Was selten entscheidet, steht in der Klappe; ihre Zeile nennt, was drin ist: „Bestpreise · gg.deals · Tabelle · Links“
 function moreHtml(r, extra){
-  const g = r.live.gg, s = r.sheet, B = r.best || {}, out = [];
+  const g = r.live.gg, s = r.sheet, B = r.best || {}, out = [], has = [];
   for(const [k, shop] of [["meta", "Meta"], ["steam", "Steam"]]){
     const b = B[k];
-    if(b && !b.thin && b.best != null) out.push(`<div class="small">${shop}: Bestpreis ${eur(b.best)}${b.src ? ` ≈ (${esc(b.src)}${b.best_at ? ", " + day(b.best_at) : ""})` : ` am ${day(b.best_at)}${b.full ? " (24 Monate)" : ` (Verlauf seit ${day(b.since)})`}`}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}</div>`);
+    if(b && !b.thin && b.best != null) has.push("Bestpreise"), out.push(`<div class="small">${shop}: Bestpreis ${eur(b.best)}${b.src ? ` ≈ (${esc(b.src)}${b.best_at ? ", " + day(b.best_at) : ""})` : ` am ${day(b.best_at)}${b.full ? " (24 Monate)" : ` (Verlauf seit ${day(b.since)})`}`}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}</div>`);
   }
-  if(g && (g.retail != null || g.keyshops != null)) out.push(`<div class="small">gg.deals: ${[
+  if(g && (g.retail != null || g.keyshops != null)) has.push("gg.deals"), out.push(`<div class="small">gg.deals: ${[
     g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
     g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}
     <span class="hint">(Keyshops zählen nicht mit)</span></div>`);
-  if(s && Object.keys(r.live).length) out.push(`<div class="small">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</div>`);
+  if(s && Object.keys(r.live).length) has.push("Tabelle"), out.push(`<div class="small">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</div>`);
   out.push(`<div class="row2">${linksHtml(r)}</div>`);
   out.push(`<div class="row2"><button class="link" data-act="edit" data-k="${esc(r.key)}">bearbeiten</button>${extra || ""}</div>`);
-  return `<details class="more" data-more="${esc(r.key)}" ${V.more.has(r.key) ? "open" : ""}><summary>Mehr</summary>${out.join("")}</details>`;
+  const sum = [...new Set(has), "Links", "bearbeiten"].join(" · ");
+  return `<details class="more" data-more="${esc(r.key)}" ${V.more.has(r.key) ? "open" : ""}><summary>${sum}</summary>${out.join("")}</details>`;
 }
 // Ohne Abruf: die Werte aus deiner Tabelle, gekennzeichnet
 function sheetHtml(r){
@@ -649,9 +665,11 @@ const MP = {lebendig: "Mehrspieler lebendig", ruhig: "Mehrspieler ruhig", tot: "
 function opinionHtml(r){
   const o = r.opinion;
   if(!o) return "";
-  const head = [o.fassung && FASSUNG[o.fassung], o.mehrspieler && MP[o.mehrspieler]].filter(Boolean).join(" · ");
+  // Crossplay: Quest und PC spielen zusammen (nicht Crossbuy, das ist der gemeinsame Kauf im Meta Store)
+  const head = [o.fassung && FASSUNG[o.fassung], o.mehrspieler && MP[o.mehrspieler],
+    o.crossplay === true ? "Crossplay Quest/PC" : o.crossplay === false ? "kein Crossplay" : ""].filter(Boolean).join(" · ");
   const rows = [["Fazit", o.fazit], ["Fassung", o.fassung_grund], ["Mehrspieler", o.mehrspieler_stand], ["Pflege", o.pflege],
-    ["Crossbuy", o.crossbuy_grund], ["Komfort", o.komfort], ["Warnungen", o.warnungen]].filter(x => x[1]);
+    ["Crossbuy", o.crossbuy_grund], ["Crossplay", o.crossplay_grund], ["Komfort", o.komfort], ["Warnungen", o.warnungen]].filter(x => x[1]);
   const src = (o.quellen || []).filter(q => safeUrl(q.url)).map(q =>
     `<a href="${esc(q.url)}" target="_blank" rel="noopener noreferrer">${esc(q.titel || q.url.replace(/^https?:\/\/([^\/?#]+).*$/i, "$1"))}</a>${q.datum ? ` <span class="hint">${esc(q.datum)}</span>` : ""}`).join(" · ");
   // Recherche ist nicht gemessen: violett gestrichelt und mit „≈“ wie andere unsichere Werte
@@ -752,14 +770,14 @@ function fileCard(){
 function accountsCard(){
   const se = S.settings || {};
   const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.sharenite && "Sharenite"].filter(Boolean);
-  return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form" style="margin-top:8px">
+  return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form acc" style="margin-top:8px">
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
-      ${se.steam_key_set ? `<span class="full"><label><input type="checkbox" name="steam_clear"> Steam-Schlüssel löschen</label></span>` : ""}
+      ${se.steam_key_set ? `<span class="clr"><label><input type="checkbox" name="steam_clear"> Steam-Schlüssel löschen</label></span>` : ""}
       <label for="a-gw">gg.deals-Wunschliste</label><input type="password" id="a-gw" name="gg_wish" autocomplete="off" placeholder="${se.gg_wish_set ? "gespeichert, leer lassen zum Behalten" : "Link aus „Wunschliste teilen“"}">
-      ${se.gg_wish_set ? `<span class="full"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
+      ${se.gg_wish_set ? `<span class="clr"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
       <label for="a-gg">gg.deals-Schlüssel</label><input type="password" id="a-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? `gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}, leer lassen zum Behalten` : "für Händlerpreise; kostenlos auf gg.deals unter Einstellungen, API"}">
-      ${se.gg_key_set ? `<span class="full"><label><input type="checkbox" name="gg_clear"> gg.deals-Schlüssel löschen</label></span>` : ""}
+      ${se.gg_key_set ? `<span class="clr"><label><input type="checkbox" name="gg_clear"> gg.deals-Schlüssel löschen</label></span>` : ""}
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">

@@ -22,7 +22,7 @@
 :root[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{padding:0 16px 60px;max-width:1100px;margin:0 auto}
+.wrap{padding:0 16px 60px;margin:0 auto}
 header.top{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:14px 0 6px}
 header.top h1{font-size:23px;margin:0;letter-spacing:-.015em}
 header.top h1 a{color:inherit;text-decoration:none}
@@ -95,9 +95,13 @@ dialog h2{margin:0 0 10px;font-size:18px}
 .form label{font-size:13px;color:var(--muted)}
 .form input[type=text],.form select,.form textarea{width:100%}
 .form .full{grid-column:1/-1}
+/* Konten: Feldnamen fett, „löschen“ klein unter dem Feld, damit die Eingaben vorn stehen */
+.form.acc>label{font-weight:600;color:var(--ink)}
+.form.acc .clr{grid-column:2;margin-top:-6px;font-size:12px;color:var(--muted)}
+.form.acc .clr label{font-size:12px;font-weight:400}
 .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:12px}
 .actions .sp{flex:1}
-@media (max-width:520px){.form{grid-template-columns:1fr}}
+@media (max-width:520px){.form{grid-template-columns:1fr}.form.acc .clr{grid-column:1}}
 /* Hell, dunkel, System: runder Knopf mit Zeichen, Menü darunter */
 .thm{position:relative}
 .thm>button{width:30px;height:30px;padding:0;border-radius:50%;display:inline-grid;place-items:center}
@@ -139,11 +143,11 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 /* Titelkarte (Jetzt, Wunschliste): Kopf, zwei feste Preisfelder (Meta links, Steam rechts),
    Fakten, Recherche, „Mehr“. Am Desktop Preise und Fakten nebeneinander. */
 .item .hd{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
-.item .hd .nm{flex:1 1 200px}
+.item .hd .nm{flex:0 1 auto;min-width:0}
 .item.wi{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
 .item.wi>.side:empty{display:none}
 @media (min-width:900px){
-  .item.wi{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:18px;align-items:start}
+  .item.wi{grid-template-columns:minmax(0,560px) minmax(0,1fr);column-gap:24px;align-items:start}
   .item.wi>.hd,.item.wi>details.more{grid-column:1/-1}
 }
 .shops{display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:0}
@@ -157,9 +161,11 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .shop.win{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
 .shop .cheap{color:var(--go);font-weight:600;font-size:12px}
 .over{color:var(--stop);font-weight:600}
-.facts{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:13px;color:var(--ink);min-width:0;flex-basis:100%}
-.fact{min-width:0;overflow-wrap:anywhere}
-.fact .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:2px}
+/* Fakten als festes Raster: Spalte mit Namen, Spalte mit Werten, in jeder Karte gleich */
+.facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;align-items:baseline;font-size:13px;color:var(--ink);min-width:0;flex-basis:100%}
+.fact{display:contents}
+.fact .fv{min-width:0;overflow-wrap:anywhere}
+.fact .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
 .item.wi .side{display:flex;flex-direction:column;gap:4px;min-width:0}
 /* Werkzeugzeile: Suche, Sortieren, Menüs, Legende */
 .bar .tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}

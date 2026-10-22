@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.4.8:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis je Shop, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.4.9:** Bibliothek, Wunschliste, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -39,8 +39,8 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
 - **gg.deals-Wunschliste:** der Link aus „Wunschliste teilen“. Es zählen Titel, die das Tool
   kennt (Name, früherer Name, Name aus einem Link), und Spiele, die es im Steam-Store unter
   genau diesem Namen als VR-App findet. Zeigt gg.deals dem Server eine Prüfseite (Cloudflare),
-  liest das Tool die Liste ab dann nur noch mit dem Lesezeichen „Seite lesen“ auf gg.deals und
-  versucht es erst wieder, wenn du den Link neu speicherst. Unbekannte Namen sucht der nächste
+  liest das Tool die Liste mit dem Lesezeichen „Seite lesen“ auf gg.deals und versucht es nach
+  sieben Tagen wieder selbst, sofort, wenn du den Link neu speicherst. Unbekannte Namen sucht der nächste
   Abgleich nach.
 - **Sharenite:** der Link zu deinem öffentlichen Profil (Playnite online, mit allen Läden wie
   Steam, GOG, Epic). Übernommen werden Spiele mit einem Schlagwort „VR“ als Besitz am PC, mit
@@ -107,8 +107,11 @@ still nichts zu übernehmen:
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 - **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere
-  Fassung, Mehrspieler, Pflege, Crossbuy, Komfort, Warnungen und Quellen. Sie stehen unter
-  dem Titel als zugeklappte Zeile „Recherche, Datum: …“; Crossbuy daraus trägt „≈“. Aufbau
+  Fassung, Mehrspieler, Pflege, Crossbuy, Crossplay, Komfort, Warnungen und Quellen. Sie stehen
+  unter dem Titel als zugeklappte Zeile „Recherche, Datum: …“; Crossbuy daraus trägt „≈“.
+  Crossbuy heißt: ein Kauf im Meta Store gilt für Quest und PC-VR im Meta Store; Steam gehört
+  nie dazu. Nennt die Begründung Steam, Crossplay oder nur deine Zuordnung, verwirft der Import
+  den Wert und sagt es in der Vorschau. Aufbau
   in [docs/meinungen.md](docs/meinungen.md).
 
 ## Titel zusammenführen
@@ -196,15 +199,18 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Wunschliste.
 - **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
-  „nicht mehr wünschen“ (unter „Mehr“) nimmt einen Titel von der Liste (mit Rückgängig);
+  „nicht mehr wünschen“ (in der Klappe unter der Karte) nimmt einen Titel von der Liste (mit Rückgängig);
   „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
   Je Titel eine Karte mit festem Aufbau:
   - **Kopf:** Name, Crossbuy-Marke mit Herkunft (siehe unten), Besitz, Bundle, „Steam-ID ≈“.
   - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
-    mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis** des
-    Shops, dem niedrigsten Preis der letzten 24 Monate: rot „+3,50 € über Bestpreis“ mit Betrag und
-    Prozent, gold „★ Bestpreis“ (bis 2 % darüber), dazu „übliches Angebot“ (so tief wie in
-    mindestens zwei getrennten Angeboten). Für Meta reicht der Verlauf von QuestStoreDB Jahre
+    mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis**
+    beider Läden, dem niedrigsten Preis von Meta oder Steam der letzten 24 Monate: rot „+3,50 € über
+    Bestpreis“ mit Betrag, Laden und Prozent (unter 1 € und 5 % nicht rot), gold „★ Bestpreis“
+    (bis 2 % darüber). Kommt der Bestpreis aus dem anderen Laden, steht klein darunter der
+    Tiefstpreis des Ladens selbst („Steam-Tief 12 €“ oder „jetzt“); so sieht Steam nicht golden
+    aus, wenn Meta einmal günstiger war. Dazu „übliches Angebot“ (so tief wie in mindestens zwei
+    getrennten Angeboten). Für Meta reicht der Verlauf von QuestStoreDB Jahre
     zurück, für Steam zählt der eigene Verlauf; ohne jede Preisänderung steht „Bestpreis noch
     offen“. Ist der eigene Verlauf noch zu kurz, gilt das Allzeit-Tief einer anderen Quelle, mit
     „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Händler-Angebot laut gg.deals. Ist
@@ -212,14 +218,15 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
     (gegen das günstigste PC-Angebot ohne Keyshops) bekommt ab 1 € Unterschied einen grünen
     Rahmen und den Betrag („5 € günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter
     als zwei Tage ist.
-  - **Fakten** in einer Zeile: Wertung beider Läden auf einer Skala (Steam: Anteil positiver
+  - **Fakten** in einem festen Raster (Name links, Wert rechts, in jeder Karte gleich): Wertung beider Läden auf einer Skala (Steam: Anteil positiver
     Rezensionen ab 50, darunter nur die Zahl; Meta: Anteil der 4- und 5-Sterne-Bewertungen laut
     VRDB, sonst Sterne × 20 über QuestStoreDB mit „≈“; ab 5 Punkten Abstand der bessere grün mit
     „Meta +8“), Steam-Spieler gerade jetzt mit der Spitze aus den eigenen Messungen der letzten
     30 Tage, das letzte Steam-Update laut Entwickler-Meldungen und die Meta-Version mit dem Tag,
     an dem das Tool sie zuerst sah.
   - **Recherche** violett gestrichelt mit „≈“, weil sie nicht vom Tool gemessen ist; die Notiz.
-  - **Mehr** (zugeklappt): Bestpreise mit Datum und Quelle, gg.deals (Händler, Keyshop,
+  - **Klappe** (zugeklappt), ihre Zeile nennt den Inhalt, etwa „Bestpreise · gg.deals · Links ·
+    bearbeiten“: Bestpreise je Laden mit Datum und Quelle, gg.deals (Händler, Keyshop,
     Allzeit-Tief), die Werte deiner Tabelle, Links (Meta, VRDB, QuestStoreDB, Steam, fertige
     Suchen auf Reddit und Google nach „Quest vs Steam“), „bearbeiten“.
 
@@ -238,7 +245,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   wenn eine Tabellenzeile da ist, sonst als von Hand.
 - **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
   „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
-  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und „Mehr“. Meta-Sterne gibt es dort nur für Titel,
+  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und die Klappe. Meta-Sterne gibt es dort nur für Titel,
   deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
 - **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
   Mehrspieler-Art (Menü mit Häkchen; mehrere gewählt: alle müssen passen: Mehrspieler, Online,

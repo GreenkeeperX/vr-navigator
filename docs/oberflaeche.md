@@ -12,7 +12,7 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 | Farbe | Token | Bedeutung | Beispiele |
 |---|---|---|---|
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
-| Gold | `--best` | am Bestpreis (niedrigster Preis des Shops in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
+| Gold | `--best` | am Bestpreis (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
 | Grün | `--go` | spricht für dich, gelingt | günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
 | Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
 | Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
@@ -30,15 +30,19 @@ Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
 1. Kopf (`.hd`): Name, Marken.
 2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
    `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
-   „+x € über Bestpreis“ und der Bestpreis oder gold „★ Bestpreis“. Der günstigere Laden:
+   „+x € über Bestpreis“ (unter 1 € und 5 % ohne Rot) und der Bestpreis mit Laden oder gold
+   „★ Bestpreis“, gemessen am niedrigsten Preis beider Läden (`best_all`); kommt er aus dem
+   anderen Laden, klein darunter der eigene Tiefstpreis („Steam-Tief“). Der günstigere Laden:
    `.shop.win` mit „x € günstiger“.
-3. Fakten (`.facts`): Wertung, Spieler, Update, Meta-Version, jeweils mit kleinem grauem Namen
-   (`.fl`); nur was es gibt.
+3. Fakten (`.facts`): festes Raster mit zwei Spalten, links der kleine graue Name (`.fl`),
+   rechts der Wert (`.fv`): Wertung, Spieler, Update, Meta-Version; nur was es gibt.
 4. Recherche, Notiz.
-5. „Mehr“ (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“): Bestpreise im
-   Einzelnen, gg.deals, Tabelle, Links, Bearbeiten.
+5. Klappe (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“); die Zeile nennt den
+   Inhalt („Bestpreise · gg.deals · Tabelle · Links · bearbeiten“): Bestpreise je Laden,
+   gg.deals, Tabelle, Links, Bearbeiten.
 
-Ab 900 px stehen Preise und Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und „Mehr“.
+Die Karten nutzen die ganze Breite des Fensters. Ab 900 px stehen Preise (bis 560 px) und
+Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
 
 ## Hell, dunkel, System
 

@@ -50,7 +50,7 @@ bekommen. Eingetragen wird erst nach dem Lesen, unter der Sperre auf `data.json`
 | Steam, Besitz | `api.steampowered.com/IPlayerService/GetOwnedGames/v1/` (mit Schlüssel) | jeder Lauf | App-ID und Name je Spiel |
 | Steam, Wunschliste | `api.steampowered.com/IWishlistService/GetWishlist/v1/` | jeder Lauf | App-IDs |
 | Steam, VR-Prüfung | `store.steampowered.com/api/appdetails?appids=<ID>&cc=de&l=german` | je unbekannter App einmal, 40 je Lauf | Name, Kategorien (VR Support, VR Supported, VR Only) |
-| gg.deals-Wunschliste | der geteilte Link, `?page=N` | jeder Lauf, höchstens 10 Seiten; nach einer Sperre (Cloudflare) nur noch per Lesezeichen, bis der Link neu gespeichert wird (`sync.json`, `manual`) | Links auf `/game/<name>/` mit Namen |
+| gg.deals-Wunschliste | der geteilte Link, `?page=N` | jeder Lauf, höchstens 10 Seiten; nach einer Sperre (Cloudflare) per Lesezeichen, nach 7 Tagen (`GG_RETRY_DAYS`) oder beim Speichern des Links ein neuer Versuch (`sync.json`, `manual`) | Links auf `/game/<name>/` mit Namen |
 | Steam-Suche für unbekannte Namen aus dem Lesezeichen | `store.steampowered.com/api/storesearch/` | aus `data["gg_unknown"]`, dasselbe Kontingent | App-ID bei genau gleichem Namen |
 | Steam-Suche für unbekannte gg.deals-Namen | `store.steampowered.com/api/storesearch/` | 15 je Lauf, je Name höchstens alle 7 Tage | App-ID bei genau gleichem Namen |
 | Sharenite | `sharenite.link/profiles/<Profil>/games?sort=name_asc`, dann mit `tag_ids[]` der VR-Schlagwörter | höchstens alle 20 Stunden (von Hand immer) | Name, Laden und Schlagwörter je Spiel; ohne VR-Filter die ganze Liste (100 je Seite, höchstens 40 Seiten) |
