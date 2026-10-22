@@ -19,6 +19,8 @@ f.addEventListener("load", () => {
     try{
       const views = w.eval("TABS.map(x => x[0])").map(t => [t, `V.q = ''; V.tab = '${t}'`])
         .concat([["wish:suche", "V.tab = 'wish'; V.q = 'sky'"], ["wish:zu", "V.q = ''; V.folds['w-open'] = true"],
+                 ["wish:wertung", "V.folds['w-open'] = false; V.sort = 'rating'; V.lf.cb = true"],
+                 ["lib:filter", "V.tab = 'lib'; V.lsort = 'added'; V.lf.good = true; V.lf.cb = false"],
                  ["settings:zu", "V.tab = 'settings'", "document.querySelector('[data-act=foldall][data-v=\"\"]').click(); render()"],
                  ["find:wild", "V.tab = 'find'; V.folds['d-filter'] = false", "setMix('wild'); render()"],
                  ["find:zufall", "V.d = Object.assign({}, D0, {sort: 'random', seed: 7})"],

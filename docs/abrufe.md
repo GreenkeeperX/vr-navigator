@@ -135,6 +135,18 @@ und Steam beide sagen, gilt als bestätigt; der Rest bleibt mit „≈“. Liefe
 ein nur vermuteter Laden bestätigt. Abgelegt je Spiel unter `steam` in `collection.json`
 (`ok: false`, wenn Steam die App nicht kennt); ein neuer Playnite-Export behält es.
 
+## Steam-Wertungen (Wunschliste, Bibliothek)
+
+Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Rezensionen | wie bei Entdecken (`appreviews`) | je Lauf höchstens 60 Titel, zuerst die ohne Wert; jeder nach 30 Tagen neu, sofort bei geänderter Steam-ID | Zahl der Rezensionen und Anteil positiv |
+
+Hat Entdecken dasselbe Spiel in den letzten 30 Tagen schon gefragt, wird der Wert übernommen
+statt neu abgerufen. Abgelegt je Titel unter `rev` in `data.json` (mit `app`, der Steam-ID). Die
+Meta-Sterne kommen ohne eigenen Abruf aus der QuestStoreDB-Titelseite (`live.meta.rating`).
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils

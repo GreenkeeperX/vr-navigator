@@ -99,7 +99,25 @@ def row(key, t, at=None, hist=None, data=None):
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt
         "gap_now": round(meta_now - pc["price"], 2) if meta_now is not None and pc else None,
         "links": titles.search_links(t), "added": t.get("added") or "",
+        "rating": rating(t),
     }
+
+
+def rating(t):
+    """Wertungen je Laden: Meta-Sterne (über QuestStoreDB) und Steam-Anteil positiv. Steam erst
+    ab 50 Rezensionen wie in Entdecken; darunter nur die Zahl. score: 0 bis 100 zum Sortieren
+    (Sterne mal 20), der bessere der beiden."""
+    m = ((t.get("live") or {}).get("meta") or {})
+    meta = None
+    if isinstance(m.get("rating"), (int, float)) and 0 < m["rating"] <= 5:
+        meta = {"stars": round(float(m["rating"]), 1), "n": m.get("ratings") if isinstance(m.get("ratings"), int) else None}
+    rev = t.get("rev") or {}
+    steam = None
+    if isinstance(rev.get("n"), int) and rev["n"] > 0:
+        steam = {"pct": rev.get("pct") if rev["n"] >= 50 else None, "n": rev["n"]}
+    vals = ([meta["stars"] * 20] if meta else []) + ([steam["pct"]] if steam and steam["pct"] is not None else [])
+    score = round(max(vals)) if vals else None
+    return {"meta": meta, "steam": steam, "score": score}
 
 
 def _sale(r):
