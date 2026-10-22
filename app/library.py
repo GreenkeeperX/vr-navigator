@@ -90,7 +90,32 @@ def _best_all(best, now):
         if b and now.get(s) is not None:
             b["all_level"] = "best" if now[s] <= low * tol + 0.005 else ""
             b["all_over"] = round(max(now[s] - low, 0), 2)
+            b["grade"] = grade(now[s], low)
     return {"best": low, "shop": shop, "src": src, "at": at}
+
+
+# Preisgüte wie im eShopKompass: „kaufen“ am Bestpreis (bis 2 %) oder höchstens 0,50 € darüber,
+# „gut“ bis 15 % oder höchstens 2 € darüber, sonst „warten“. Unter 2 € Bestpreis gilt für „kaufen“
+# nur die 2 % (0,50 € wären bei 1 € schon 50 %).
+GRADE_BUY_EUR, GRADE_GOOD_EUR, GRADE_GOOD_PCT, GRADE_MINI = 0.5, 2.0, 15, 2.0
+
+
+def grade(price, low):
+    """buy, good oder wait für einen Preis gegenüber dem Bestpreis beider Läden."""
+    if low is None or low <= 0 or price is None:
+        return ""
+    diff = price - low
+    if price <= low * (1 + prices.BEST_TOL) + 0.005 or (low >= GRADE_MINI and diff <= GRADE_BUY_EUR + 0.005):
+        return "buy"
+    if 100 * (price / low - 1) <= GRADE_GOOD_PCT + 1e-9 or diff <= GRADE_GOOD_EUR + 0.005:
+        return "good"
+    return "wait"
+
+
+def _near(r):
+    """Ein Laden, der den Titel gerade im Angebot hat, ist „kaufen“ oder „gut“."""
+    return any((r["live"].get(s) or {}).get("discount") and (r["best"].get(s) or {}).get("grade") in ("buy", "good")
+               for s in ("meta", "steam"))
 
 
 def row(key, t, at=None, hist=None, data=None):
@@ -203,15 +228,24 @@ def _sale(r):
                (r["live"].get("steam") or {}).get("discount") or 0)
 
 
-def view(data, at=None, hist=None):
+def view(data, at=None, hist=None, settings=None):
     rows = sorted((row(k, t, at, hist, data) for k, t in data["titles"].items()), key=lambda r: titles.norm(r["name"]))
     owned = [r for r in rows if r["where"]]
     # Die Wunschliste führt auch Titel, die du inzwischen besitzt; die Oberfläche blendet sie
     # aus, solange du sie nicht ausdrücklich zeigen lässt (owned_wish zählt sie)
     wish = [r for r in rows if r["wish"]]
-    now = sorted((r for r in wish if not r["where"] and _sale(r)), key=lambda r: (-_sale(r), titles.norm(r["name"])))
+    read = lists.lists_read(data, settings)
+    for r in wish:
+        t = data["titles"][r["key"]]
+        r["wish_missing"] = [] if r["where"] or t.get("wish_lists_ok") else lists.missing(t, read)
+        if r["wish_missing"]:
+            r["add_links"] = lists.add_links(t)
+    # Jetzt: nur Angebote, die nah am Bestpreis beider Läden liegen; die übrigen zählt now_far
+    sale = sorted((r for r in wish if not r["where"] and _sale(r)), key=lambda r: (-_sale(r), titles.norm(r["name"])))
+    now = [r for r in sale if _near(r)]
+    far = [r for r in sale if not _near(r)]
     return {
-        "now": now,
+        "now": now, "now_far": far,
         "library": owned,
         "wishlist": wish,
         "counts": {"all": len(rows), "now": len(now), "owned": len(owned), "wish": sum(not r["where"] for r in wish),
@@ -223,5 +257,5 @@ def view(data, at=None, hist=None):
         # Mit der Zeile, damit „bearbeiten“ auch Titel öffnet, die weder Besitz noch Wunsch sind
         "todo": [dict(x, row=row(x["key"], data["titles"][x["key"]], at, hist, data)) for x in titles.todo(data)],
         "imports": data.get("imports") or {},
-        "lists": lists.check(data), "lists_stale": lists.stale(data, at),
+        "lists": lists.check(data, settings), "lists_stale": lists.stale(data, at),
     }

@@ -190,8 +190,21 @@ function badges(r){
   }
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
-  if(r.wish && !r.wish_src?.length) out.push(`<span class="b" title="Steht auf keiner Wunschliste, nur in deiner alten Tabelle (Einstellungen, Zu erledigen)">Wunsch · Tabelle</span>`);
-  return out.join(" ");
+  out.push(wishListBadge(r));
+  return out.filter(Boolean).join(" ");
+}
+/* Wie im eShopKompass: Steht ein Wunschtitel auf keiner Wunschliste eines Ladens, oder fehlt er
+   in einem Laden, der ihn führt, sagt es eine Marke, und „+ Meta“ / „+ gg.deals“ öffnen die Seite,
+   auf der du ihn mit einem Klick nachträgst. Der nächste Abgleich ordnet ihn dann selbst zu. */
+const addLinks = (links, only) => (links || []).filter(l => safeUrl(l.url) && (!only || only(l))).map(l =>
+  `<a class="add" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" title="Dort auf die Wunschliste setzen">+ ${esc(l.label)}</a>`).join(" ");
+function wishListBadge(r){
+  if(!r.wish || r.where) return "";
+  const miss = r.wish_missing || [];
+  if(!r.wish_src?.length) return `<span class="b warn" title="Steht auf keiner Wunschliste eines Ladens, nur ${r.sheet ? "in deiner alten Tabelle" : "im Tool"}">auf keiner Laden-Wunschliste${r.sheet ? " · Tabelle" : ""}</span> ${addLinks(r.add_links || [])}`;
+  if(!miss.length) return "";
+  const names = {meta: "Meta", pc: "Steam/gg.deals"};
+  return `<span class="b warn" title="Den Titel gibt es dort, er steht aber nicht auf deiner Wunschliste">fehlt auf Wunschliste: ${miss.map(m => names[m]).join(", ")}</span> ${addLinks(r.add_links, l => miss.includes(l.label === "Meta" ? "meta" : "pc"))}`;
 }
 const linksHtml = r => `<span class="links">${r.links.filter(l => safeUrl(l.url)).map(l =>
   `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join("")}</span>`;
@@ -288,7 +301,7 @@ function wishView(){
   // Hinweis auf „Wunschliste abgleichen“, solange es dort etwas zu tun gibt
   const L = S.lists || [], lc = k => L.filter(x => x.kind === k).length;
   const hint = L.length ? `<div class="banner">Abgleich mit deinen Wunschlisten: ${[lc("owned") && `${lc("owned")} schon gekauft`,
-    lc("off") && `${lc("off")} im Laden noch gewünscht`, lc("table") && `${lc("table")} nur aus der Tabelle`].filter(Boolean).join(", ")}.
+    lc("off") && `${lc("off")} im Laden noch gewünscht`, lc("missing") && `${lc("missing")} fehlen auf einer Laden-Wunschliste`, lc("table") && `${lc("table")} nur aus der Tabelle`].filter(Boolean).join(", ")}.
     <button class="link" data-act="golists">ansehen</button></div>` : "";
   return hint + (V.add ? add : "") + head +
     (!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
@@ -304,7 +317,7 @@ function nearBest(r){
 
 /* Preise: zwei feste Felder, Meta links, Steam rechts (fehlt ein Laden, bleibt sein Feld grau).
    Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis beider Läden (Entscheidung
-   22.10.2026): rot „+7 € über Bestpreis“ (unter 1 € und 5 % nicht rot) oder gold „★ Bestpreis“;
+   22.10.2026): rot „+7 € über Bestpreis“ (rot nur über 15 % und 2 €) oder gold „★ Bestpreis“;
    klein darunter der Tiefstpreis des Ladens selbst zum Vergleich. „≈“, wenn ein Bestpreis aus einer
    fremden Quelle stammt, solange der eigene Verlauf zu kurz ist. Der günstigere Laden bekommt einen
    grünen Rahmen und den Betrag (ab 1 €). */
@@ -321,10 +334,11 @@ function bestLine(v, b, A, shop){
     (own ? `; ${SHOP[shop]} selbst: ${eur(b.best)} (${bestFrom(b)})${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}` : `; ${SHOP[shop]} selbst: noch offen`) +
     `, Normalpreis ${eur(v.base || v.price)}`;
   // Vergleich: der Tiefstpreis des Ladens selbst, wenn der Bestpreis aus dem anderen Laden kommt
-  const cmp = !other ? "" : own ? `<div class="bl hint">${SHOP[shop]}-Tief ${v.price <= b.best * 1.02 + 0.005 ? "jetzt" : eur(b.best)}${b.src ? " ≈" : ""}</div>`
+  const cmp = !other ? "" : own ? `<div class="bl hint">${eur(Math.min(b.best, v.price))}${b.src ? " ≈" : ""} ${SHOP[shop]}-Tief${v.price <= b.best * 1.02 + 0.005 ? " (jetzt)" : ""}</div>`
     : `<div class="bl hint">${SHOP[shop]}-Tief noch offen</div>`;
   if(v.price <= A.best * 1.02 + 0.005) return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>${cmp}`;
-  const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0, small = over < 1 && rel < 5;
+  // Rot nur bei „warten“ (mehr als 15 % und 2 € über dem Bestpreis), wie im eShopKompass
+  const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0, small = b?.grade ? b.grade !== "wait" : over < 1 && rel < 5;
   return `<div class="bl" title="${esc(tip)}"><span class="${small ? "" : "over"}">+${eur(over)}</span> über Bestpreis</div>
     <div class="bl" title="${esc(tip)}">${eur(A.best)}${ap}${other ? " bei " + SHOP[A.shop] : ""} <span class="hint">(+${rel} %)</span>${own && !other && b.level === "usual" ? " · übliches Angebot" : ""}</div>${cmp}`;
 }
@@ -553,17 +567,20 @@ function findView(){
 }
 
 /* ---------------------------------------------------------------- Jetzt */
-/* Wunschtitel im Angebot, standardmäßig die nah am Bestpreis zuerst */
+/* Wunschtitel im Angebot, die nah am Bestpreis beider Läden liegen („kaufen“: bis 2 % oder 0,50 €
+   darüber, „gut“: bis 15 % oder 2 €); die übrigen Angebote auf Wunsch darunter */
 function nowView(){
-  const last = S.sync?.done;
-  if(!last && !S.now.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
+  const last = S.sync?.done, far = S.now_far || [];
+  if(!last && !S.now.length && !far.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
   const sort = V.nowSort || "best";
   let rows = S.now.filter(r => match(r) && lfOk(r, ["cb", "best", "good"]));
   const k = {best: nearBest, rating: byRating}[sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
   return listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: ["cb", "best", "good"]}) +
-    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind. Letzter Abruf: ${when(last) || "–"}.</p>
-    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel reduziert."}</p>`}</div>`;
+    `<p class="hint">Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Bestpreis beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
+    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}</div>
+    ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length,
+      `<div class="list">${far.filter(r => match(r)).map(r => wishRow(r)).join("")}</div>`, true) : ""}`;
 }
 
 /* ---------------------------------------------------------------- Abrufe */
@@ -652,14 +669,16 @@ const LIST_GROUPS = [
     [["drop", "von der Wunschliste"], ["keep", "behalten"]]],
   ["off", "Im Tool entfernt, im Laden noch gewünscht", "Du hast sie im Tool entfernt, die Liste im Laden führt sie noch. Entferne sie dort, dann verschwindet der Hinweis beim nächsten Abgleich; oder wünsche sie wieder.",
     [["wish", "wieder wünschen"]]],
-  ["table", "Nur aus der alten Tabelle", "Diese Wünsche stehen auf keiner Wunschliste, nur in deiner Vergleichstabelle. „behalten“ führt sie im Tool weiter (von Hand), „entfernen“ nimmt sie von der Liste.",
+  ["missing", "Fehlt auf einer Laden-Wunschliste", "Gewünscht, aber in einem Laden, der den Titel führt, nicht auf deiner Wunschliste: Meta schickt dir dann keine Rabatt-Mail, Steam und gg.deals keinen Hinweis. „+ Meta“ und „+ gg.deals“ öffnen die Seite zum Eintragen; der nächste Abgleich (Meta: das nächste Lesezeichen) ordnet ihn dann zu. „so lassen“, wenn du nur die eine Fassung willst.",
+    [["ok", "so lassen"]]],
+  ["table", "Nur aus der alten Tabelle", "Diese Wünsche stehen auf keiner Wunschliste, nur in deiner Vergleichstabelle. Am schnellsten: mit „+ Meta“ und „+ gg.deals“ dort eintragen, dann ordnet das Tool sie beim nächsten Lesen selbst zu. Oder „behalten“ (nur im Tool, von Hand) oder „entfernen“.",
     [["keep", "behalten"], ["drop", "entfernen"]]]];
 function listsHtml(){
   const L = S.lists || [], st = S.lists_stale || [];
   const metaWish = st.find(x => x.src === "metawish");
   // Erst lesen, dann entscheiden: was auf der Meta-Wunschliste steht, ordnet das Tool selbst zu
   const first = metaWish && L.some(x => x.kind === "table")
-    ? `<p class="banner">${metaWish.at ? `Deine Meta-Wunschliste hast du zuletzt ${ago(metaWish.at)} gelesen` : "Deine Meta-Wunschliste hat das Tool noch nie gelesen"}. Lies sie zuerst mit dem Lesezeichen „Meta-Käufe lesen“ auf deiner Wunschliste bei Meta: Was dort steht, ordnet das Tool selbst zu, hier bleiben nur die echten Reste. <a href="#importe" data-act="jump" data-v="importe">zum Lesezeichen</a></p>` : "";
+    ? `<p class="banner">${metaWish.at ? `Deine Meta-Wunschliste hast du zuletzt ${ago(metaWish.at)} gelesen` : "Deine Meta-Wunschliste hat das Tool noch nie gelesen"}. Öffne zuerst ${metaWishLink()} und klick dort das Lesezeichen „Seite lesen“: Was dort steht, ordnet das Tool selbst zu, hier bleiben nur die echten Reste. <a href="#importe" data-act="jump" data-v="importe">zum Lesezeichen</a></p>` : "";
   const groups = LIST_GROUPS.map(([kind, title, hint, acts]) => {
     const rows = L.filter(x => x.kind === kind);
     if(!rows.length) return "";
@@ -667,7 +686,7 @@ function listsHtml(){
     const bulk = acts.map(([a, l]) => `<button data-act="lists" data-v="${a}" data-keys="${esc(keys)}">alle ${rows.length} ${l}</button>`).join(" ");
     const list = rows.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
       <span class="row2"><span class="hint">${esc(x.why)}</span>
-        ${x.links.filter(l => safeUrl(l.url)).map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(" ")}
+        ${kind === "table" || kind === "missing" ? addLinks(x.links) : x.links.filter(l => safeUrl(l.url)).map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(" ")}
         ${acts.map(([a, l]) => `<button data-act="lists" data-v="${a}" data-keys="${esc(x.key)}">${l}</button>`).join(" ")}</span></div>`).join("");
     return sub("lists-" + kind, title, rows.length, `<p class="hint">${hint}</p><div class="bar">${bulk}</div><div class="list">${list}</div>`, kind === "table" && rows.length > 20);
   }).join("");
@@ -785,10 +804,17 @@ function metaCard(){
   return sub("imp-meta", "Lesezeichen: Meta und gg.deals", info, `<ol>
       <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Seite lesen</a>
         <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></li>
-      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder deine Wunschliste im Meta Store und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.
+      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder ${metaWishLink()} und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.
         Genauso auf deiner <a href="https://gg.deals/wishlist/" target="_blank" rel="noopener noreferrer">Wunschliste bei gg.deals</a>: Dein Browser kommt an der Prüfseite vorbei, der Server nicht.</li>
       <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt Käufe oder Wunschliste. Ein altes Lesezeichen „Meta lesen“ ersetzt du durch dieses. Die Daten stehen nur in der Adresse hinter #.</li></ol>
       ${p ? previewHtml(p) : ""}`, !!(lm || lw) && !p, "imp-meta");
+}
+// Die Seite der Wunschliste merkt sich das Tool beim ersten Lesen; davor die Startseite des Stores
+function metaWishLink(){
+  const page = S.imports?.metawish?.page || "";
+  return /^\/(?:[a-z]{2}-[a-z]{2}\/)?experiences\/section\/\d+\/?$/.test(page)
+    ? `<a href="https://www.meta.com${esc(page)}" target="_blank" rel="noopener noreferrer">deine Wunschliste im Meta Store</a>`
+    : `<a href="https://www.meta.com/de-de/experiences/" target="_blank" rel="noopener noreferrer">deine Wunschliste im Meta Store</a> (im Store oben über dein Profil, „Wunschliste“)`;
 }
 /* Ein Feld für jede Datei: das Tool erkennt die Art selbst und zeigt erst eine Vorschau */
 // Arten, die du im Importfeld von Hand wählen kannst, wenn die Erkennung danebenliegt

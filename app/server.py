@@ -76,7 +76,8 @@ def import_collection(data, text, dry):
 
 
 def state():
-    return dict(library.view(store.load_data(), hist=store.load_json("history.json", {})), version=sources.VERSION,
+    return dict(library.view(store.load_data(), hist=store.load_json("history.json", {}), settings=sync.load_settings()),
+                version=sources.VERSION,
                 sync=sync.status(), settings=settings_view())
 
 

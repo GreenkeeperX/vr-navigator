@@ -295,23 +295,47 @@ def meta_is_wishlist(payload):
     return isinstance(obj, dict) and (obj.get("kind") == "meta-wunschliste" or "wish" in str(obj.get("page") or "").lower())
 
 
+# Kachel im Meta Store: „Beliebter Artikel / Name / 4,3 (1.613) • Spiele • Shooter / 19,99 €“
+_META_BADGE = re.compile(r"^(?:beliebter artikel|top-bewertung|neu|neuheit|bestseller|angebot|im angebot|"
+                         r"popular|top rated|new|on sale|kostenlos|free)\s*", re.I)
+_META_RATING = re.compile(r"\s*\b\d[.,]\d\s*\([\d.,]+\).*$", re.S)
+
+
+def meta_card_name(text):
+    """Name aus dem Text einer Kachel im Meta Store: ohne Marke davor („Beliebter Artikel“),
+    ohne Wertung, Rubriken und Preis dahinter. Geht auch, wenn die Zeilen zusammengezogen sind."""
+    lines = [x.strip() for x in str(text or "").splitlines() if x.strip()]
+    for i, x in enumerate(lines):
+        if _META_RATING.match(" " + x) and i:
+            lines = lines[:i]
+            break
+    name = " ".join(x for x in lines if not _META_BADGE.fullmatch(x))
+    name = _META_RATING.sub("", name)
+    while _META_BADGE.match(name) and _META_BADGE.sub("", name, count=1):
+        name = _META_BADGE.sub("", name, count=1)
+    return _clean_line(name)[0]
+
+
 def parse_meta_wishlist(payload):
-    """Wunschliste bei Meta aus dem Lesezeichen: jeder Link auf eine Store-Seite ist ein Titel mit
-    Meta-ID; Name aus dem Linktext (oder dem Bildtext)."""
+    """Wunschliste bei Meta aus dem Lesezeichen: jeder Link auf die Seite einer App ist ein Titel
+    mit Meta-ID (Rubriken wie „Startseite“ und „Spiele“ nicht); Name aus dem Kacheltext, Preis
+    vom Ende der Kachel."""
     obj = json.loads(str(payload).strip())
     out, seen = [], set()
     for ln in (obj.get("links") if isinstance(obj.get("links"), list) else [])[:5000]:
         if not isinstance(ln, dict):
             continue
         mid = titles.meta_id_from(ln.get("href"))
-        name = _clean_line(html.unescape(str(ln.get("text") or "")[:200]))[0]
+        raw = html.unescape(str(ln.get("text") or "")[:400])
+        name = meta_card_name(raw)[:200]
         if not mid or mid in seen:
             continue
         if not name or name.casefold() in _NOT_TITLE:
             # Bild-Link ohne Text: der nächste Link mit derselben ID trägt meist den Namen
             continue
+        m = _PRICE.search(raw)
         seen.add(mid)
-        out.append({"name": name, "meta_id": mid, "price": None})
+        out.append({"name": name, "meta_id": mid, "price": num(m.group(0)) if m else None})
     return out
 
 
@@ -394,6 +418,8 @@ def import_meta_wishlist(data, payload, dry=True):
     """Deine Wunschliste bei Meta. Sie ersetzt, was die Meta-Wunschliste zuletzt sagte: Titel, die
     dort fehlen, verlieren diese Quelle (siehe titles.set_wishes)."""
     entries = parse_meta_wishlist(payload)
+    page = str((json.loads(str(payload).strip()) or {}).get("page") or "")
+    page = page if re.fullmatch(r"/(?:[a-z]{2}-[a-z]{2}/)?experiences/section/\d{6,}/?", page) else ""
     if not entries:
         raise ValueError("Keine Titel auf der Wunschliste erkannt. Bitte die Seite neu laden und noch einmal versuchen")
     new, keys = 0, []
@@ -403,11 +429,23 @@ def import_meta_wishlist(data, payload, dry=True):
         new += k is None
         if not dry:
             k, _ = titles.upsert(data, e["name"], e["meta_id"], "")
+            t = data["titles"][k]
+            if _META_RATING.search(t["name"]) or "\n" in t["name"]:
+                # Name aus einer früheren Fassung des Imports mit Wertung und Rubriken: berichtigen
+                t["name"] = e["name"]
             keys.append(k)
     res = _summary(data, entries, dry, new)
     if not dry:
         res["wish_added"], res["wish_removed"] = titles.set_wishes(data, "meta", keys)
-        data["imports"]["metawish"] = {"at": titles.now_iso(), "n": len(entries), "new": new}
+        # Was nur eine frühere Meta-Wunschliste angelegt hat und dort nicht mehr steht (etwa
+        # „Startseite“ aus einer Rubrik), fällt ganz weg
+        gone = [k for k, t in data["titles"].items() if set(t.get("origin") or {}) == {"metawish"}
+                and not t.get("wish") and not t.get("owned") and not t.get("steam_appid") and t.get("sheet") is None]
+        for k in gone:
+            del data["titles"][k]
+        res["dropped"] = len(gone)
+        # Die Seite der Wunschliste (nur im Datenordner), damit die Oberfläche dorthin verlinkt
+        data["imports"]["metawish"] = dict({"at": titles.now_iso(), "n": len(entries), "new": new}, **({"page": page} if page else {}))
     res["what"] = "Meta-Wunschliste"
     return res
 
