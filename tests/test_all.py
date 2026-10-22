@@ -327,10 +327,13 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(collection.replace(col, collection.parse(COLLECTION)), 0)
         self.assertEqual(col["games"]["steam:3000103"]["rev"]["n"], 300)
         self.assertEqual(collection.gem(col["games"]["steam:3000103"]), (0.37, False))
-        self.assertEqual(collection.gem(col["games"]["steam:3000101"]), (0.12, True))   # mit Expertenwertung bekannter
-        self.assertEqual(collection.gem(col["games"]["epic:abc123def"]), (0.07, True))
-        col["games"]["epic:abc123def"]["score"] = 69
-        self.assertEqual(collection.gem(col["games"]["epic:abc123def"]), (0.0, True))   # unter 70
+        # ohne Rezensionen keine Aussage; Wertungen aus Playnite zählen nicht
+        self.assertEqual(collection.gem(col["games"]["steam:3000101"]), (0.0, True))
+        col["games"]["steam:3000101"]["rev"] = {"n": 40, "pct": 95}
+        self.assertEqual(collection.gem(col["games"]["steam:3000101"]), (0.0, True))    # unter 50 Rezensionen
+        col["games"]["steam:3000101"]["rev"] = {"n": 400, "pct": 69}
+        self.assertEqual(collection.gem(col["games"]["steam:3000101"]), (0.0, False))   # unter 70 %
+        del col["games"]["steam:3000101"]["rev"]
         v = collection.view(col)
         self.assertEqual(v["n"], 4)
         self.assertEqual([r["name"] for r in v["games"]], ["Fleet Night", "Harbor Heist", "Quiet Garden", "Sofa Smash"])
@@ -841,7 +844,7 @@ class TestSync(unittest.TestCase):
         q = rows["steam:3000103"]
         self.assertEqual((q["score"], q["score_src"], q["reviews"], q["guess"], q["gem"], q["gem_guess"]),
                          (92, "Steam", 300, False, 0.37, False))
-        self.assertEqual(rows["steam:3000101"]["score_src"], "Community")   # unter 50 Rezensionen
+        self.assertEqual((rows["steam:3000101"]["score"], rows["steam:3000101"]["reviews"]), (None, 10))   # unter 50 Rezensionen
         self.assertIn("reviews", store.load_json("sync.json", {})["sources"])
         self.assertIsNone(prices.steam_reviews('{"success": 2}'))
         self.assertEqual(prices.steam_reviews('{"success": 1, "query_summary": {"total_reviews": 0}}')["pct"], None)

@@ -244,17 +244,17 @@ def link(k, g):
 
 def gem(g):
     """Geheimtipp-Wert G von 0 bis 1: gute Wertung w, wenig Bekanntheit n (Steam-Rezensionen).
-    G = (w - 70) / 30 * (1 - log10(n + 1) / 5), 0 unter 70 oder ab 100.000 Rezensionen. Ohne
-    Rezensionszahl geschätzt (zweiter Wert True): mit Expertenwertung gilt das Spiel als
-    bekannter (Faktor 0,2), ohne als eher unbekannt (0,5)."""
+    G = (w - 70) / 30 * (1 - log10(n + 1) / 5), 0 unter 70 oder ab 100.000 Rezensionen. Nur mit
+    mindestens 50 Rezensionen; sonst 0 und zweiter Wert True (noch keine Aussage). Die
+    Wertungen aus Playnite zählen nicht (Entscheidung 22.10.2026: zu unzuverlässig)."""
     rev = g.get("rev") or {}
     n = rev.get("n") if isinstance(rev.get("n"), int) else None
-    w = rev.get("pct") if n is not None and n >= 50 and rev.get("pct") is not None else g.get("score")
-    if w is None or w < 70:
-        return 0.0, n is None
-    if n is not None:
-        return (round((w - 70) / 30 * max(0.0, 1 - math.log10(n + 1) / 5), 2), False)
-    return round((w - 70) / 30 * (0.2 if g.get("critic") is not None else 0.5), 2), True
+    w = rev.get("pct")
+    if n is None or n < 50 or w is None:
+        return 0.0, True
+    if w < 70:
+        return 0.0, False
+    return round((w - 70) / 30 * max(0.0, 1 - math.log10(n + 1) / 5), 2), False
 
 
 def view(col):
@@ -262,14 +262,14 @@ def view(col):
     rows = []
     for k, g in (col.get("games") or {}).items():
         r = {"key": k, "name": g["name"], "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
-             "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": g.get("score"),
-             "score_src": g.get("score_src") or "", "year": (g.get("released") or "")[:4],
+             "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
+             "score_src": "", "year": (g.get("released") or "")[:4],
              "added": g.get("added") or "", "dev": g.get("dev") or "", "url": link(k, g)}
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
         if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
-            # Wertung von Steam, sobald genug Rezensionen da sind; Playnite bleibt Rückfall
+            # Wertung nur von Steam, sobald genug Rezensionen da sind
             r["score"], r["score_src"] = rev["pct"], "Steam"
         if r["guess"] and r["reviews"]:
             r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
