@@ -47,6 +47,8 @@ Weitere feste Regeln (wie im eShopKompass):
   Erkennung der Art (`detect`);
   jeder Import aus Datei oder Text erst als Vorschau; das Lesezeichen „Meta-Käufe lesen“ übergibt
   hinter `#meta=` und übernimmt direkt (Entscheidung 21.10.2026)
+- `app/collection.py`: ganze PC-Sammlung für Entdecken (`collection.json`) aus dem Playnite-Export,
+  Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
 - `app/server.py`: Webserver und JSON-Schnittstelle
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);

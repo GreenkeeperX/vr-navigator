@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, imports, library, prices, server, sources, store, sync, titles  # noqa: E402
+from app import accounts, collection, imports, library, prices, server, sources, store, sync, titles  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -289,6 +289,67 @@ class TestImports(unittest.TestCase):
         self.assertEqual((rows["Comet Chase"]["crossbuy"], rows["Comet Chase"]["crossbuy_src"]), (True, ""))
 
 
+# Erfundene Sammlung im Aufbau eines Playnite-Exports (alle Spiele, alle Läden)
+COLLECTION = """\ufeffName,Sortiername,Kategorien,Spiel-ID,Schlagwörter,Features,Genres,Erscheinungsdatum,Hinzugefügt,Communitywertung,Expertenwertung,Nutzerwertung,Entwickler,Versteckt
+Harbor Heist,,Steam,3000101,"co-op, heist","Multiplayer, Co-Operative, Supports Online Co-Op, 4 Players in Co-Op",Shooter,12.03.2019,01.02.2020 10:00:00,88,81,,Kite Works,False
+Sofa Smash,,Epic,abc123def,"local multiplayer","Supports Couch Co-Op, Split Screen","Fighting, Arcade",2021,05.06.2025 12:00:00,74,,,Pillow Games,False
+Quiet Garden,,,3000103,"relaxing, Puzzle",Single Player,"Puzzle, Indie",01.01.2023,01.01.2023 08:00:00,95,,,Moss Studio,False
+Hidden Tower,,GOG,1207650001,"roguelike","",Role-playing (RPG),2018,,61,70,,,True
+Fleet Night,,itch.io,,"","Supports LAN or System-Link Play, Massively Multiplayer Online (MMO)",Strategy,,,,,,,False
+"""
+
+
+class TestCollection(unittest.TestCase):
+    def test_parse(self):
+        g = collection.parse(COLLECTION)
+        self.assertEqual(sorted(g), ["epic:abc123def", "name:fleet night", "steam:3000101", "steam:3000103"])
+        h = g["steam:3000101"]
+        self.assertEqual(h["mp"], ["multi", "online", "coop"])
+        self.assertEqual((h["players"], h["genres"], h["score"], h["score_src"], h["critic"]), (4, ["Shooter"], 88, "Community", 81))
+        self.assertEqual((h["released"], h["added"], h["dev"], h["store_guess"]), ("2019-03-12", "2020-02-01", "Kite Works", False))
+        s = g["epic:abc123def"]
+        self.assertEqual(s["mp"], ["multi", "coop", "couch", "split"])
+        self.assertEqual(s["players"], 2)                      # Splitscreen ohne Zahl: zwei
+        self.assertEqual(s["genres"], ["Kampfspiel", "Arcade"])
+        q = g["steam:3000103"]
+        self.assertTrue(q["store_guess"])                      # Zahl ohne Laden: vermutlich Steam
+        self.assertEqual((q["mp"], q["players"], q["genres"]), ([], 0, ["Puzzle"]))
+        f = g["name:fleet night"]                              # ohne Kennung: Schlüssel aus dem Namen
+        self.assertEqual((f["store"], f["mp"], f["score"]), ("itch", ["multi", "online", "lan", "mmo"], None))
+        # versteckte Spiele fehlen, Steam-ID im VR-Import sicher, wenn der Laden als Kategorie dasteht
+        es = imports.parse_playnite("Name,Kategorien,Spiel-ID,Schlagwörter\nSky Garden,Steam,3000001,VR\n")
+        self.assertEqual((es[0]["steam_appid"], es[0]["steam_sure"], es[0]["label"]), ("3000001", True, "Steam"))
+
+    def test_replace_keeps_fetched_and_gem(self):
+        col = json.loads(json.dumps(collection.EMPTY))
+        self.assertEqual(collection.replace(col, collection.parse(COLLECTION)), 4)
+        col["games"]["steam:3000103"]["rev"] = {"n": 300, "pct": 92, "at": "2026-10-01"}
+        self.assertEqual(collection.replace(col, collection.parse(COLLECTION)), 0)
+        self.assertEqual(col["games"]["steam:3000103"]["rev"]["n"], 300)
+        self.assertEqual(collection.gem(col["games"]["steam:3000103"]), (0.37, False))
+        self.assertEqual(collection.gem(col["games"]["steam:3000101"]), (0.12, True))   # mit Expertenwertung bekannter
+        self.assertEqual(collection.gem(col["games"]["epic:abc123def"]), (0.07, True))
+        col["games"]["epic:abc123def"]["score"] = 69
+        self.assertEqual(collection.gem(col["games"]["epic:abc123def"]), (0.0, True))   # unter 70
+        v = collection.view(col)
+        self.assertEqual(v["n"], 4)
+        self.assertEqual([r["name"] for r in v["games"]], ["Fleet Night", "Harbor Heist", "Quiet Garden", "Sofa Smash"])
+        self.assertEqual(v["games"][1]["url"], "https://store.steampowered.com/app/3000101/")
+        self.assertIn("Puzzle", v["genres"])
+
+    def test_server_import_export_restore(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        data = store.load_data()
+        res = server.import_collection(data, COLLECTION, dry=True)
+        self.assertEqual(res, {"n": 4, "new": 4})
+        self.assertNotIn("collection", data["imports"])
+        server.import_collection(data, COLLECTION, dry=False)
+        self.assertEqual(data["imports"]["collection"]["n"], 4)
+        self.assertEqual(server.import_collection(data, COLLECTION, dry=True)["new"], 0)
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        self.assertEqual(len(col["games"]), 4)
+
+
 class TestLibrary(unittest.TestCase):
     def test_gap_and_where(self):
         d = empty()
@@ -373,6 +434,21 @@ class TestServer(unittest.TestCase):
         self.call("/api/title/delete", {"key": "steam-42"})
         code, raw = self.call("/api/restore", {"data": backup["data"]})
         self.assertEqual(json.loads(raw)["counts"]["all"], 5)
+
+    def test_collection(self):
+        code, body = self.call("/api/import", {"kind": "auto", "text": COLLECTION, "dry": False})
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["collection"]["n"], 4)
+        code, body = self.call("/api/collection")
+        self.assertEqual(json.loads(body)["n"], 4)
+        backup = json.loads(self.call("/api/export")[1])
+        self.assertEqual(len(backup["collection"]["games"]), 4)
+        # Sicherung von vor 0.4.0 ohne Sammlung: die vorhandene bleibt
+        self.assertEqual(self.call("/api/restore", {"data": backup["data"]})[0], 200)
+        self.assertEqual(json.loads(self.call("/api/collection")[1])["n"], 4)
+        backup["collection"]["games"] = {"x": {"name": "Erfunden"}, "y": "kaputt"}
+        self.call("/api/restore", {"data": backup["data"], "collection": backup["collection"]})
+        self.assertEqual(json.loads(self.call("/api/collection")[1])["n"], 1)
 
     def test_delete_and_merge_can_be_undone(self):
         old_dir, store.DATA_DIR = store.DATA_DIR, tempfile.mkdtemp()
@@ -1143,6 +1219,11 @@ class TestUi(unittest.TestCase):
                                  steam_doubt="Name bei Steam: Comet Chase Deluxe Soundtrack und weitere Inhalte")
         b, _ = titles.upsert(data, "Moon Rover Ultimate Collection Bundle mit sehr langem Namen")
         data["titles"][b].update(owned={"meta": {"src": "meta"}}, meta_miss=now)
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION + "Ein ausgesprochen langer Spielname ohne jede Pause"
+                                                 "UndNochMehrBuchstaben,,Steam,3000199,,Multiplayer,Puzzle,2020,,90,,,,False\n"))
+        store.save_json(collection.FILE, col)
+        data["imports"]["collection"] = {"at": now, "n": len(col["games"]), "new": 0}
         store.save_data(data)
         with open(os.path.join(os.path.dirname(__file__), "ui_selbsttest.html"), encoding="utf-8") as f:
             probe_page = f.read().encode()
