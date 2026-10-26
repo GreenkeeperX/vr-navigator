@@ -277,7 +277,7 @@ function legendHtml(){
     <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis beider Läden; darunter klein der Tiefstpreis des Ladens selbst; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
     <div class="lg">≈ am Bestpreis: übernommen (QuestStoreDB oder gg.deals), solange der eigene Preisverlauf zu kurz ist</div>
     <div class="lg"><span class="b deal">−20 %</span> Rabatt jetzt</div>
-    <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler bei gg.deals, ohne Keyshops)</div>
+    <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler und Keyshops bei gg.deals)</div>
     <div class="lg"><span class="b go">Crossbuy</span> Meta-Kauf gilt auch am PC; <span class="b">ohne Crossbuy</span> nur auf der Quest</div>
     <div class="lg"><span class="rate win">Meta 88 %</span> besser bewerteter Laden (ab 5 Punkten Abstand)</div>
     <div class="lg">ohne Zeichen: vom Tool gemessen · <b>≈</b> abgeleitet oder aus fremder Quelle · <b>Tabelle</b> aus deiner Vergleichstabelle · <span class="ux">violett gestrichelt</span> Recherche · <span class="b warn">violett</span> prüfen</div></div>`;
@@ -317,7 +317,7 @@ function nearBest(r){
 
 /* Preise: zwei feste Felder, Meta links, Steam rechts (fehlt ein Laden, bleibt sein Feld grau).
    Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis beider Läden (Entscheidung
-   22.10.2026): rot „+7 € über Bestpreis“ (rot nur über 15 % und 2 €) oder gold „★ Bestpreis“;
+   22.10.2026): rot „+7 € über Bestpreis“ (jeder Aufpreis) oder gold „★ Bestpreis“;
    klein darunter der Tiefstpreis des Ladens selbst zum Vergleich. „≈“, wenn ein Bestpreis aus einer
    fremden Quelle stammt, solange der eigene Verlauf zu kurz ist. Der günstigere Laden bekommt einen
    grünen Rahmen und den Betrag (ab 1 €). */
@@ -337,9 +337,10 @@ function bestLine(v, b, A, shop){
   const cmp = !other ? "" : own ? `<div class="bl hint">${eur(Math.min(b.best, v.price))}${b.src ? " ≈" : ""} ${SHOP[shop]}-Tief${v.price <= b.best * 1.02 + 0.005 ? " (jetzt)" : ""}</div>`
     : `<div class="bl hint">${SHOP[shop]}-Tief noch offen</div>`;
   if(v.price <= A.best * 1.02 + 0.005) return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>${cmp}`;
-  // Rot nur bei „warten“ (mehr als 15 % und 2 € über dem Bestpreis), wie im eShopKompass
-  const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0, small = b?.grade ? b.grade !== "wait" : over < 1 && rel < 5;
-  return `<div class="bl" title="${esc(tip)}"><span class="${small ? "" : "over"}">+${eur(over)}</span> über Bestpreis</div>
+  // Jeder Aufpreis über dem Bestpreis ist rot (Entscheidung 26.10.2026); die Stufen „kaufen“ und
+  // „gut“ entscheiden nur, was unter „Jetzt“ oben steht
+  const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0;
+  return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(over)}</span> über Bestpreis</div>
     <div class="bl" title="${esc(tip)}">${eur(A.best)}${ap}${other ? " bei " + SHOP[A.shop] : ""} <span class="hint">(+${rel} %)</span>${own && !other && b.level === "usual" ? " · übliches Angebot" : ""}</div>${cmp}`;
 }
 function shopCell(key, v, b, A, win, extra){
@@ -357,10 +358,11 @@ function shopsHtml(r){
   // Betrag gegenüber dem günstigsten PC-Angebot (Steam oder Händler bei gg.deals); unter 1 € kein Rahmen
   const gap = r.gap_now, big = gap != null && Math.abs(gap) >= 1;
   const metaWin = big && gap < 0 ? `${eur(-gap)} günstiger` : "";
-  const pcWin = big && gap > 0 ? `${eur(gap)} günstiger${pc?.src !== "Steam" ? " bei Händlern" : ""}` : "";
-  // Händler bei gg.deals unter Steam: als Zeile im Steam-Feld
-  const deal = g && g.retail != null && (!L.steam || g.retail < L.steam.price - 0.005)
-    ? `<div class="bl" title="Günstigster Händler laut gg.deals (Keyshops zählen nicht)">Händler ${eur(g.retail)} <span class="hint">(gg.deals)</span></div>` : "";
+  const pcWin = big && gap > 0 ? `${eur(gap)} günstiger${pc?.src === "gg.deals Keyshop" ? " im Keyshop" : pc?.src !== "Steam" ? " bei Händlern" : ""}` : "";
+  // Günstigstes Angebot bei gg.deals (Händler oder Keyshop) unter Steam: als Zeile im Steam-Feld
+  const gb = g ? [[g.retail, "Händler"], [g.keyshops, "Keyshop"]].filter(x => x[0] != null).sort((a, b) => a[0] - b[0])[0] : null;
+  const deal = gb && (!L.steam || gb[0] < L.steam.price - 0.005)
+    ? `<div class="bl" title="Günstigstes Angebot laut gg.deals, Händler und Keyshops">${gb[1]} ${eur(gb[0])} <span class="hint">(gg.deals)</span></div>` : "";
   return `<div class="shops">${shopCell("meta", L.meta, B.meta, r.best_all, metaWin)}${shopCell("steam", L.steam, B.steam, r.best_all, pcWin, deal)}</div>`;
 }
 V.more = new Set();
@@ -373,8 +375,7 @@ function moreHtml(r, extra){
   }
   if(g && (g.retail != null || g.keyshops != null)) has.push("gg.deals"), out.push(`<div class="small">gg.deals: ${[
     g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
-    g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}
-    <span class="hint">(Keyshops zählen nicht mit)</span></div>`);
+    g.retail_low != null && "Allzeit-Tief Händler " + eur(g.retail_low), g.keyshops_low != null && "Keyshop " + eur(g.keyshops_low)].filter(Boolean).join(", ")}${g.stale ? ` <span class="b warn">Stand ${ago(g.at)}</span>` : ""}</div>`);
   const WS = {meta: "Meta", steam: "Steam", gg: "gg.deals", hand: "von Hand"};
   if(r.wish) out.push(`<div class="small">Wunsch aus: ${r.wish_src?.length ? r.wish_src.map(s => WS[s] || s).join(", ") : "nur der alten Tabelle"}</div>`);
   if(s && Object.keys(r.live).length) has.push("Tabelle"), out.push(`<div class="small">Tabelle, ${day(s.at)}: Meta ${eur(s.meta)}, Tief ${eur(s.meta_low)}, gg.deals ${eur(s.gg)}</div>`);

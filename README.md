@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.3:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.4:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -248,16 +248,16 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
     mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis**
     beider Läden, dem niedrigsten Preis von Meta oder Steam der letzten 24 Monate: rot „+3,50 € über
-    Bestpreis“ mit Betrag, Laden und Prozent (rot erst über 15 % und 2 €), gold „★ Bestpreis“
+    Bestpreis“ mit Betrag, Laden und Prozent (jeder Aufpreis rot), gold „★ Bestpreis“
     (bis 2 % darüber). Kommt der Bestpreis aus dem anderen Laden, steht klein darunter der
     Tiefstpreis des Ladens selbst („Steam-Tief 12 €“ oder „jetzt“); so sieht Steam nicht golden
     aus, wenn Meta einmal günstiger war. Dazu „übliches Angebot“ (so tief wie in mindestens zwei
     getrennten Angeboten). Für Meta reicht der Verlauf von QuestStoreDB Jahre
     zurück, für Steam zählt der eigene Verlauf; ohne jede Preisänderung steht „Bestpreis noch
     offen“. Ist der eigene Verlauf noch zu kurz, gilt das Allzeit-Tief einer anderen Quelle, mit
-    „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Händler-Angebot laut gg.deals. Ist
-    ein Händler bei gg.deals günstiger als Steam, steht er im Steam-Feld. Der günstigere Laden
-    (gegen das günstigste PC-Angebot ohne Keyshops) bekommt ab 1 € Unterschied einen grünen
+    „≈“: bei Meta von QuestStoreDB, bei Steam das niedrigste Angebot laut gg.deals, Händler und
+    Keyshops. Ist ein Angebot bei gg.deals günstiger als Steam, steht es im Steam-Feld. Der günstigere Laden
+    (gegen das günstigste PC-Angebot, Keyshops eingeschlossen) bekommt ab 1 € Unterschied einen grünen
     Rahmen und den Betrag („5 € günstiger“). Der Abrufzeitpunkt steht nur da, wenn ein Preis älter
     als zwei Tage ist.
   - **Fakten** in einem festen Raster (Name links, Wert rechts, in jeder Karte gleich): Wertung beider Läden auf einer Skala (Steam: Anteil positiver

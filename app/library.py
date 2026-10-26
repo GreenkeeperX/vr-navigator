@@ -35,15 +35,26 @@ def _live(t, at=None):
 
 
 def _pc_best(live):
-    """Günstigstes Angebot für die PC-Fassung: Steam selbst oder ein Händler bei gg.deals.
-    Keyshops zählen nicht (Entscheidung 22.10.2026), die Oberfläche zeigt sie grau daneben."""
+    """Günstigstes Angebot für die PC-Fassung: Steam selbst, ein Händler oder ein Keyshop bei
+    gg.deals, was eben am günstigsten ist (Entscheidung 26.10.2026; bis 0.5.3 ohne Keyshops)."""
+    g = live.get("gg") or {}
     offers = [((live.get("steam") or {}).get("price"), "Steam"),
-              ((live.get("gg") or {}).get("retail"), "gg.deals Händler")]
+              (g.get("retail"), "gg.deals Händler"), (g.get("keyshops"), "gg.deals Keyshop")]
     offers = [o for o in offers if o[0] is not None]
     if not offers:
         return None
     p, src = min(offers)
     return {"price": p, "src": src}
+
+
+def _gg_low(g):
+    """Allzeit-Tief bei gg.deals über Händler und Keyshops, mit Herkunft für das „≈“."""
+    lows = [(g.get("retail_low"), "Händler"), (g.get("keyshops_low"), "Keyshops")]
+    lows = [x for x in lows if isinstance(x[0], (int, float)) and x[0] > 0]
+    if not lows:
+        return None, ""
+    low, kind = min(lows)
+    return low, f"gg.deals, Allzeit-Tief ({kind})"
 
 
 def _best(hist, src, ident, price, today):
@@ -135,9 +146,10 @@ def row(key, t, at=None, hist=None, data=None):
     best = {"meta": _best(hist, "meta", t.get("meta_id"), meta_now, today),
             "steam": _best(hist, "steam", t.get("steam_appid"), steam_now, today)}
     # Eigener Verlauf noch zu kurz: Allzeit-Tief einer anderen Quelle, gekennzeichnet (≈)
+    gg_low, gg_src = _gg_low(live.get("gg") or {})
     for shop, now_p, low, at, src in (
             ("meta", meta_now, (live.get("meta") or {}).get("low"), (live.get("meta") or {}).get("low_at"), "QuestStoreDB, Allzeit-Tief"),
-            ("steam", steam_now, (live.get("gg") or {}).get("retail_low"), "", "gg.deals, Allzeit-Tief aller Händler")):
+            ("steam", steam_now, gg_low, "", gg_src)):
         b = best[shop]
         if (b is None or b.get("thin")) and now_p is not None and isinstance(low, (int, float)) and low > 0:
             best[shop] = _guess(now_p, low, at or "", src)

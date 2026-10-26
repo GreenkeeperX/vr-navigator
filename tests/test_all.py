@@ -316,6 +316,10 @@ class TestImports(unittest.TestCase):
                          {"Orbit Golf": "owned", "Harbor Heist": "off", "Comet Chase": "table", "Quiet Garden": "table"})
         self.assertIn("gg.deals-Wunschliste, Steam-Wunschliste", got["Orbit Golf"]["why"])
         self.assertEqual([l["label"] for l in got["Orbit Golf"]["links"]], ["gg.deals", "Steam"])
+        # Links direkt zum Spiel, bei gg.deals ohne bekannte Seite die Suche
+        self.assertEqual([l["url"] for l in got["Orbit Golf"]["links"]],
+                         ["https://gg.deals/search/?title=Orbit+Golf", "https://store.steampowered.com/app/3000040/"])
+        self.assertEqual(library._gg_low({"retail_low": 9.0, "keyshops_low": 6.5}), (6.5, "gg.deals, Allzeit-Tief (Keyshops)"))
         self.assertIn("nur aus der alten Tabelle", got["Comet Chase"]["why"])
         # „behalten“: Wunsch von Hand, der Hinweis geht; trotz Besitz behalten ebenso
         lists.apply(d, "keep", [b, a])
@@ -864,9 +868,9 @@ class TestSync(unittest.TestCase):
         v = library.view(d)
         self.assertEqual([r["name"] for r in v["now"]], ["Laser Tennis", "Deep Dive"])
         r = next(r for r in v["wishlist"] if r["name"] == "Deep Dive")
-        # Keyshops zählen nicht für das PC-Angebot
-        self.assertEqual(r["pc_best"], {"price": 14.99, "src": "Steam"})
-        self.assertEqual(r["gap_now"], 5.0)
+        # Das günstigste PC-Angebot zählt, auch aus einem Keyshop (Entscheidung 26.10.2026)
+        self.assertEqual(r["pc_best"], {"price": 11.0, "src": "gg.deals Keyshop"})
+        self.assertEqual(r["gap_now"], 8.99)
         # Bestpreis aus dem Verlauf: Meta mit dem Verlauf von QuestStoreDB, Steam aus dem eigenen
         v = library.view(store.load_data(), hist=store.load_json("history.json", {}))
         lt = next(r for r in v["wishlist"] if r["name"] == "Laser Tennis")

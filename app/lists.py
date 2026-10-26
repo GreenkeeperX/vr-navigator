@@ -35,12 +35,15 @@ def _owned_text(t):
 
 
 def _links(t, srcs):
+    """Wo du einen Titel von der Wunschliste eines Ladens nimmst: direkt die Spielseite (bei
+    gg.deals ohne bekannte Seite die Suche), sonst die Wunschliste selbst."""
     out = []
+    pages = {x["label"]: x["url"] for x in add_links(t)}
     for s in srcs:
-        if s == "meta" and t.get("meta_id"):
-            out.append({"label": "Meta", "url": f"https://www.meta.com/experiences/{t['meta_id']}/"})
-        elif s in LINKS:
-            out.append({"label": titles.WISH_SOURCES[s].replace("-Wunschliste", ""), "url": LINKS[s]})
+        label = "Meta" if s == "meta" else titles.WISH_SOURCES.get(s, s).replace("-Wunschliste", "")
+        url = pages.get(label) or LINKS.get(s)
+        if url and (s == "meta" or s in LINKS):
+            out.append({"label": label, "url": url})
     return out
 
 
