@@ -30,7 +30,7 @@ Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
 1. Kopf (`.hd`): Name, Marken.
 2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
    `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
-   „+x € über Bestpreis“ (rot erst über 15 % und 2 €) und der Bestpreis mit Laden oder gold
+   „+x € über Bestpreis“ (jeder Aufpreis rot, Entscheidung 26.10.2026) und der Bestpreis mit Laden oder gold
    „★ Bestpreis“, gemessen am niedrigsten Preis beider Läden (`best_all`); kommt er aus dem
    anderen Laden, klein darunter der eigene Tiefstpreis („Steam-Tief“). Der günstigere Laden:
    `.shop.win` mit „x € günstiger“.
