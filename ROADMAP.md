@@ -42,14 +42,21 @@ Jetzt nur nah am Bestpreis mit den Grenzen des eShopKompass), 0.5.2 Steam-Wunsch
 abschaltbar (am PC zählt dann nur gg.deals, Entscheidung 22.10.2026), 0.5.3 erster Abgleich
 fünf statt zwei Minuten nach dem Start, 0.5.4 jeder Aufpreis über dem Bestpreis wieder rot,
 am PC zählt das günstigste Angebot einschließlich Keyshops, Links direkt zum Spiel zum Entfernen
-von einer Laden-Wunschliste (Entscheidungen 26.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
+von einer Laden-Wunschliste (Entscheidungen 26.10.2026), 0.5.5 Entdecken je System (Konsolenspiele
+aus Playnite nicht mehr verworfen, Reiter „Alle“, PC, PS4 …). Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- 0.5.5 Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
+- Sammlung über alle Systeme, mit Retro (Entscheidung 26.10.2026: Retro kommt hierher, die
+  Switch bleibt im eShopKompass): Retro-Liste einlesen (Dateiliste oder CSV, System aus Ordner
+  oder Endung, Titel aus dem Dateinamen; erst als Konzept mit Beispiel zur Abnahme), Infos aus der
+  libretro-database, zur Bestätigung IGDB (optionaler Twitch-Schlüssel); jede Quelle zuerst als
+  Probe in „Verbindung testen“
+
+- Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als
   Ergänzung
-- 0.5.6 Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
+- Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
 - Besitz mit zweiter Quelle bestätigen (Steam-Konto und Sharenite, Meta-Käufe und VRDB) und
@@ -60,8 +67,9 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
   je Spiel die Läden nah am Bestpreis, damit sich mehrere Spiele in einem Laden bündeln lassen;
   die gg.deals-API liefert nur das günstigste Angebot je Händler und Keyshop, die Liste aller
   Läden steht nur auf der Spielseite (Cloudflare), also vermutlich über das Lesezeichen
-- PS4-Sammlung ähnlich der PC-Sammlung (aus Playnite oder Sharenite; Preise der PlayStation
-  ohne offene Schnittstelle, daher zuerst ohne Preise)
+- PS4-Sammlung: steht seit 0.5.5 mit im Reiter, wenn der Playnite-Export die PlayStation-Bibliothek
+  enthält; Sharenite als zweite Quelle, Preise der PlayStation ohne offene Schnittstelle, daher
+  zuerst ohne Preise
 
 ## Danach
 

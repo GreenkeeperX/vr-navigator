@@ -191,5 +191,5 @@ wieder gefragt.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
-- `collection.json`: die ganze PC-Sammlung für Entdecken, je Spiel Merkmale aus Playnite und
+- `collection.json`: die ganze Sammlung für Entdecken (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite und
   `rev` (Steam-Rezensionen) und `steam` (Steam-Details).

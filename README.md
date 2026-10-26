@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.4:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze PC-Sammlung filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.5:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze Sammlung je System filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -103,10 +103,11 @@ still nichts zu übernehmen:
   Steam-App-ID sicher (ebenso, wenn unter `Kategorien` ein bekannter Laden wie Steam, GOG oder
   Epic steht), sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“). Dieselbe
   Datei füllt außerdem die ganze Sammlung für **Entdecken** mit allen Spielen außer den
-  versteckten; ein neuer Export ersetzt sie. Spiele nur für Konsolen bleiben draußen, in
-  Bibliothek und Sammlung: erkannt an der Spalte `Plattformen` (steht auch ein PC dabei, zählen
-  sie) oder, ohne sie, an Kennungen der PlayStation-Bibliothek wie `CUSA01234_00`. Ein Export nur
-  der PlayStation-Bibliothek ändert daher nichts; die Sammlung bleibt dann stehen.
+  versteckten, je Spiel mit System (PC, PS4, SNES …) aus der Spalte `Plattformen`; steht auch ein
+  PC dabei, gilt PC, ohne die Spalte erkennt das Tool PlayStation an Kennungen wie
+  `CUSA01234_00` (PS4). Ein neuer Export ersetzt nur die Systeme, die in ihm vorkommen: ein
+  Export nur der PlayStation-Bibliothek lässt die PC-Spiele stehen. In der Bibliothek (VR-Titel)
+  bleiben Spiele nur für Konsolen weiter draußen.
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
 - **Meinungen (JSON)** aus einer Recherche auf Reddit und im Web: je Titel Kurzfazit, bessere
@@ -289,7 +290,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
   „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und die Klappe. Meta-Sterne gibt es dort nur für Titel,
   deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
-- **Entdecken:** die ganze PC-Sammlung aus dem Playnite-Export, nicht nur VR. Filter nach
+- **Entdecken:** die ganze Sammlung aus dem Playnite-Export, nicht nur VR, mit einem Reiter je
+  System („Alle“ vorn, dann PC und die Konsolen mit Zahl; nur bei mehr als einem System).
+  Filter, Mischungen und Zufall gelten im gewählten Reiter; unter „Alle“ trägt ein Konsolenspiel
+  sein System als Marke. Steam-Abgleich und Steam-Wertung gibt es nur für PC-Spiele. Filter nach
   Mehrspieler-Art (Menü mit Häkchen; mehrere gewählt: alle müssen passen: Mehrspieler, Online,
   Koop, Lokal, Splitscreen, LAN, MMO), Genre (Menü mit Suche und Häkchen, umschaltbar zwischen
   „eines davon“ und „alle“; die Zahl hinter einem Genre zählt, was mit den übrigen Filtern übrig
