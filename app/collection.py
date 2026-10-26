@@ -1,4 +1,5 @@
-"""Die ganze PC-Sammlung für „Entdecken“ (collection.json im Datenordner).
+"""Die ganze Spielesammlung für „Entdecken“ (collection.json im Datenordner), je Spiel mit System
+(PC, PS4 …); ältere Dateien ohne System gelten als PC.
 
 Quelle ist der Playnite-Export (alle Spiele, alle Läden). Je Spiel werden beim Import feste
 Merkmale berechnet: Art des Mehrspielers, höchste Spielerzahl, Genre-Gruppen, Wertung mit Quelle,
@@ -22,7 +23,8 @@ STORES = {"steam": "Steam", "gog": "GOG", "epic": "Epic", "epic games": "Epic", 
           "oculus": "Meta", "meta": "Meta", "bethesda": "Bethesda", "riot games": "Riot",
           "playstation": "PlayStation", "psn": "PlayStation"}
 
-# Konsolen: Spiele nur dafür gehören nicht in die PC-Sammlung (Playnite und Sharenite führen sie mit)
+# Konsolen: Spiele nur dafür zählen nicht als VR-Titel am PC (Playnite und Sharenite führen sie mit);
+# in der Sammlung stehen sie unter ihrem System
 _PC = re.compile(r"\bpc\b|windows|linux|mac ?os|steamos", re.I)
 _CONSOLE = re.compile(r"playstation|\bps ?[1-5]\b|\bpsvr|\bvita\b|\bpsp\b|xbox|nintendo|\bswitch\b|\bwii", re.I)
 
@@ -98,6 +100,45 @@ def console_only(platforms, source="", gid=""):
     return store_of(source) == "PlayStation" or bool(_PSN_ID.match(str(gid or "").strip()))
 
 
+# Systeme aus der Plattform-Spalte, das genauere Muster zuerst; Namen wie Playnite sie schreibt
+# („Sony PlayStation 4“, „Nintendo Game Boy Advance“, „Microsoft Xbox One“)
+SYSTEMS = [
+    ("PS5", r"playstation ?5|\bps ?5\b"), ("PS4", r"playstation ?4|\bps ?4\b"), ("PS3", r"playstation ?3|\bps ?3\b"),
+    ("PS2", r"playstation ?2|\bps ?2\b"), ("PS Vita", r"\bvita\b"), ("PSP", r"\bpsp\b|playstation portable"),
+    ("PS", r"playstation(?! ?[2-5])|\bps ?1\b|\bpsx\b"),
+    ("Xbox Series", r"xbox series"), ("Xbox One", r"xbox one"), ("Xbox 360", r"xbox 360"), ("Xbox", r"xbox"),
+    ("Switch", r"\bswitch\b"), ("Wii U", r"wii ?u\b"), ("Wii", r"\bwii\b"), ("GameCube", r"gamecube"),
+    ("N64", r"nintendo 64|\bn64\b"), ("SNES", r"super nintendo|\bsnes\b|super famicom"),
+    ("NES", r"nintendo entertainment system|\bnes\b|famicom"), ("3DS", r"\b3ds\b"), ("DS", r"\bds(i)?\b"),
+    ("GBA", r"game ?boy advance|\bgba\b"), ("GBC", r"game ?boy colou?r|\bgbc\b"), ("GB", r"game ?boy|\bgb\b"),
+    ("VB", r"virtual boy|\bvb\b"),
+]
+_SYSTEMS = [(n, re.compile(p, re.I)) for n, p in SYSTEMS]
+# PlayStation-Kennungen ohne Plattform: CUSA/PLAS PS4, PPSA PS5, sonst nur „PS“ unbestimmt
+_PSN_SYS = {"CUSA": "PS4", "PLAS": "PS4", "PPSA": "PS5", "PCSA": "PS Vita", "PCSB": "PS Vita", "PCSE": "PS Vita"}
+
+
+def system_of(platforms, source="", gid=""):
+    """System eines Spiels aus den Plattformen: PC, sobald ein PC dabei ist (wie bisher in der
+    Sammlung), sonst die erste erkannte Konsole. Ohne Plattform zählt eine Kennung von PlayStation
+    (CUSA… ist PS4), sonst PC. Unbekannte Plattformen ergeben ebenfalls PC."""
+    plats = [p for p in platforms if p]
+    if plats and not any(_PC.search(p) for p in plats):
+        for p in plats:
+            for name, rx in _SYSTEMS:
+                if rx.search(p):
+                    return name
+    if not plats and console_only([], source, gid):
+        return _PSN_SYS.get(str(gid or "").strip()[:4].upper(), "PS")
+    return "PC"
+
+
+def system_order(name):
+    """Reihenfolge der Reiter: PC vorn, dann wie in SYSTEMS."""
+    names = ["PC"] + [n for n, _ in SYSTEMS]
+    return names.index(name) if name in names else len(names)
+
+
 def _split(s):
     return [x.strip() for x in str(s or "").split(",") if x.strip()]
 
@@ -151,15 +192,17 @@ def _date(s):
     return m.group(1) if m else ""
 
 
-def game_key(store, gid, name):
+def game_key(store, gid, name, system="PC"):
     if gid and store:
         return f"{store.casefold()}:{gid}"
-    return "name:" + titles.norm(name)
+    # ohne Kennung: der Name, bei Konsolen mit System davor (dasselbe Spiel am PC und auf der PS4)
+    return "name:" + ("" if system == "PC" else system.casefold() + ":") + titles.norm(name)
 
 
 def parse(text, rows=None, stats=None):
-    """Alle Spiele eines Playnite-Exports (versteckte und reine Konsolenspiele bleiben draußen).
-    rows: schon gelesene Zeilen; stats bekommt die Zahl der Konsolenspiele unter „console“."""
+    """Alle Spiele eines Playnite-Exports mit System (versteckte bleiben draußen). rows: schon
+    gelesene Zeilen; stats bekommt die Zahl je System unter „systems“ und die der
+    Konsolenspiele unter „console“."""
     from .imports import _col, _rows
     rows = rows if rows is not None else _rows(text)
     if not rows:
@@ -191,13 +234,10 @@ def parse(text, rows=None, stats=None):
         if not name or cell("hid").casefold() in ("true", "ja", "1", "wahr"):
             continue
         store = store_of(cell("src")) or store_of(cell("cat"))
-        if console_only(_split(cell("plat")), store, cell("id")):
-            if stats is not None:
-                stats["console"] = stats.get("console", 0) + 1
-            continue
+        system = system_of(_split(cell("plat")), store, cell("id"))
         gid = cell("id")[:40]
         guess = False
-        if not store and re.fullmatch(r"\d{1,7}", gid):
+        if system == "PC" and not store and re.fullmatch(r"\d{1,7}", gid):
             store, guess = "Steam", True    # wie beim VR-Import: kleine Zahl ohne Laden ist vermutlich Steam
         tags, feats = _split(cell("tags")), _split(cell("feat"))
         mp, players = features(feats, tags)
@@ -208,16 +248,26 @@ def parse(text, rows=None, stats=None):
              "score": score, "score_src": src, "critic": crit, "mine": _score(cell("user")),
              "released": _date(cell("rel")), "added": _date(cell("add")), "dev": _split(cell("dev"))[:1]}
         g["dev"] = g["dev"][0][:80] if g["dev"] else ""
-        k = game_key(store, g["id"], name)
+        if system != "PC":
+            g["system"] = system
+        k = game_key(store, g["id"], name, system)
         if k in out:                                  # derselbe Eintrag doppelt: einer genügt
             continue
         out[k] = g
+        if stats is not None:
+            stats.setdefault("systems", {})[system] = stats.get("systems", {}).get(system, 0) + 1
+            if system != "PC":
+                stats["console"] = stats.get("console", 0) + 1
     return out
 
 
 def replace(col, games, src="playnite"):
-    """Neue Liste übernehmen, Abgerufenes je Spiel behalten. Gibt die Zahl der neuen Spiele zurück."""
+    """Neue Liste übernehmen, Abgerufenes je Spiel behalten. Ersetzt werden nur die Systeme, die
+    in der neuen Liste vorkommen: ein Export nur der PlayStation-Bibliothek lässt die PC-Spiele
+    stehen. Gibt die Zahl der neuen Spiele zurück."""
     old = col.get("games") or {}
+    systems = {g.get("system") or "PC" for g in games.values()}
+    games = dict({k: g for k, g in old.items() if (g.get("system") or "PC") not in systems and k not in games}, **games)
     new = 0
     for k, g in games.items():
         o = old.get(k)
@@ -285,7 +335,7 @@ def view(col):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele)."""
     rows = []
     for k, g in (col.get("games") or {}).items():
-        r = {"key": k, "name": g["name"], "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
+        r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
              "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
              "score_src": "", "year": (g.get("released") or "")[:4],
              "added": g.get("added") or "", "dev": g.get("dev") or "", "url": link(k, g)}
@@ -300,8 +350,12 @@ def view(col):
         check(r, g.get("steam") or {})
         rows.append(r)
     rows.sort(key=lambda r: titles.norm(r["name"]))
+    systems = {}
+    for r in rows:
+        systems[r["system"]] = systems.get(r["system"], 0) + 1
     return {"at": col.get("at") or "", "n": len(rows), "games": rows, "mp_label": MP_LABEL,
-            "genres": sorted({x for r in rows for x in r["genres"]})}
+            "genres": sorted({x for r in rows for x in r["genres"]}),
+            "systems": [[n, systems[n]] for n in sorted(systems, key=system_order)]}
 
 
 def summary(col):

@@ -81,7 +81,8 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
   Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle
   Zeilenbreite auf. Gewählte Filter stehen darunter als Marken mit × (`.chips.act`).
-- Entdecken: Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
+- Entdecken: oben Unterreiter je System („Alle“, PC, dann Konsolen, je mit grauer Zahl; der
+  gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
   müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und
   bietet sieben Sekunden „Rückgängig“. Rückfragen bleiben für Dinge, die alles ersetzen

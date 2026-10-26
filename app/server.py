@@ -59,20 +59,21 @@ def settings_view():
 
 def import_collection(data, text, dry):
     """Der Playnite-Export füllt neben der Bibliothek (VR-Titel) auch die ganze Sammlung für
-    Entdecken. Die Zusammenfassung steht unter imports.collection in data.json."""
+    Entdecken, je System. Die Zusammenfassung steht unter imports.collection in data.json."""
     stats = {}
     games = collection.parse(text, stats=stats)
     col = store.load_json(collection.FILE, collection.EMPTY)
-    console = stats.get("console", 0)
+    console, systems = stats.get("console", 0), stats.get("systems", {})
     if not games:
-        # etwa ein Export nur der PlayStation-Bibliothek: die vorhandene Sammlung bleibt
-        return {"n": 0, "new": 0, "console": console, "kept": len(col.get("games") or {})}
+        return {"n": 0, "new": 0, "console": console, "systems": systems, "kept": len(col.get("games") or {})}
+    old = col.get("games") or {}
+    kept = sum(1 for k, g in old.items() if (g.get("system") or "PC") not in systems and k not in games)
     if dry:
-        return {"n": len(games), "new": sum(k not in (col.get("games") or {}) for k in games), "console": console}
+        return {"n": len(games), "new": sum(k not in old for k in games), "console": console, "systems": systems, "kept": kept}
     new = collection.replace(col, games)
     store.save_json(collection.FILE, col)
-    data["imports"]["collection"] = {"at": col["at"], "n": len(games), "new": new}
-    return {"n": len(games), "new": new, "console": console}
+    data["imports"]["collection"] = {"at": col["at"], "n": len(col["games"]), "new": new}
+    return {"n": len(games), "new": new, "console": console, "systems": systems, "kept": kept}
 
 
 def state():

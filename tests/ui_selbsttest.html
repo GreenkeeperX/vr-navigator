@@ -24,6 +24,7 @@ f.addEventListener("load", () => {
                  ["settings:zu", "V.tab = 'settings'", "document.querySelector('[data-act=foldall][data-v=\"\"]').click(); render()"],
                  ["find:wild", "V.tab = 'find'; V.folds['d-filter'] = false", "setMix('wild'); render()"],
                  ["find:zufall", "V.d = Object.assign({}, D0, {sort: 'random', seed: 7})"],
+                 ["find:system", "V.d = Object.assign({}, D0, {sys: 'PS4'})", "document.querySelector('[data-act=dsys][data-v=\"\"]').click()"],
                  ["wish:menu", "V.tab = 'wish'; V.lf.good = false; V.menu = 'lf'; V.legend = true; V.add = true"],
                  ["find:genre", "V.tab = 'find'; V.legend = false; V.menu = 'g'; V.d = Object.assign({}, D0, {g: ['Puzzle'], gop: 'and', mp: ['coop']})"],
                  ["thema", "", "V.menu = ''; themeMenu(true)"]]);

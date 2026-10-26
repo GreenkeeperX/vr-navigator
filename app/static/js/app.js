@@ -400,11 +400,12 @@ function wishRow(r){
 }
 
 /* ---------------------------------------------------------------- Entdecken
-   Die ganze PC-Sammlung aus dem Playnite-Export (eigene Datei, beim ersten Öffnen geladen).
+   Die ganze Sammlung aus dem Playnite-Export, je System ein Reiter (eigene Datei, beim ersten
+   Öffnen geladen).
    Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
    (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
 let C = null, cLoading = false;
-const D0 = {mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
@@ -446,7 +447,7 @@ async function loadCollection(){
 }
 function dFilter(d){
   const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
-  return C.games.filter(g => d.mp.every(m => g.mp.includes(m))
+  return C.games.filter(g => (!d.sys || (g.system || "PC") === d.sys) && d.mp.every(m => g.mp.includes(m))
     // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
@@ -482,11 +483,11 @@ function setMix(k){
     // würfeln, bis mindestens drei Spiele übrig bleiben
     const kinds = ["coop", "couch", "online", "lan", "", ""], r = mulberry(newSeed());
     for(let i = 0; i < 30; i++){
-      const d = Object.assign({}, D0, {mp: [kinds[Math.floor(r() * kinds.length)]].filter(Boolean),
+      const d = Object.assign({}, D0, {sys: V.d.sys, mp: [kinds[Math.floor(r() * kinds.length)]].filter(Boolean),
         g: [C.genres[Math.floor(r() * C.genres.length)]].filter(Boolean), sc: r() < .5 ? 70 : 0});
       if(dFilter(d).length >= 3 || i === 29){ V.d = d; break; }
     }
-  } else if(m[3]) V.d = Object.assign({}, D0, m[3]);
+  } else if(m[3]) V.d = Object.assign({}, D0, m[3], {sys: V.d.sys});
   V.d.mix = k;
   V.d.seed = newSeed();
   V.d.n = D0.n;
@@ -512,7 +513,8 @@ function gameRow(g){
       ${g.genres.length ? `<span title="${chk ? "Ohne ≈: Playnite und Steam einig. ≈: nur eine Quelle; Steam kennt z. B. Puzzle oder Horror nicht als Genre" : "Laut Playnite"}">${gen}</span>` : ""}
       ${g.year ? `<span title="${esc(yrTip)}">${yr}</span>` : ""}
       ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : chk ? "Laden von Steam bestätigt" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
-      ${chk ? "" : `<span class="hint" title="Noch nicht mit Steam abgeglichen (nur Steam-Spiele, je Lauf ein Teil)">nur Playnite</span>`}</div></div>`;
+      ${!V.d.sys && g.system && g.system !== "PC" ? `<span class="b" title="System laut Playnite">${esc(g.system)}</span>` : ""}
+      ${chk || (g.system && g.system !== "PC") ? "" : `<span class="hint" title="Noch nicht mit Steam abgeglichen (nur Steam-Spiele, je Lauf ein Teil)">nur Playnite</span>`}</div></div>`;
 }
 // Entdecken lädt beim Scrollen weiter: kommt „weitere zeigen“ in Sicht, klickt es sich selbst
 let moreObs = null;
@@ -526,12 +528,17 @@ function moreOnScroll(){
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
   if(C.error) return `<p class="err">Sammlung nicht lesbar: ${esc(C.error)}</p>`;
-  if(!C.games.length) return `<div class="card"><h2>Entdecken</h2><p class="hint">Hier filterst du deine ganze PC-Sammlung nach Mehrspieler, Spielerzahl, Genre und Wertung und lässt dir Spiele vorschlagen.
+  if(!C.games.length) return `<div class="card"><h2>Entdecken</h2><p class="hint">Hier filterst du deine ganze Spielesammlung, je System, nach Mehrspieler, Spielerzahl, Genre und Wertung und lässt dir Spiele vorschlagen.
     Dafür braucht das Tool einmal den Playnite-Export mit allen Spielen: unter Einstellungen bei „Datei oder Text einlesen“.</p>
     <button class="link" data-act="tab" data-v="settings">Zu den Einstellungen</button></div>`;
   const d = V.d, rows = dSort(dFilter(d), d), pick = d.mix === "surprise" || d.mix === "wild" ? dPick(rows, d.seed) : [];
   const opt = (k, list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
-  const stores = [...new Set(C.games.map(g => g.store).filter(Boolean))].sort();
+  const inTab = d.sys ? C.games.filter(g => (g.system || "PC") === d.sys) : C.games;
+  const stores = [...new Set(inTab.map(g => g.store).filter(Boolean))].sort();
+  // Reiter je System, „Alle“ vorn; nur, wenn mehr als ein System da ist
+  const sys = C.systems || [];
+  const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${[["", "Alle", C.games.length]].concat(sys.map(([n, c]) => [n, n, c])).map(([v, l, c]) =>
+    `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${d.sys === v ? "on" : ""}">${esc(l)} <span class="n">${c}</span></button>`).join("")}</div>` : "";
   // ein Klick auf die gewählte Mischung nimmt sie wieder zurück
   const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="${d.mix === k ? "dmixoff" : "dmix"}" data-v="${k}" title="${esc(d.mix === k ? "Zurücknehmen" : tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
   // Filter als Menüs mit Häkchen. Die Zahl hinter einem Genre: Spiele mit diesem Genre unter den übrigen
@@ -561,8 +568,9 @@ function findView(){
     ${pick.length ? `<div class="list">${pick.map(gameRow).join("")}</div>` : `<p class="hint">Nichts passt zu den Filtern.</p>`}
     <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
   const at = S.imports.collection?.at;
-  return mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${C.games.length} Spielen${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler aus Playnite, mit Steam abgeglichen: ${C.games.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${C.games.filter(g => g.reviews != null).length} abgerufen).</p>
+  const pcTab = !d.sys || d.sys === "PC";
+  return tabs + mixes + filters + bar + pickCard +
+    `<p class="hint">${rows.length} von ${inTab.length} Spielen${d.sys ? ` (${esc(d.sys)})` : ""}${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.</p>
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
     ${rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : ""}`;
 }
@@ -862,9 +870,10 @@ function wishMoves(p){
 }
 function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
-  const pc = p.collection, cons = pc?.console ? ` ${pc.console} Spiele nur für Konsole (etwa PS4) bleiben draußen.` : "";
-  const col = !pc ? "" : pc.n ? ` Dazu die ganze Sammlung für Entdecken: ${pc.n} Spiele, ${pc.new} neu.${cons}`
-    : `${cons} Die Sammlung für Entdecken bleibt, wie sie ist${pc.kept ? ` (${pc.kept} Spiele)` : ""}.`;
+  const pc = p.collection, sy = Object.entries(pc?.systems || {}).filter(([n]) => n !== "PC");
+  const cons = sy.length ? ` Davon für Konsolen: ${sy.map(([n, c]) => `${esc(n)} ${c}`).join(", ")}.` : "";
+  const col = !pc ? "" : pc.n ? ` Dazu die ganze Sammlung für Entdecken: ${pc.n} Spiele, ${pc.new} neu.${cons}${pc.kept ? ` Spiele anderer Systeme bleiben stehen (${pc.kept}).` : ""}`
+    : ` Die Sammlung für Entdecken bleibt, wie sie ist${pc.kept ? ` (${pc.kept} Spiele)` : ""}.`;
   if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.${col}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
   return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu.${col} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
@@ -982,13 +991,14 @@ document.addEventListener("click", async ev => {
   else if(a === "dmix"){ setMix(v); render(); }
   else if(a === "dmixoff" || a === "dpickoff"){
     // Mischung zurücknehmen: Vorschläge weg; ihre Filter bleiben nur bei „Schließen“
-    if(a === "dmixoff" && V.d.mix !== "surprise") V.d = Object.assign({}, D0); else V.d.mix = "";
+    if(a === "dmixoff" && V.d.mix !== "surprise") V.d = Object.assign({}, D0, {sys: V.d.sys}); else V.d.mix = "";
     render();
   }
   else if(a === "dgoff" || a === "dmpoff"){ const f = a === "dgoff" ? "g" : "mp"; V.d[f] = V.d[f].filter(x => x !== v); V.d.mix = ""; V.d.n = D0.n; render(); }
   else if(a === "dgop"){ V.d.gop = v; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dgclear"){ V.d.g = []; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
-  else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort}); render(); }
+  else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort, sys: V.d.sys}); render(); }
+  else if(a === "dsys"){ V.d.sys = v; V.d.st = ""; V.d.n = D0.n; if(V.d.mix) V.d.seed = newSeed(); render(); }
   else if(a === "dshuffle"){ V.d.seed = newSeed(); render(); }
   else if(a === "dmore"){ V.d.n += D0.n; render(); }
   else if(a === "dqclear"){ V.d.q = ""; render(); $("dq")?.focus(); }
