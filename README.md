@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.1:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -55,8 +55,9 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   Beschreibung und Firmen für die ganze Sammlung (Steam-Spiele über die Steam-ID, die übrigen über
   Name und System).
 - **Nexus Mods:** der persönliche API-Schlüssel aus dem Nexus-Konto (Einstellungen, API Keys).
-  Die Abfrage geht auch ohne; mit Schlüssel fragt das Tool als dein Konto (0.7.7). Bis jetzt nur im
-  Verbindungstest (Spielseite, beliebte Mods, Mods mit VR im Namen).
+  Die Abfrage geht auch ohne; mit Schlüssel fragt das Tool als dein Konto (0.7.7). Seit 0.8.1 holt
+  jeder Abgleich einmal die Woche die Spieleliste von Nexus und je PC-Spiel mit Seite dort die
+  beliebtesten Mods und die mit VR im Namen.
 
 Schlüssel und Wunschlisten-Link bleiben auf deinem Server, nicht in der Sicherung, nicht im
 Protokoll, nie zurück im Browser.
@@ -375,7 +376,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   und kursiv; auf Konsolen und Retro IGDB-Kritiken, sonst die IGDB-Gesamtwertung grau und kursiv.
   Spielzeit von IGDB (normal, sonst eilig; komplett im Tooltip), Spieler von IGDB, sonst Playnite
   (violett). Genres und Mehrspieler aus allen Quellen; was nur eine nennt, während eine andere etwas
-  anderes sagt, ist violett. Ohne Steam-Beschreibung steht die englische von IGDB da. Über der Liste steht kurz die Zahl
+  anderes sagt, ist violett. Ohne Steam-Beschreibung steht die englische von IGDB da. **VR per Mod**
+  (0.8.1): Sagt PCGamingWiki bei einer Brille „hackable“, trägt das PC-Spiel die Marke „VR per Mod“;
+  hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht violett „VR-Mod?“ (ein
+  Hinweis). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
+  Nexus-Seite, die beliebtesten Mods und die VR-Mods. Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
   Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der

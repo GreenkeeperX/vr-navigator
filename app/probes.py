@@ -149,6 +149,10 @@ def nexus(lines, name, sleep, key=""):
         if d.get("errors"):
             return None, "Fehler: " + "; ".join(str(e.get("message"))[:160] for e in d["errors"][:3])
         return d.get("data") or {}, ""
+    # 0.8.1: die ganze Spieleliste seitenweise (der Abgleich ordnet damit ohne Suche je Spiel zu)
+    gl, err = ask("query{games(count:1000,offset:0){totalCount nodes{domainName}}}", {})
+    lines.append("Nexus Mods, Spieleliste: " + (f"{len(((gl or {}).get('games') or {}).get('nodes') or [])} auf Seite 1, "
+                                                 f"{((gl or {}).get('games') or {}).get('totalCount', '?')} insgesamt" if gl is not None else err))
     plain = search_name(name)
     base = re.sub(r"(?i)\s*[-:–]?\s*\b(legacy|enhanced|remastered|definitive edition|game of the year edition|goty|complete edition)$", "", plain)
     nodes, err = [], ""

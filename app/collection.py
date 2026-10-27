@@ -290,7 +290,7 @@ def replace(col, games, src="playnite"):
         if o is None:
             new += 1
             continue
-        for f in ("rev", "steam", "mark", "igdb"):
+        for f in ("rev", "steam", "mark", "igdb", "pcgw", "nexus"):
             if f in o:
                 g[f] = o[f]
     col["games"] = games
@@ -510,6 +510,14 @@ def view(col):
         ig = g.get("igdb") or {}
         if ig.get("id"):
             merge_igdb(r, ig)
+        # VR per Mod (0.8.1): PCGamingWiki „hackable“, vorpX; Nexus Mods mit Spielseite und Mods
+        pc, nx = g.get("pcgw") or {}, g.get("nexus") or {}
+        if pc.get("mod"):
+            r["vrmod"] = pc["mod"]
+        if pc.get("vorpx"):
+            r["vorpx"] = True
+        if nx.get("dom"):
+            r["nexus"] = {"dom": nx["dom"], "n": nx.get("n") or 0, "top": nx.get("top") or [], "vr": nx.get("vr") or []}
         rows.append(r)
     # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}

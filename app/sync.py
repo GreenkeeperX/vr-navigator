@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, prices, probes, retro, sources, store, titles
+from . import accounts, collection, igdb, mods, prices, probes, retro, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "eshop": "eShopKompass"}
+         "igdb": "IGDB", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -75,6 +75,11 @@ RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je Syste
 IGDB_DAYS = 90              # IGDB je Spiel so oft neu (0.8.0)
 IGDB_MISS_DAYS = 30         # ohne Treffer erst nach so vielen Tagen neu suchen
 IGDB_NAMES = 120            # Namenssuchen je Lauf (Steam-Spiele gehen gebündelt über die Steam-ID)
+PCGW_MAX = 60               # PCGamingWiki-Seiten je Lauf (VR per Mod, 0.8.1), je zwei Abrufe
+PCGW_DAYS = 90
+NEXUS_MAX = 60              # Nexus-Mod-Abfragen je Lauf
+NEXUS_DAYS = 30
+NEXUS_LIST_DAYS = 7         # Spieleliste von Nexus Mods (nexus_games.json) so oft neu
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
@@ -912,7 +917,7 @@ def _rev_get(src, gid, shown):
     return text
 
 
-def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None):
+def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, want=None, order=None):
     """Abruf je Steam-Spiel der Sammlung (Entdecken): zuerst die ohne Wert, dann die ältesten;
     höchstens limit je Lauf, nach days Tagen neu. Ergebnis je Spiel unter field in
     collection.json. Liefert (Quelle, gelesen {Schlüssel: Wert}, noch offen)."""
@@ -920,7 +925,10 @@ def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None):
     old = _iso(now() - timedelta(days=days))
     todo = sorted(((g.get(field) or {}).get("at") or "", k) for k, g in (col.get("games") or {}).items()
                   if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
+                  and (not want or want(g))
                   and (((g.get(field) or {}).get("at") or "") < old or (stale and stale(g.get(field)))))
+    if order:
+        todo.sort(key=lambda x: (x[0], order(col["games"][x[1]])))
     src = _Source(label, log)
     if not todo:
         log(f"{label}: alle aktuell" if col.get("games") else f"{label}: keine Sammlung, nichts zu tun")
@@ -1330,6 +1338,105 @@ def _igdb(settings, log):
     return src.result()
 
 
+def _pc_no_vr(g):
+    return (g.get("system") or "PC") == "PC" and not (g.get("steam") or {}).get("vr")
+
+
+def _fame(g):
+    return -((g.get("rev") or {}).get("n") or 0)       # bekannte Spiele zuerst: dort gibt es eher Mods
+
+
+def _pcgw(log):
+    """PCGamingWiki (0.8.1): Vorlage „VR support“ je Steam-Spiel ohne eingebautes VR, über die Steam-ID
+    (appid.php leitet auf die Seite, dann der Wikitext). „hackable“ heißt VR per Mod."""
+    start = time.monotonic()
+
+    def get(src, gid, shown):
+        page = src.get(mods.appid_url(gid), shown=shown, absent=(404,))
+        if page is None:
+            return None
+        t = mods.title(page)
+        if not t:
+            return ""
+        return src.get(mods.parse_url(t), shown=f"{shown} ({t[:40]})")
+    src, got, left = _per_game(log, "PCGamingWiki", "pcgw", PCGW_DAYS, PCGW_MAX, None,
+                               lambda text, gid: dict(mods.pcgw(text) if text else {"ok": True, "page": False}, v=mods.V),
+                               get=get, want=_pc_no_vr, order=_fame)
+    if got is not None:
+        hack = sum(1 for r in got.values() if r.get("mod"))
+        log(f"PCGamingWiki: {len(got)} Spiele gelesen, {sum(1 for r in got.values() if r.get('page'))} mit Seite, {hack} mit VR per Mod"
+            + (f", {left} noch offen (je Lauf {PCGW_MAX}{_runs(left, PCGW_MAX, ', ')})" if left else ", alle aktuell") + f", {_took(start)}")
+    return src.result()
+
+
+def _nexus(settings, log):
+    """Nexus Mods (0.8.1): einmal die Woche die Spieleliste, dann je PC-Spiel mit Seite dort die beliebtesten Mods
+    und die mit VR im Namen. Mit persönlichem Schlüssel als Kopfzeile apikey."""
+    start = time.monotonic()
+    head = {"Content-Type": "application/json", "Accept": "application/json"}
+    if settings.get("nexus_key"):
+        head["apikey"] = settings["nexus_key"]
+    src = _Source("Nexus Mods", log, headers=head, pause=1.0)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    old = _iso(now() - timedelta(days=NEXUS_DAYS))
+    todo = sorted((((g.get("nexus") or {}).get("at") or ""), _fame(g), k) for k, g in (col.get("games") or {}).items()
+                  if _pc_no_vr(g) and g.get("src") != "retro" and ((g.get("nexus") or {}).get("at") or "") < old)
+    if not todo:
+        log("Nexus Mods: alle aktuell" if col.get("games") else "Nexus Mods: keine Sammlung, nichts zu tun")
+        return src.result()
+    cache = store.load_json("nexus_games.json", {})
+    if not cache.get("games") or (cache.get("at") or "") < _iso(now() - timedelta(days=NEXUS_LIST_DAYS)):
+        games, total = [], None
+        for page in range(mods.GAMES_PAGES):
+            r = mods.games_page(src.get(mods.GQL, shown=f"Spieleliste Seite {page + 1}", data=mods.games_query(page * mods.GAMES_PAGE)))
+            if r is None:
+                break
+            games += r[0]
+            total = r[1]
+            if not r[0] or len(games) >= total:
+                break
+        if games and total is not None and len(games) >= min(total, mods.GAMES_PAGE * mods.GAMES_PAGES):
+            cache = {"at": titles.now_iso(), "games": games}
+            store.save_json("nexus_games.json", cache)
+        elif not cache.get("games"):
+            if not src.stopped:
+                src.stopped = "Spieleliste nicht lesbar"
+                log("Nexus Mods: die Spieleliste kam nicht vollständig, nichts zugeordnet")
+            return src.result()
+    idx = mods.index(cache["games"])
+    got, asked = {}, 0
+    for _, _, k in todo:
+        if src.stopped:
+            break
+        g = col["games"][k]
+        hit = mods.find(idx, (g.get("igdb") or {}).get("name") or g["name"]) or mods.find(idx, g["name"])
+        if not hit:
+            got[k] = {"none": True}
+            continue
+        if asked >= NEXUS_MAX:
+            continue
+        progress("Nexus Mods", asked, NEXUS_MAX)
+        asked += 1
+        m = mods.mods(src.get(mods.GQL, shown=f"Mods zu „{hit['name'][:40]}“", data=mods.mods_query(hit["dom"])))
+        if m is None:
+            continue
+        got[k] = dict(m, dom=hit["dom"], name=hit["name"], n=hit["mods"])
+    stamp = titles.now_iso()
+    with store.lock:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        for k, r in got.items():
+            if k in col.get("games", {}):
+                col["games"][k]["nexus"] = dict(r, at=stamp, v=mods.V)
+        store.save_json(collection.FILE, col)
+    found = [r for r in got.values() if not r.get("none")]
+    left = sum(1 for _, _, k in todo if k not in got)
+    src.stats = {"read": len(got), "found": len(found), "left": left}
+    log(f"Nexus Mods: {len(cache['games'])} Spiele in der Liste, {len(found)} deiner Spiele neu gelesen, "
+        f"{sum(1 for r in found if r.get('vr'))} mit Mods mit VR im Namen"
+        + (f", {left} noch offen (je Lauf {NEXUS_MAX}{_runs(left, NEXUS_MAX, ', ')})" if left else "") + f", {_took(start)}")
+    return src.result()
+
+
 def _sharenite(settings, log):
     """PC-Bibliothek aus einem öffentlichen Sharenite-Profil (Playnite online, alle Läden). Liest
     erst Seite 1 für die Kennungen der VR-Schlagwörter, dann nur die gefilterte Liste; fehlt der
@@ -1586,6 +1693,10 @@ def run(only=None, boot=False, by_hand=False):
             do("rating", lambda: _rating(log))
         if settings["igdb_id"] and settings["igdb_secret"] and (not only or "igdb" in only):
             do("igdb", lambda: _igdb(settings, log))
+        if not only or "pcgw" in only:
+            do("pcgw", lambda: _pcgw(log))
+        if not only or "nexus" in only:
+            do("nexus", lambda: _nexus(settings, log))
         if not only or "players" in only:
             do("players", lambda: _players(log))
         if not only or "vrdb" in only:
