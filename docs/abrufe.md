@@ -57,6 +57,15 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   Retro-Namen mit der Plattform des Systems, dann ohne Sonderzeichen („é“ als „e“), zuletzt
   ohne Plattform. Die Steam-Rezensionen prüft der Test an drei Spielen (das bekannteste, eins aus der
   Mitte, eins ohne Wert) und nennt bei einer HTML-Antwort Titel und Ziel der Umleitung.
+  Seit 0.7.4: Die Rezensionen prüft der Test zusätzlich in Form 2 und 3 der Adresse (siehe unten).
+  Die Vorlage „VR support“ wird sauber gelesen (ein leerer Wert schluckt nicht mehr die nächste
+  Zeile, Felder „… notes“ fallen weg). Aus derselben Seite die Vorlage „Input“: Lenkrad, Force
+  Feedback, Haptik (für Sim-Racing). Nexus Mods über die offene GraphQL-Schnittstelle
+  `https://api.nexusmods.com/v2/graphql` ohne Schlüssel, eine Sekunde Pause je Anfrage: das Spiel
+  zum Namen (genau, ohne Zusätze wie „Legacy“, dann mit Platzhaltern), Zahl der Mods, Link auf die
+  Spielseite, die drei beliebtesten Mods und Mods mit „VR“ im Namen; Fehler stehen wörtlich im
+  Ergebnis. DekuDeals erkennt Treffer auch als ganze Adresse mit Zusatz; IGDB versucht bei Konsolen
+  auch den Namen ohne Satzzeichen und den Teil nach dem Doppelpunkt.
 
 ## eShopKompass (eigenes Netz, ab 0.7.3)
 
@@ -149,6 +158,12 @@ Nur mit einer Sammlung (Playnite-Export). Ohne Schlüssel, nach den Preisen.
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
 | Rezensionen | `https://store.steampowered.com/appreviews/<App-ID>?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary` | je Lauf höchstens 100 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 30 Tagen neu | Zahl der Rezensionen und Anteil positiv; kommt statt Daten eine Store-Seite (etwa bei Spielen ab 18 ohne Anmeldung), merkt sich der Eintrag `page` und das Protokoll zählt sie (0.7.2) |
+
+Form der Adresse (0.7.4): Am 27.10.2026 leitete Steam die Adresse oben bei allen getesteten Apps auf die
+Startseite um. Kommt eine Seite statt Daten, versucht der Abruf beim selben Spiel Form 2
+(`…&review_type=all&num_per_page=1&filter=all&cursor=*`) und Form 3 (`json=1&filter=recent&language=all&num_per_page=1`)
+und bleibt bis zum Neustart bei der, die Daten liefert; das Protokoll nennt den Wechsel. Gilt für
+Sammlung und Wunschliste.
 
 Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. Hat ein Spiel mit
 nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter

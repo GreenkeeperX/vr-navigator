@@ -863,7 +863,36 @@ def _gg_pending(log, budget):
     return {"at": stamp, "ok": True, "requests": n, "errors": 0, "msg": "", "via": "Lesezeichen"}
 
 
-def _per_game(log, label, field, days, limit, url, parse, stale=None):
+# Steam-Rezensionen (0.7.4): Im Test am 27.10.2026 leitete Steam die bisherige Adresse bei drei von drei Apps
+# auf die Startseite um. Schickt Steam statt Daten eine Seite, versucht der Abruf die nächste Form der Adresse
+# und bleibt bis zum Neustart bei der, die Daten liefert
+REVIEW_Q = ["json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
+            "json=1&language=all&purchase_type=all&review_type=all&num_per_page=1&filter=all&cursor=*",
+            "json=1&filter=recent&language=all&num_per_page=1"]
+_rev_q = {"i": 0}
+
+
+def review_url(gid, i=None):
+    return f"{STEAM}/appreviews/{gid}?{REVIEW_Q[_rev_q['i'] if i is None else i]}"
+
+
+def _rev_get(src, gid, shown):
+    # Lieferte bei einem Spiel keine Form Daten (etwa eine Altersprüfung), fragt der Lauf danach je Spiel
+    # nur einmal, sonst kostet jedes Spiel drei Anfragen
+    text = None
+    for n in range(1 if src.__dict__.get("rev_pages") else len(REVIEW_Q)):
+        i = (_rev_q["i"] + n) % len(REVIEW_Q)
+        text = src.get(review_url(gid, i), shown=shown)
+        if text is None or text.lstrip()[:1] != "<":
+            if text is not None and i != _rev_q["i"]:
+                _rev_q["i"] = i
+                src.log(f"{src.name}: Steam antwortet nur noch auf Form {i + 1} der Adresse, die gilt jetzt")
+            return text
+    src.__dict__["rev_pages"] = True
+    return text
+
+
+def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None):
     """Abruf je Steam-Spiel der Sammlung (Entdecken): zuerst die ohne Wert, dann die ältesten;
     höchstens limit je Lauf, nach days Tagen neu. Ergebnis je Spiel unter field in
     collection.json. Liefert (Quelle, gelesen {Schlüssel: Wert}, noch offen)."""
@@ -881,7 +910,7 @@ def _per_game(log, label, field, days, limit, url, parse, stale=None):
     for i, (_, k) in enumerate(batch):
         progress(label, i, len(batch))
         gid = col["games"][k]["id"]
-        text = src.get(url(gid), shown=f"{label} {gid}")
+        text = get(src, gid, f"{label} {gid}") if get else src.get(url(gid), shown=f"{label} {gid}")
         if text is None:
             if src.stopped:
                 break
@@ -906,7 +935,8 @@ def _reviews(log):
         log, "Steam-Rezensionen", "rev", REVIEWS_DAYS, REVIEWS_MAX,
         lambda gid: f"{STEAM}/appreviews/{gid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
         # Statt Daten eine Store-Seite (0.7.2): etwa Spiele ab 18 ohne Anmeldung; gemerkt als „page“
-        lambda text, gid: prices.steam_reviews(text) or dict({"n": None, "pct": None, "desc": ""}, **({"page": True} if text.lstrip()[:1] == "<" else {})))
+        lambda text, gid: prices.steam_reviews(text) or dict({"n": None, "pct": None, "desc": ""}, **({"page": True} if text.lstrip()[:1] == "<" else {})),
+        get=_rev_get)
     if got is not None:
         known = sum(1 for r in got.values() if r.get("n"))
         pages = sum(1 for r in got.values() if r.get("page"))
@@ -1016,8 +1046,7 @@ def _rating(log):
             continue
         progress("Steam-Wertungen", asked, min(RATING_MAX, len(todo)))
         asked += 1
-        text = src.get(f"{STEAM}/appreviews/{gid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
-                       shown=f"Steam-Wertungen {gid}")
+        text = _rev_get(src, gid, f"Steam-Wertungen {gid}")
         if text is None:
             if src.stopped:
                 break
@@ -1604,15 +1633,21 @@ def diagnose():
                 key=lambda g: -((g.get("rev") or {}).get("n") or 0))
     picks = [g for g in (sg[:1] + sg[len(sg) // 2:len(sg) // 2 + 1] + [g for g in sg if not (g.get("rev") or {}).get("n")][:1])]
     rapps = list(dict.fromkeys(str(g["id"]) for g in picks)) or [appid]
-    for rapp in rapps:
-        def rev_info(text, rapp=rapp):
+    def rev_info(rapp, form):
+        def info(text):
             r = prices.steam_reviews(text)
             if r:
-                return f"App {rapp}: {r['n']} Rezensionen, {r['pct']} % positiv" if r["n"] else f"App {rapp}: Steam kennt die App, noch keine Rezensionen"
+                return (f"App {rapp}, Form {form}: {r['n']} Rezensionen, {r['pct']} % positiv" if r["n"]
+                        else f"App {rapp}, Form {form}: Steam kennt die App, noch keine Rezensionen")
             t = re.search(r"(?s)<title>(.*?)</title>", text)
-            return (f"App {rapp}: Store-Seite statt Daten" + (f" („{' '.join(html.unescape(t.group(1)).split())[:80]}“)" if t else "")
-                    if text.lstrip()[:1] == "<" else f"App {rapp}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
-        probe("Steam, Rezensionen", f"{STEAM}/appreviews/{rapp}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
+            return (f"App {rapp}, Form {form}: Store-Seite statt Daten" + (f" („{' '.join(html.unescape(t.group(1)).split())[:80]}“)" if t else "")
+                    if text.lstrip()[:1] == "<" else f"App {rapp}, Form {form}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
+        return info
+    for rapp in rapps:
+        probe("Steam, Rezensionen", review_url(rapp, 0), rev_info(rapp, 1))
+    # 0.7.4: am ersten Spiel jede Form der Adresse, damit klar ist, welche Steam noch beantwortet
+    for i in range(1, len(REVIEW_Q)):
+        probe("Steam, Rezensionen", review_url(rapps[0], i), rev_info(rapps[0], i + 1))
 
     if not key:
         lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")

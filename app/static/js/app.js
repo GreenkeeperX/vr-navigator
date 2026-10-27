@@ -422,12 +422,13 @@ V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
 // Alle aufklappen (0.7.2, wie im eShopKompass): jedes Spiel offen außer den einzeln zugeklappten; nicht gemerkt.
-// Nur mit Filter und höchstens G_ALL Treffern, sonst grau
+// Nur bei höchstens G_ALL Spielen in der Liste (Reiter, Filter oder Suche), sonst grau (0.7.4: 150 statt 100,
+// damit etwa ein ganzes System wie 3DS aufgeht)
 V.gAll = false;
 V.gShut = new Set();
 // Kurzbeschreibung: vier Zeilen, ein Klick zeigt alles (wie im eShopKompass)
 V.gDesc = null;
-const G_ALL = 100;
+const G_ALL = 150;
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge.
 // vr: auch im Reiter VR sinnvoll
@@ -512,7 +513,14 @@ function langOk(g, f){
 }
 // „Alle“ heißt alle Systeme aus Playnite und der Retro-Liste; VR-Titel stehen nur unter VR, am PC
 // meist ohnehin auch unter PC
-const inSys = (g, sys) => sys ? g.system === sys : g.system !== "VR";
+// Familien (0.7.4): oben nur Alle, PC, VR und je Familie ein Reiter; die einzelnen Konsolen klappen rechts
+// daneben heraus, sobald die Familie gewählt ist. Alles außer PlayStation und Nintendo steht unter „Weitere“
+// (Entscheidung 27.10.2026). Eine Familie mit nur einem System steht als dieses System da
+const FAMS = [["@ps", "PlayStation", n => /^PS/.test(n)], ["@nin", "Nintendo", n => NINTENDO.has(n)],
+  ["@more", "Weitere", n => n !== "PC" && n !== "VR"]];
+const famOf = n => (FAMS.find(f => f[2](n)) || [""])[0];
+const famName = k => (FAMS.find(f => f[0] === k) || [k, k])[1];
+const inSys = (g, sys) => sys ? (sys[0] === "@" ? famOf(g.system) === sys : g.system === sys) : g.system !== "VR";
 function dFilter(d){
   const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
   return allGames().filter(g => inSys(g, d.sys) && d.mp.every(m => g.mp.includes(m))
@@ -627,7 +635,7 @@ function gYear(g){
 }
 // Launcher bei PC-Spielen (laut Playnite; nur vermutet: violett), sonst das System, solange der Reiter es nicht schon sagt
 function gSrc(g){
-  if(g.system !== "PC") return V.d.sys ? "" : esc(g.system);
+  if(g.system !== "PC") return V.d.sys && V.d.sys[0] !== "@" ? "" : esc(g.system);
   return g.store ? `<span class="${g.guess ? "gxc" : ""}" title="${g.guess ? "Launcher nur vermutet (Kennung ohne Angabe des Launchers)" : chk(g) ? "Von Steam bestätigt" : "Laut Playnite"}">${esc(g.store)}</span>` : "";
 }
 // Sprache eines Retro-Spiels: Deutsch vor Englisch vor Japanisch, violett wenn nur aus der Region geschätzt
@@ -781,7 +789,7 @@ function moreOnScroll(){
 }
 // Farbe eines System-Reiters: Nintendo rot, PlayStation blau, PC grün, VR im Türkis des Tools
 const NINTENDO = new Set(["Switch 2", "Switch", "Wii U", "Wii", "GameCube", "N64", "SNES", "NES", "3DS", "DS", "GBA", "GBC", "GB", "VB", "Pokémon Mini"]);
-const sysFam = n => n === "PC" ? "fam-pc" : n === "VR" ? "fam-vr" : /^PS/.test(n) ? "fam-ps" : NINTENDO.has(n) ? "fam-nin" : "";
+const sysFam = n => n === "PC" ? "fam-pc" : n === "VR" ? "fam-vr" : n === "@ps" || /^PS/.test(n) ? "fam-ps" : n === "@nin" || NINTENDO.has(n) ? "fam-nin" : "";
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
   if(C.error) return `<p class="err">Sammlung nicht lesbar: ${esc(C.error)}</p>`;
@@ -793,12 +801,28 @@ function findView(){
   // ohne PC-Spiele), gilt „Alle“, ohne Playnite und Retro-Liste VR
   const sys = (C.systems || []).slice(), nVr = (S.library || []).length;
   if(nVr) sys.splice(sys.findIndex(([n]) => n === "PC") + 1, 0, ["VR", nVr]);
-  if(d.sys && !sys.some(([n]) => n === d.sys)) d.sys = sys.length === 1 ? sys[0][0] : "";
+  // Familien mit mehr als einem System bekommen einen eigenen Reiter (Reihenfolge wie FAMS, darin wie die Systeme)
+  const fams = {};
+  for(const [n, c] of sys) if(n !== "PC" && n !== "VR"){ const f = famOf(n); (fams[f] = fams[f] || []).push([n, c]); }
+  const famKeys = Object.keys(fams).filter(f => fams[f].length > 1);
+  if(d.sys && !sys.some(([n]) => n === d.sys) && !famKeys.includes(d.sys)) d.sys = sys.length === 1 ? sys[0][0] : "";
   // „Alle“ nur, wenn Playnite und Retro-Liste mehr als ein System liefern
   const nAll = C.games.length, multi = (C.systems || []).length > 1;
   if(!d.sys && !multi && sys.length) d.sys = sys[0][0];
-  const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${(multi ? [["", "Alle", nAll]] : []).concat(sys.map(([n, c]) => [n, n, c])).map(([v, l, c]) =>
-    `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${sysFam(v)}${d.sys === v ? " on" : ""}"${v ? "" : ` title="Alle Systeme aus Playnite und der Retro-Liste; deine VR-Titel stehen unter VR"`}${v === "VR" ? ` title="Deine VR-Titel bei Meta und am PC"` : ""}>${esc(l)} <span class="n">${c}</span></button>`).join("")}</div>` : "";
+  const curFam = d.sys && (d.sys[0] === "@" ? d.sys : famKeys.includes(famOf(d.sys)) ? famOf(d.sys) : "");
+  // Herausgleiten nur beim Öffnen der Familie, nicht bei jedem neuen Zeichnen
+  const anim = curFam && V.lastFam !== curFam;
+  V.lastFam = curFam;
+  const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${sysFam(v)}${d.sys === v ? " on" : ""}${cls || ""}"${tip ? ` title="${esc(tip)}"` : ""}>${esc(l)} <span class="n">${c}</span></button>`;
+  const top = sys.filter(([n]) => n === "PC" || n === "VR").map(([n, c]) => tab(n, n, c, "", n === "VR" ? "Deine VR-Titel bei Meta und am PC" : ""));
+  for(const [f] of FAMS){
+    if(!fams[f]) continue;
+    if(!famKeys.includes(f)){ const [n, c] = fams[f][0]; top.push(tab(n, n, c)); continue; }
+    const open = curFam === f;
+    top.push(tab(f, famName(f), fams[f].reduce((a, [, x]) => a + x, 0), open && d.sys !== f ? " part" : "", `Alle Spiele von ${famName(f)}; ein Klick zeigt die Konsolen einzeln`) +
+      (open ? `<span class="subtabs${anim ? " anim" : ""}">${fams[f].map(([m, x]) => tab(m, m, x, " sub")).join("")}</span>` : ""));
+  }
+  const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${multi ? tab("", "Alle", nAll, "", "Alle Systeme aus Playnite, der Retro-Liste und dem eShopKompass; deine VR-Titel stehen unter VR") : ""}${top.join("")}</div>` : "";
   const inTab = allGames().filter(g => inSys(g, d.sys)), vr = d.sys === "VR";
   const filtered = dFilter(d), cols = colsFor(d, inTab), rows = dSort(filtered, d, cols);
   const pick = d.mix === "surprise" || d.mix === "wild" ? dPick(filtered, d.seed) : [];
@@ -835,10 +859,9 @@ function findView(){
       ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}</div>
     ${label ? `<div class="chips act">${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
   const colSort = !!V.sorts.find;
-  const narrowed = Object.keys(D0).some(k => !["sys", "sort", "seed", "mix", "n"].includes(k) && String(d[k]) !== String(D0[k]));
-  const canAll = narrowed && rows.length <= G_ALL;
+  const canAll = rows.length <= G_ALL;
   if(V.gAll && !canAll){ V.gAll = false; V.gShut.clear(); }
-  const foldall = `<span class="foldall"${canAll ? "" : ` title="${narrowed ? `Alle aufklappen geht bis ${G_ALL} Spiele, filtere weiter` : "Alle aufklappen geht mit einem Filter oder einer Suche"}"`}><button class="link" data-act="gall" data-v="1"${canAll ? "" : " disabled"}>alle aufklappen</button> · <button class="link" data-act="gall" data-v=""${V.gAll || V.gOpen ? "" : " disabled"}>alle zuklappen</button></span>`;
+  const foldall = `<span class="foldall" title="${canAll ? rows.length === 1 ? "Das eine Spiel der Liste aufklappen" : `Alle ${num(rows.length)} Spiele der Liste aufklappen` : `Alle aufklappen geht bei höchstens ${G_ALL} Spielen, hier sind es ${num(rows.length)}. Wähl ein System, filtere oder suche`}"><button class="link" data-act="gall" data-v="1"${canAll ? "" : " disabled"}>alle aufklappen</button> · <button class="link" data-act="gall" data-v=""${V.gAll || V.gOpen ? "" : " disabled"}>alle zuklappen</button></span>`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="${vr ? "Name oder Notiz suchen" : "Name, Entwickler oder Genre suchen"}" aria-label="In der Sammlung suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>
     <label class="kind">Sortieren <select data-dset="sort">${colSort ? `<option value="" selected>nach Spalte</option>` : ""}${opt(D_SORTS.filter(([k]) => !vr || !["gem", "known", "year"].includes(k)), colSort ? "" : d.sort)}</select></label>
     ${d.sort === "random" && !colSort ? `<button data-act="dshuffle">Neu mischen</button>` : ""}${foldall}</div>`;
@@ -859,7 +882,7 @@ function findView(){
     : [nPn && `${at ? `Playnite-Export vom ${day(at)}. ` : ""}Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (violett: nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.`,
       nEsh && `Switch-Sammlung aus dem eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}: Genre, Spieler, Wertung und Spielzeit von DekuDeals und Nintendo, Mein Stand setzt du dort.`,
       nRetro && `Retro-Liste${rat ? ` vom ${day(rat)}` : ""}: Sprache laut Dateiname, violett: nur aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""}. Genres und Spielerzahl für Retro-Spiele kommen später.`].filter(Boolean).join(" ");
-  const note = `<p class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${inTab.length} Spiele`) : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys)})` : ""}. ${src}</p>`;
+  const note = `<p class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${inTab.length} Spiele`) : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys[0] === "@" ? famName(d.sys) : d.sys)})` : ""}. ${src}</p>`;
   const head = `<div class="gr nph" role="row">${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
   return goneCard + tabs + bar + mixes + filters + pickCard + note +
     glist(rows.slice(0, d.n).map(g => gRow(g, cols)).join("") || `<p class="hint">Kein Treffer.</p>`, head) +
@@ -940,12 +963,14 @@ function settingsView(){
       <span class="row2"><span class="hint">${esc(x.why)}${x.row?.origin?.length ? `. Herkunft: ${originText(x.row)}` : ""}</span>
         <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
-  const sugCard = open ? box("todo", "Zu erledigen", `${open} offen`, `
+  // Zahlen, die etwas zu tun bedeuten, violett und fett (0.7.4, wie im eShopKompass „offen“)
+  const tn = n => `<b class="warnc">${n}</b>`;
+  const sugCard = open ? box("todo", "Zu erledigen", `${tn(open)} offen`, `
     <p class="hint">Was das Tool nicht selbst klären konnte. Alles andere ordnet es bei jedem Abgleich von allein zu.</p>
     ${listsHtml()}
-    ${sug ? sub("sug", "Derselbe Titel?", `${S.suggestions.length} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
-    ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", steamTodo.length, steamList) : ""}
-    ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", metaTodo.length, metaList) : ""}`) : "";
+    ${sug ? sub("sug", "Derselbe Titel?", `${tn(S.suggestions.length)} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
+    ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", tn(steamTodo.length), steamList) : ""}
+    ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}`) : "";
   const ll = lastLine(sy);
   const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
@@ -995,7 +1020,7 @@ function listsHtml(){
       <span class="row2"><span class="hint">${esc(x.why)}</span>
         ${kind === "table" || kind === "missing" ? addLinks(x.links) : x.links.filter(l => safeUrl(l.url)).map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(" ")}
         ${acts.map(([a, l]) => `<button data-act="lists" data-v="${a}" data-keys="${esc(x.key)}">${l}</button>`).join(" ")}</span></div>`).join("");
-    return sub("lists-" + kind, title, rows.length, `<p class="hint">${hint}</p><div class="bar">${bulk}</div><div class="list">${list}</div>`, kind === "table" && rows.length > 20);
+    return sub("lists-" + kind, title, `<b class="warnc">${rows.length}</b>`, `<p class="hint">${hint}</p><div class="bar">${bulk}</div><div class="list">${list}</div>`, kind === "table" && rows.length > 20);
   }).join("");
   return groups ? first + groups : "";
 }
@@ -1140,7 +1165,7 @@ function retroCard(){
   const info = l ? `${l.n} Spiele, ${day(l.at)}${l.gone ? `, ${l.gone} nicht mehr in der Liste` : ""}` : "noch nie";
   return sub("imp-retro", "Retro-Sammlung (ROM-Liste)", info, `
     <p class="hint">Wähl deinen ROM-Ordner. Der Browser gibt dem Tool nur Datei- und Ordnernamen und lädt keine Spiele hoch. Ordner, die auf „_zip“ enden, Spielstände und Beiwerk zählen nicht, Pfade speichert das Tool nicht. Jedes Spiel steht danach einmal je System in der Sammlung, mit Region und Sprache aus dem Dateinamen (No-Intro, Redump).</p>
-    <div class="bar"><label class="btn">ROM-Ordner wählen <input type="file" webkitdirectory multiple data-file="retrodir" class="vh"></label></div>
+    <div class="bar"><label class="btn quiet">ROM-Ordner wählen <input type="file" webkitdirectory multiple data-file="retrodir" class="vh"></label></div>
     <details class="op"><summary>Liste stattdessen per Befehl erstellen</summary>
       <p class="hint">Linux (Terminal), danach die Datei unten einfügen:</p><pre class="log">${esc(RETRO_LINUX)}</pre>
       <p class="hint">Windows (PowerShell):</p><pre class="log">${esc(RETRO_WIN)}</pre>

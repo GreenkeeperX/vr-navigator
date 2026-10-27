@@ -100,16 +100,72 @@ def pcgw_title(text):
     return html.unescape(m.group(1)).replace("_", " ").strip() if m else ""
 
 
-def pcgw_vr(text):
-    """Felder der Vorlage „VR support“ aus dem Wikitext einer Seite (action=parse). Die Cargo-Abfrage
-    ist seit 2026 nur angemeldet erlaubt (0.7.1: permissiondenied), die Vorlage steht im Text."""
+def pcgw_vr(text, name="VR support"):
+    """Felder einer Vorlage („VR support“, „Input“) aus dem Wikitext einer Seite (action=parse). Die
+    Cargo-Abfrage ist seit 2026 nur angemeldet erlaubt (0.7.1: permissiondenied), die Vorlage steht im Text."""
     wt = ((json.loads(text).get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(r"(?is)\{\{\s*VR support\s*(.*?)\n\}\}", wt)
+    m = re.search(r"(?is)\{\{\s*" + re.escape(name) + r"\s*(\|.*?)\n\}\}", wt)
     out = {}
-    for k, v in re.findall(r"(?m)^\|\s*([\w ]+?)\s*=\s*(.*?)\s*$", m.group(1) if m else ""):
+    # [ \t] statt \s: ein leerer Wert darf nicht die nächste Zeile schlucken (0.7.3 las „|… notes =“ als Wert)
+    for k, v in re.findall(r"(?m)^\|[ \t]*([\w ]+?)[ \t]*=[ \t]*(.*?)[ \t]*$", m.group(1) if m else ""):
+        v = re.sub(r"<ref.*?(?:</ref>|/>)|'{2,}|\[\[(?:[^|\]]*\|)?([^\]]*)\]\]|\{\{[^}]*\}\}", lambda x: x.group(1) or "", v).strip()
         if v and not k.endswith("notes"):
-            out[k] = v[:40]
+            out[k] = v[:60]
     return out
+
+
+def wheel_info(fields):
+    """Lenkrad-Angaben aus der Vorlage „Input“: Felder mit wheel, force feedback oder haptic."""
+    hit = {k: v for k, v in fields.items() if re.search(r"wheel|force feedback|haptic|racing", k)}
+    return ("; ".join(f"{k} {v}" for k, v in hit.items()) if hit else "keine Angaben zu Lenkrädern") + (
+        f" ({len(fields)} Felder in „Input“: {', '.join(sorted(fields))[:300]})" if fields else " (keine Vorlage „Input“)")
+
+
+NEXUS_GQL = "https://api.nexusmods.com/v2/graphql"
+
+
+def nexus(lines, name, sleep):
+    """Nexus Mods (0.7.4, Probe): offene GraphQL-Schnittstelle ohne Schlüssel. Gibt es das Spiel, wie viele
+    Mods, die beliebtesten und welche mit VR im Namen? Fehler stehen wörtlich im Ergebnis, damit klar wird,
+    ob ein Schlüssel nötig ist."""
+    def ask(query, variables):
+        sleep(1)
+        r = sources.request(NEXUS_GQL, data=json.dumps({"query": query, "variables": variables}).encode(),
+                            headers={"Content-Type": "application/json", "Accept": "application/json"})
+        if r["error"] or r["status"] != 200:
+            return None, f"HTTP {r['status']} {r['error']} {' '.join(r['text'][:200].split())}".strip()
+        try:
+            d = json.loads(r["text"] or "{}")
+        except ValueError:
+            return None, "Antwort nicht lesbar"
+        if d.get("errors"):
+            return None, "Fehler: " + "; ".join(str(e.get("message"))[:160] for e in d["errors"][:3])
+        return d.get("data") or {}, ""
+    plain = search_name(name)
+    base = re.sub(r"(?i)\s*[-:–]?\s*\b(legacy|enhanced|remastered|definitive edition|game of the year edition|goty|complete edition)$", "", plain)
+    nodes, err = [], ""
+    for n, op in dict.fromkeys([(plain, "EQUALS"), (base, "EQUALS"), (f"*{base}*", "WILDCARD")]):
+        g, err = ask("query($n:String!){games(filter:{name:{value:$n,op:%s}}){nodes{id domainName name modCount}}}" % op, {"n": n})
+        nodes = ((g or {}).get("games") or {}).get("nodes") or []
+        if nodes or g is None:
+            break
+    if not nodes:
+        lines.append(f"Nexus Mods, Spiel „{plain[:40]}“: {err or 'nicht gefunden'}")
+        return
+    game = nodes[0]
+    dom = game.get("domainName") or ""
+    lines.append(f"Nexus Mods, Spiel „{plain[:40]}“: „{game.get('name')}“, {game.get('modCount', '?')} Mods, Seite https://www.nexusmods.com/games/{dom}")
+    q = ("query($d:String!,$v:String!){top:mods(filter:{gameDomainName:{value:$d}},sort:{endorsements:{direction:DESC}},count:3)"
+         "{totalCount nodes{name endorsements downloads modId}} vr:mods(filter:{gameDomainName:{value:$d},name:{value:$v,op:WILDCARD}},"
+         "sort:{endorsements:{direction:DESC}},count:3){totalCount nodes{name endorsements downloads modId}}}")
+    m, err = ask(q, {"d": dom, "v": "*VR*"})
+    if m is None:
+        lines.append(f"Nexus Mods, Mods: {err}")
+        return
+    fmt = lambda b: ", ".join(f"„{x.get('name', '')[:40]}“ ({x.get('endorsements', '?')} Empfehlungen, {x.get('downloads', '?')} Downloads)"
+                              for x in (b or {}).get("nodes") or []) or "keine"
+    lines.append(f"Nexus Mods, beliebt: {fmt(m.get('top'))}")
+    lines.append(f"Nexus Mods, mit VR im Namen ({((m.get('vr') or {}).get('totalCount'))}): {fmt(m.get('vr'))}")
 
 
 def deku_item_info(text):
@@ -135,7 +191,8 @@ def uevr_info(text):
 
 
 def deku_search_slug(text):
-    m = re.search(r'href="/items/([a-z0-9-]+)"', text)
+    # Auch mit Zusatz (?format=…) oder ganzer Adresse (0.7.4: der PS4-Test fand mit dem engen Muster nichts)
+    m = re.search(r"""(?:href=["']|dekudeals\.com)(?:https://www\.dekudeals\.com)?/items/([A-Za-z0-9][\w-]*)(?=["'?#\s>])""", text)
     return m.group(1) if m else ""
 
 
@@ -204,7 +261,10 @@ def igdb(lines, keys, names, sleep):
                 label += " über Steam-ID"
         # Name (0.7.2): erst wie geschrieben mit Plattform, dann ohne Sonderzeichen, zuletzt ohne Plattform
         plat = IGDB_PLATFORMS.get(rest[1]) if len(rest) > 1 else None
-        tries = [(n, plat), (search_name(n), plat)] + ([(search_name(n), None)] if plat else [])
+        # 0.7.4: dazu ohne Satzzeichen und nur der Teil nach dem Doppelpunkt („Reihe: Titel“)
+        flat = " ".join(re.sub(r"[^\w\s]", " ", search_name(n)).split())
+        tail = search_name(n).split(":", 1)[1].strip() if ":" in n else ""
+        tries = [(n, plat), (search_name(n), plat), (flat, plat)] + ([(tail, plat)] if tail else []) + ([(flat, None)] if plat else [])
         for q, pl in dict.fromkeys(tries):
             if games:
                 break
@@ -258,9 +318,15 @@ def run(probe, lines, col, keys, sleep):
         return f"Seite „{title['t']}“" if title["t"] else f"keine Seite für App {appid}"
     probe("PCGamingWiki, Seite", PCGW_APPID + "?" + urllib.parse.urlencode({"appid": appid}), page_info)
     if title.get("t"):
-        probe("PCGamingWiki, VR", PCGW + "?" + urllib.parse.urlencode(
+        wt = probe("PCGamingWiki, VR", PCGW + "?" + urllib.parse.urlencode(
             {"action": "parse", "page": title["t"], "prop": "wikitext", "format": "json", "redirects": 1}),
             lambda t: "; ".join(f"{k} {v}" for k, v in pcgw_vr(t).items()) or "keine Angaben zu VR")
+        # Sim-Racing (0.7.4): was die Vorlage „Input“ derselben Seite zu Lenkrad und Force Feedback sagt
+        if wt:
+            try:
+                lines.append(f"PCGamingWiki, Lenkrad: {wheel_info(pcgw_vr(wt, 'Input'))}")
+            except ValueError:
+                lines.append("PCGamingWiki, Lenkrad: Seite nicht lesbar")
 
     # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
     # in der Sammlung mit einer Vorgabe)
@@ -292,6 +358,8 @@ def run(probe, lines, col, keys, sleep):
             lines.append(f"libretro metadat: keine Liste für {ret.get('system')}")
     else:
         lines.append("libretro metadat: keine Retro-Liste, nicht angefragt")
+
+    nexus(lines, pc["name"], sleep)
 
     names = [("PC", pc["name"], appid), ("Konsole", con["name"], None, con.get("system"))] + (
         [("Retro", ret["name"], None, ret.get("system"))] if ret else [])
