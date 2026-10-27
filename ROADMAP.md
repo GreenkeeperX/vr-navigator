@@ -51,7 +51,10 @@ Familienfarben, PlayStation-Trophäenlisten als „PS3 / Vita“ (Entscheidungen
 Zusammenführen (Entscheidung 27.10.2026): Sammlung mit Spalten, Sortierung per Spaltenkopf,
 Einzelheiten und Mein Stand wie „Spiele“ im eShopKompass, die Bibliothek als Reiter VR darin,
 „VR-Wunschliste“ mit dem Urteil „kaufen“ und „gut“, „Aktualisieren“ und die Sicherung wie im
-eShopKompass. Grundsatz (Entscheidung 22.10.2026): so wenig
+eShopKompass. 0.6.1 Feinschliff nach Rückmeldung (27.10.2026): violett statt „≈“ in der
+Sammlung, Spalte Launcher (PC) bzw. System (Konsole), Genres einzeilig mit „+n weitere“ und
+fester Reihenfolge, Mein Stand an fester Stelle, PS1 statt PS, Quellen in den Einstellungen
+farbig. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
@@ -72,7 +75,14 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - Gesamtbild (Entscheidung 27.10.2026): Das Tool wird zum Navigator über die ganze
   Spielesammlung. „Jetzt“ wird die Startseite für alle Wünsche, mit einem Filter VR; der genaue
-  Vergleich Meta gegen Steam bleibt in der VR-Wunschliste. Name des Tools offen
+  Vergleich Meta gegen Steam bleibt in der VR-Wunschliste. Name: VR-Navigator bleibt
+  (Entscheidung 27.10.2026)
+- Datenbasis je Plattform (Entscheidung 27.10.2026): je Reiter dieselben Felder mit fester
+  Rangfolge der Quellen je Feld (wie Metacritic vor OpenCritic im eShopKompass), Ersatzquelle
+  sichtbar; Playnite-Merkmale nur im Nachrang. Neue Quellen (etwa Spielzeit über HowLongToBeat,
+  Wertung und Genre für Konsolen) erst als Probe in „Verbindung testen“, dann entscheiden. „≈“
+  auch in der VR-Wunschliste ablösen und Unklarheiten möglichst selbst auflösen
+- Spalte Spielzeit wie im eShopKompass
 - PC-Wunschliste: die ganze gg.deals-Wunschliste (auch ohne VR) als eigene Ansicht neben der
   PC-Sammlung, automatisch gelesen, mit Wertung, Spielern und Bestpreisen. Dazu
   je Spiel die Läden nah am Bestpreis, damit sich mehrere Spiele in einem Laden bündeln lassen;
