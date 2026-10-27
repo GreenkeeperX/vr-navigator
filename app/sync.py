@@ -17,6 +17,7 @@ Versuch.
 Das Protokoll entsteht live (STATE), die Oberfläche liest es während des Laufs; am Ende landet
 es mit dem Ergebnis je Quelle und der Selbstprüfung in sync.json.
 """
+import html
 import json
 import re
 import sys
@@ -903,10 +904,13 @@ def _reviews(log):
     src, got, left = _per_game(
         log, "Steam-Rezensionen", "rev", REVIEWS_DAYS, REVIEWS_MAX,
         lambda gid: f"{STEAM}/appreviews/{gid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
-        lambda text, gid: prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""})
+        # Statt Daten eine Store-Seite (0.7.2): etwa Spiele ab 18 ohne Anmeldung; gemerkt als „page“
+        lambda text, gid: prices.steam_reviews(text) or dict({"n": None, "pct": None, "desc": ""}, **({"page": True} if text.lstrip()[:1] == "<" else {})))
     if got is not None:
         known = sum(1 for r in got.values() if r.get("n"))
+        pages = sum(1 for r in got.values() if r.get("page"))
         log(f"Steam-Rezensionen: {len(got)} Spiele gelesen, {known} mit Rezensionen"
+            + (f", bei {pages} kam eine Store-Seite statt Daten (etwa Spiele ab 18)" if pages else "")
             + (f", {left} noch offen (je Lauf {REVIEWS_MAX}{_runs(left, REVIEWS_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
@@ -1485,7 +1489,9 @@ def diagnose():
         if r["error"]:
             lines.append(f"{name}: keine Verbindung ({r['error']})")
             return None
-        head = f"{name}: HTTP {r['status']}, Server {r['server'] or '?'}, Kodierung {r['enc'] or 'keine'}, {len(r['text'])} Zeichen"
+        moved = r.get("final") and r["final"] != url and urllib.parse.urlsplit(r["final"])[:3] != urllib.parse.urlsplit(url)[:3]
+        head = (f"{name}: HTTP {r['status']}, Server {r['server'] or '?'}, Kodierung {r['enc'] or 'keine'}, {len(r['text'])} Zeichen"
+                + (f", umgeleitet nach {urllib.parse.urlsplit(r['final']).path or '/'}" if moved else ""))
         why = sources.challenge(r["text"])
         if why or r["status"] >= 400:
             lines.append(head + (f", {why}" if why else "") + (", gesperrt" if r["status"] in sources.BLOCKED else "")
@@ -1548,16 +1554,23 @@ def diagnose():
     probe("Steam, Suche", f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": sname, "l": "german", "cc": "DE"}),
           lambda text: f"{len(prices.steam_search(text))} Treffer für „{sname}“")
 
-    # Rezensionen an einem Spiel der Sammlung, das welche hat (0.7: ein neuer Wunschtitel hat oft noch keine)
+    # Rezensionen an Spielen der Sammlung (0.7.2: drei verschiedene, das bekannteste, eins aus der Mitte und
+    # eins ohne gelesenen Wert). Statt Daten liefert Steam manchmal eine Store-Seite, etwa bei Spielen ab 18
+    # ohne Anmeldung; das zeigt der Test mit Titel und Ziel der Umleitung
     col = store.load_json(collection.FILE, collection.EMPTY)
-    rapp = next((str(g["id"]) for g in sorted((col.get("games") or {}).values(), key=lambda g: -((g.get("rev") or {}).get("n") or 0))
-                 if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()), appid)
-
-    def rev_info(text):
-        r = prices.steam_reviews(text)
-        return (f"App {rapp}: {r['n']} Rezensionen, {r['pct']} % positiv" if r and r["n"] else
-                f"App {rapp}: Steam kennt die App, noch keine Rezensionen" if r else f"App {rapp}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
-    probe("Steam, Rezensionen", f"{STEAM}/appreviews/{rapp}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
+    sg = sorted((g for g in (col.get("games") or {}).values() if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()),
+                key=lambda g: -((g.get("rev") or {}).get("n") or 0))
+    picks = [g for g in (sg[:1] + sg[len(sg) // 2:len(sg) // 2 + 1] + [g for g in sg if not (g.get("rev") or {}).get("n")][:1])]
+    rapps = list(dict.fromkeys(str(g["id"]) for g in picks)) or [appid]
+    for rapp in rapps:
+        def rev_info(text, rapp=rapp):
+            r = prices.steam_reviews(text)
+            if r:
+                return f"App {rapp}: {r['n']} Rezensionen, {r['pct']} % positiv" if r["n"] else f"App {rapp}: Steam kennt die App, noch keine Rezensionen"
+            t = re.search(r"(?s)<title>(.*?)</title>", text)
+            return (f"App {rapp}: Store-Seite statt Daten" + (f" („{' '.join(html.unescape(t.group(1)).split())[:80]}“)" if t else "")
+                    if text.lstrip()[:1] == "<" else f"App {rapp}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
+        probe("Steam, Rezensionen", f"{STEAM}/appreviews/{rapp}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
 
     if not key:
         lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")

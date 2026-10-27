@@ -58,7 +58,10 @@ farbig. 0.6.2 Einzelheiten nur mit Mehrwert, Genres klappen in der Zeile auf, En
 Verlag im Tooltip am Jahr, Quellen als kompakte Tabelle (Entscheidungen 27.10.2026). 0.7.0 Proben
 der neuen Quellen im Verbindungstest, IGDB-Schlüssel in den Einstellungen. 0.7.1 Einzelheiten mit
 Metacritic, Sprachen, Erscheinen und Kurzbeschreibung aus den Steam-Details, Aufklappen ohne Springen,
-Lesezeichen wie die Browser-Helfer im eShopKompass, Proben nachgeschärft. Grundsatz (Entscheidung 22.10.2026): so wenig
+Lesezeichen wie die Browser-Helfer im eShopKompass, Proben nachgeschärft. 0.7.2 Darkmode gedämpft wie
+im eShopKompass 1.7.15 (`--ink`/`--ink-hi`), Wertung in den Einzelheiten als Zahl, „alle aufklappen“
+in der Sammlung (mit Filter, bis 100 Spiele), einfachere Vorschau beim Einlesen, Proben ohne Cargo
+und UEVR, IGDB-Suche mit Plattform. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

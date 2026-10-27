@@ -1,6 +1,6 @@
 :root{
   color-scheme:light dark;
-  --bg:#f3f4f1; --card:#fffffc; --ink:#1b2224; --muted:#61706f; --line:#d9ddd8;
+  --bg:#f3f4f1; --card:#fffffc; --ink:#1b2224; --ink-hi:#1b2224; --muted:#61706f; --line:#d9ddd8;
   --accent:#24383b; --brand:#1c7c8c; --chip:#e8ebe6;
   /* Jede Farbe eine Bedeutung, siehe docs/oberflaeche.md */
   --deal:#1d5fbf; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
@@ -12,16 +12,16 @@
 }
 /* Ansicht: data-theme am html-Element (hell/dunkel), ohne Angabe wie das Gerät */
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]){
-  --bg:#121617; --card:#1a2022; --ink:#e5ebea; --muted:#94a3a1; --line:#2c3537;
-  --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
+  --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
+  --accent:#cdd5d4; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
   --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }}
 :root[data-theme=dark]{color-scheme:dark;
-  --bg:#121617; --card:#1a2022; --ink:#e5ebea; --muted:#94a3a1; --line:#2c3537;
-  --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
+  --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
+  --accent:#cdd5d4; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
@@ -29,6 +29,9 @@
 }
 :root[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}
+/* Text im Dunkeln (0.7.2, wie eShopKompass 1.7.15): Grundschrift gedeckt (--ink), hell bleiben nur Name,
+   aktiver Reiter, Überschriften, offener Spielname und der große Preis (--ink-hi); siehe docs/oberflaeche.md */
+header.top h1,h1,h2,h3,h4,nav button.on,.systabs button.on,.gr.open button.link.g-n,.shop .big{color:var(--ink-hi)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{padding:0 16px 60px;margin:0 auto}
 header.top{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:14px 0 6px}
@@ -62,7 +65,7 @@ nav{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
 @media (prefers-reduced-motion: reduce){.stick,.jump{transition:none}}
 nav button{white-space:nowrap;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:6px 12px;color:var(--muted)}
 nav.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
-nav button.on{color:var(--ink);border-bottom-color:var(--brand);font-weight:600}
+nav button.on{color:var(--ink-hi);border-bottom-color:var(--brand);font-weight:600}
 nav .cnt{font-size:11px;margin-left:4px;color:var(--muted)}
 .hint{color:var(--muted);font-size:13px;margin:4px 0}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
@@ -178,7 +181,7 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .systabs button:not([class*=fam-]){--fam:var(--accent)}
 .systabs button:hover{border-bottom-color:color-mix(in srgb,var(--fam) 40%,transparent)}
 /* Gewählt: Linie in der Familienfarbe, Name in Textfarbe (0.6.1; verschiedene Rottöne beißen sich sonst) */
-.systabs button.on{border-bottom:3px solid var(--fam);color:var(--ink);font-weight:600}
+.systabs button.on{border-bottom:3px solid var(--fam);color:var(--ink-hi);font-weight:600}
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
 .chips.mix{margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 .chips.mix button{white-space:nowrap}
@@ -261,6 +264,10 @@ details.op.unsure{border-left:3px dashed var(--warn);padding-left:8px}
 details.op .ux{color:var(--warn)}
 /* Am Handy klappen Menüs über die volle Breite der Zeile auf, statt rechts aus dem Bild zu ragen */
 .bar,.dfilter{position:relative}
+/* alle aufklappen · alle zuklappen (0.7.2, wie im eShopKompass): dezent; ohne Filter oder bei über 100 Treffern grau */
+.foldall{white-space:nowrap;margin-left:4px;font-size:14px}
+.foldall .link{color:inherit}
+.foldall .link:disabled{color:var(--muted);text-decoration:none;cursor:default;opacity:.6}
 @media (max-width:620px){
   details.menu{position:static}
   details.menu .pop,details.menu .pop.wide{left:0;right:0;width:auto;max-width:none}
@@ -281,7 +288,7 @@ details.op .ux{color:var(--warn)}
 .gr .t .b{flex:none;font-size:11px}
 .gr button.link.g-n{text-decoration:none;color:inherit;text-align:left;font:inherit;padding:0;min-width:3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
 .gr button.link.g-n:hover{text-decoration:underline}
-.gr.open button.link.g-n{font-weight:600}
+.gr.open button.link.g-n{font-weight:600;color:var(--ink-hi)}
 .gr .ux,.gr .ux *{color:var(--warn)}
 .gtags{display:flex;flex-wrap:wrap;gap:3px 4px;min-width:0}
 .gtags.fit{max-height:19px;overflow:hidden}
@@ -318,7 +325,8 @@ details.op .ux{color:var(--warn)}
 .gmark{display:inline-flex}
 .gmark button{flex:none;white-space:nowrap;font-size:12px;padding:1px 8px;background:var(--card)}
 .gd .gmark button.on{background:color-mix(in srgb,var(--ink) 16%,var(--card));color:var(--ink);border-color:var(--line)}
-.gdesc{margin:8px 0 0;max-width:62ch;line-height:1.45;color:var(--ink)}
+.gdesc{margin:8px 0 0;max-width:68ch;font-size:13px;line-height:1.5;color:var(--ink);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.gdesc.full{display:block}
 .gno{color:var(--stop)}
 .gd .gds{grid-column:1/-1;font-size:12px;padding-left:14px;margin:0}
 .gdv{display:flex;flex-direction:column;gap:6px;min-width:0;padding-left:14px}
