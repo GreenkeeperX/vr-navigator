@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.6:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.7:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -50,6 +50,11 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   dem Laden als Marke; gelesen wird höchstens alle 20 Stunden. Spiele nur für Konsolen (alle
   Plattformen PlayStation, Xbox oder Nintendo, oder Laden PlayStation ohne Plattform) zählen
   nicht als Besitz am PC; gibt es dasselbe Spiel auch für den PC, zählt dieser Eintrag.
+- **IGDB:** Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (derselbe Schlüssel wie im
+  eShopKompass). Spielinfos für alle Plattformen; bis jetzt nur im Verbindungstest.
+- **Nexus Mods:** der persönliche API-Schlüssel aus dem Nexus-Konto (Einstellungen, API Keys).
+  Die Abfrage geht auch ohne; mit Schlüssel fragt das Tool als dein Konto (0.7.7). Bis jetzt nur im
+  Verbindungstest (Spielseite, beliebte Mods, Mods mit VR im Namen).
 
 Schlüssel und Wunschlisten-Link bleiben auf deinem Server, nicht in der Sicherung, nicht im
 Protokoll, nie zurück im Browser.

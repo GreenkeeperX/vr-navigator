@@ -788,6 +788,22 @@ class TestServer(unittest.TestCase):
         self.assertIn("hours", json.loads(raw)["settings"])
         sync.save_settings({"gg_key": "", "sharenite": ""})
 
+    def test_nexus_key(self):
+        """Nexus-Schlüssel (0.7.7): bleibt auf dem Server, die Oberfläche sieht nur, dass er da ist."""
+        fake = "ErfundenNexus0123456789--AbCdEfGh+/=="
+        with self.assertRaises(ValueError):
+            sync.save_settings({"nexus_key": "kein Schlüssel!"})
+        sync.save_settings({"nexus_key": fake})
+        try:
+            code, raw = self.call("/api/state")
+            self.assertEqual(code, 200)
+            self.assertNotIn(fake.encode(), raw)
+            self.assertTrue(json.loads(raw)["settings"]["nexus_set"])
+            self.assertNotIn(fake.encode(), self.call("/api/abgleich")[1])
+        finally:
+            sync.save_settings({"nexus_key": ""})
+        self.assertFalse(server.settings_view()["nexus_set"])
+
     def test_delete_and_merge_can_be_undone(self):
         old_dir, store.DATA_DIR = store.DATA_DIR, tempfile.mkdtemp()
         try:
@@ -1731,8 +1747,11 @@ class TestSync(unittest.TestCase):
             return {"data": {"top": {"totalCount": 42, "nodes": [{"name": "Better Boats", "endorsements": 310, "downloads": 9000, "modId": 1}]},
                              "vr": {"totalCount": 1, "nodes": [{"name": "Harbor VR Fix", "endorsements": 12, "downloads": 400, "modId": 2}]}}}
 
+        heads = []
+
         def fake_request(url, ua=None, timeout=25, encoding="", headers=None, data=None):
             seen.append((url, data))
+            heads.append((url, dict(headers or {})))
             for part, code, text in answers:
                 if part in url:
                     if text is None:
@@ -1747,7 +1766,7 @@ class TestSync(unittest.TestCase):
         old = sources.request
         sources.request = fake_request
         try:
-            probes.run(probe, lines, col, {"igdb_id": "a" * 30, "igdb_secret": "b" * 30}, lambda s: None)
+            probes.run(probe, lines, col, {"igdb_id": "a" * 30, "igdb_secret": "b" * 30, "nexus_key": "n" * 40}, lambda s: None)
         finally:
             sources.request = old
         text = "\n".join(lines)
@@ -1761,7 +1780,9 @@ class TestSync(unittest.TestCase):
         self.assertEqual(sum("action=parse" in u for u, d in seen), 2)
         self.assertIn("PCGamingWiki, Rennspiel „Rally Moth“", text)
         self.assertIn("PCGamingWiki, Lenkrad (Rennspiel): steering wheel support true", text)
-        self.assertIn("Nexus Mods, Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
+        self.assertTrue(all(h.get("apikey") == "n" * 40 for u, h in heads if "nexusmods" in u))
+        self.assertNotIn("n" * 40, text)
+        self.assertIn("Nexus Mods (mit Schlüssel), Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
         self.assertIn("Nexus Mods, beliebt: „Better Boats“ (310 Empfehlungen, 9000 Downloads)", text)
         self.assertIn("Nexus Mods, mit VR im Namen (1): „Harbor VR Fix“", text)
         self.assertTrue(any("page=Harbor+Heist" in u for u, d in seen))

@@ -129,14 +129,17 @@ def wheel_info(fields):
 NEXUS_GQL = "https://api.nexusmods.com/v2/graphql"
 
 
-def nexus(lines, name, sleep):
-    """Nexus Mods (0.7.4, Probe): offene GraphQL-Schnittstelle ohne Schlüssel. Gibt es das Spiel, wie viele
-    Mods, die beliebtesten und welche mit VR im Namen? Fehler stehen wörtlich im Ergebnis, damit klar wird,
-    ob ein Schlüssel nötig ist."""
+def nexus(lines, name, sleep, key=""):
+    """Nexus Mods (0.7.4, Probe): GraphQL-Schnittstelle, offen auch ohne Schlüssel. Gibt es das Spiel, wie viele
+    Mods, die beliebtesten und welche mit VR im Namen? Mit eigenem Schlüssel (0.7.7) geht er als Kopfzeile
+    „apikey“ mit. Fehler stehen wörtlich im Ergebnis."""
+    head = {"Content-Type": "application/json", "Accept": "application/json"}
+    if key:
+        head["apikey"] = key
+
     def ask(query, variables):
         sleep(1)
-        r = sources.request(NEXUS_GQL, data=json.dumps({"query": query, "variables": variables}).encode(),
-                            headers={"Content-Type": "application/json", "Accept": "application/json"})
+        r = sources.request(NEXUS_GQL, data=json.dumps({"query": query, "variables": variables}).encode(), headers=head)
         if r["error"] or r["status"] != 200:
             return None, f"HTTP {r['status']} {r['error']} {' '.join(r['text'][:200].split())}".strip()
         try:
@@ -154,12 +157,13 @@ def nexus(lines, name, sleep):
         nodes = ((g or {}).get("games") or {}).get("nodes") or []
         if nodes or g is None:
             break
+    tag = " (mit Schlüssel)" if key else ""
     if not nodes:
-        lines.append(f"Nexus Mods, Spiel „{plain[:40]}“: {err or 'nicht gefunden'}")
+        lines.append(f"Nexus Mods{tag}, Spiel „{plain[:40]}“: {err or 'nicht gefunden'}")
         return
     game = nodes[0]
     dom = game.get("domainName") or ""
-    lines.append(f"Nexus Mods, Spiel „{plain[:40]}“: „{game.get('name')}“, {game.get('modCount', '?')} Mods, Seite https://www.nexusmods.com/games/{dom}")
+    lines.append(f"Nexus Mods{tag}, Spiel „{plain[:40]}“: „{game.get('name')}“, {game.get('modCount', '?')} Mods, Seite https://www.nexusmods.com/games/{dom}")
     q = ("query($d:String!,$v:String!){top:mods(filter:{gameDomainName:{value:$d}},sort:{endorsements:{direction:DESC}},count:3)"
          "{totalCount nodes{name endorsements downloads modId}} vr:mods(filter:{gameDomainName:{value:$d},name:{value:$v,op:WILDCARD}},"
          "sort:{endorsements:{direction:DESC}},count:3){totalCount nodes{name endorsements downloads modId}}}")
@@ -403,7 +407,7 @@ def run(probe, lines, col, keys, sleep):
     else:
         lines.append("libretro metadat: keine Retro-Liste, nicht angefragt")
 
-    nexus(lines, pc["name"], sleep)
+    nexus(lines, pc["name"], sleep, (keys or {}).get("nexus_key", ""))
 
     names = [("PC", pc["name"], appid), ("Konsole", con["name"], None, con.get("system"))] + (
         [("Retro", ret["name"], None, ret.get("system"))] if ret else [])

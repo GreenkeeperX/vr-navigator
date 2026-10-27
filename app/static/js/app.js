@@ -1021,7 +1021,9 @@ function findView(){
     <label class="kind">Sortieren <select data-dset="sort">${colSort ? `<option value="" selected>nach Spalte</option>` : ""}${opt(D_SORTS.filter(([k]) => !vr || !["gem", "known", "year"].includes(k)), colSort ? "" : d.sort)}</select></label>
     ${d.sort === "random" && !colSort ? `<button data-act="dshuffle">Neu mischen</button>` : ""}${foldall}</div>`;
   const gcols = `minmax(180px,1.5fr) ${cols.map(c => c.w).join(" ")}`;
-  const glist = (list, head) => `<div class="glist${head ? " box" : ""}" style="--gcols:${gcols}">${head || ""}${list}</div>`;
+  // Einzelheiten: Mein Stand braucht Platz; ohne mitwachsende Spalte (etwa nur „Jahr“) eigene Breite (0.7.7)
+  const dcols = cols.some(c => c.w.includes("fr")) ? gcols : "minmax(180px,1.5fr) minmax(320px,1fr)";
+  const glist = (list, head) => `<div class="glist${head ? " box" : ""}" style="--gcols:${gcols};--dcols:${dcols}">${head || ""}${list}</div>`;
   const pickCard = pick.length || d.mix === "surprise" || d.mix === "wild" ? `<div class="card gpick"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? glist(pick.map(g => gRow(g, cols, true)).join("")) : `<p class="hint">Nichts passt zu den Filtern.</p>`}
     <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
@@ -1345,7 +1347,7 @@ function retroPreview(p){
 /* Konten: bei jedem Abgleich automatisch gelesen */
 function accountsCard(){
   const se = S.settings || {};
-  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.igdb_set && "IGDB", se.sharenite && "Sharenite"].filter(Boolean);
+  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.igdb_set && "IGDB", se.nexus_set && "Nexus Mods", se.sharenite && "Sharenite"].filter(Boolean);
   return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form acc" style="margin-top:8px">
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
@@ -1358,12 +1360,15 @@ function accountsCard(){
       <label for="a-ii">IGDB Client-ID</label><input type="password" id="a-ii" name="igdb_id" autocomplete="off" placeholder="${se.igdb_set ? "gespeichert, leer lassen zum Behalten" : "derselbe Twitch-Schlüssel wie im eShopKompass"}">
       <label for="a-is">IGDB Secret</label><input type="password" id="a-is" name="igdb_secret" autocomplete="off" placeholder="${se.igdb_set ? "gespeichert, leer lassen zum Behalten" : "Client-Secret der Twitch-App"}">
       ${se.igdb_set ? `<span class="clr"><label><input type="checkbox" name="igdb_clear"> IGDB-Schlüssel löschen</label></span>` : ""}
+      <label for="a-nx">Nexus-Mods-Schlüssel</label><input type="password" id="a-nx" name="nexus_key" autocomplete="off" placeholder="${se.nexus_set ? "gespeichert, leer lassen zum Behalten" : "persönlicher API-Schlüssel (nexusmods.com, Einstellungen, API Keys)"}">
+      ${se.nexus_set ? `<span class="clr"><label><input type="checkbox" name="nexus_clear"> Nexus-Schlüssel löschen</label></span>` : ""}
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
       <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs; die Wunschliste lässt sich abschalten, dann zählt am PC nur gg.deals. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
       <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
       <li><b>IGDB:</b> Spielinfos für alle Plattformen (Genre, Spieler, Wertung, Spielzeit, Beschreibung). Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (dev.twitch.tv, Anwendung registrieren); derselbe Schlüssel wie im eShopKompass geht. Bis 0.7 nur im Verbindungstest.</li>
+      <li><b>Nexus Mods:</b> Mods für PC-Spiele, etwa VR-Mods. Die Abfrage geht auch ohne Schlüssel; mit dem persönlichen Schlüssel (im Nexus-Konto unter Einstellungen, API Keys) fragt das Tool als dein Konto mit eigenen Grenzen. Bis 0.7.7 nur im Verbindungstest.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
     <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server (settings.json im Datenordner), stehen nicht in der Sicherung und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
@@ -1726,6 +1731,8 @@ document.addEventListener("submit", async ev => {
     if(f.gg_clear?.checked) body.gg_key = "";
     for(const k of ["igdb_id", "igdb_secret"]) if(f[k].value.trim()) body[k] = f[k].value.trim();
     if(f.igdb_clear?.checked) body.igdb_id = body.igdb_secret = "";
+    if(f.nexus_key.value.trim()) body.nexus_key = f.nexus_key.value.trim();
+    if(f.nexus_clear?.checked) body.nexus_key = "";
     if(await act("/api/settings", body, $("a-err"))) toast("Gespeichert, gilt ab dem nächsten Abgleich");
   }
   if(kind === "edit"){

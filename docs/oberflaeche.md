@@ -98,7 +98,9 @@ Namen davor untereinander, leere Werte fallen weg.
 
 Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,
 Mein Stand (`.gdm`) ab der zweiten Spalte (Spieler), oben bündig; so steht er in jedem Reiter an
-derselben Stelle. Die Marke von Mein Stand hinter dem Namen hat eine feste Breite und Höhe, damit
+derselben Stelle. Hat ein Reiter keine mitwachsende Spalte (etwa nur „Jahr“ oder gar keine), nutzen die
+Einzelheiten ein eigenes Raster (`--dcols`: Name, dann mindestens 320 px für Mein Stand), damit nichts
+über den Rand ragt (0.7.7). Die Marke von Mein Stand hinter dem Namen hat eine feste Breite und Höhe, damit
 die Zeile beim Setzen nicht springt. Genres in der Zeile: `.gtags.fit`, einzeilig; `fitTags()`
 blendet aus, was nicht passt, und hängt „+n weitere“ (`.chip.gmore`) an. Reihenfolge
 (`genreOrder`): seltenstes in der Sammlung zuerst, dann Alphabet, „Sonstiges“ zuletzt. Spalte

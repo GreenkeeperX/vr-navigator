@@ -75,8 +75,8 @@ RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je Syste
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
-            "igdb_id": "", "igdb_secret": ""}
-SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret")      # bleiben auf dem Server, nie im Protokoll
+            "igdb_id": "", "igdb_secret": "", "nexus_key": ""}
+SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret", "nexus_key")      # bleiben auf dem Server, nie im Protokoll
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
@@ -139,6 +139,12 @@ def save_settings(body):
             if v and not re.fullmatch(r"[A-Za-z0-9]{20,64}", v):
                 raise ValueError("IGDB: Client-ID und Secret der Twitch-App, je 30 Zeichen aus Buchstaben und Ziffern")
             s[k] = v
+    # Nexus Mods (0.7.7): persönlicher API-Schlüssel aus dem Nexus-Konto (Einstellungen, API Keys)
+    if "nexus_key" in body:
+        v = str(body["nexus_key"] or "").strip()
+        if v and not re.fullmatch(r"[A-Za-z0-9+/=_-]{20,400}", v):
+            raise ValueError("Nexus Mods: den persönlichen API-Schlüssel aus dem Nexus-Konto einfügen (Buchstaben, Ziffern, + / = -)")
+        s["nexus_key"] = v
     if "auto" in body:
         s["auto"] = bool(body["auto"])
     if "hours" in body:
@@ -1715,7 +1721,7 @@ def diagnose():
     else:
         lines.append("Retro-Fassungen: keine Retro-Liste, nicht angefragt")
     probes.run(probe, lines, col, settings, sleep)
-    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"]):
+    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"], settings["nexus_key"]):
         if secret:
             lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]
     return lines
