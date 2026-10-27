@@ -211,6 +211,21 @@ Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DA
 wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb` in `collection.json`
 (`none: true` ohne Treffer); ein neuer Playnite-Export und eine neue Retro-Liste behalten es.
 
+## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
+
+Für „VR per Mod“ am PC: nur PC-Spiele, die laut Steam kein VR eingebaut haben. Bekannte Spiele (viele
+Steam-Rezensionen) zuerst.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| PCGamingWiki, Seite | `https://www.pcgamingwiki.com/api/appid.php?appid=<App-ID>` | je Steam-Spiel, 60 je Lauf (`PCGW_MAX`), nach 90 Tagen neu | Seitenname (Umleitung) |
+| PCGamingWiki, Wikitext | `…/w/api.php?action=parse&page=<Seite>&prop=wikitext&format=json` | je Seite einmal | Vorlage „VR support“: Brillen mit „hackable“ (VR per Mod), „true“ (eingebaut), vorpX |
+| Nexus Mods, Spieleliste | `https://api.nexusmods.com/v2/graphql` (POST, `games(count:1000, offset)`) | höchstens wöchentlich (`NEXUS_LIST_DAYS`), bis 10 Seiten; abgelegt in `nexus_games.json` | Kürzel, Name und Zahl der Mods je Spiel; Zuordnung lokal über den Namen (auch IGDB-Name, ohne Zusätze wie „Legacy“) |
+| Nexus Mods, Mods | dieselbe Adresse (POST, `mods` nach Kürzel) | je zugeordnetem Spiel, 60 je Lauf (`NEXUS_MAX`), nach 30 Tagen neu | die drei beliebtesten Mods, bis drei Mods mit VR im Namen (ganzes Wort, UEVR, vorpX) |
+
+Nexus mit einer Sekunde Pause je Anfrage, mit persönlichem Schlüssel als Kopfzeile `apikey`. Abgelegt je
+Spiel unter `pcgw` und `nexus` in `collection.json`; ein neuer Export behält beides.
+
 ## Steam-Wertungen (Wunschliste, Sammlung VR)
 
 Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.

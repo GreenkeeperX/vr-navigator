@@ -1763,6 +1763,62 @@ class TestSync(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(igdb.pick([{"name": "Portal 2"}], "Portal"), None)
 
+    def test_vr_per_mod(self):
+        """VR per Mod (0.8.1): PCGamingWiki über die Steam-ID, Nexus-Spieleliste einmal, dann Mods je Spiel."""
+        from app import mods
+        store.save_json(collection.FILE, {"games": {
+            "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}},
+            "steam:3000102": {"name": "Rally Moth", "store": "Steam", "id": "3000102", "rev": {"n": 50}},
+            "steam:3000103": {"name": "Comet Chase VR", "store": "Steam", "id": "3000103", "steam": {"ok": True, "vr": True}},
+            "gog:77": {"name": "Paper Lantern Legacy", "store": "GOG", "id": "77"},
+            "name:ps2:star hop": {"name": "Star Hop", "system": "PS2"}}, "n": 5})
+        wiki = {"3000101": ("Harbor_Heist", "{{VR support\n|htc vive = hackable\n|oculus rift = hackable\n|vorpx = true\n|steamvr = false\n}}\n"),
+                "3000102": ("Rally_Moth", "{{VR support\n|htc vive = false\n}}\n")}
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            calls.append((url, (data or b"").decode(), dict(headers or {})))
+            if "appid.php" in url:
+                gid = url.split("appid=")[1]
+                return f'<script>RLCONF={{"wgPageName":"{wiki[gid][0]}"}};</script>' if gid in wiki else "<html></html>"
+            if "action=parse" in url:
+                page = next(v for v in wiki.values() if v[0].replace("_", "+") in url or v[0].replace("_", " ") in urllib.parse.unquote_plus(url))
+                return json.dumps({"parse": {"wikitext": {"*": page[1]}}})
+            if "nexusmods" in url:
+                q = json.loads(data)
+                if "games(" in q["query"]:
+                    return json.dumps({"data": {"games": {"totalCount": 2, "nodes": [
+                        {"id": 1, "domainName": "harborheist", "name": "Harbor Heist", "modCount": 42},
+                        {"id": 2, "domainName": "paperlantern", "name": "Paper Lantern", "modCount": 3}]}}})
+                return json.dumps({"data": {"top": {"nodes": [{"name": "Better Boats", "endorsements": 310, "modId": 1}]},
+                                            "vr": {"totalCount": 2, "nodes": [{"name": "VRAM Saver", "endorsements": 50, "modId": 3},
+                                                                              {"name": "Harbor VR Fix", "endorsements": 12, "modId": 2}]},
+                                            "vx": {"nodes": []}}})
+            raise sources.FetchError(url, 404)
+        sources.fetch = fake
+        logs = []
+        self.assertTrue(sync._pcgw(logs.append)["ok"])
+        self.assertFalse(any("3000103" in u for u, d, h in calls))       # VR eingebaut: nicht gefragt
+        self.assertIn("PCGamingWiki: 2 Spiele gelesen, 2 mit Seite, 1 mit VR per Mod", "\n".join(logs))
+        self.assertTrue(sync._nexus(dict(sync.SETTINGS, nexus_key="k" * 30), logs.append)["ok"])
+        self.assertEqual(sum(1 for u, d, h in calls if "games(" in d), 1)
+        self.assertTrue(all(h.get("apikey") == "k" * 30 for u, d, h in calls if "nexusmods" in u))
+        col = store.load_json(collection.FILE, collection.EMPTY)["games"]
+        self.assertEqual(col["gog:77"]["nexus"]["dom"], "paperlantern")     # „Legacy“ fällt beim Vergleich weg
+        self.assertTrue(col["steam:3000102"]["nexus"]["none"])
+        self.assertNotIn("nexus", col["name:ps2:star hop"])
+        self.assertEqual([m["name"] for m in col["steam:3000101"]["nexus"]["vr"]], ["Harbor VR Fix"])   # VRAM zählt nicht
+        rows = {x["key"]: x for x in collection.view({"games": col})["games"]}
+        self.assertEqual(rows["steam:3000101"]["vrmod"], ["HTC Vive", "Oculus Rift"])
+        self.assertTrue(rows["steam:3000101"]["vorpx"])
+        self.assertEqual(rows["gog:77"]["nexus"]["n"], 3)
+        self.assertNotIn("vrmod", rows["steam:3000102"])
+        # zweiter Lauf: Liste aus dem Zwischenspeicher, nichts mehr zu tun
+        calls.clear()
+        sync._nexus(dict(sync.SETTINGS), logs.append)
+        self.assertEqual(calls, [])
+        self.assertEqual(mods.mod_url("harborheist", 2), "https://www.nexusmods.com/harborheist/mods/2")
+
     def test_diagnose(self):
         self.seed()
         sync.save_settings({"gg_key": "geheim-1234567890abcd"})
@@ -1841,6 +1897,8 @@ class TestSync(unittest.TestCase):
 
         def nexus_answer(data):
             q = json.loads(data)
+            if "games(count" in q["query"]:
+                return {"data": {"games": {"totalCount": 2, "nodes": [{"domainName": "harborheist"}, {"domainName": "starhop"}]}}}
             if "games(" in q["query"]:
                 found = q["variables"]["n"] == "*Harbor Heist*"
                 return {"data": {"games": {"nodes": [{"id": 9, "domainName": "harborheist", "name": "Harbor Heist", "modCount": 42}] if found else []}}}
@@ -1883,6 +1941,7 @@ class TestSync(unittest.TestCase):
         self.assertTrue(all(h.get("apikey") == "n" * 40 for u, h in heads if "nexusmods" in u))
         self.assertNotIn("n" * 40, text)
         self.assertIn("Nexus Mods (mit Schlüssel), Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
+        self.assertIn("Nexus Mods, Spieleliste: 2 auf Seite 1, 2 insgesamt", text)
         self.assertIn("Nexus Mods, beliebt: „Better Boats“ (310 Empfehlungen, 9000 Downloads)", text)
         self.assertIn("Nexus Mods, mit VR im Namen (1): „Harbor VR Fix“", text)
         self.assertTrue(any("page=Harbor+Heist" in u for u, d in seen))

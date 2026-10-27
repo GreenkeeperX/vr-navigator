@@ -78,13 +78,13 @@ persönlichen Nexus-Schlüssel (geht bei der Nexus-Abfrage mit), Mein Stand in d
 Reitern mit wenigen Spalten im Bild. 0.8.0 IGDB im Abgleich für die ganze Sammlung (Steam-IDs gebündelt,
 sonst Name und System; falscher Treffer zählt nicht), Rangfolge je Feld für Wertung, Spielzeit, Spieler,
 Genre, Mehrspieler und Beschreibung in allen Reitern außer Switch und VR; Verbindungstest im Hintergrund
-(kein 504 mehr). Grundsatz (Entscheidung 22.10.2026): so wenig
+(kein 504 mehr). 0.8.1 VR per Mod: PCGamingWiki je Steam-Spiel ohne eingebautes VR, Nexus-Spieleliste
+und Mods je PC-Spiel; Marke, Filter, Links in den Einzelheiten. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- Marke „VR per Mod“ am PC aus PCGamingWiki („hackable“) und Nexus Mods (Mods mit VR im Namen), in den
-  Einzelheiten Link auf die Nexus-Seite und die beliebtesten Mods
-- Marke „Lenkrad“ (Sim-Racing) aus der PCGamingWiki-Vorlage „Input“
+- Marke „Lenkrad“ (Sim-Racing): die PCGamingWiki-Vorlage „Input“ hat kein Feld für Lenkräder (Probe
+  an einem Rennspiel, 0.7.6); andere Quelle suchen
 - PC-Wunschliste (gg.deals) als eigener Unterreiter mit Bestpreis und Läden
 
 - Retro, Sprache: 3DS über die Title-ID, ähnliche Namen ohne Treffer als „≈ vielleicht dieselbe
