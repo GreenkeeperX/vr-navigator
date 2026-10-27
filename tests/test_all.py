@@ -12,7 +12,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, collection, imports, library, lists, prices, server, sources, store, sync, titles  # noqa: E402
+from app import accounts, collection, imports, library, lists, prices, retro, server, sources, store, sync, titles  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -433,6 +433,70 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(collection.view(col)["systems"], [["PC", 1], ["PS4", 1], ["SNES", 1]])
         self.assertEqual(sorted(col["games"]), ["name:ps4:orbit golf", "name:snes:pixel kart", "steam:3000040"])
 
+    def test_retro(self):
+        """Retro-Liste: System aus Endung, sonst aus dem Ordner; Region und Sprache aus dem Namen;
+        Archiv-Ordner, Spielstände und Beiwerk zählen nicht; ein Eintrag je Titel und System."""
+        text = "\n".join([
+            "ROMs/Nintendo - Game Boy/gb/Jump & Run/Moon Rover (Europe) (En,Fr,De).gb",
+            "ROMs/Nintendo - Game Boy/gb/Jump & Run/Moon Rover (USA).gb",
+            "ROMs/Nintendo - Game Boy/gb_zip/Moon Rover (Europe) (En,Fr,De).zip",
+            "ROMs/Nintendo - Game Boy/gb/saves/Moon Rover (Europe).sav",
+            "ROMs/Nintendo - Game Boy/gb/_Extras/Homebrew/Tiny Tennis (World) (Aftermarket) (Unl).gb",
+            "ROMs/Nintendo - Super Nintendo Entertainment System/snes/Legend of Pixels, The (Germany).sfc",
+            "ROMs/Nintendo - Super Nintendo Entertainment System/snes/Star Hop (Japan).sfc",
+            "ROMs/Nintendo - Nintendo 3DS/3ds/Puzzle/0004000000ABC000 Comet Chase (CTR-P-ABCP) (v0) (E).standard.cia",
+            "D:\\Spiele\\Retro\\PS1\\Harbor Heist (Europe) (Disc 1).chd",
+            "D:\\Spiele\\Retro\\PS1\\Harbor Heist (Europe) (Disc 2).chd",
+            "D:\\Spiele\\Retro\\Neu\\Comet Chase.iso",
+            "ROMs/Spiele-Liste.xlsx"])
+        self.assertTrue(retro.looks_like(text))
+        self.assertFalse(retro.looks_like(PLAYNITE))
+        self.assertEqual(imports.detect(SHEET), "sheet")
+        games, st = retro.parse(text)
+        self.assertEqual(sorted(games), ["retro:3ds:comet chase", "retro:gb:moon rover", "retro:gb:tiny tennis",
+                                         "retro:ps:harbor heist", "retro:snes:star hop", "retro:snes:the legend of pixels"])
+        self.assertEqual((st["files"], st["archive"], st["save"], st["extra"], st["unknown"]), (8, 2, 0, 1, 1))    # saves/ zählt wie ein Archiv-Ordner
+        self.assertEqual(retro.unknown_lines(text), ["Comet Chase.iso"])
+        mr = games["retro:gb:moon rover"]
+        self.assertEqual((mr["files"], mr["regions"], mr["langs"], mr["lang_guess"]), (2, ["Europe", "USA"], ["De", "En", "Fr"], False))
+        lp = games["retro:snes:the legend of pixels"]
+        self.assertEqual((lp["name"], lp["langs"], lp["lang_guess"]), ("The Legend of Pixels", ["De"], True))    # aus der Region: ≈
+        self.assertEqual(games["retro:snes:star hop"]["langs"], ["Ja"])
+        self.assertEqual(games["retro:gb:tiny tennis"]["flags"], ["homebrew"])
+        cc = games["retro:3ds:comet chase"]
+        self.assertEqual((cc["regions"], cc["tid"], cc["serial"]), (["Europe"], "0004000000ABC000", "CTR-P-ABCP"))
+        self.assertEqual(games["retro:ps:harbor heist"]["files"], 2)
+        self.assertNotIn("Spiele", json.dumps(games))                  # keine Pfade in den Daten
+        # CSV „System; Titel“
+        g2, _ = retro.parse("System;Titel\nSNES;Star Hop (Japan)\nGame Boy Advance;Orbit Golf\n")
+        self.assertEqual(sorted(g2), ["retro:gba:orbit golf", "retro:snes:star hop"])
+        # Sammlung: Playnite und Retro nebeneinander; fehlt ein Spiel, wird es markiert statt gelöscht
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse("Name,Plattformen\nStar Hop,Nintendo Super Nintendo Entertainment System\n"))
+        self.assertEqual(retro.apply(col, games, dry=True), (6, []))
+        self.assertEqual(retro.apply(col, games, dry=False)[0], 6)
+        self.assertEqual(len(col["games"]), 7)                         # Playnite-Eintrag bleibt eigener Eintrag
+        collection.replace(col, collection.parse("Name,Plattformen\nOther Game,Nintendo Super Nintendo Entertainment System\n"))
+        self.assertIn("retro:snes:star hop", col["games"])             # Playnite-Import lässt Retro stehen
+        less, _ = retro.parse("\n".join(text.splitlines()[5:]))       # ohne die Game-Boy-Zeilen
+        self.assertEqual(retro.apply(col, less, dry=True), (0, []))    # GB fehlt ganz: kein System der Liste
+        fewer = {k: v for k, v in games.items() if k != "retro:snes:star hop"}
+        self.assertEqual(retro.apply(col, fewer, dry=False), (0, ["Star Hop"]))
+        self.assertEqual(retro.gone(col), [("Star Hop", "SNES")])
+        v = {r["key"]: r for r in collection.view(col)["games"]}
+        self.assertTrue(v["retro:snes:star hop"]["gone"])
+        self.assertEqual(v["retro:gb:moon rover"]["files"], 2)
+        fresh = lambda: {k: v for k, v in retro.parse(text)[0].items() if k != "retro:snes:star hop"}
+        retro.apply(col, retro.parse(text)[0], dry=False)              # taucht wieder auf: Marke fällt weg
+        self.assertFalse(retro.gone(col))
+        retro.apply(col, fresh(), dry=False)
+        self.assertEqual(retro.settle(col, "keep"), 1)                 # behalten: Spiel bleibt, Marke weg
+        self.assertFalse(retro.gone(col))
+        self.assertIn("retro:snes:star hop", col["games"])
+        retro.apply(col, fresh(), dry=False)
+        self.assertEqual(retro.settle(col, "drop"), 1)
+        self.assertNotIn("retro:snes:star hop", col["games"])
+
     def test_replace_keeps_fetched_and_gem(self):
         col = json.loads(json.dumps(collection.EMPTY))
         self.assertEqual(collection.replace(col, collection.parse(COLLECTION)), 4)
@@ -628,6 +692,23 @@ class TestServer(unittest.TestCase):
         self.call("/api/title/delete", {"key": "steam-42"})
         code, raw = self.call("/api/restore", {"data": backup["data"]})
         self.assertEqual(json.loads(raw)["counts"]["all"], 5)
+
+    def test_retro_import(self):
+        text = ("ROMs/SNES/Star Hop (USA).sfc\nROMs/SNES/Pixel Kart (Europe) (En,De).sfc\n"
+                "ROMs/GBA/Orbit Golf (Germany).gba\nROMs/snes_zip/Star Hop (USA).zip\n")
+        n0 = json.loads(self.call("/api/collection")[1])["n"]
+        code, body = self.call("/api/import", {"kind": "auto", "text": text, "dry": True})
+        p = json.loads(body)
+        self.assertEqual((code, p["kind"], p["n"], p["new"], p["systems"]), (200, "retro", 3, 3, {"SNES": 2, "GBA": 1}))
+        self.assertEqual(json.loads(self.call("/api/collection")[1])["n"], n0)      # Vorschau speichert nichts
+        p = json.loads(self.call("/api/import", {"kind": "retro", "text": text, "dry": False})[1])
+        self.assertEqual(p["state"]["imports"]["retro"]["n"], 3)
+        p = json.loads(self.call("/api/import", {"kind": "retro", "text": text.split("\n", 1)[1], "dry": False})[1])
+        self.assertEqual((p["gone"], p["state"]["imports"]["retro"]["gone"]), (["Star Hop"], 1))
+        code, body = self.call("/api/retro/gone", {"action": "drop"})
+        self.assertEqual((code, json.loads(body)["changed"], json.loads(body)["collection"]["n"]), (200, 1, n0 + 2))
+        self.assertEqual(self.call("/api/retro/gone", {"action": "nope"})[0], 400)
+        self.assertEqual(self.call("/api/import", {"kind": "retro", "text": "nur Text", "dry": True})[0], 400)
 
     def test_collection(self):
         code, body = self.call("/api/import", {"kind": "auto", "text": COLLECTION, "dry": False})
@@ -1679,8 +1760,14 @@ class TestUi(unittest.TestCase):
         collection.replace(col, collection.parse("Name,Spiel-ID,Quelle,Plattformen,Features,Genres\n"
                                                  "Harbor Heist,CUSA00101_00,PlayStation,Sony PlayStation 4,\"Local Co-Op\",Shooter\n"
                                                  "Pixel Kart,,,Nintendo Super Nintendo Entertainment System,,Racing\n"))
+        rg, _ = retro.parse("ROMs/GB/Moon Rover (Europe) (En,Fr,De).gb\nROMs/GB/Moon Rover (USA).gb\n"
+                            "ROMs/GB/_Extras/Homebrew/Tiny Tennis (World) (Unl).gb\nROMs/SNES/Star Hop (Japan).sfc\n"
+                            "ROMs/SNES/Ein sehr langer Retro-Titel mit vielen Wörtern und noch mehr Wörtern (USA).sfc\n")
+        retro.apply(col, rg, dry=False)
+        retro.apply(col, {k: g for k, g in retro.parse("ROMs/SNES/Star Hop (Japan).sfc\n")[0].items()}, dry=False)
         store.save_json(collection.FILE, col)
         data["imports"]["collection"] = {"at": now, "n": len(col["games"]), "new": 0}
+        data["imports"]["retro"] = {"at": now, "n": 4, "new": 0, "files": 5, "gone": 1}
         store.save_data(data)
         with open(os.path.join(os.path.dirname(__file__), "ui_selbsttest.html"), encoding="utf-8") as f:
             probe_page = f.read().encode()

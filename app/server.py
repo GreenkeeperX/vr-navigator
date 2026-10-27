@@ -10,7 +10,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import collection, imports, library, lists, sources, store, sync, titles
+from . import collection, imports, library, lists, retro, sources, store, sync, titles
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -67,13 +67,37 @@ def import_collection(data, text, dry):
     if not games:
         return {"n": 0, "new": 0, "console": console, "systems": systems, "kept": len(col.get("games") or {})}
     old = col.get("games") or {}
-    kept = sum(1 for k, g in old.items() if (g.get("system") or "PC") not in systems and k not in games)
+    kept = sum(1 for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") == retro.SRC)
+               and k not in games)
     if dry:
         return {"n": len(games), "new": sum(k not in old for k in games), "console": console, "systems": systems, "kept": kept}
     new = collection.replace(col, games)
     store.save_json(collection.FILE, col)
     data["imports"]["collection"] = {"at": col["at"], "n": len(col["games"]), "new": new}
     return {"n": len(games), "new": new, "console": console, "systems": systems, "kept": kept}
+
+
+def import_retro(data, text, dry):
+    """Retro-Liste in die Sammlung (collection.json). Die Vorschau nennt je System die Zahl,
+    was neu ist, was in der Liste fehlt, und was übersprungen oder nicht erkannt wurde."""
+    games, st = retro.parse(text)
+    if not games:
+        raise ValueError("In der Liste ist kein Spiel zu erkennen. Erwartet sind Dateinamen mit Ordnern, etwa "
+                         "„SNES/Pixel Kart (Europe).sfc“, oder eine CSV mit den Spalten System und Titel.")
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    old = col.get("games") or {}
+    new, gone = retro.apply(col, games, dry=dry)
+    if not dry:
+        store.save_json(collection.FILE, col)
+        data["imports"]["retro"] = {"at": col["at"], "n": len(games), "new": new, "files": st["files"], "gone": len(gone)}
+    rows = sorted(games.items(), key=lambda kv: (collection.system_order(kv[1]["system"]), titles.norm(kv[1]["name"])))
+    return {"kind": "retro", "what": imports.KINDS["retro"], "n": len(games), "new": new, "files": st["files"],
+            "systems": dict(sorted(st["systems"].items(), key=lambda kv: collection.system_order(kv[0]))),
+            "skipped": {"save": st["save"], "extra": st["extra"], "archive": st["archive"]},
+            "unknown_n": st["unknown"], "unknown": retro.unknown_lines(text) if st["unknown"] else [],
+            "gone": gone[:200], "gone_n": len(gone),
+            "entries": [{"name": g["name"], "system": g["system"], "known": k in old, "langs": g["langs"],
+                         "lang_guess": g["lang_guess"], "files": g["files"]} for k, g in rows[:300]]}
 
 
 def state():
@@ -266,11 +290,13 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body(50_000_000 if big else 1_000_000)
             if path == "/api/import":
                 kind = str(body.get("kind") or "")
-                if kind != "auto" and kind not in imports.IMPORTERS:
+                if kind not in ("auto", "retro") and kind not in imports.IMPORTERS:
                     raise ValueError("unbekannte Art des Imports")
                 dry = body.get("dry") is not False
-                fn = imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
                 text = str(body.get("text") or "")
+                if kind == "auto" and retro.looks_like(text):
+                    kind = "retro"
+                fn = import_retro if kind == "retro" else imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
                 with store.lock:
                     data = store.load_data()
                     res = fn(data, text, dry=dry)
@@ -279,6 +305,20 @@ class Handler(BaseHTTPRequestHandler):
                     if not dry:
                         store.save_data(data)
                 self._send(200, dict(res, state=None if dry else state()))
+            elif path == "/api/retro/gone":
+                # „Stand übernehmen“ (drop) oder „behalten“ (keep) für Spiele, die in der Retro-Liste fehlen
+                action = str(body.get("action") or "")
+                if action not in ("drop", "keep"):
+                    raise ValueError("unbekannte Aktion")
+                with store.lock:
+                    col = store.load_json(collection.FILE, collection.EMPTY)
+                    n = retro.settle(col, action)
+                    store.save_json(collection.FILE, col)
+                    data = store.load_data()
+                    if data["imports"].get("retro"):
+                        data["imports"]["retro"]["gone"] = 0
+                        store.save_data(data)
+                self._send(200, {"changed": n, "collection": collection.view(col)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/wishes":

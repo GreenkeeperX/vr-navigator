@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.5:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Entdecken (die ganze Sammlung je System filtern und Vorschläge ziehen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.6:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System filtern und Vorschläge ziehen, mit Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -102,7 +102,7 @@ still nichts zu übernehmen:
   deiner Liste steht, als Besitz am PC. Mit einer Spalte `Quelle` oder `Bibliothek` ist die
   Steam-App-ID sicher (ebenso, wenn unter `Kategorien` ein bekannter Laden wie Steam, GOG oder
   Epic steht), sonst gilt eine Spiel-ID unter 10 000 000 als vermutete Steam-ID („≈“). Dieselbe
-  Datei füllt außerdem die ganze Sammlung für **Entdecken** mit allen Spielen außer den
+  Datei füllt außerdem die ganze **Sammlung** mit allen Spielen außer den
   versteckten, je Spiel mit System (PC, PS4, SNES …) aus der Spalte `Plattformen`; steht auch ein
   PC dabei, gilt PC, ohne die Spalte erkennt das Tool PlayStation an Kennungen wie
   `CUSA01234_00` (PS4). Ein neuer Export ersetzt nur die Systeme, die in ihm vorkommen: ein
@@ -117,6 +117,31 @@ still nichts zu übernehmen:
   nie dazu. Nennt die Begründung Steam, Crossplay oder nur deine Zuordnung, verwirft der Import
   den Wert und sagt es in der Vorschau. Aufbau
   in [docs/meinungen.md](docs/meinungen.md).
+
+### Retro-Sammlung (ROM-Liste)
+
+Unter Einstellungen, „Retro-Sammlung“, wählst du deinen ROM-Ordner. Der Browser gibt dem Tool nur
+Datei- und Ordnernamen, er lädt keine Spiele hoch; Pfade speichert das Tool nicht. Statt der
+Ordnerwahl geht eine Liste per Befehl (Linux `find`, Windows PowerShell, beide in der Karte zum
+Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vorschau.
+
+- **System:** aus einer eindeutigen Endung (`.gb`, `.gba`, `.sfc`, `.nes`, `.nds`, `.cia` …), sonst
+  aus dem innersten Ordner mit bekanntem Namen, etwa „SNES“, „PS1“ oder nach No-Intro
+  „Nintendo - Game Boy Advance“. Endungen wie `.iso`, `.chd` oder `.rvz` brauchen den Ordner.
+- **Übersprungen:** Ordner, die auf `_zip` enden, `saves`, `_Sortierung`, `_Tools`, `_BIOS`,
+  Spielstände (`.sav`, `.srm` …) und Beiwerk (Bilder, Tabellen, Skripte, `.m3u`). Bei `.cue`
+  mit `.bin` zählt nur die `.cue`.
+- **Ein Eintrag je Titel und System:** Regionen, Fassungen und Discs desselben Titels werden
+  zusammengefasst („2 Dateien, Europe, USA“). „Legend of Pixels, The“ wird zu „The Legend of Pixels“.
+- **Sprache:** aus dem Dateinamen nach No-Intro und Redump, etwa `(En,Fr,De)`. Ohne Angabe gilt
+  die Sprache der Region (Germany Deutsch, Europe, USA und World Englisch, Japan Japanisch) und
+  trägt „≈“. In der Sammlung steht DE vor EN vor JP.
+- **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
+  „ROM-Hacks“ ergibt „Hack“.
+- **Neu einlesen:** Neue Spiele kommen dazu. Fehlt ein Spiel eines Systems, das in der neuen
+  Liste vorkommt, wird es nicht gelöscht: oben in der Sammlung steht „Nicht mehr in der
+  Retro-Liste“ mit „Stand übernehmen“ (entfernt sie) und „Behalten“. Ein Playnite-Export lässt
+  die Retro-Spiele stehen und umgekehrt.
 
 ## Titel zusammenführen
 
@@ -290,7 +315,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
   „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und die Klappe. Meta-Sterne gibt es dort nur für Titel,
   deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
-- **Entdecken:** die ganze Sammlung aus dem Playnite-Export, nicht nur VR, mit einem Reiter je
+- **Sammlung** (bis 0.5.5 „Entdecken“): die ganze Sammlung aus dem Playnite-Export und der Retro-Liste, nicht nur VR, mit einem Reiter je
   System („Alle“ vorn, dann PC und die Konsolen mit Zahl; nur bei mehr als einem System).
   Filter, Mischungen und Zufall gelten im gewählten Reiter; unter „Alle“ trägt ein Konsolenspiel
   sein System als Marke. Steam-Abgleich und Steam-Wertung gibt es nur für PC-Spiele. Filter nach

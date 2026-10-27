@@ -637,7 +637,7 @@ def import_opinions(data, text, dry=True):
 # ------------------------------------------------------------------ Eine Datei, egal welche
 
 KINDS = {"sheet": "Vergleichstabelle", "playnite": "Playnite-Export", "meta": "Meta-Käufe",
-         "ggwish": "gg.deals-Wunschliste", "opinions": "Meinungen"}
+         "ggwish": "gg.deals-Wunschliste", "opinions": "Meinungen", "retro": "Retro-Liste"}
 
 
 def detect(text):

@@ -47,6 +47,8 @@ Weitere feste Regeln (wie im eShopKompass):
   Erkennung der Art (`detect`);
   jeder Import aus Datei oder Text erst als Vorschau; das Lesezeichen „Meta-Käufe lesen“ übergibt
   hinter `#meta=` und übernimmt direkt (Entscheidung 21.10.2026)
+- `app/retro.py`: Retro-Liste (Dateinamen aus dem ROM-Ordner oder CSV) zu einem Eintrag je Spiel und
+  System, Region und Sprache aus No-Intro- und Redump-Namen, „nicht mehr in der Liste“
 - `app/collection.py`: ganze Sammlung je System für Entdecken (`collection.json`) aus dem Playnite-Export,
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
 - `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur

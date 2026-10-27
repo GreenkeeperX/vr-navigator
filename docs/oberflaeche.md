@@ -69,7 +69,10 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
 
 ## Reiter und Werkzeuge
 
-- Reiter: Jetzt, Wunschliste, Bibliothek, Entdecken, Einstellungen. Am Reiter eine graue Zahl oder ein
+- Kopfleiste (Name, Stand, Aktualisieren, Reiter) kommt beim Scrollen mit, blendet nach 300 px
+  nach unten weich aus (0,8 s) und nach 40 px nach oben wieder ein, wie im eShopKompass; kleine
+  Gegenbewegungen unter 8 px zählen nicht. Ohne Bewegung (reduzierte Bewegung) ohne Übergang.
+- Reiter: Jetzt, Wunschliste, Bibliothek, Sammlung, Einstellungen. Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
 - Einstellungen in der Reihenfolge der Daten: Sprungleiste oben (bleibt beim Scrollen stehen),
@@ -81,7 +84,9 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
   Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle
   Zeilenbreite auf. Gewählte Filter stehen darunter als Marken mit × (`.chips.act`).
-- Entdecken: oben Unterreiter je System („Alle“, PC, dann Konsolen, je mit grauer Zahl; der
+- Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
+  übernehmen); Retro-Spiele tragen DE, EN oder JP (≈ aus der Region geschätzt), Homebrew, Hack
+  und „nicht mehr in der Liste“ als Marken, darunter Dateizahl und Regionen. Unterreiter je System („Alle“, PC, dann Konsolen, je mit grauer Zahl; der
   gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
   müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und

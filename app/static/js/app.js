@@ -13,7 +13,7 @@ const when = iso => iso ? new Date(iso).toLocaleString("de-DE", {day: "2-digit",
 const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
 
 let S = null;                                   // Zustand vom Server
-const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["lib", "Bibliothek"], ["find", "Entdecken"], ["settings", "Einstellungen"]];
+const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["lib", "Bibliothek"], ["find", "Sammlung"], ["settings", "Einstellungen"]];
 const V = {tab: "wish", q: "", sort: "name", prev: {}, folds: {}};
 // Ansicht je Browser (vn.view): Reiter und Klappzustände. Bis 0.2.1 gab es die Reiter Abrufe
 // und Import, beide stehen jetzt unter Einstellungen.
@@ -495,6 +495,18 @@ function setMix(k){
 const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
+// Sprache eines Retro-Spiels: Deutsch vor Englisch vor Japanisch, ≈ wenn nur aus der Region geschätzt
+const LANG_SHORT = {De: "DE", En: "EN", Ja: "JP"};
+function langBadge(g){
+  if(!g.langs?.length) return "";
+  const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
+  return `<span class="b" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (aus der Region geschätzt)" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}${g.lang_guess ? " ≈" : ""}</span>`;
+}
+function retroBadges(g){
+  if(!g.retro) return "";
+  return [langBadge(g), g.flags.includes("homebrew") ? `<span class="b">Homebrew</span>` : "", g.flags.includes("hack") ? `<span class="b">Hack</span>` : "",
+    g.gone ? `<span class="b warn" title="Stand in der letzten Retro-Liste nicht mehr">nicht mehr in der Liste</span>` : ""].join(" ");
+}
 function gameRow(g){
   // Mit Steam-Details abgeglichen (src „steam“): was Playnite und Steam beide sagen, steht ohne Zeichen,
   // was nur eine Quelle sagt, mit ≈. Ohne Steam-Details gilt alles nur laut Playnite.
@@ -504,7 +516,7 @@ function gameRow(g){
   const gen = g.genres.map(x => esc(x) + (ok(g.gc, x) ? "" : " ≈")).join(", ");
   const yr = chk && !g.year_ok ? `${esc(g.year)} ≈` : esc(g.year);
   const yrTip = chk ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : "Laut Playnite";
-  return `<div class="item"><span class="nm">${name}</span>${mp}
+  return `<div class="item"><span class="nm">${name}</span>${mp} ${retroBadges(g)}
     ${g.vr ? `<span class="b" title="Laut Steam mit VR-Unterstützung">VR</span>` : ""}
     ${g.players ? `<span class="b" title="Höchste Spielerzahl laut Playnite">bis ${g.players}</span>` : ""}
     ${g.gem >= 0.2 ? `<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>` : ""}
@@ -513,7 +525,8 @@ function gameRow(g){
       ${g.genres.length ? `<span title="${chk ? "Ohne ≈: Playnite und Steam einig. ≈: nur eine Quelle; Steam kennt z. B. Puzzle oder Horror nicht als Genre" : "Laut Playnite"}">${gen}</span>` : ""}
       ${g.year ? `<span title="${esc(yrTip)}">${yr}</span>` : ""}
       ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : chk ? "Laden von Steam bestätigt" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
-      ${!V.d.sys && g.system && g.system !== "PC" ? `<span class="b" title="System laut Playnite">${esc(g.system)}</span>` : ""}
+      ${!V.d.sys && g.system && g.system !== "PC" ? `<span class="b" title="System laut ${g.retro ? "Retro-Liste" : "Playnite"}">${esc(g.system)}</span>` : ""}
+      ${g.files > 1 ? `<span class="hint" title="Regionen, Fassungen oder Discs desselben Spiels">${g.files} Dateien${g.regions?.length ? ", " + esc(g.regions.join(", ")) : ""}</span>` : g.regions?.length ? `<span class="hint">${esc(g.regions.join(", "))}</span>` : ""}
       ${chk || (g.system && g.system !== "PC") ? "" : `<span class="hint" title="Noch nicht mit Steam abgeglichen (nur Steam-Spiele, je Lauf ein Teil)">nur Playnite</span>`}</div></div>`;
 }
 // Entdecken lädt beim Scrollen weiter: kommt „weitere zeigen“ in Sicht, klickt es sich selbst
@@ -528,8 +541,8 @@ function moreOnScroll(){
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
   if(C.error) return `<p class="err">Sammlung nicht lesbar: ${esc(C.error)}</p>`;
-  if(!C.games.length) return `<div class="card"><h2>Entdecken</h2><p class="hint">Hier filterst du deine ganze Spielesammlung, je System, nach Mehrspieler, Spielerzahl, Genre und Wertung und lässt dir Spiele vorschlagen.
-    Dafür braucht das Tool einmal den Playnite-Export mit allen Spielen: unter Einstellungen bei „Datei oder Text einlesen“.</p>
+  if(!C.games.length) return `<div class="card"><h2>Sammlung</h2><p class="hint">Hier filterst du deine ganze Spielesammlung, je System, nach Mehrspieler, Spielerzahl, Genre und Wertung und lässt dir Spiele vorschlagen.
+    Dafür braucht das Tool einmal den Playnite-Export mit allen Spielen (unter Einstellungen bei „Datei oder Text einlesen“) oder deine Retro-Liste (unter „Retro-Sammlung“).</p>
     <button class="link" data-act="tab" data-v="settings">Zu den Einstellungen</button></div>`;
   const d = V.d, rows = dSort(dFilter(d), d), pick = d.mix === "surprise" || d.mix === "wild" ? dPick(rows, d.seed) : [];
   const opt = (k, list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
@@ -567,10 +580,16 @@ function findView(){
   const pickCard = d.mix === "surprise" || d.mix === "wild" ? `<div class="card"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? `<div class="list">${pick.map(gameRow).join("")}</div>` : `<p class="hint">Nichts passt zu den Filtern.</p>`}
     <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
-  const at = S.imports.collection?.at;
-  const pcTab = !d.sys || d.sys === "PC";
-  return tabs + mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${inTab.length} Spielen${d.sys ? ` (${esc(d.sys)})` : ""}${at ? `, Playnite-Export vom ${day(at)}` : ""}. Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.</p>
+  const at = S.imports.collection?.at, rat = S.imports.retro?.at;
+  const pcTab = !d.sys || d.sys === "PC", nRetro = inTab.filter(g => g.retro).length;
+  const gone = C.games.filter(g => g.gone);
+  // Spiele, die in der letzten Retro-Liste fehlen: einmal ansehen, dann Stand übernehmen oder behalten
+  const goneCard = gone.length ? `<div class="card"><h2>Nicht mehr in der Retro-Liste <span class="n">${gone.length}</span></h2>
+    <p class="hint">${gone.slice(0, 40).map(g => `${esc(g.name)} (${esc(g.system)})`).join(", ")}${gone.length > 40 ? " …" : ""}</p>
+    <div class="actions"><button data-act="retrogone" data-v="keep" title="Die Spiele bleiben in der Sammlung, der Hinweis verschwindet">Behalten</button>
+      <button class="primary" data-act="retrogone" data-v="drop" title="Die Spiele werden aus der Sammlung entfernt">Stand übernehmen</button></div></div>` : "";
+  return goneCard + tabs + mixes + filters + bar + pickCard +
+    `<p class="hint">${rows.length} von ${inTab.length} Spielen${d.sys ? ` (${esc(d.sys)})` : ""}${at && nRetro < inTab.length ? `, Playnite-Export vom ${day(at)}` : ""}${rat && nRetro ? `, Retro-Liste vom ${day(rat)} (Sprache laut Dateiname, ≈ = aus der Region geschätzt)` : ""}.${nRetro === inTab.length ? " Genres und Spielerzahl für Retro-Spiele kommen in einer späteren Version.</p>" : ""}${nRetro === inTab.length ? "" : ` Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.</p>`}
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
     ${rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : ""}`;
 }
@@ -663,7 +682,7 @@ function settingsView(){
     ${sub("logbox", "Protokoll", logInfo + (sy.started ? ` · <button class="link" data-act="copy" data-v="log">kopieren</button>` : ""), `<pre class="log" id="log"></pre>`, sy.ok !== false && !sy.running, "logfold")}
 `);
   const importe = box("importe", "Einlesen", "", `<p class="hint">Bringt Käufe und Wünsche ins Tool: Konten automatisch, Meta per Lesezeichen, alles andere als Datei. Gelöscht wird nichts.</p>
-    ${accountsCard()}${metaCard()}${fileCard()}`);
+    ${accountsCard()}${metaCard()}${fileCard()}${retroCard()}`);
   const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Alle Titel, Notizen und Zuordnungen als eine Datei. Einspielen ersetzt alles.</p>
      <div class="bar"><a href="/api/export" download>Sicherung herunterladen</a>
      <label>Sicherung einspielen <input type="file" accept=".json,application/json" data-file="restore"></label></div>`);
@@ -840,6 +859,36 @@ function fileCard(){
       ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="file">${p.collection ? "Übernehmen" : p.n + " übernehmen"}</button>` : ""}</div>
     ${p ? previewHtml(p) : ""}`, !p && !V.txt?.file, "imp-file");
 }
+/* Retro-Sammlung: Dateinamen aus dem ROM-Ordner, erst als Vorschau. Die Ordnerwahl liest nur Namen. */
+const RETRO_LINUX = `cd "/pfad/zu/ROMs"
+find . -type f -not -path '*_zip/*' -not -path '*/saves/*' -printf '%P\\n' > ~/retro-liste.txt`;
+const RETRO_WIN = `$r = "E:\\pfad\\zu\\ROMs"
+Get-ChildItem $r -Recurse -File | Where-Object { $_.FullName -notmatch '_zip\\\\|\\\\saves\\\\' } | ForEach-Object { $_.FullName.Substring($r.Length + 1) } | Set-Content -Encoding utf8 "$HOME\\retro-liste.txt"`;
+function retroCard(){
+  const p = V.prev.retro, l = S.imports.retro;
+  const info = l ? `${l.n} Spiele, ${day(l.at)}${l.gone ? `, ${l.gone} nicht mehr in der Liste` : ""}` : "noch nie";
+  return sub("imp-retro", "Retro-Sammlung (ROM-Liste)", info, `
+    <p class="hint">Wähl deinen ROM-Ordner. Der Browser gibt dem Tool nur Datei- und Ordnernamen und lädt keine Spiele hoch. Ordner, die auf „_zip“ enden, Spielstände und Beiwerk zählen nicht, Pfade speichert das Tool nicht. Jedes Spiel steht danach einmal je System in der Sammlung, mit Region und Sprache aus dem Dateinamen (No-Intro, Redump).</p>
+    <div class="bar"><label class="btn">ROM-Ordner wählen <input type="file" webkitdirectory multiple data-file="retrodir" class="vh"></label></div>
+    <details class="op"><summary>Liste stattdessen per Befehl erstellen</summary>
+      <p class="hint">Linux (Terminal), danach die Datei unten einfügen:</p><pre class="log">${esc(RETRO_LINUX)}</pre>
+      <p class="hint">Windows (PowerShell):</p><pre class="log">${esc(RETRO_WIN)}</pre>
+      <p class="hint">Auch eine CSV mit den Spalten „System“ und „Titel“ geht.</p></details>
+    <textarea id="txt-retro" aria-label="Liste einfügen" placeholder="… oder die Liste hier einfügen">${esc(V.txt?.retro || "")}</textarea>
+    <div class="bar"><button data-act="preview" data-v="retro">Vorschau</button>
+      ${p && !p.error && !p.done ? `<button class="primary" data-act="apply" data-v="retro">${p.n} übernehmen</button>` : ""}</div>
+    ${p ? retroPreview(p) : ""}`, !p && !V.txt?.retro, "imp-retro");
+}
+function retroPreview(p){
+  if(p.error) return `<p class="err">${esc(p.error)}</p>`;
+  const sy = Object.entries(p.systems || {}).map(([n, c]) => `${esc(n)} ${c}`).join(", ");
+  const sk = p.skipped || {}, skip = [sk.archive && `${sk.archive} in Archiv-Ordnern`, sk.save && `${sk.save} Spielstände`, sk.extra && `${sk.extra} Beiwerk`].filter(Boolean).join(", ");
+  const gone = p.gone_n ? `<p class="hint">Nicht mehr in der Liste (${p.gone_n}): ${p.gone.slice(0, 40).map(esc).join(", ")}${p.gone_n > 40 ? " …" : ""}. ${p.done ? "Im Reiter Sammlung übernimmst du den Stand oder behältst sie." : "Sie werden nicht gelöscht, sondern im Reiter Sammlung markiert."}</p>` : "";
+  const unk = p.unknown_n ? `<p class="hint">Nicht erkannt (${p.unknown_n}): ${p.unknown.map(esc).join(", ")}${p.unknown_n > p.unknown.length ? " …" : ""}</p>` : "";
+  if(p.done) return `<p class="ok">Retro-Liste übernommen: ${p.n} Spiele (${sy}), ${p.new} neu.</p>${gone}`;
+  return `<div class="prev"><b>Retro-Liste</b>: ${p.files} Dateien ergeben ${p.n} Spiele (${sy}), davon ${p.new} neu.${skip ? ` Übersprungen: ${skip}.` : ""} Noch nichts gespeichert.${unk}${gone}<ul>${p.entries.map(e =>
+    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span> <span class="b">${esc(e.system)}</span> ${langBadge(e)}${e.files > 1 ? ` <span class="hint">${e.files} Dateien</span>` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul>${p.n > p.entries.length ? `<p class="hint">… und ${p.n - p.entries.length} weitere</p>` : ""}</div>`;
+}
 /* Konten: bei jedem Abgleich automatisch gelesen */
 function accountsCard(){
   const se = S.settings || {};
@@ -918,6 +967,29 @@ function openEdit(key){
       <button type="button" data-act="close">Abbrechen</button><button class="primary" value="save">Speichern</button></div></form>`;
   $("edit").showModal();
 }
+
+/* Kopfleiste beim Scrollen (wie im eShopKompass): nach unten erst 300 px mitkommen, dann ausblenden;
+   40 px nach oben zeigen sie wieder. Kleine Gegenbewegungen (Touchpad) unter 8 px zählen nicht als
+   Richtungswechsel. --stick sagt der Sprungleiste, wie viel Platz die Kopfleiste gerade belegt. */
+(function(){
+  let lastY = scrollY, turn = scrollY, dir = 0, hidden = false;
+  const set = hid => {
+    hidden = hid; const el = $("stick");
+    el.classList.toggle("hid", hid);
+    document.documentElement.style.setProperty("--stick", hid ? "0px" : el.offsetHeight + "px");
+  };
+  addEventListener("scroll", () => {
+    const y = scrollY;
+    if(Math.abs(y - lastY) < 8 && y > 60) return;
+    const d = Math.sign(y - lastY);
+    if(d !== dir){ dir = d; turn = lastY; }          // Richtung gewechselt: ab hier messen
+    if(dir > 0 && !hidden && y > 300 && y - turn > 300 && $("thmMenu").hidden) requestAnimationFrame(() => set(true));
+    else if(dir < 0 && hidden && (turn - y > 40 || y < 60)) requestAnimationFrame(() => set(false));
+    lastY = y;
+  }, {passive: true});
+  addEventListener("resize", () => set(hidden));
+  set(false);
+})();
 
 /* ---------------------------------------------------------------- Ereignisse */
 let poll = null;
@@ -1042,6 +1114,14 @@ document.addEventListener("click", async ev => {
   else if(a === "merge"){ const res = await act("/api/merge", {keep: el.dataset.a, gone: el.dataset.b}); if(res) toast("Zusammengeführt", undoTo(res)); }
   else if(a === "notsame") act("/api/not_same", {a: el.dataset.a, b: el.dataset.b});
   else if(a === "steamok") act("/api/title", {key: el.dataset.k, steam_sure: true});
+  else if(a === "retrogone"){
+    try{
+      const res = await api("/api/retro/gone", {action: v});
+      C = res.collection; if(S.imports.retro) S.imports.retro.gone = 0;
+      toast(v === "drop" ? `${res.changed} Spiele aus der Sammlung entfernt` : `${res.changed} Spiele behalten`);
+    }catch(e){ toast(e.message); }
+    render();
+  }
   else if(a === "lists"){
     const keys = el.dataset.keys.split(",").filter(Boolean);
     const res = await act("/api/wishes", {kind: v, keys});
@@ -1060,7 +1140,7 @@ document.addEventListener("click", async ev => {
       const res = await api("/api/import", {kind: v === "file" ? V.kindFile || "auto" : v, text, dry: a === "preview"});
       V.prev[v] = a === "apply" ? Object.assign({done: true}, res, {state: null}) : res;
       if(res.state) S = res.state;
-      if(a === "apply"){ V.txt[v] = ""; if(res.collection) C = null; }
+      if(a === "apply"){ V.txt[v] = ""; if(res.collection || res.kind === "retro") C = null; }
     }catch(e){ V.prev[v] = {error: e.message}; }
     render("imp-" + v);
   }
@@ -1105,6 +1185,15 @@ document.addEventListener("change", async ev => {
   }
   const kind = ev.target.dataset.file;
   if(!kind || !ev.target.files[0]) return;
+  if(kind === "retrodir"){
+    // Nur die Namen: relativer Pfad je Datei, Archiv-Ordner (…_zip) gleich hier weggelassen
+    const lines = [...ev.target.files].map(f => f.webkitRelativePath || f.name).filter(x => !/(^|\/)[^/]*_zip\//i.test(x));
+    V.txt = Object.assign(V.txt || {}, {retro: lines.join("\n")});
+    V.prev.retro = null; V.folds["imp-retro"] = false;
+    render("imp-retro");
+    document.querySelector("[data-act=preview][data-v=retro]")?.click();
+    return;
+  }
   const f = ev.target.files[0];
   if(f.size > 45e6){ alert("Datei zu groß"); return; }
   const text = await f.text();
