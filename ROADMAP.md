@@ -47,7 +47,11 @@ aus Playnite nicht mehr verworfen, Reiter „Alle“, PC, PS4 …), 0.5.6 Retro-
 ROM-Ordner (Ordnerwahl im Browser, nur Namen), Reiter heißt „Sammlung“, Kopfleiste blendet beim
 Scrollen aus wie im eShopKompass (Entscheidungen 26.10.2026), 0.5.7 „DE fehlt“ für Retro-Spiele
 aus No-Intro, Redump und Retool mit Filter „Sprache“, 0.5.8 Sammlung öffnet bei PC, Reiter in
-Familienfarben, PlayStation-Trophäenlisten als „PS3 / Vita“ (Entscheidungen 27.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
+Familienfarben, PlayStation-Trophäenlisten als „PS3 / Vita“ (Entscheidungen 27.10.2026). 0.6.0
+Zusammenführen (Entscheidung 27.10.2026): Sammlung mit Spalten, Sortierung per Spaltenkopf,
+Einzelheiten und Mein Stand wie „Spiele“ im eShopKompass, die Bibliothek als Reiter VR darin,
+„VR-Wunschliste“ mit dem Urteil „kaufen“ und „gut“, „Aktualisieren“ und die Sicherung wie im
+eShopKompass. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
@@ -62,12 +66,15 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
   Ergänzung
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
-- eigene Marken je Spiel („nie wieder vorschlagen“, „merken“), Sharenite als Nachschub
+- weitere Marken je Spiel neben Mein Stand („nie wieder vorschlagen“), Sharenite als Nachschub
 - Besitz mit zweiter Quelle bestätigen (Steam-Konto und Sharenite, Meta-Käufe und VRDB) und
   Widersprüche melden statt sie nachzufragen
 
+- Gesamtbild (Entscheidung 27.10.2026): Das Tool wird zum Navigator über die ganze
+  Spielesammlung. „Jetzt“ wird die Startseite für alle Wünsche, mit einem Filter VR; der genaue
+  Vergleich Meta gegen Steam bleibt in der VR-Wunschliste. Name des Tools offen
 - PC-Wunschliste: die ganze gg.deals-Wunschliste (auch ohne VR) als eigene Ansicht neben der
-  PC-Sammlung in Entdecken, automatisch gelesen, mit Wertung, Spielern und Bestpreisen. Dazu
+  PC-Sammlung, automatisch gelesen, mit Wertung, Spielern und Bestpreisen. Dazu
   je Spiel die Läden nah am Bestpreis, damit sich mehrere Spiele in einem Laden bündeln lassen;
   die gg.deals-API liefert nur das günstigste Angebot je Händler und Keyshop, die Liste aller
   Läden steht nur auf der Spielseite (Cloudflare), also vermutlich über das Lesezeichen
@@ -78,7 +85,7 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 ## Danach
 
 - Freie Abrufe für die PC-Sammlung: Sind alle VR-Titel aktuell, holt der Abgleich mit dem Rest
-  seines Kontingents Spielerzahlen für Entdecken (zuerst gut bewertete Mehrspieler-Spiele) und
+  seines Kontingents Spielerzahlen für die Sammlung (zuerst gut bewertete Mehrspieler-Spiele) und
   hält sie dann ebenso aktuell
 - Wunschliste am Desktop als Tabelle mit sortierbaren Spalten
 

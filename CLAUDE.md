@@ -50,11 +50,11 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/retro.py`: Retro-Liste (Dateinamen aus dem ROM-Ordner oder CSV) zu einem Eintrag je Spiel und
   System, Region und Sprache aus No-Intro- und Redump-Namen, „nicht mehr in der Liste“; Fassungslisten
   (libretro-DAT, Retool) zu Gruppen und „DE fehlt“ je Spiel (`build_index`, `match`)
-- `app/collection.py`: ganze Sammlung je System für Entdecken (`collection.json`) aus dem Playnite-Export,
+- `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export,
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
 - `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur
   aus der Tabelle), Aktionen für ganze Gruppen, lange nicht gelesene Lesezeichen-Listen
-- `app/library.py`: Zeilen für Jetzt, Wunschliste und Bibliothek
+- `app/library.py`: Zeilen für Jetzt, Wunschliste und den Reiter VR der Sammlung
 - `app/server.py`: Webserver und JSON-Schnittstelle
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);
   Farben, Marken und Klappen nach `docs/oberflaeche.md`

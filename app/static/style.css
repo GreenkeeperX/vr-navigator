@@ -7,6 +7,8 @@
   --go:#0d6b4f; --go-bg:#dcefe4; --stop:#b3261e; --stop-bg:#f8dfdc; --warn:#6b3fb3; --warn-bg:#ece5fa;
   /* Nur für die Reiter je System in der Sammlung: Nintendo, PlayStation, PC */
   --sys-nin:#c8102e; --sys-ps:#0060c0; --sys-pc:#4a7a00;
+  /* Sammlung (wie im eShopKompass): offene Zeile, Genre-Blasen und Wertung als Farbton */
+  --open:#f8f6f0; --gg-s:52%; --gg-bl:90%; --gg-ts:40%; --gg-tl:28%; --sc-s:70%; --sc-l:34%;
 }
 /* Ansicht: data-theme am html-Element (hell/dunkel), ohne Angabe wie das Gerät */
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]){
@@ -15,6 +17,7 @@
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }}
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#121617; --card:#1a2022; --ink:#e5ebea; --muted:#94a3a1; --line:#2c3537;
@@ -22,6 +25,7 @@
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }
 :root[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}
@@ -37,6 +41,8 @@ button{background:var(--card);border:1px solid var(--line);border-radius:8px;pad
 button:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
 button.danger{color:var(--stop)}
+a.btn{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;color:var(--ink);text-decoration:none}
+a.btn:hover{border-color:var(--accent)}
 label.btn{display:inline-block;background:var(--accent);border:1px solid var(--accent);color:var(--bg);font-weight:600;border-radius:8px;padding:6px 12px;cursor:pointer}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 label.btn{position:relative}
@@ -157,6 +163,7 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .systabs button.fam-nin{--fam:var(--sys-nin)}
 .systabs button.fam-ps{--fam:var(--sys-ps)}
 .systabs button.fam-pc{--fam:var(--sys-pc)}
+.systabs button:not([class*=fam-]){--fam:var(--accent)}
 .systabs button:hover{border-bottom-color:color-mix(in srgb,var(--fam) 40%,transparent)}
 .systabs button.on{border-bottom:3px solid var(--fam);color:var(--fam);font-weight:600}
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
@@ -186,6 +193,10 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .shop.win{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
 .shop .cheap{color:var(--go);font-weight:600;font-size:12px}
 .over{color:var(--stop);font-weight:600}
+/* Urteil (wie im eShopKompass): grün nur fürs Urteil */
+.vd{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;font-weight:600}
+.vd.buy{background:var(--go);color:var(--card)}
+.vd.good{color:var(--go);box-shadow:inset 0 0 0 1.5px var(--go)}
 /* Fakten als festes Raster: Spalte mit Namen, Spalte mit Werten, in jeder Karte gleich */
 .facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;align-items:baseline;font-size:13px;color:var(--ink);min-width:0;flex-basis:100%}
 .fact{display:contents}
@@ -237,4 +248,61 @@ details.op .ux{color:var(--warn)}
 @media (max-width:620px){
   details.menu{position:static}
   details.menu .pop,details.menu .pop.wide{left:0;right:0;width:auto;max-width:none}
+}
+/* Sammlung (0.6.0, wie „Spiele“ im eShopKompass): Zeilen als Raster, Spalten je Reiter (--gcols kommt
+   aus der Ansicht), Kopf zum Sortieren, offene Zeile mit Einzelheiten. Am Handy untereinander */
+.glist{padding:4px 10px}
+.glist.box{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+.gr{display:grid;grid-template-columns:var(--gcols);gap:0 10px;align-items:center;padding:4px 0;border-top:1px dashed var(--line);font-size:13px;min-height:22px}
+.glist>.gr:first-child,.gr.nph+.gr{border-top:0}
+.gr.nph{padding-top:4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);align-items:end;border-bottom:1px solid var(--line)}
+.gr.nph .sth{cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr.nph .sth:hover,.gr.nph .sth.on{color:var(--ink)}
+.gr.nph .sth .sa{font-size:9px;margin-left:2px}
+.gr .r{text-align:right;white-space:nowrap}
+.gr>span{min-width:0}
+.gr .t{min-width:0;display:flex;align-items:baseline;gap:4px;white-space:nowrap;overflow:hidden}
+.gr .t .b{flex:none;font-size:11px}
+.gr button.link.g-n{text-decoration:none;color:inherit;text-align:left;font:inherit;padding:0;min-width:3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+.gr button.link.g-n:hover{text-decoration:underline}
+.gr.open button.link.g-n{font-weight:600}
+.gr .ux,.gr .ux *{color:var(--warn)}
+.gtags{display:flex;flex-wrap:wrap;gap:3px 4px;min-width:0}
+.chip{display:inline-block;font-size:11px;border-radius:999px;padding:0 7px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.chip.gg{background:hsl(var(--gh) var(--gg-s) var(--gg-bl));color:hsl(var(--gh) var(--gg-ts) var(--gg-tl))}
+.gsc{color:hsl(var(--sh) var(--sc-s) var(--sc-l));font-weight:600}
+.gme{flex:none;display:inline-flex;gap:4px;align-items:center;font-size:13px}
+.gme .gst.done,.gme .gfav{font-size:15px}
+.gst{-webkit-text-stroke:.5px currentColor}
+.gst.backlog{color:var(--stop)}
+.gst.started{color:var(--deal)}
+.gst.done{color:var(--go)}
+.gfav{color:var(--best)}
+.gr.open,.gd{background:var(--open);box-shadow:-10px 0 0 var(--open),10px 0 0 var(--open)}
+.gr.open{border-top-style:solid}
+.gd{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;padding:4px 0 10px;font-size:13px}
+.gdf{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 14px;align-content:start;padding-left:14px}
+.gd .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.gd .fv{min-width:0;overflow-wrap:anywhere}
+.gdm{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.gmk{display:flex;flex-wrap:wrap;gap:6px}
+.gmark{display:inline-flex}
+.gmark button{flex:none;white-space:nowrap;font-size:12px;padding:1px 8px;background:var(--card)}
+.gd .gmark button.on{background:color-mix(in srgb,var(--ink) 16%,var(--card));color:var(--ink);border-color:var(--line)}
+.gd .gds{grid-column:1/-1;font-size:12px;padding-left:14px;margin:0}
+.gdv{display:flex;flex-direction:column;gap:6px;min-width:0;padding-left:14px}
+.gdv>.b{align-self:flex-start}
+.gdv .note{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:3px solid var(--line);padding-left:8px}
+.gpick .glist{padding:0}
+details.menu .opts .chip{font-size:12px}
+@media (max-width:760px){
+  .gr.nph{display:none}
+  .gr{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline}
+  .gr .t{flex:1 0 100%;flex-wrap:wrap;white-space:normal}
+  .gr button.link.g-n{white-space:normal}
+  .gr .nil{display:none}
+  .gr>span[data-l]:not(.c-gen)::before{content:attr(data-l) " ";color:var(--muted);font-size:11px}
+  .gr .c-gen{flex:1 0 100%}
+  .gd{grid-template-columns:minmax(0,1fr)}
+  .gdf,.gdv,.gd .gds{padding-left:4px}
 }
