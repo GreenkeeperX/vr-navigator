@@ -92,8 +92,8 @@ Stand, wie im eShopKompass höchstens 68 Zeichen breit und vier Zeilen hoch, ein
 („Steam 97 % · Metacritic 96“, Farbton wie die Spalte; Steams Worte wie „Sehr positiv“ und die Zahl
 der Rezensionen im Tooltip; 0.7.2). „alle aufklappen · alle zuklappen“ (`.foldall`) steht hinter
 Sortieren (`V.gAll`, einzeln zugeklappte in `V.gShut`, nicht gemerkt, Wechsel des Reiters setzt
-zurück); „alle aufklappen“ geht nur mit Filter oder Suche und höchstens 100 Treffern, sonst grau mit
-Tooltip (0.7.2). Unter 760 px stehen die Werte je Zeile mit kleinem
+zurück); „alle aufklappen“ geht bei höchstens 150 Spielen der Liste (`G_ALL`), sonst grau mit
+Tooltip, der die Zahl nennt (0.7.4). Unter 760 px stehen die Werte je Zeile mit kleinem
 Namen davor untereinander, leere Werte fallen weg.
 
 Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,
@@ -151,7 +151,14 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle
   Zeilenbreite auf. Gewählte Filter stehen darunter als Marken mit × (`.chips.act`).
 - Sammlung öffnet im Reiter PC (gibt es keine PC-Spiele, „Alle“); der gewählte System-Reiter ist
-  in seiner Familienfarbe unterstrichen (siehe Grundsatz).
+  in seiner Familienfarbe unterstrichen (siehe Grundsatz). Reiter (0.7.4, Entscheidung 27.10.2026):
+  Alle, PC, VR, dann je Familie einer (`FAMS`: PlayStation, Nintendo, Weitere für alle übrigen; eine
+  Familie mit nur einem System steht als dieses System). Der Familienreiter (`@ps`, `@nin` …)
+  zeigt alle Spiele der Familie; rechts daneben gleiten ihre Konsolen aus (`.subtabs`, kleiner,
+  `.anim` nur beim Wechsel der Familie, nicht bei reduzierter Bewegung). Ist eine Konsole gewählt,
+  bleibt die Familie halb unterstrichen (`.part`).
+- Einstellungen (0.7.4): Zahlen in „Zu erledigen“ in der Farbe für Prüfen (`b.warnc`), auch in den
+  Gruppen. Der Knopf „ROM-Ordner wählen“ ist dezent (`label.btn.quiet`), nicht hell gefüllt.
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
   übernehmen); Retro-Spiele tragen DE, EN oder JP (violett: aus der Region geschätzt), Homebrew, Hack
   und „nicht mehr in der Liste“ als Marken, Dateizahl und Regionen in den Einzelheiten. Unterreiter je System („Alle“, PC, VR, dann Konsolen, je mit grauer Zahl; der

@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.3:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.4:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -354,8 +354,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Steams Worte und die Zahl der Rezensionen im Tooltip; 0.7.2), das genaue Erscheinen (Entwickler und Verlag im Tooltip) und die Sprachen („Deutsch
   und 12 weitere Sprachen“, rot „ohne Deutsch“), bei Retro-Spielen Sprachen, gesuchte Fassung und
   Dateien; unter Mein Stand die Kurzbeschreibung aus dem Steam-Store auf Deutsch (0.7.1; vier
-  Zeilen, ein Klick zeigt alles). „alle aufklappen“ öffnet alle Spiele der Liste, sobald ein Filter
-  oder eine Suche sie auf höchstens 100 Spiele eingrenzt (sonst grau, 0.7.2),
+  Zeilen, ein Klick zeigt alles). „alle aufklappen“ öffnet alle Spiele der Liste, solange es
+  höchstens 150 sind (sonst grau, der Tooltip sagt, wie viele es sind; 0.7.4). Die Reiter oben
+  zeigen Alle, PC, VR, PlayStation, Nintendo und Weitere (alle übrigen Systeme); ein Klick
+  auf eine Familie zeigt alle ihre Spiele und klappt rechts daneben ihre Konsolen aus (PS1 bis PS5,
+  Switch, 3DS …; 0.7.4),
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
   Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der
   hinter dem Namen steht, sich filtern lässt („Mein Stand“, Mischung „Aus dem Backlog“) und in

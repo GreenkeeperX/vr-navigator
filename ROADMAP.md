@@ -63,7 +63,11 @@ im eShopKompass 1.7.15 (`--ink`/`--ink-hi`), Wertung in den Einzelheiten als Zah
 in der Sammlung (mit Filter, bis 100 Spiele), einfachere Vorschau beim Einlesen, Proben ohne Cargo
 und UEVR, IGDB-Suche mit Plattform. 0.7.3 Switch-Sammlung aus dem eShopKompass, nur lesend über eine
 Adresse im eigenen Netz (`ESHOP_URL`, Entscheidung 27.10.2026): Reiter Switch und Switch 2 mit Wertung,
-Spielzeit, Beschreibung und Mein Stand von dort. Grundsatz (Entscheidung 22.10.2026): so wenig
+Spielzeit, Beschreibung und Mein Stand von dort. 0.7.4 Sammlung mit Reitern je Familie (PlayStation,
+Nintendo …), deren Konsolen rechts ausklappen; „alle aufklappen“ bis 150 Spiele; Zahlen in „Zu
+erledigen“ farbig, dezenter Knopf für den ROM-Ordner; Steam-Rezensionen mit drei Formen der Adresse;
+Proben: PCGamingWiki-Vorlagen sauber gelesen, Lenkrad und Force Feedback (Sim-Racing), Nexus Mods
+(Spielseite, beliebte Mods, Mods mit VR im Namen), DekuDeals-Treffer, mehr IGDB-Namensversuche. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

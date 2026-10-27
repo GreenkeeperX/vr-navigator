@@ -47,6 +47,8 @@ button.danger{color:var(--stop)}
 a.btn{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;color:var(--ink);text-decoration:none}
 a.btn:hover{border-color:var(--accent)}
 label.btn{display:inline-block;background:var(--accent);border:1px solid var(--accent);color:var(--bg);font-weight:600;border-radius:8px;padding:6px 12px;cursor:pointer}
+label.btn.quiet{background:var(--card);border-color:var(--line);color:var(--ink);font-weight:400}   /* dezent wie ein normaler Knopf (0.7.4) */
+label.btn.quiet:hover{border-color:var(--accent)}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 label.btn{position:relative}
 label.btn:focus-within{outline:2px solid var(--ink);outline-offset:2px}
@@ -183,6 +185,13 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 /* Gewählt: Linie in der Familienfarbe, Name in Textfarbe (0.6.1; verschiedene Rottöne beißen sich sonst) */
 .systabs button.on{border-bottom:3px solid var(--fam);color:var(--ink-hi);font-weight:600}
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
+/* Familien (0.7.4): die Konsolen der gewählten Familie gleiten rechts daneben heraus; die Familie bleibt halb markiert */
+.systabs .subtabs{display:flex;gap:2px;padding-left:4px;margin-left:2px;border-left:1px solid var(--line)}
+.systabs .subtabs.anim{animation:subin .18s ease-out}
+.systabs button.sub{font-size:13px;padding:6px 8px}
+.systabs button.part{border-bottom:3px solid color-mix(in srgb,var(--fam) 45%,transparent)}
+@keyframes subin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.systabs .subtabs.anim{animation:none}}
 .chips.mix{margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 .chips.mix button{white-space:nowrap}
 .dfilter{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px;font-size:14px}

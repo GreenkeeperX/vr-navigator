@@ -1648,7 +1648,7 @@ class TestSync(unittest.TestCase):
         ]
         seen = []
 
-        def fake_request(url, ua=None, timeout=25, encoding="", headers=None):
+        def fake_request(url, ua=None, timeout=25, encoding="", headers=None, data=None):
             seen.append(url)
             for part, code, text in answers:
                 if part in url:
@@ -1691,8 +1691,10 @@ class TestSync(unittest.TestCase):
         meta = 'clrmamepro ( name "x" )\n\ngame (\n\tcomment "Star Hop (Europe)"\n\tgenre "Platform"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Racing"\n)\n'
         answers = [("appdetails", 200, json.dumps(details)),
                    ("api/appid.php?appid=3000101", 200, '<script>RLCONF={"wgPageName":"Harbor_Heist","wgTitle":"Harbor Heist"};</script>'),
-                   ("action=parse", 200, json.dumps({"parse": {"wikitext": {"*": "==VR support==\n{{VR support\n|native 3d = false\n|vorpx = true\n|vorpx modes = G3D\n|vorpx notes = \n|openxr = \n|steamvr = false\n}}\n"}}})),
-                   ("dekudeals.com/search", 200, '<a href="/items/orbit-golf">Orbit Golf</a>'),
+                   ("action=parse", 200, json.dumps({"parse": {"wikitext": {"*": "==VR support==\n{{VR support\n|native 3d = false\n|vorpx = true\n|vorpx modes = G3D\n|vorpx notes = \n|3rd space gaming vest =\n|3rd space gaming vest notes =\n|openxr = \n|steamvr = false\n}}\n"
+                                                                                  "==Input==\n{{Input\n|controller support = true\n|steering wheel support = [[Glossary:Wheel|true]]<ref>Test</ref>\n|steering wheel support notes = nur Logitech\n|force feedback = unknown\n}}\n"}}})),
+                   ("dekudeals.com/search", 200, '<a class="main-link" href="https://www.dekudeals.com/items/orbit-golf?format=digital">Orbit Golf</a>'),
+                   ("api.nexusmods.com", 200, None),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
                    ("metadat/", 200, meta),
@@ -1704,10 +1706,20 @@ class TestSync(unittest.TestCase):
                    ("game_time_to_beats", 200, json.dumps([{"hastily": 18000, "normally": 25200, "completely": 36000, "count": 12}]))]
         seen, lines = [], []
 
+        def nexus_answer(data):
+            q = json.loads(data)
+            if "games(" in q["query"]:
+                found = q["variables"]["n"] == "*Harbor Heist*"
+                return {"data": {"games": {"nodes": [{"id": 9, "domainName": "harborheist", "name": "Harbor Heist", "modCount": 42}] if found else []}}}
+            return {"data": {"top": {"totalCount": 42, "nodes": [{"name": "Better Boats", "endorsements": 310, "downloads": 9000, "modId": 1}]},
+                             "vr": {"totalCount": 1, "nodes": [{"name": "Harbor VR Fix", "endorsements": 12, "downloads": 400, "modId": 2}]}}}
+
         def fake_request(url, ua=None, timeout=25, encoding="", headers=None, data=None):
             seen.append((url, data))
             for part, code, text in answers:
                 if part in url:
+                    if text is None:
+                        text = json.dumps(nexus_answer(data))
                     return {"url": url, "status": code, "text": text, "enc": "", "server": "x", "error": ""}
             return {"url": url, "status": 0, "text": "", "enc": "", "server": "", "error": "unbekannt"}
 
@@ -1727,10 +1739,17 @@ class TestSync(unittest.TestCase):
         self.assertIn("Beschreibung 21 Zeichen: „Ein Raubzug im Hafen.“", text)
         self.assertIn("Seite „Harbor Heist“", text)
         self.assertIn("native 3d false; vorpx true; vorpx modes G3D; steamvr false", text)
+        self.assertNotIn("vest", text)
+        self.assertIn("PCGamingWiki, Lenkrad: steering wheel support true; force feedback unknown (3 Felder", text)
+        self.assertEqual(sum("action=parse" in u for u, d in seen), 1)
+        self.assertIn("Nexus Mods, Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
+        self.assertIn("Nexus Mods, beliebt: „Better Boats“ (310 Empfehlungen, 9000 Downloads)", text)
+        self.assertIn("Nexus Mods, mit VR im Namen (1): „Harbor VR Fix“", text)
         self.assertTrue(any("page=Harbor+Heist" in u for u, d in seen))
         self.assertFalse(any("uevr" in u or "cargo" in u for u, d in seen))
         self.assertIn("IGDB, PC über Steam-ID", text)
         self.assertIn("DekuDeals, Suche (PS4)", text)
+        self.assertIn("erster Treffer „orbit-golf“", text)
         self.assertIn("Metacritic: 81", text)
         self.assertIn("Beschreibung „Golf im Orbit.“", text)
         self.assertIn("2 Einträge; zu „Star Hop“", text)
@@ -1738,6 +1757,34 @@ class TestSync(unittest.TestCase):
         self.assertIn("Entwickler ['Kite Works']", text)
         self.assertNotIn("a" * 30, text)
         self.assertTrue(any("game_id = 5" in (d or b"").decode() for u, d in seen))
+
+    def test_review_form_fallback(self):
+        """Schickt Steam bei den Rezensionen eine Seite statt Daten, gilt die nächste Form der Adresse (0.7.4)."""
+        asked, logs = [], []
+
+        class Src:
+            name = "Steam-Wertungen"
+            log = staticmethod(logs.append)
+
+            def get(self, url, shown=None):
+                asked.append(url)
+                return '{"success": 1}' if "filter=all" in url else "<html>Willkommen bei Steam!</html>"
+        old = dict(sync._rev_q)
+        try:
+            self.assertEqual(sync._rev_get(Src(), "3000101", "x"), '{"success": 1}')
+            self.assertEqual(len(asked), 2)
+            self.assertEqual(sync._rev_q["i"], 1)
+            self.assertIn("Form 2", logs[0])
+            sync._rev_get(Src(), "3000102", "x")
+            self.assertEqual(len(asked), 3)
+            self.assertEqual(len(logs), 1)
+            pages = Src()
+            pages.get = lambda url, shown=None: asked.append(url) or "<html></html>"
+            sync._rev_get(pages, "3000103", "x")
+            sync._rev_get(pages, "3000104", "x")
+            self.assertEqual(len(asked), 3 + 3 + 1)
+        finally:
+            sync._rev_q.update(old)
 
     def test_sale_ended_and_due(self):
         from datetime import datetime, timezone
