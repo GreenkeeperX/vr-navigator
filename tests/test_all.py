@@ -1344,6 +1344,61 @@ class TestSync(unittest.TestCase):
         sync.run(only={"rating"})
         self.assertEqual(len(net.calls), 2)
 
+    def test_eshop_collection(self):
+        """Switch-Sammlung aus dem eShopKompass (0.7.3): nur mit ESHOP_URL, genau diese eine Adresse im
+        eigenen Netz, ersetzt nur die eigenen Einträge, Playnite-Switch-Spiele gleichen Namens fallen weg."""
+        old = os.environ.pop("ESHOP_URL", None)
+        try:
+            sources.fetch = net = FakeNet({})
+            sync.run(only={"eshop"})
+            self.assertEqual(net.calls, [])                       # ohne Umgebungsvariable keine Anfrage
+            os.environ["ESHOP_URL"] = "http://127.0.0.1:8787/"
+            self.assertEqual(sources.eshop_url(), "http://127.0.0.1:8787/api/sammlung")
+            self.assertEqual(sources.blocked_target("http://127.0.0.1:8787/api/sammlung"), "")
+            self.assertEqual(sources.blocked_target("http://127.0.0.1:8787/api/export"), "Adresse nicht öffentlich")
+            self.assertEqual(sources.blocked_target("http://127.0.0.1:8788/api/sammlung"), "Adresse nicht öffentlich")
+            col = json.loads(json.dumps(collection.EMPTY))
+            collection.replace(col, {"name:moon racer": {"name": "Moon Racer", "system": "Switch", "mp": [], "genres": []},
+                                     "steam:3000101": {"name": "Harbor Heist", "system": "PC", "store": "Steam", "id": "3000101",
+                                                       "mp": [], "genres": []}})
+            col["games"]["eshop:alt"] = {"name": "Alt", "system": "Switch", "src": "eshop"}
+            store.save_json(collection.FILE, col)
+            ans = {"app": "eshop-kompass", "version": "1.7.16", "games": [
+                {"slug": "moon-racer", "title": "Moon Racer", "system": "Switch", "genres": ["Rennspiel"], "max": 4,
+                 "offline": [1, 4], "online": [1, 8], "coop": False, "mc": 81, "hours": 6.5, "released": "2021-05-04",
+                 "desc": "Rennen auf dem Mond.", "langs": ["english", "german"], "mine": {"s": "done", "fav": True}},
+                {"slug": "pixel-garden-nintendo-switch-2-edition", "title": "Pixel Garden", "system": "Switch 2", "oc": 77,
+                 "desc_lang": "en", "desc": "A garden."},
+                {"title": "ohne Slug"}, "kaputt"]}
+            sources.fetch = net = FakeNet({"/api/sammlung": json.dumps(ans)})
+            sync.run(only={"eshop"})
+            self.assertEqual(net.calls, ["http://127.0.0.1:8787/api/sammlung"])
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            self.assertNotIn("eshop:alt", col["games"])
+            self.assertIn("steam:3000101", col["games"])
+            v = collection.view(col)
+            rows = {r["key"]: r for r in v["games"]}
+            self.assertNotIn("name:moon racer", rows)            # dasselbe Spiel aus Playnite
+            m = rows["eshop:moon-racer"]
+            self.assertEqual((m["score"], m["score_src"], m["hours"], m["mine"], m["players"]), (81, "Metacritic", 6.5, {"s": "done", "fav": True}, 4))
+            self.assertEqual(m["mp"], ["multi", "couch", "online"])
+            p = rows["eshop:pixel-garden-nintendo-switch-2-edition"]
+            self.assertEqual((p["system"], p["score"], p["score_src"], p["desc_lang"]), ("Switch 2", 77, "OpenCritic", "en"))
+            self.assertEqual(dict(v["systems"]).get("Switch 2"), 1)
+            self.assertIn("eShopKompass: 2 Spiele (Switch 2: 1)", "\n".join(sync.status()["log"]))
+            # Eine Antwort, die nicht vom eShopKompass kommt, ändert nichts
+            sources.fetch = FakeNet({"/api/sammlung": json.dumps({"games": []})})
+            sync.run(only={"eshop"})
+            self.assertEqual(len([k for k in store.load_json(collection.FILE, collection.EMPTY)["games"] if k.startswith("eshop:")]), 2)
+            # Ein neuer Playnite-Export lässt die Switch-Spiele aus dem eShopKompass stehen
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            collection.replace(col, {"name:other": {"name": "Other", "system": "Switch", "mp": [], "genres": []}})
+            self.assertIn("eshop:moon-racer", col["games"])
+        finally:
+            os.environ.pop("ESHOP_URL", None)
+            if old is not None:
+                os.environ["ESHOP_URL"] = old
+
     def test_vrdb_and_players(self):
         """VRDB: Crossbuy, Version (mit Tag des Wechsels), Meta-Wertung als Anteil 4 und 5 Sterne.
         Steam: Spieler jetzt mit Spitze, letztes Update aus den Meldungen."""

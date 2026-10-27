@@ -6,18 +6,41 @@ einsetzen können.
 """
 import http.cookiejar
 import ipaddress
+import os
 import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.7.2"
+VERSION = "0.7.3"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
 USER_AGENT = f"vr-navigator/{VERSION} (privates Sammlungs-Tool)"
 BLOCKED = (403, 429)
+
+
+# Einzige Ausnahme von „nur öffentlich“ (0.7.3, Entscheidung 27.10.2026): die Sammlung des eShopKompass im
+# eigenen Netz, nur diese eine Adresse, nur lesend, nur per Umgebungsvariable im Stack (nie aus der Oberfläche)
+ESHOP_PATH = "/api/sammlung"
+
+
+def eshop_url():
+    """Adresse der Sammlung des eShopKompass aus ESHOP_URL (etwa http://eshop-kompass:8787), sonst ""."""
+    base = os.environ.get("ESHOP_URL", "").strip().rstrip("/")
+    p = urllib.parse.urlsplit(base)
+    if p.scheme not in ("http", "https") or not p.hostname or p.username or p.password or p.query or p.fragment \
+            or p.path not in ("", "/"):
+        return ""
+    return base + ESHOP_PATH
+
+
+def eshop_link():
+    """Adresse des eShopKompass für Links im Browser aus ESHOP_LINK (etwa http://server.home.arpa:8787), sonst ""."""
+    base = os.environ.get("ESHOP_LINK", "").strip().rstrip("/")
+    p = urllib.parse.urlsplit(base)
+    return base if p.scheme in ("http", "https") and p.hostname and not (p.username or p.password or p.query or p.fragment) else ""
 
 
 def blocked_target(url):
@@ -26,6 +49,9 @@ def blocked_target(url):
     den Server selbst ansprechen. Geprüft wird jede Adresse, die der Name ergibt; lässt er sich
     hier nicht auflösen (etwa hinter einem Proxy), entscheidet der Abruf selbst."""
     p = urllib.parse.urlsplit(str(url or ""))
+    own = eshop_url()
+    if own and str(url) == own:
+        return ""
     if p.scheme not in ("http", "https"):
         return "nur http und https"
     if p.username or p.password:

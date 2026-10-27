@@ -58,6 +58,15 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   ohne Plattform. Die Steam-Rezensionen prüft der Test an drei Spielen (das bekannteste, eins aus der
   Mitte, eins ohne Wert) und nennt bei einer HTML-Antwort Titel und Ziel der Umleitung.
 
+## eShopKompass (eigenes Netz, ab 0.7.3)
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Switch-Sammlung | `ESHOP_URL/api/sammlung` (Umgebungsvariable, etwa `http://eshop-kompass:8787`) | jeder Abgleich einmal, nur mit `ESHOP_URL` | je Spiel Name, System (Switch, Switch 2), Genres, Spieler, Koop, Metacritic oder OpenCritic, Spielzeit, Erscheinen, Firmen, USK, Sprachen, Beschreibung, Kaufdatum, Mein Stand. Ersetzt nur die Einträge `eshop:<slug>`; eine Antwort, die nicht vom eShopKompass kommt, ändert nichts |
+
+Das ist die einzige Adresse außerhalb des öffentlichen Internets, die das Tool abruft
+(`sources.eshop_url`, genau diese eine Adresse mit diesem Pfad; Weiterleitungen woandershin nicht).
+
 ## Konten (vor den Preisen)
 
 Jeder Abgleich liest zuerst die eingerichteten Konten, damit neue Wunschtitel gleich Preise

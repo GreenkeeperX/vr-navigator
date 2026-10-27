@@ -41,6 +41,11 @@ Gefüllte Knöpfe (primär, gewählt: `button.primary`, `.chips button.on`, `.se
 gleich hell. Gewählte Knöpfe sind nicht fett, sonst wächst der Knopf und die Reihe springt; fett
 bleiben nur Reiter (wie im eShopKompass) und die Einträge im Ansichtsmenü (untereinander, ohne Springen).
 
+Switch-Spiele aus dem eShopKompass (0.7.3) zeigen ihre Angaben wie dort ohne Violett (geprüft hat
+der eShopKompass); die Wertung ist Metacritic, sonst OpenCritic, ohne „%“. Mein Stand steht in den
+Einzelheiten nur als Text („ändern im eShopKompass“), Knöpfe gibt es dafür nicht. Die Spalte
+Spielzeit erscheint nur, wo ein Spiel eine hat.
+
 Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle
 (in der Sammlung seit 0.6.1 kein „≈“ mehr: unbestätigt steht violett, `.gxc`, der Tooltip nennt die
 Quelle; das gilt nach und nach überall);

@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.2:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.3:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -334,7 +334,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   andere steht violett daneben („Tabelle: nein“). Unter „bearbeiten“ heißt „automatisch“: keine
   eigene Angabe. Titel aus der Zeit vor 0.4.8 ohne gespeicherte Herkunft gelten als „Tabelle“,
   wenn eine Tabellenzeile da ist, sonst als von Hand.
-- **Sammlung** (bis 0.5.5 „Entdecken“): die ganze Sammlung aus dem Playnite-Export und der Retro-Liste, mit einem Reiter je
+- **Sammlung** (bis 0.5.5 „Entdecken“): die ganze Sammlung aus dem Playnite-Export, der Retro-Liste und
+  (ab 0.7.3, mit `ESHOP_URL`) der Switch-Sammlung des eShopKompass, mit einem Reiter je
   System („Alle“ vorn, nur bei mehr als einem System aus Playnite und Retro-Liste, dann PC, VR
   und die Konsolen mit Zahl). Beim Öffnen gilt PC; der gewählte Reiter ist in der Farbe seiner
   Familie unterstrichen (Nintendo rot, PlayStation blau, PC grün, VR türkis).
@@ -426,6 +427,14 @@ nicht ins Repository. Schlüssel, Konten und der Preisverlauf (`history.json`) s
 - Abrufe laufen über `sources.request`: ehrliche Kennung, nur öffentliche Ziele, Grenzen für
   Zeit und Größe, Pausen zwischen zwei Abrufen, 24 Stunden Ruhe nach 403, 429 oder Prüfseite.
 - `AUTO_SYNC=0` schaltet den Zeitplan ab (etwa für einen zweiten Testcontainer).
+- **Switch-Sammlung aus dem eShopKompass** (ab 0.7.3, Entscheidung 27.10.2026): Mit `ESHOP_URL`
+  (etwa `http://eshop-kompass:8787`) liest jeder Abgleich einmal `ESHOP_URL/api/sammlung` des
+  eShopKompass (ab 1.7.16). Das ist die einzige Ausnahme von „nur öffentliche Ziele“: genau diese eine
+  Adresse, nur lesend, nur über die Umgebungsvariable im Stack, nie aus der Oberfläche. Am
+  einfachsten stehen beide Container in einem gemeinsamen Docker-Netz und der VR-Navigator
+  erreicht den eShopKompass über den Containernamen; der eShopKompass nimmt Namen ohne Punkt an.
+  `ESHOP_LINK` (optional) ist die Adresse des eShopKompass für Links im Browser. Ohne `ESHOP_URL`
+  fragt der VR-Navigator nichts an.
 - Daten liegen in `data.json` im Datenordner. Eine kaputte Datei bleibt als
   `data.json.kaputt-<Zeit>` liegen und wird im Protokoll des Containers gemeldet.
 

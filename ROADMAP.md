@@ -61,7 +61,9 @@ Metacritic, Sprachen, Erscheinen und Kurzbeschreibung aus den Steam-Details, Auf
 Lesezeichen wie die Browser-Helfer im eShopKompass, Proben nachgeschärft. 0.7.2 Darkmode gedämpft wie
 im eShopKompass 1.7.15 (`--ink`/`--ink-hi`), Wertung in den Einzelheiten als Zahl, „alle aufklappen“
 in der Sammlung (mit Filter, bis 100 Spiele), einfachere Vorschau beim Einlesen, Proben ohne Cargo
-und UEVR, IGDB-Suche mit Plattform. Grundsatz (Entscheidung 22.10.2026): so wenig
+und UEVR, IGDB-Suche mit Plattform. 0.7.3 Switch-Sammlung aus dem eShopKompass, nur lesend über eine
+Adresse im eigenen Netz (`ESHOP_URL`, Entscheidung 27.10.2026): Reiter Switch und Switch 2 mit Wertung,
+Spielzeit, Beschreibung und Mein Stand von dort. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
