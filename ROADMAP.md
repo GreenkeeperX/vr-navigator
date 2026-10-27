@@ -43,15 +43,19 @@ abschaltbar (am PC zählt dann nur gg.deals, Entscheidung 22.10.2026), 0.5.3 ers
 fünf statt zwei Minuten nach dem Start, 0.5.4 jeder Aufpreis über dem Bestpreis wieder rot,
 am PC zählt das günstigste Angebot einschließlich Keyshops, Links direkt zum Spiel zum Entfernen
 von einer Laden-Wunschliste (Entscheidungen 26.10.2026), 0.5.5 Entdecken je System (Konsolenspiele
-aus Playnite nicht mehr verworfen, Reiter „Alle“, PC, PS4 …). Grundsatz (Entscheidung 22.10.2026): so wenig
+aus Playnite nicht mehr verworfen, Reiter „Alle“, PC, PS4 …), 0.5.6 Retro-Liste aus dem
+ROM-Ordner (Ordnerwahl im Browser, nur Namen), Reiter heißt „Sammlung“, Kopfleiste blendet beim
+Scrollen aus wie im eShopKompass (Entscheidungen 26.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- Sammlung über alle Systeme, mit Retro (Entscheidung 26.10.2026: Retro kommt hierher, die
-  Switch bleibt im eShopKompass): Retro-Liste einlesen (Dateiliste oder CSV, System aus Ordner
-  oder Endung, Titel aus dem Dateinamen; erst als Konzept mit Beispiel zur Abnahme), Infos aus der
-  libretro-database, zur Bestätigung IGDB (optionaler Twitch-Schlüssel); jede Quelle zuerst als
-  Probe in „Verbindung testen“
+- Retro, Sprache (0.5.7): „DE fehlt“, wenn es eine Fassung mit Deutsch gab und du eine ohne
+  hast. Fassungen eines Spiels über die Produktcodes der No-Intro-Listen (GBA, DS, 3DS, später
+  GameCube und Wii), sonst über die offenen Retool-Listen (auch bei anderem deutschen Titel),
+  Rest als „≈ vielleicht dieselbe Fassung“ zum Bestätigen; Filter nach Sprache
+- Retro, Infos: Genre, Spielerzahl, Jahr aus der libretro-database, zur Bestätigung IGDB
+  (optionaler Twitch-Schlüssel); jede Quelle zuerst als Probe in „Verbindung testen“.
+  GameCube, Wii und PlayStation mit Redump-Namen
 
 - Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als

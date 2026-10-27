@@ -133,9 +133,14 @@ def system_of(platforms, source="", gid=""):
     return "PC"
 
 
+# Systeme, die nur aus der Retro-Liste kommen (siehe retro.py)
+EXTRA_ORDER = ["Pokémon Mini", "Mega Drive", "Master System", "Game Gear", "Saturn", "Dreamcast", "PC Engine",
+               "Neo Geo Pocket", "WonderSwan", "Lynx", "Atari 2600", "Atari 7800"]
+
+
 def system_order(name):
     """Reihenfolge der Reiter: PC vorn, dann wie in SYSTEMS."""
-    names = ["PC"] + [n for n, _ in SYSTEMS]
+    names = ["PC"] + [n for n, _ in SYSTEMS] + EXTRA_ORDER
     return names.index(name) if name in names else len(names)
 
 
@@ -264,10 +269,12 @@ def parse(text, rows=None, stats=None):
 def replace(col, games, src="playnite"):
     """Neue Liste übernehmen, Abgerufenes je Spiel behalten. Ersetzt werden nur die Systeme, die
     in der neuen Liste vorkommen: ein Export nur der PlayStation-Bibliothek lässt die PC-Spiele
-    stehen. Gibt die Zahl der neuen Spiele zurück."""
+    stehen, ebenso die Spiele aus der Retro-Liste. Gibt die Zahl der neuen Spiele zurück."""
     old = col.get("games") or {}
     systems = {g.get("system") or "PC" for g in games.values()}
-    games = dict({k: g for k, g in old.items() if (g.get("system") or "PC") not in systems and k not in games}, **games)
+    # Spiele aus der Retro-Liste gehören nicht zum Playnite-Export und bleiben immer stehen
+    games = dict({k: g for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") == "retro")
+                  and k not in games}, **games)
     new = 0
     for k, g in games.items():
         o = old.get(k)
@@ -339,6 +346,10 @@ def view(col):
              "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
              "score_src": "", "year": (g.get("released") or "")[:4],
              "added": g.get("added") or "", "dev": g.get("dev") or "", "url": link(k, g)}
+        if g.get("src") == "retro":
+            r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
+                     regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
+                     gone=bool(g.get("gone")))
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None

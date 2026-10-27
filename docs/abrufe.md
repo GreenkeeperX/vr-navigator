@@ -191,5 +191,8 @@ wieder gefragt.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
-- `collection.json`: die ganze Sammlung für Entdecken (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite und
+- `collection.json`: die ganze Sammlung (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite;
+  Spiele aus der Retro-Liste mit `src` „retro“, Schlüssel `retro:<system>:<name>`, dazu `files`, `regions`,
+  `langs`, `lang_guess`, `flags`, gegebenenfalls `tid` und `serial` (3DS) und `gone` (Tag, seit dem es in der
+  Liste fehlt), nie Pfade; und
   `rev` (Steam-Rezensionen) und `steam` (Steam-Details).
