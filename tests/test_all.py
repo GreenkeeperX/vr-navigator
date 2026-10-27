@@ -1678,19 +1678,20 @@ class TestAccounts(unittest.TestCase):
         self.assertEqual(sorted((g["name"], g.get("system", "PC")) for g in collection.parse(csv_text).values()),
                          [("Deep Dive", "PS4"), ("Sky Garden", "PC")])
         # Export der PlayStation-Bibliothek ohne Plattformen: an den Kennungen erkannt (CUSA… ist
-        # PS4, sonst nur PS); er ersetzt nur die Konsolenspiele, die PC-Sammlung bleibt stehen
-        ps = "Name,Spiel-ID,Schlagwörter\nDeep Dive,CUSA00001_00,VR\nComet Chase,NPWR00002_00,\n"
+        # PS4, NPWR… eine Trophäenliste von PS3 oder Vita, sonst nur PS); er ersetzt nur die Konsolenspiele, die PC-Sammlung bleibt stehen
+        ps = "Name,Spiel-ID,Schlagwörter\nDeep Dive,CUSA00001_00,VR\nComet Chase,NPWR00002_00,\nStar Hop,XXXX00003_00,\n"
         self.assertEqual(imports.parse_playnite(ps), [])
         stats = {}
         self.assertEqual({g["name"]: g["system"] for g in collection.parse(ps, stats=stats).values()},
-                         {"Deep Dive": "PS4", "Comet Chase": "PS"})
-        self.assertEqual(stats, {"console": 2, "systems": {"PS4": 1, "PS": 1}})
+                         {"Deep Dive": "PS4", "Comet Chase": "PS3 / Vita", "Star Hop": "PS"})
+        self.assertEqual(stats, {"console": 3, "systems": {"PS4": 1, "PS3 / Vita": 1, "PS": 1}})
+        self.assertLess(collection.system_order("PS3 / Vita"), collection.system_order("PS2"))
         store.DATA_DIR = tempfile.mkdtemp()
         data = store.load_data()
         server.import_collection(data, COLLECTION, dry=False)
         self.assertEqual(server.import_collection(data, ps, dry=False),
-                         {"n": 2, "new": 2, "console": 2, "systems": {"PS4": 1, "PS": 1}, "kept": 4})
-        self.assertEqual(len(store.load_json(collection.FILE, {})["games"]), 6)
+                         {"n": 3, "new": 3, "console": 3, "systems": {"PS4": 1, "PS3 / Vita": 1, "PS": 1}, "kept": 4})
+        self.assertEqual(len(store.load_json(collection.FILE, {})["games"]), 7)
 
     def test_wishes_from_sources(self):
         d = empty()

@@ -5,6 +5,8 @@
   /* Jede Farbe eine Bedeutung, siehe docs/oberflaeche.md */
   --deal:#1d5fbf; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
   --go:#0d6b4f; --go-bg:#dcefe4; --stop:#b3261e; --stop-bg:#f8dfdc; --warn:#6b3fb3; --warn-bg:#ece5fa;
+  /* Nur für die Reiter je System in der Sammlung: Nintendo, PlayStation, PC */
+  --sys-nin:#c8102e; --sys-ps:#0060c0; --sys-pc:#4a7a00;
 }
 /* Ansicht: data-theme am html-Element (hell/dunkel), ohne Angabe wie das Gerät */
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]){
@@ -12,12 +14,14 @@
   --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
+  --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
 }}
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#121617; --card:#1a2022; --ink:#e5ebea; --muted:#94a3a1; --line:#2c3537;
   --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
+  --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
 }
 :root[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}
@@ -149,7 +153,12 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 /* Entdecken: Mischungen in einer wischbaren Zeile, Filter als Menüs */
 .systabs{display:flex;gap:2px;margin-bottom:10px;overflow-x:auto;border-bottom:1px solid var(--line)}
 .systabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:6px 10px;white-space:nowrap;font-size:14px}
-.systabs button.on{border-bottom-color:var(--accent);color:var(--accent);font-weight:600}
+.systabs button{--fam:var(--brand)}
+.systabs button.fam-nin{--fam:var(--sys-nin)}
+.systabs button.fam-ps{--fam:var(--sys-ps)}
+.systabs button.fam-pc{--fam:var(--sys-pc)}
+.systabs button:hover{border-bottom-color:color-mix(in srgb,var(--fam) 40%,transparent)}
+.systabs button.on{border-bottom:3px solid var(--fam);color:var(--fam);font-weight:600}
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
 .chips.mix{margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 .chips.mix button{white-space:nowrap}

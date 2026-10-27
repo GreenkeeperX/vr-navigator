@@ -46,7 +46,8 @@ von einer Laden-Wunschliste (Entscheidungen 26.10.2026), 0.5.5 Entdecken je Syst
 aus Playnite nicht mehr verworfen, Reiter „Alle“, PC, PS4 …), 0.5.6 Retro-Liste aus dem
 ROM-Ordner (Ordnerwahl im Browser, nur Namen), Reiter heißt „Sammlung“, Kopfleiste blendet beim
 Scrollen aus wie im eShopKompass (Entscheidungen 26.10.2026), 0.5.7 „DE fehlt“ für Retro-Spiele
-aus No-Intro, Redump und Retool mit Filter „Sprache“. Grundsatz (Entscheidung 22.10.2026): so wenig
+aus No-Intro, Redump und Retool mit Filter „Sprache“, 0.5.8 Sammlung öffnet bei PC, Reiter in
+Familienfarben, PlayStation-Trophäenlisten als „PS3 / Vita“ (Entscheidungen 27.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

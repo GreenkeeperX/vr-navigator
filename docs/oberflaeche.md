@@ -18,6 +18,11 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 | Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „Wunsch · Tabelle“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
 
+Ausnahme, nur für die Reiter je System in der Sammlung (Entscheidung 27.10.2026): der gewählte
+Reiter trägt die Farbe seiner Familie, Nintendo rot (`--sys-nin`), PlayStation blau (`--sys-ps`),
+PC grün (`--sys-pc`), „Alle“ im Türkis des Tools (`--brand`). Diese Töne sind eigene Tokens und
+stehen nirgends sonst.
+
 Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle;
 „Tabelle“ (samt Datum, wo Platz ist) aus der Vergleichstabelle; violett gestrichelt Recherche.
 Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Legende („?“), nicht
@@ -84,6 +89,8 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
   Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle
   Zeilenbreite auf. Gewählte Filter stehen darunter als Marken mit × (`.chips.act`).
+- Sammlung öffnet im Reiter PC (gibt es keine PC-Spiele, „Alle“); der gewählte System-Reiter ist
+  in seiner Familienfarbe unterstrichen (siehe Grundsatz).
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
   übernehmen); Retro-Spiele tragen DE, EN oder JP (≈ aus der Region geschätzt), Homebrew, Hack
   und „nicht mehr in der Liste“ als Marken, darunter Dateizahl und Regionen. Unterreiter je System („Alle“, PC, dann Konsolen, je mit grauer Zahl; der
