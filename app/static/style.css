@@ -323,10 +323,10 @@ details.op .ux{color:var(--warn)}
 .gr.open{border-top-style:solid}
 /* Einzelheiten im Raster der Liste (wie im eShopKompass): Angaben unter dem Namen, Mein Stand ab der zweiten
    Spalte, in jedem Reiter an derselben Stelle */
-.gd{display:grid;grid-template-columns:var(--gcols);gap:6px 10px;padding:4px 0 10px;font-size:13px}
+.gd{display:grid;grid-template-columns:var(--dcols,var(--gcols));gap:6px 10px;padding:4px 0 10px;font-size:13px}
 .gdf{grid-column:1/2;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 14px;align-content:start;padding-left:14px}
 .gdv{grid-column:1/2}
-.gdm{grid-column:2/-1;padding-top:2px}
+.gdm{grid-column:2/-1;padding-top:2px;min-width:0}
 .gd .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .gd .fv{min-width:0;overflow-wrap:anywhere}
 .gdm{display:flex;flex-direction:column;gap:5px;align-items:flex-start;align-self:start}

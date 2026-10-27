@@ -73,7 +73,9 @@ Online, Koop, Metacritic, Spielzeit; Marken; Einzelheiten) und Link direkt auf d
 zum Aufklappen; Steam-Rezensionen zusätzlich über die Store-Schnittstelle der Web API; Proben: bester
 DekuDeals-Treffer, Lenkrad an einem Rennspiel, IGDB über einen Teil des Namens. 0.7.6 Gleiten langsamer
 wie die Kopfzeile, Filter wie im eShopKompass im Reiter Switch 2 (Spielweise, Spielzeit, USK; System nur
-dort), Link „eShopKompass“ in dessen Marke, Sammlung nach dem Abgleich neu geladen. Grundsatz (Entscheidung 22.10.2026): so wenig
+dort), Link „eShopKompass“ in dessen Marke, Sammlung nach dem Abgleich neu geladen. 0.7.7 Feld für den
+persönlichen Nexus-Schlüssel (geht bei der Nexus-Abfrage mit), Mein Stand in den Einzelheiten auch bei
+Reitern mit wenigen Spalten im Bild. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

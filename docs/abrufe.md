@@ -64,7 +64,9 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   `https://api.nexusmods.com/v2/graphql` ohne Schlüssel, eine Sekunde Pause je Anfrage: das Spiel
   zum Namen (genau, ohne Zusätze wie „Legacy“, dann mit Platzhaltern), Zahl der Mods, Link auf die
   Spielseite, die drei beliebtesten Mods und Mods mit „VR“ im Namen; Fehler stehen wörtlich im
-  Ergebnis. DekuDeals erkennt Treffer auch als ganze Adresse mit Zusatz; IGDB versucht bei Konsolen
+  Ergebnis. Seit 0.7.7 geht ein gespeicherter persönlicher Schlüssel als Kopfzeile `apikey` mit
+  (Zeile „Nexus Mods (mit Schlüssel)“); er steht nie im Protokoll.
+  DekuDeals erkennt Treffer auch als ganze Adresse mit Zusatz; IGDB versucht bei Konsolen
   auch den Namen ohne Satzzeichen und den Teil nach dem Doppelpunkt.
   Seit 0.7.5: DekuDeals nimmt den Treffer, dessen Name am besten passt (nicht den ersten), und trennt
   Metacritic und Nutzerwertung. Lenkrad und Force Feedback zusätzlich an einem Rennspiel der Sammlung.

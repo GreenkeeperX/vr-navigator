@@ -54,8 +54,9 @@ def settings_view():
     steam = s.pop("steam_key")
     wish = s.pop("gg_wish")
     igdb = s.pop("igdb_id"), s.pop("igdb_secret")
+    nexus = s.pop("nexus_key")
     return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "",
-                steam_key_set=bool(steam), gg_wish_set=bool(wish), igdb_set=all(igdb))
+                steam_key_set=bool(steam), gg_wish_set=bool(wish), igdb_set=all(igdb), nexus_set=bool(nexus))
 
 
 def import_collection(data, text, dry):
