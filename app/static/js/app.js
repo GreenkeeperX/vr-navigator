@@ -479,7 +479,7 @@ function allGames(){
   if(!GM || GM.s !== S || GM.c !== C)
     GM = {s: S, c: C, list: ((C && C.games) || []).concat((S.library || []).map(r => ({key: "vr:" + r.key, lib: r, name: r.name, system: "VR",
       store: vrStore(r), guess: false, mp: [], players: 0, genres: [], score: r.rating?.score ?? null, reviews: r.rating?.steam?.n ?? null,
-      year: "", added: r.added || "", dev: "", gem: 0, url: ""})))};
+      year: "", added: r.added || "", dev: "", pub: "", rel: "", gem: 0, url: ""})))};
   return GM.list;
 }
 /* Genres in fester Reihenfolge, in jeder Zeile gleich (wie im eShopKompass): zuerst das in der Sammlung
@@ -511,7 +511,7 @@ function dFilter(d){
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
     && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true)
-    && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
+    && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || (g.pub || "").toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
       || !!g.lib?.note?.toLowerCase().includes(q)));
 }
 function dSort(rows, d, cols){
@@ -607,7 +607,9 @@ function gMp(g){
 function gYear(g){
   if(!g.year) return "";
   const tip = chk(g) ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : g.retro ? "" : "Laut Playnite";
-  return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(tip)}">${esc(g.year)}</span>`;
+  // Wie im eShopKompass: Erscheinen, Entwickler und Verlag im Tooltip (0.6.2), die Suche findet sie
+  const who = [g.rel?.length > 4 && `Erschienen am ${day(g.rel)}`, g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean);
+  return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(who.concat(tip ? [tip] : []).join("\n"))}">${esc(g.year)}</span>`;
 }
 // Launcher bei PC-Spielen (laut Playnite; nur vermutet: violett), sonst das System, solange der Reiter es nicht schon sagt
 function gSrc(g){
@@ -685,7 +687,7 @@ function gBadges(g){
 function gRow(g, cols, pick){
   const open = V.gOpen === g.key && !pick;
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="gopen" data-s="${esc(g.key)}" aria-expanded="${open}" title="${esc(g.name)} · Einzelheiten">${esc(g.name)}</button>${gBadges(g)}</span>` +
-    cols.map(c => { const v = c.cell(g); return `<span class="${c.cls || ""}${c.k === "genre" || c.k === "op" ? " c-gen" : ""}${v ? "" : " nil"}" data-l="${c.l}">${v || G_NIL}</span>`; }).join("") + `</div>` + (open ? gDetail(g) : "");
+    cols.map(c => { const v = c.k === "genre" && open ? gGenres(g, true) : c.cell(g); return `<span class="${c.cls || ""}${c.k === "genre" || c.k === "op" ? " c-gen" : ""}${v ? "" : " nil"}" data-l="${c.l}">${v || G_NIL}</span>`; }).join("") + `</div>` + (open ? gDetail(g) : "");
 }
 /* Einzelheiten (wie im eShopKompass): links die Angaben untereinander, rechts Mein Stand, darunter klein
    Herkunft und Links. Bei VR-Titeln dieselben Fakten, Recherche und Klappe wie in der Wunschliste */
@@ -698,13 +700,9 @@ function gDetail(g){
     const r = g.lib;
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
   }
-  const sc = g.score != null ? `${gScore(g.score, "Anteil positiver Steam-Rezensionen")} positiv bei ${num(g.reviews)} Steam-Rezensionen` : g.reviews != null ? `${num(g.reviews)} Steam-Rezensionen, eine Wertung gibt es ab 50` : "";
-  const gem = g.gem > 0 ? `${String(g.gem).replace(".", ",")} von 1` : "";
   const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : ""].filter(Boolean).join(", ") : "";
-  const facts = row("Wertung", sc) + row("Geheimtipp", gem, "Gute Wertung, wenige Rezensionen") + row("Spieler", g.players ? `bis ${g.players}` : "", "Laut Playnite") +
-    row("Mehrspieler", gMp(g)) + row("Genre", gGenres(g, true)) + row("Erschienen", gYear(g)) + row("Entwickler", esc(g.dev)) +
-    row(g.system === "PC" ? "Launcher" : "System", g.system === "PC" ? gSrc(g) : esc(g.system)) +
-    row("Sprache", g.langs?.length ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
+  // Nur, was die Zeile nicht schon zeigt (0.6.2): Wertung, Spieler, Genre, Jahr und Launcher stehen in den Spalten
+  const facts = row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
   const src = g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : chk(g) ? "Playnite, mit Steam abgeglichen" : g.system === "PC" ? "nur Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite";
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
@@ -843,13 +841,14 @@ const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
   ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
-function srcState(k, x){
-  if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;
+/* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
+function srcRow(k, l, x){
+  const td = (a, b, c) => `<tr><td>${l}</td><td>${a}</td><td class="hint">${b}</td><td class="hint">${c}</td></tr>`;
+  if(!x) return td(`<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`, "", "");
+  if(x.manual) return td(`<span class="warnc" title="gg.deals zeigt dem Server eine Prüfseite; dein Browser kommt durch">per Lesezeichen</span>`, S.imports.ggwish ? when(S.imports.ggwish.at) : "noch nie gelesen", "");
   const rest = x.until && new Date(x.until) > new Date();
-  if(x.manual) return `<span class="b warn" title="gg.deals zeigt dem Server eine Prüfseite; dein Browser kommt durch">per Lesezeichen</span> <span class="hint">${S.imports.ggwish ? "zuletzt " + when(S.imports.ggwish.at) : "noch nie gelesen"}</span>`;
-  const tag = x.ok ? `<span class="b go">ok</span>` : rest ? `<span class="b warn" title="${esc(x.msg || "")}">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>`
-    : `<span class="b stop">${esc(x.msg || "Fehler")}</span>`;
-  return `${tag} <span class="hint">${when(x.at)}, ${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}</span>`;
+  const st = x.ok ? `<span class="ok">ok</span>` : rest ? `<span class="warnc">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>` : `<span class="err">Problem</span>`;
+  return td(st, when(x.at), `${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}${!x.ok && x.msg ? ` · ${esc(x.msg)}` : ""}`);
 }
 /* ---------------------------------------------------------------- Einstellungen
    Drei feste Karten (Abgleich, Importe, Sicherung), oben „Derselbe Titel?“, wenn etwas zu
@@ -868,7 +867,7 @@ function settingsView(){
   const hours = se.hours || 6, last = sy.started ? new Date(sy.started) : null;
   const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
   const shown = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se));
-  const rows = shown.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
+  const rows = shown.map(([k, l]) => srcRow(k, l, src[k])).join("");
   // „per Lesezeichen“ (gg.deals-Wunschliste hinter Cloudflare) ist kein Fehler, sondern der Weg
   const isBad = k => src[k] && !src[k].ok && !src[k].manual;
   const bad = shown.filter(([k]) => isBad(k)).length, okN = shown.filter(([k]) => src[k]?.ok).length;
@@ -906,7 +905,7 @@ function settingsView(){
     <form data-form="sched" class="bar sched"><label><input type="checkbox" name="auto" data-sched="1"${se.auto ? " checked" : ""}> automatisch alle</label>
       <input type="number" name="hours" min="2" max="48" value="${esc(hours)}" aria-label="Abstand in Stunden" data-sched="1"> Stunden <span class="err" id="s-err"></span></form>
     <p class="hint">Liest deine Konten, ordnet alle Titel zu und holt Preise und Messwerte. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen; nach einer Sperre ruht eine Quelle 24 Stunden.</p>
-    ${sub("quellen", "Quellen", srcInfo, `<div class="list">${rows}</div>`, !bad)}
+    ${sub("quellen", "Quellen", srcInfo, `<div class="scroll"><table class="mini-t"><tbody>${rows}</tbody></table></div>`, !bad)}
     <div class="bar slim" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Aktualisieren"}</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
     ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}

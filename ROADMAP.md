@@ -54,7 +54,8 @@ Einzelheiten und Mein Stand wie „Spiele“ im eShopKompass, die Bibliothek als
 eShopKompass. 0.6.1 Feinschliff nach Rückmeldung (27.10.2026): violett statt „≈“ in der
 Sammlung, Spalte Launcher (PC) bzw. System (Konsole), Genres einzeilig mit „+n weitere“ und
 fester Reihenfolge, Mein Stand an fester Stelle, PS1 statt PS, Quellen in den Einstellungen
-farbig. Grundsatz (Entscheidung 22.10.2026): so wenig
+farbig. 0.6.2 Einzelheiten nur mit Mehrwert, Genres klappen in der Zeile auf, Entwickler und
+Verlag im Tooltip am Jahr, Quellen als kompakte Tabelle (Entscheidungen 27.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

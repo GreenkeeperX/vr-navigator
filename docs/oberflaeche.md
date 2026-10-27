@@ -67,8 +67,10 @@ Spalten (`--gcols`) wählt die Ansicht je Reiter aus `COLS`; eine Spalte erschei
 Spiel im Reiter dafür einen Wert hat. Leere Zellen zeigen einen grauen Strich. Der Kopf
 (`.gr.nph`) sortiert per Klick (`data-act="tsort"`, gemerkt in `vn.view`, `sorts`), Enter und
 Leertaste ebenso; der dritte Klick nimmt die Sortierung zurück. Der Name ist ein Knopf und klappt
-die Einzelheiten (`.gd`) auf: links die Angaben (`.gdf`, Name und Wert), rechts Mein Stand
-(`.gdm`), darunter klein Herkunft und Links. Unter 760 px stehen die Werte je Zeile mit kleinem
+die Einzelheiten (`.gd`) auf: links nur Angaben ohne eigene Spalte (`.gdf`, Name und Wert), rechts
+Mein Stand (`.gdm`), darunter klein Herkunft und Links. Die Genre-Zelle der offenen Zeile zeigt alle
+Genres (ohne `fit`), statt sie in den Einzelheiten zu wiederholen (0.6.2). Erscheinen, Entwickler und
+Verlag stehen im Tooltip am Jahr. Unter 760 px stehen die Werte je Zeile mit kleinem
 Namen davor untereinander, leere Werte fallen weg.
 
 Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,
@@ -117,7 +119,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   „Aktualisieren“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung
   (drei Knöpfe wie im eShopKompass: Abgleichsdaten herunterladen, Sicherung herunterladen,
   Sicherung einlesen). Die Klappe „Quellen“ nennt den Stand farbig wie im eShopKompass
-  („10 ok“ grün, „1 mit Problem (gg.deals)“ rot); Knöpfe in der Zeile `.bar.slim` sind so hoch wie
+  („10 ok“ grün, „1 mit Problem (gg.deals)“ rot), aufgeklappt eine kompakte Tabelle (`.mini-t`: Quelle,
+  Zustand farbig, Zeit, Abrufe und Meldung); Knöpfe in der Zeile `.bar.slim` sind so hoch wie
   im eShopKompass.
   Das Protokoll ist zu, außer der letzte Lauf hatte Fehler.
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter „Sortieren“ als Auswahl,
