@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.6.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.6.1:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -137,13 +137,13 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   zusammengefasst („2 Dateien, Europe, USA“). „Legend of Pixels, The“ wird zu „The Legend of Pixels“.
 - **Sprache:** aus dem Dateinamen nach No-Intro und Redump, etwa `(En,Fr,De)`. Ohne Angabe gilt
   die Sprache der Region (Germany Deutsch, Europe, USA und World Englisch, Japan Japanisch) und
-  trägt „≈“. In der Sammlung steht DE vor EN vor JP.
+  steht in der Sammlung violett. In der Sammlung steht DE vor EN vor JP.
 - **Deutsche Fassung:** Beim Abgleich holt das Tool je System die Fassungsliste (No-Intro,
   bei Discs Redump, über die libretro-database) und die Retool-Liste, höchstens wöchentlich. Gab
   es eine Fassung mit Deutsch und deine Datei hat keins, steht „DE fehlt“ am Spiel, darunter die
   gesuchte Fassung („gesucht: … (Germany)“). Gefunden wird sie über den Produktcode (GBA, GBC, DS),
   die Retool-Gruppe (auch bei anderem deutschen Titel) oder den gleichen Namen; ist ihr Deutsch nur
-  aus der Region geschätzt, trägt die Marke „≈“. Der Filter „Sprache“ zeigt „mit Deutsch“,
+  aus der Region geschätzt, steht die Marke violett. Der Filter „Sprache“ zeigt „mit Deutsch“,
   „DE fehlt“ oder „ohne Deutsch“ (keine deutsche Fassung bekannt).
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
   „ROM-Hacks“ ergibt „Hack“.
@@ -327,17 +327,21 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Familie unterstrichen (Nintendo rot, PlayStation blau, PC grün, VR türkis).
   Aufbau wie „Spiele“ im eShopKompass (0.6.0): je Spiel eine Zeile mit Spalten, die nur
   erscheinen, wenn ein Spiel im Reiter dafür einen Wert hat (Spieler, Mehrspieler, Wertung,
-  Rezensionen, Sprache, Genre, Jahr, Laden; unter „Alle“ das System). Ein Klick auf einen
+  Rezensionen, Sprache, Genre, Jahr, Launcher; die Spalte Launcher zeigt am PC Steam, Epic, GOG …,
+  bei Konsolen unter „Alle“ das System). Genres stehen einzeilig, seltene zuerst (je seltener in
+  der Sammlung, desto weiter vorn, bei Gleichstand nach dem Alphabet, „Sonstiges“ zuletzt); was
+  nicht passt, zählt „+n weitere“ (Tooltip mit den Namen), die Einzelheiten zeigen alle. Ein Klick auf einen
   Spaltenkopf sortiert (Wertungen und Zahlen zuerst absteigend), der zweite andersherum, der dritte
   zurück zur gewählten Sortierung. Die Wertung ist von Rot über Gelb nach Grün eingefärbt (50 bis
   95 %), Genres stehen als farbige Blasen (verwandte Genres in ähnlichem Farbton, violett bleibt
   frei). Ein Klick auf den Namen klappt die Einzelheiten auf: alle Angaben untereinander mit
-  Herkunft, daneben **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓, Favorit ★), der
+  Herkunft, daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
+  Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der
   hinter dem Namen steht, sich filtern lässt („Mein Stand“, Mischung „Aus dem Backlog“) und in
   der Sicherung steckt. Am Handy stehen die Werte je Spiel untereinander.
   **VR** (bis 0.5.8 der Reiter „Bibliothek“): alle VR-Titel, die du bei Meta oder am PC hast,
-  mit den Spalten Besitz, Crossbuy (Herkunft im Tooltip, „T“ aus der Tabelle, „≈“ aus der
-  Recherche), Meta- und Steam-Wertung, Steam-Spieler jetzt, letztes Update und Recherche. Filter
+  mit den Spalten Besitz, Crossbuy (Herkunft im Tooltip, „T“ aus der Tabelle, violett „Recherche“
+  aus der Recherche), Meta- und Steam-Wertung, Steam-Spieler jetzt, letztes Update und Recherche. Filter
   Besitz, Wertung, Mein Stand und Crossbuy. Die Einzelheiten zeigen dieselben Fakten, Recherche
   und Klappe (Links, bearbeiten) wie die Wunschliste. Unter „Alle“ stehen VR-Titel nicht, am PC
   meist ohnehin unter PC.
@@ -346,7 +350,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Mehrspieler-Art (Menü mit Häkchen; mehrere gewählt: alle müssen passen: Mehrspieler, Online,
   Koop, Lokal, Splitscreen, LAN, MMO), Genre (Menü mit Suche und Häkchen, umschaltbar zwischen
   „eines davon“ und „alle“; die Zahl hinter einem Genre zählt, was mit den übrigen Filtern übrig
-  bliebe), Spielerzahl, Laden, Steam-Wertung und „über zwei Jahre in der Sammlung“; gewählte
+  bliebe), Spielerzahl, Launcher, Steam-Wertung und „über zwei Jahre in der Sammlung“; gewählte
   Mehrspieler-Arten und Genres stehen als Marken mit × darunter; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, Jahr, Name
   oder Zufall. Die Suche findet Name, Entwickler und Genre. Die Liste lädt beim Scrollen weiter.
   Mischungen (eine Zeile, am Handy seitlich wischbar) setzen Filter mit einem Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“,
@@ -357,12 +361,14 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   gelten weiter), eine Mischung lässt sich so als Lesezeichen merken.
   Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
   Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
-  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Laden, der nur aus der Kennung
-  vermutet ist, trägt „≈“. Bei Steam-Spielen gleicht der Abgleich Genres, Mehrspieler-Arten und
+  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Launcher, der nur aus der Kennung
+  vermutet ist, steht violett. Bei Steam-Spielen gleicht der Abgleich Genres, Mehrspieler-Arten und
   Jahr mit den Steam-Store-Daten ab (80 je Lauf): was Playnite und Steam beide sagen, steht ohne
-  Zeichen, was nur eine Quelle sagt, bleibt drin und trägt „≈“ (Steam kennt nur grobe Genres,
+  Zeichen, was nur eine Quelle sagt, bleibt drin und steht violett, der Tooltip nennt die Quelle
+  (seit 0.6.1 statt „≈“; Steam kennt nur grobe Genres,
   Puzzle oder Horror etwa nicht). Die Einzelheiten nennen, ob ein Spiel schon abgeglichen ist;
-  Steam-Spiele mit VR tragen die Marke „VR“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
+  Steam-Spiele mit VR tragen die türkise Marke „VR“. PlayStation-Spiele der ersten Generation
+  stehen unter PS1 (bis 0.6.0 „PS“). Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
   die der Abgleich nach und nach holt (100 je Lauf, siehe [docs/abrufe.md](docs/abrufe.md));
   die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
   unzuverlässig). Die Zahl der Rezensionen zeigt die Bekanntheit. Der Geheimtipp-Wert

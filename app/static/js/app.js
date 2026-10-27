@@ -144,7 +144,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -171,6 +171,7 @@ function render(anchor){
   findHash();
   showLog();
   moreOnScroll();
+  if(V.tab === "find") fitTags();
   const b = anchor && $(anchor);
   if(b && top !== null) scrollBy(0, b.getBoundingClientRect().top - top);
   const q = $("q");
@@ -481,6 +482,18 @@ function allGames(){
       year: "", added: r.added || "", dev: "", gem: 0, url: ""})))};
   return GM.list;
 }
+/* Genres in fester Reihenfolge, in jeder Zeile gleich (wie im eShopKompass): zuerst das in der Sammlung
+   seltenere, weil es das Spiel genauer beschreibt; bei gleicher Häufigkeit das Alphabet; „Sonstiges“ ans Ende */
+let GN = null;
+function genreOrder(list){
+  if(!GN || GN.c !== C){
+    const n = {};
+    for(const g of (C && C.games) || []) for(const x of g.genres) n[x] = (n[x] || 0) + 1;
+    GN = {c: C, n};
+  }
+  const rank = x => x === "Sonstiges" ? 1e9 : GN.n[x] || 0;
+  return list.slice().sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "de"));
+}
 // Sprache der Retro-Spiele: mit Deutsch, deutsche Fassung fehlt, ohne Deutsch (keine bekannt)
 const LANG_FILTER = [["", "alle"], ["de", "mit Deutsch"], ["miss", "DE fehlt"], ["nde", "ohne Deutsch"]];
 function langOk(g, f){
@@ -562,42 +575,51 @@ const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1],
   d.cb && "Crossbuy", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
-/* Zellen. Leer heißt grauer Strich; ≈ heißt wie überall: nur eine Quelle oder abgeleitet */
+/* Zellen. Leer heißt grauer Strich; violett (.gxc): nur eine Quelle oder geschätzt, der Tooltip sagt woher */
 const G_NIL = `<span class="hint">–</span>`;
 // Wertung (wie im eShopKompass): fein gestuft von Rot über Gelb nach Grün, Skala 50 bis 95
 const gScoreHue = v => Math.round(Math.max(0, Math.min(1, (v - 50) / 45)) * 125);
-const gScore = (v, tip, guess) => v == null ? "" : `<span class="gsc" style="--sh:${gScoreHue(v)}" title="${esc(tip)}">${guess ? "≈" : ""}${v} %</span>`;
+const gScore = (v, tip) => v == null ? "" : `<span class="gsc" style="--sh:${gScoreHue(v)}" title="${esc(tip)}">${v} %</span>`;
 /* Genres als Blasen, Farbton nach Verwandtschaft (wie im eShopKompass): Action und Kampf rot, Tempo
    orange bis gelbgrün, Plattformer gelb, ruhiges Leben grün, Erkunden türkis bis cyan, Denken blau bis
    indigo, Gesellig rosa bis magenta, Sonstiges grau. Violett bleibt frei, es heißt „prüfen“ */
 const G_HUE = {"Action": 4, "Kampfspiel": 352, "Prügelspiel": 352, "Shooter": 14, "Arcade": 26, "Rennspiel": 36, "Rennen": 36, "Sport": 66,
   "Plattformer": 48, "Simulation": 128, "Aufbau": 118, "Survival": 150, "Roguelike": 158, "Abenteuer": 172, "Metroidvania": 182, "Rollenspiel": 194,
   "Puzzle": 212, "Lernen": 204, "Strategie": 232, "Brettspiel": 242, "Kartenspiel": 250, "Party": 330, "Musik": 316, "Rhythmus": 316, "Horror": 0,
-  "Visual Novel": 300, "Point & Click": 168, "Stealth": 222, "Sandbox": 140};
-const gTag = (n, guess) => { const h = G_HUE[n]; return `<span class="chip gg" style="${h === undefined ? "--gh:0;--gg-s:0%;--gg-ts:0%" : `--gh:${h}`}">${esc(n)}${guess ? " ≈" : ""}</span>`; };
-// Mit Steam-Details abgeglichen (src „steam“): was Playnite und Steam beide sagen, steht ohne Zeichen,
-// was nur eine Quelle sagt, mit ≈. Ohne Steam-Details gilt alles nur laut Playnite.
+  "Visual Novel": 300, "Point & Click": 168, "Stealth": 222, "Sandbox": 140, "Karten und Brett": 246, "Quiz": 222, "Casual": 100};
+const gTag = n => { const h = G_HUE[n]; return `<span class="chip gg" style="${h === undefined ? "--gh:0;--gg-s:0%;--gg-ts:0%" : `--gh:${h}`}">${esc(n)}</span>`; };
+/* Herkunft (0.6.1, wie im eShopKompass): kein Zeichen. Mit Steam-Details abgeglichen (src „steam“) gilt,
+   was Playnite und Steam beide sagen; sagt es nur eine Quelle, ist der Wert dezent violett (.gxc) und der
+   Tooltip nennt die Quellen. Ohne Steam-Details gilt alles nur laut Playnite */
 const chk = g => g.src === "steam";
 const one = (g, list, x) => chk(g) && !(list || []).includes(x);
-function gGenres(g){
+// In der Zeile einzeilig: was nicht passt, zählt „+n“ (siehe fitTags); in den Einzelheiten alle
+function gGenres(g, all){
   if(!g.genres.length) return "";
-  return `<span class="gtags" title="${chk(g) ? "Ohne ≈: Playnite und Steam einig. ≈: nur eine Quelle; Steam kennt z. B. Puzzle oder Horror nicht als Genre" : "Laut Playnite"}">${g.genres.map(x => gTag(x, one(g, g.gc, x))).join("")}</span>`;
+  const only = g.genres.filter(x => one(g, g.gc, x));
+  const tip = chk(g) ? (only.length ? `Nur eine Quelle (Playnite oder Steam): ${only.join(", ")}; die übrigen nennen beide` : "Playnite und Steam einig") : "Laut Playnite";
+  return `<span class="gtags${all ? "" : " fit"}" title="${esc(tip)}">${genreOrder(g.genres).map(gTag).join("")}</span>`;
 }
 function gMp(g){
   const ms = g.mp.filter(m => m !== "multi" || g.mp.length === 1);
-  return ms.map(m => `<span${one(g, g.mpc, m) ? ` title="Nur eine Quelle (Playnite oder Steam)"` : ""}>${esc(C?.mp_label?.[m] || m)}${one(g, g.mpc, m) ? " ≈" : ""}</span>`).join(", ");
+  return ms.map(m => `<span${one(g, g.mpc, m) ? ` class="gxc" title="Nur eine Quelle (Playnite oder Steam)"` : ""}>${esc(C?.mp_label?.[m] || m)}</span>`).join(", ");
 }
 function gYear(g){
   if(!g.year) return "";
   const tip = chk(g) ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : g.retro ? "" : "Laut Playnite";
-  return `<span title="${esc(tip)}">${esc(g.year)}${chk(g) && !g.year_ok ? " ≈" : ""}</span>`;
+  return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(tip)}">${esc(g.year)}</span>`;
 }
-// Sprache eines Retro-Spiels: Deutsch vor Englisch vor Japanisch, ≈ wenn nur aus der Region geschätzt
+// Launcher bei PC-Spielen (laut Playnite; nur vermutet: violett), sonst das System, solange der Reiter es nicht schon sagt
+function gSrc(g){
+  if(g.system !== "PC") return V.d.sys ? "" : esc(g.system);
+  return g.store ? `<span class="${g.guess ? "gxc" : ""}" title="${g.guess ? "Launcher nur vermutet (Kennung ohne Angabe des Launchers)" : chk(g) ? "Von Steam bestätigt" : "Laut Playnite"}">${esc(g.store)}</span>` : "";
+}
+// Sprache eines Retro-Spiels: Deutsch vor Englisch vor Japanisch, violett wenn nur aus der Region geschätzt
 const LANG_SHORT = {De: "DE", En: "EN", Ja: "JP"};
 function langBadge(g){
   if(!g.langs?.length) return "";
   const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
-  return `<span title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}${g.lang_guess ? " ≈" : ""}</span>`;
+  return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
 }
 const FASS_SHORT = {quest: "Quest besser", pc: "PC besser", gleich: "gleichwertig"};
 const MP_SHORT = {lebendig: "lebendig", ruhig: "ruhig", tot: "tot", keiner: "keiner"};
@@ -605,15 +627,14 @@ const short = s => s.replace(/^vor /, "").replace(" Tagen", " T.").replace(" Mon
 /* Spalten je Reiter: eine Spalte erscheint nur, wenn ein Spiel im Reiter dafür einen Wert hat. d0 -1:
    erster Klick absteigend (mehr ist besser) */
 const COLS = [
-  {k: "sys", l: "System", w: "68px", only: d => !d.sys, cell: g => esc(g.system), sort: g => g.system},
   {k: "own", l: "Besitz", w: "112px", vr: true, tip: "Wo du den Titel hast", cell: g => esc(g.store), sort: g => g.store},
   {k: "cb", l: "Crossbuy", w: "70px", vr: true, tip: "Gilt der Meta-Kauf auch am PC? Herkunft im Tooltip", d0: -1,
-    cell: g => { const r = g.lib; if(r.crossbuy == null) return ""; const s = r.crossbuy_src, m = s === "Tabelle" ? " T" : s === "Recherche" ? " ≈" : "";
-      return `<span class="${r.crossbuy ? "ok" : ""}${r.crossbuy_other ? " ux" : ""}" title="${esc((r.crossbuy ? "Crossbuy" : "ohne Crossbuy") + (CB_FROM[s] ? ` (${CB_FROM[s]})` : "") + (r.crossbuy_other ? `; widerspricht: ${r.crossbuy_other}` : ""))}">${r.crossbuy ? "ja" : "nein"}${m}</span>`; },
+    cell: g => { const r = g.lib; if(r.crossbuy == null) return ""; const s = r.crossbuy_src, m = s === "Tabelle" ? " T" : "";
+      return `<span class="${r.crossbuy ? "ok" : ""}${r.crossbuy_other || s === "Recherche" ? " ux" : ""}" title="${esc((r.crossbuy ? "Crossbuy" : "ohne Crossbuy") + (CB_FROM[s] ? ` (${CB_FROM[s]})` : "") + (r.crossbuy_other ? `; widerspricht: ${r.crossbuy_other}` : ""))}">${r.crossbuy ? "ja" : "nein"}${m}</span>`; },
     sort: g => g.lib.crossbuy == null ? null : +g.lib.crossbuy},
-  {k: "rmeta", l: "Meta", w: "62px", cls: "r", vr: true, tip: "Wertung im Meta Store: Anteil 4 und 5 Sterne (VRDB), ≈ aus dem Sternschnitt", d0: -1,
+  {k: "rmeta", l: "Meta", w: "62px", cls: "r", vr: true, tip: "Wertung im Meta Store: Anteil 4 und 5 Sterne (VRDB), sonst aus dem Sternschnitt (Tooltip)", d0: -1,
     cell: g => { const m = g.lib.rating?.meta; if(!m) return ""; const v = m.pos ?? Math.round(m.stars * 20);
-      return gScore(v, `Meta Store: ${m.pos != null ? "Anteil 4 und 5 Sterne (laut VRDB)" : "Sterne × 20 (QuestStoreDB)"}, ${String(m.stars).replace(".", ",")} von 5${m.n ? `, ${num(m.n)} Bewertungen` : ""}`, m.pos == null); },
+      return gScore(v, `Meta Store: ${m.pos != null ? "Anteil 4 und 5 Sterne (laut VRDB)" : "Sterne × 20 (QuestStoreDB)"}, ${String(m.stars).replace(".", ",")} von 5${m.n ? `, ${num(m.n)} Bewertungen` : ""}`); },
     sort: g => { const m = g.lib.rating?.meta; return m ? m.pos ?? Math.round(m.stars * 20) : null; }},
   {k: "rsteam", l: "Steam", w: "62px", cls: "r", vr: true, tip: "Anteil positiver Steam-Rezensionen", d0: -1,
     cell: g => { const s = g.lib.rating?.steam; return s?.pct != null ? gScore(s.pct, `Anteil positiver Steam-Rezensionen (${num(s.n)})`) : s ? `<span class="hint" title="Eine Wertung gibt es ab 50 Rezensionen">${num(s.n)} R.</span>` : ""; },
@@ -624,19 +645,19 @@ const COLS = [
   {k: "upd", l: "Update", w: "64px", cls: "r", vr: true, tip: "Letztes Steam-Update laut Entwickler",
     cell: g => { const u = g.lib.measured?.update; return u ? `<span title="${esc(`${day(u.date)}: ${u.title}`)}">${short(agoDays(u.date))}</span>` : ""; },
     sort: g => g.lib.measured?.update ? -Date.parse(g.lib.measured.update.date) : null},
-  {k: "op", l: "Recherche", w: "minmax(0,1fr)", vr: true, tip: "≈ aus Foren und Tests zusammengetragen, nicht geprüft",
+  {k: "op", l: "Recherche", w: "minmax(0,1fr)", vr: true, tip: "Aus Foren und Tests zusammengetragen, nicht geprüft (violett)",
     cell: g => { const o = g.lib.opinion; if(!o) return ""; const t = [o.fassung && FASS_SHORT[o.fassung], o.mehrspieler && "MP " + MP_SHORT[o.mehrspieler]].filter(Boolean).join(" · ");
-      return `<span class="ux" title="≈ Recherche${o.stand ? ", " + esc(o.stand) : ""}">≈ ${esc(t || "Meinungen")}</span>`; },
+      return `<span class="ux" title="Recherche aus Foren und Tests, nicht geprüft${o.stand ? ", " + esc(o.stand) : ""}">${esc(t || "Meinungen")}</span>`; },
     sort: g => g.lib.opinion?.fassung || null},
   {k: "pl", l: "Spieler", w: "52px", cls: "r", tip: "Höchste Spielerzahl laut Playnite", d0: -1, cell: g => g.players ? `bis ${g.players}` : "", sort: g => g.players || null},
-  {k: "mp", l: "Mehrspieler", w: "minmax(90px,.7fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen; ≈ nur eine Quelle", cell: gMp, sort: g => g.mp.length || null, d0: -1},
+  {k: "mp", l: "Mehrspieler", w: "minmax(90px,.7fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen; violett: nur eine Quelle", cell: gMp, sort: g => g.mp.length || null, d0: -1},
   {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "Anteil positiver Steam-Rezensionen, ab 50 Rezensionen", d0: -1,
     cell: g => gScore(g.score, `Anteil positiver Steam-Rezensionen (${g.reviews != null ? num(g.reviews) : "–"})`), sort: g => g.score},
   {k: "rev", l: "Rezensionen", w: "98px", cls: "r", tip: "Wie bekannt: Zahl der Steam-Rezensionen", d0: -1, cell: g => g.reviews != null ? num(g.reviews) : "", sort: g => g.reviews},
-  {k: "lang", l: "Sprache", w: "58px", tip: "Laut Dateiname; ≈ aus der Region geschätzt", cell: langBadge, sort: g => g.langs?.includes("De") ? 0 : g.langs?.length ? 1 : null},
+  {k: "lang", l: "Sprache", w: "58px", tip: "Laut Dateiname; violett: nur aus der Region geschätzt", cell: langBadge, sort: g => g.langs?.includes("De") ? 0 : g.langs?.length ? 1 : null},
   {k: "genre", l: "Genre", w: "minmax(0,1fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen", cell: gGenres, sort: g => g.genres[0] || null},
   {k: "year", l: "Jahr", w: "44px", cls: "r", d0: -1, cell: gYear, sort: g => g.year || null},
-  {k: "store", l: "Laden", w: "74px", tip: "Laut Playnite; ≈ nur vermutet", cell: g => g.store ? `${esc(g.store)}${g.guess ? " ≈" : ""}` : "", sort: g => g.store || null},
+  {k: "store", l: "Launcher", w: "92px", tip: "PC: Launcher laut Playnite (violett: nur vermutet); Konsolen: das System", cell: gSrc, sort: g => g.system !== "PC" ? g.system : g.store || null},
 ];
 const colsFor = (d, rows) => COLS.filter(c => (d.sys === "VR") === !!c.vr && (!c.only || c.only(d)) && rows.some(g => c.cell(g)));
 /* Marken hinter dem Namen, knapp: Mein Stand, VR, Geheimtipp, Retro (DE fehlt, Homebrew, Hack, nicht mehr
@@ -648,13 +669,13 @@ function gBadges(g){
     const r = g.lib;
     if(r.wish) b.push(`<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>`);
     if(r.bundle) b.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
-    if(r.steam_appid && !r.steam_sure) b.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt : "Steam-ID nur nach dem Namen zugeordnet")}">Steam-ID ≈</span>`);
+    if(r.steam_appid && !r.steam_sure) b.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt : "Steam-ID nur nach dem Namen zugeordnet")}">Steam-ID prüfen</span>`);
     return b.join("");
   }
-  if(g.vr) b.push(`<span class="b" title="Laut Steam mit VR-Unterstützung">VR</span>`);
+  if(g.vr) b.push(`<span class="b vrb" title="Laut Steam mit VR-Unterstützung">VR</span>`);
   if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
   if(g.retro){
-    if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt${g.de.guess ? " ≈" : ""}</span>`);
+    if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
     if(g.flags.includes("homebrew")) b.push(`<span class="b">Homebrew</span>`);
     if(g.flags.includes("hack")) b.push(`<span class="b">Hack</span>`);
     if(g.gone) b.push(`<span class="b warn" title="Stand in der letzten Retro-Liste nicht mehr">nicht mehr in der Liste</span>`);
@@ -678,17 +699,37 @@ function gDetail(g){
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
   }
   const sc = g.score != null ? `${gScore(g.score, "Anteil positiver Steam-Rezensionen")} positiv bei ${num(g.reviews)} Steam-Rezensionen` : g.reviews != null ? `${num(g.reviews)} Steam-Rezensionen, eine Wertung gibt es ab 50` : "";
-  const gem = g.gem > 0 ? `${String(g.gem).replace(".", ",")} von 1${g.gem_guess ? " ≈" : ""}` : "";
+  const gem = g.gem > 0 ? `${String(g.gem).replace(".", ",")} von 1` : "";
   const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : ""].filter(Boolean).join(", ") : "";
   const facts = row("Wertung", sc) + row("Geheimtipp", gem, "Gute Wertung, wenige Rezensionen") + row("Spieler", g.players ? `bis ${g.players}` : "", "Laut Playnite") +
-    row("Mehrspieler", gMp(g)) + row("Genre", gGenres(g)) + row("Erschienen", gYear(g)) + row("Entwickler", esc(g.dev)) +
-    row("Laden", g.store ? `${esc(g.store)}${g.guess ? " ≈" : ""}` : "", g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : chk(g) ? "Laden von Steam bestätigt" : "Laut Playnite") +
-    row("Sprache", g.langs?.length ? `${esc(g.langs.join(", "))}${g.lang_guess ? " ≈" : ""}` : "", g.lang_guess ? "Aus der Region geschätzt" : "Laut Dateiname") +
+    row("Mehrspieler", gMp(g)) + row("Genre", gGenres(g, true)) + row("Erschienen", gYear(g)) + row("Entwickler", esc(g.dev)) +
+    row(g.system === "PC" ? "Launcher" : "System", g.system === "PC" ? gSrc(g) : esc(g.system)) +
+    row("Sprache", g.langs?.length ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
   const src = g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : chk(g) ? "Playnite, mit Steam abgeglichen" : g.system === "PC" ? "nur Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite";
-  const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Laden</a>`].filter(Boolean).join(" · ");
+  const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
+/* Genres in der Zeile einzeilig (0.6.1): so viele Blasen, wie mit „+n“ dahinter in die Spalte passen;
+   alle stehen in den Einzelheiten */
+function fitTags(){
+  for(const t of document.querySelectorAll(".gr .gtags.fit")){
+    t.querySelector(".gmore")?.remove();
+    const cs = [...t.children];
+    cs.forEach(c => { c.hidden = false; });
+    if(cs.length < 2 || cs[cs.length - 1].offsetTop === cs[0].offsetTop) continue;
+    const more = document.createElement("span");
+    more.className = "chip gmore";
+    t.appendChild(more);
+    for(let n = cs.length - 1; n >= 1; n--){
+      cs[n].hidden = true;
+      more.textContent = `+${cs.length - n} weitere`;
+      if(more.offsetTop === cs[0].offsetTop) break;
+    }
+    more.title = cs.filter(c => c.hidden).map(c => c.textContent).join(", ");
+  }
+}
+addEventListener("resize", () => { if(V.tab === "find") fitTags(); });
 // Sammlung lädt beim Scrollen weiter: kommt „weitere zeigen“ in Sicht, klickt es sich selbst
 let moreObs = null;
 function moreOnScroll(){
@@ -746,7 +787,7 @@ function findView(){
   const label = dLabel(d);
   const filters = `<div class="dfilter">${kinds}${genres}
       ${inTab.some(g => g.players) ? `<label>Spieler <select data-dset="min">${opt([[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>` : ""}
-      ${stores.length > 1 ? `<label>${vr ? "Besitz" : "Laden"} <select data-dset="st">${opt([["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>` : ""}
+      ${stores.length > 1 ? `<label>${vr ? "Besitz" : "Launcher"} <select data-dset="st">${opt([["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>` : ""}
       ${inTab.some(g => g.score != null) ? `<label>Wertung <select data-dset="sc">${opt([[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>` : ""}
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
@@ -770,10 +811,10 @@ function findView(){
     <p class="hint">${gone.slice(0, 40).map(g => `${esc(g.name)} (${esc(g.system)})`).join(", ")}${gone.length > 40 ? " …" : ""}</p>
     <div class="actions"><button data-act="retrogone" data-v="keep" title="Die Spiele bleiben in der Sammlung, der Hinweis verschwindet">Behalten</button>
       <button class="primary" data-act="retrogone" data-v="drop" title="Die Spiele werden aus der Sammlung entfernt">Stand übernehmen</button></div></div>` : "";
-  const src = vr ? `Deine VR-Titel: Meta-Käufe und VR-Spiele aus Playnite. Wertungen von Meta (VRDB, ≈ aus dem Sternschnitt) und Steam, Spieler und Updates von Steam, ≈ Recherche aus Foren und Tests.`
-    : [nPn && `${at ? `Playnite-Export vom ${day(at)}. ` : ""}Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.`,
-      nRetro && `Retro-Liste${rat ? ` vom ${day(rat)}` : ""}: Sprache laut Dateiname, ≈ = aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""}. Genres und Spielerzahl für Retro-Spiele kommen später.`].filter(Boolean).join(" ");
-  const note = `<p class="hint">${rows.length === inTab.length ? `Alle ${inTab.length} Spiele` : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys)})` : ""}. ${src}</p>`;
+  const src = vr ? `Deine VR-Titel: Meta-Käufe und VR-Spiele aus Playnite. Wertungen von Meta (VRDB, sonst aus dem Sternschnitt) und Steam, Spieler und Updates von Steam, Recherche aus Foren und Tests violett.`
+    : [nPn && `${at ? `Playnite-Export vom ${day(at)}. ` : ""}Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (violett: nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.`,
+      nRetro && `Retro-Liste${rat ? ` vom ${day(rat)}` : ""}: Sprache laut Dateiname, violett: nur aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""}. Genres und Spielerzahl für Retro-Spiele kommen später.`].filter(Boolean).join(" ");
+  const note = `<p class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${inTab.length} Spiele`) : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys)})` : ""}. ${src}</p>`;
   const head = `<div class="gr nph" role="row">${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
   return goneCard + tabs + bar + mixes + filters + pickCard + note +
     glist(rows.slice(0, d.n).map(g => gRow(g, cols)).join("") || `<p class="hint">Kein Treffer.</p>`, head) +
@@ -828,8 +869,12 @@ function settingsView(){
   const next = last && se.auto ? new Date(+last + hours * 3600000) : null;
   const shown = SOURCES.filter(([k]) => !ACCOUNT_SET[k] || ACCOUNT_SET[k](se));
   const rows = shown.map(([k, l]) => `<div class="item"><span class="nm">${l}</span>${srcState(k, src[k])}</div>`).join("");
-  const bad = shown.filter(([k]) => src[k] && !src[k].ok).length, okN = shown.filter(([k]) => src[k]?.ok).length;
-  const srcInfo = [okN && `${okN} ok`, bad && `<span class="err">${bad} mit Problem</span>`].filter(Boolean).join(", ") || "noch nicht gelaufen";
+  // „per Lesezeichen“ (gg.deals-Wunschliste hinter Cloudflare) ist kein Fehler, sondern der Weg
+  const isBad = k => src[k] && !src[k].ok && !src[k].manual;
+  const bad = shown.filter(([k]) => isBad(k)).length, okN = shown.filter(([k]) => src[k]?.ok).length;
+  // Wie im eShopKompass: grün, was läuft, rot mit Namen, was nicht läuft
+  const badNames = shown.filter(([k]) => isBad(k)).map(([k]) => SRC_NAME[k] || k).join(", ");
+  const srcInfo = [okN && `<b class="ok">${okN} ok</b>`, bad && `<b class="err">${bad} mit Problem</b> (${esc(badNames)})`].filter(Boolean).join(", ") || "noch nicht gelaufen";
   const todo = S.todo || [], lists = S.lists || [], open = sug + todo.length + lists.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
@@ -862,7 +907,7 @@ function settingsView(){
       <input type="number" name="hours" min="2" max="48" value="${esc(hours)}" aria-label="Abstand in Stunden" data-sched="1"> Stunden <span class="err" id="s-err"></span></form>
     <p class="hint">Liest deine Konten, ordnet alle Titel zu und holt Preise und Messwerte. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen; nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     ${sub("quellen", "Quellen", srcInfo, `<div class="list">${rows}</div>`, !bad)}
-    <div class="bar" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Aktualisieren"}</button>
+    <div class="bar slim" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Aktualisieren"}</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
     ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}
     ${sub("logbox", "Protokoll", logInfo + (sy.started ? ` · <button class="link" data-act="copy" data-v="log">kopieren</button>` : ""), `<pre class="log" id="log"></pre>`, sy.ok !== false && !sy.running, "logfold")}

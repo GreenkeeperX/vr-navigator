@@ -15,7 +15,7 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 | Gold | `--best` | am Bestpreis (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
 | Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
 | Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
-| Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
+| Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“ (Wunschliste; Sammlung „Steam-ID prüfen“), Wert aus nur einer Quelle in der Sammlung (`.gxc`), Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „Wunsch · Tabelle“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
 
 Ausnahme, nur für die Reiter je System in der Sammlung (Entscheidung 27.10.2026): der gewählte
@@ -27,9 +27,13 @@ Weitere Ausnahmen in der Sammlung, übernommen aus „Spiele“ im eShopKompass 
 27.10.2026): Die Wertung ist ein Farbton von Rot über Gelb nach Grün (`.gsc`, `--sh` aus 50 bis
 95 %), Genres stehen als Blasen im Farbton ihrer Verwandtschaft (`.chip.gg`, `G_HUE`; violett
 bleibt frei). Mein Stand: Backlog ○ rot, angefangen ▷ blau, durchgespielt ✓ grün, Favorit ★
-gold; nur als Zeichen, nie als Fläche.
+gold; nur als Zeichen, nie als Fläche. Die Marke „VR“ hinter dem Namen ist türkis gefüllt
+(`.b.vrb`). Der gewählte System-Reiter: Linie in der Familienfarbe, Schrift in `--ink`
+(Nintendo-Rot `#e60012`, dunkel `#ff3d48`).
 
-Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle;
+Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle
+(in der Sammlung seit 0.6.1 kein „≈“ mehr: unbestätigt steht violett, `.gxc`, der Tooltip nennt die
+Quelle; das gilt nach und nach überall);
 „Tabelle“ (samt Datum, wo Platz ist) aus der Vergleichstabelle; violett gestrichelt Recherche.
 Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Legende („?“), nicht
 über jeder Liste; über einer Liste höchstens eine Zeile.
@@ -66,6 +70,14 @@ Leertaste ebenso; der dritte Klick nimmt die Sortierung zurück. Der Name ist ei
 die Einzelheiten (`.gd`) auf: links die Angaben (`.gdf`, Name und Wert), rechts Mein Stand
 (`.gdm`), darunter klein Herkunft und Links. Unter 760 px stehen die Werte je Zeile mit kleinem
 Namen davor untereinander, leere Werte fallen weg.
+
+Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,
+Mein Stand (`.gdm`) ab der zweiten Spalte (Spieler), oben bündig; so steht er in jedem Reiter an
+derselben Stelle. Die Marke von Mein Stand hinter dem Namen hat eine feste Breite und Höhe, damit
+die Zeile beim Setzen nicht springt. Genres in der Zeile: `.gtags.fit`, einzeilig; `fitTags()`
+blendet aus, was nicht passt, und hängt „+n weitere“ (`.chip.gmore`) an. Reihenfolge
+(`genreOrder`): seltenstes in der Sammlung zuerst, dann Alphabet, „Sonstiges“ zuletzt. Spalte
+Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 
 ## Hell, dunkel, System
 
@@ -104,7 +116,9 @@ Namen davor untereinander, leere Werte fallen weg.
   Feld für jede Datei), Abgleich (oben „automatisch alle … Stunden“, speichert sofort; Quellen,
   „Aktualisieren“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung
   (drei Knöpfe wie im eShopKompass: Abgleichsdaten herunterladen, Sicherung herunterladen,
-  Sicherung einlesen).
+  Sicherung einlesen). Die Klappe „Quellen“ nennt den Stand farbig wie im eShopKompass
+  („10 ok“ grün, „1 mit Problem (gg.deals)“ rot); Knöpfe in der Zeile `.bar.slim` sind so hoch wie
+  im eShopKompass.
   Das Protokoll ist zu, außer der letzte Lauf hatte Fehler.
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter „Sortieren“ als Auswahl,
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
@@ -113,7 +127,7 @@ Namen davor untereinander, leere Werte fallen weg.
 - Sammlung öffnet im Reiter PC (gibt es keine PC-Spiele, „Alle“); der gewählte System-Reiter ist
   in seiner Familienfarbe unterstrichen (siehe Grundsatz).
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
-  übernehmen); Retro-Spiele tragen DE, EN oder JP (≈ aus der Region geschätzt), Homebrew, Hack
+  übernehmen); Retro-Spiele tragen DE, EN oder JP (violett: aus der Region geschätzt), Homebrew, Hack
   und „nicht mehr in der Liste“ als Marken, Dateizahl und Regionen in den Einzelheiten. Unterreiter je System („Alle“, PC, VR, dann Konsolen, je mit grauer Zahl; der
   gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
   müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).

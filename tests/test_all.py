@@ -407,7 +407,7 @@ class TestCollection(unittest.TestCase):
                           so(["Nintendo 3DS"]), so(["Nintendo DS"]), so(["Nintendo Super Nintendo Entertainment System"]),
                           so(["Nintendo Entertainment System"]), so(["Nintendo 64"]), so(["Nintendo GameCube"]),
                           so(["Nintendo Wii"]), so(["Nintendo Wii U"]), so(["Nintendo Virtual Boy"]), so(["Microsoft Xbox One"])],
-                         ["PS4", "PS2", "PS", "GBA", "GBC", "GB", "3DS", "DS", "SNES", "NES", "N64", "GameCube",
+                         ["PS4", "PS2", "PS1", "GBA", "GBC", "GB", "3DS", "DS", "SNES", "NES", "N64", "GameCube",
                           "Wii", "Wii U", "VB", "Xbox One"])
         self.assertEqual([so(["PC (Windows)", "Sony PlayStation 4"]), so([]), so(["Amiga"]), so([], "PlayStation", "PPSA00001_00")],
                          ["PC", "PC", "PC", "PS5"])
@@ -454,7 +454,7 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(imports.detect(SHEET), "sheet")
         games, st = retro.parse(text)
         self.assertEqual(sorted(games), ["retro:3ds:comet chase", "retro:gb:moon rover", "retro:gb:tiny tennis",
-                                         "retro:ps:harbor heist", "retro:snes:star hop", "retro:snes:the legend of pixels"])
+                                         "retro:ps1:harbor heist", "retro:snes:star hop", "retro:snes:the legend of pixels"])
         self.assertEqual((st["files"], st["archive"], st["save"], st["extra"], st["unknown"]), (8, 2, 0, 1, 1))    # saves/ zählt wie ein Archiv-Ordner
         self.assertEqual(retro.unknown_lines(text), ["Comet Chase.iso"])
         mr = games["retro:gb:moon rover"]
@@ -465,8 +465,13 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(games["retro:gb:tiny tennis"]["flags"], ["homebrew"])
         cc = games["retro:3ds:comet chase"]
         self.assertEqual((cc["regions"], cc["tid"], cc["serial"]), (["Europe"], "0004000000ABC000", "CTR-P-ABCP"))
-        self.assertEqual(games["retro:ps:harbor heist"]["files"], 2)
+        self.assertEqual(games["retro:ps1:harbor heist"]["files"], 2)
         self.assertNotIn("Spiele", json.dumps(games))                  # keine Pfade in den Daten
+        # Sammlung von 0.6.0: die erste PlayStation hieß „PS“, wird beim Einlesen zu PS1, ohne Doppel
+        c0 = {"games": {"retro:ps:harbor heist": {"name": "Harbor Heist", "system": "PS", "src": retro.SRC, "info": {"x": 1}}}}
+        retro.apply(c0, {k: g for k, g in games.items() if g["system"] == "PS1"}, dry=False)
+        self.assertEqual(list(c0["games"]), ["retro:ps1:harbor heist"])
+        self.assertEqual((c0["games"]["retro:ps1:harbor heist"]["system"], c0["games"]["retro:ps1:harbor heist"]["info"]), ("PS1", {"x": 1}))
         # CSV „System; Titel“
         g2, _ = retro.parse("System;Titel\nSNES;Star Hop (Japan)\nGame Boy Advance;Orbit Golf\n")
         self.assertEqual(sorted(g2), ["retro:gba:orbit golf", "retro:snes:star hop"])
@@ -514,7 +519,7 @@ class TestCollection(unittest.TestCase):
         # ohne Retool-Liste bleibt die Umbenennung unerkannt
         self.assertEqual(retro.match(g("Star Hop", ["En"]), retro.build_index(RETRO_DAT))["st"], "none")
         self.assertTrue(retro.urls("GBA")[1].endswith("Game%20Boy%20Advance%20%28No-Intro%29.json"))
-        self.assertIn("/metadat/redump/", retro.urls("PS")[0])
+        self.assertIn("/metadat/redump/", retro.urls("PS1")[0])
         self.assertIsNone(retro.urls("3DS"))
         col = {"games": {}}
         retro.apply(col, retro.parse("GBA/Moon Rover (USA).gba\nGBA/Pixel Kart (USA, Europe).gba\n3DS/Comet Chase (E).cia\n")[0], dry=False)

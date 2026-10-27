@@ -45,7 +45,7 @@ FOLDER_SHORT = {
     "nes": "NES", "fc": "NES", "famicom": "NES", "snes": "SNES", "sfc": "SNES", "n64": "N64", "gb": "GB",
     "gbc": "GBC", "gba": "GBA", "nds": "DS", "ds": "DS", "dsi": "DS", "3ds": "3DS", "vb": "VB",
     "pm": "Pokémon Mini", "pokemini": "Pokémon Mini", "gc": "GameCube", "ngc": "GameCube", "gcn": "GameCube",
-    "wii": "Wii", "wiiu": "Wii U", "psx": "PS", "ps1": "PS", "ps": "PS", "ps2": "PS2", "ps3": "PS3",
+    "wii": "Wii", "wiiu": "Wii U", "psx": "PS1", "ps1": "PS1", "ps": "PS1", "ps2": "PS2", "ps3": "PS3",
     "psp": "PSP", "vita": "PS Vita", "psv": "PS Vita", "md": "Mega Drive", "genesis": "Mega Drive",
     "sms": "Master System", "gg": "Game Gear", "saturn": "Saturn", "dc": "Dreamcast", "pce": "PC Engine",
 }
@@ -274,6 +274,10 @@ def apply(col, games, dry=True):
     (Tag), statt gelöscht zu werden; taucht es wieder auf, fällt die Marke weg.
     Gibt (neu, Namen der fehlenden) zurück."""
     old = col.get("games") or {}
+    # Bis 0.6.0 hieß die erste PlayStation „PS“ (Schlüssel retro:ps:…)
+    for k in [k for k, g in old.items() if g.get("src") == SRC and g.get("system") == "PS"]:
+        g = old.pop(k)
+        old.setdefault("retro:ps1:" + k.split(":", 2)[2], dict(g, system="PS1"))
     systems = {g["system"] for g in games.values()}
     new = [k for k in games if k not in old]
     gone = [k for k, g in old.items() if g.get("src") == SRC and g.get("system") in systems and k not in games]
@@ -327,7 +331,7 @@ DATS = {
     "Pokémon Mini": ("no-intro", "Nintendo - Pokemon Mini"), "Mega Drive": ("no-intro", "Sega - Mega Drive - Genesis"),
     "Master System": ("no-intro", "Sega - Master System - Mark III"), "Game Gear": ("no-intro", "Sega - Game Gear"),
     "GameCube": ("redump", "Nintendo - GameCube"), "Wii": ("redump", "Nintendo - Wii"),
-    "PS": ("redump", "Sony - PlayStation"), "PS2": ("redump", "Sony - PlayStation 2"), "PSP": ("redump", "Sony - PlayStation Portable"),
+    "PS1": ("redump", "Sony - PlayStation"), "PS2": ("redump", "Sony - PlayStation 2"), "PSP": ("redump", "Sony - PlayStation Portable"),
 }
 _SKIP_REL = re.compile(r"\((?:Beta|Proto|Demo|Sample|Kiosk|Pirate|Debug)[^)]*\)", re.I)
 

@@ -105,7 +105,7 @@ def console_only(platforms, source="", gid=""):
 SYSTEMS = [
     ("PS5", r"playstation ?5|\bps ?5\b"), ("PS4", r"playstation ?4|\bps ?4\b"), ("PS3", r"playstation ?3|\bps ?3\b"),
     ("PS2", r"playstation ?2|\bps ?2\b"), ("PS Vita", r"\bvita\b"), ("PSP", r"\bpsp\b|playstation portable"),
-    ("PS", r"playstation(?! ?[2-5])|\bps ?1\b|\bpsx\b"),
+    ("PS1", r"playstation(?! ?[2-5])|\bps ?1\b|\bpsx\b"),
     ("Xbox Series", r"xbox series"), ("Xbox One", r"xbox one"), ("Xbox 360", r"xbox 360"), ("Xbox", r"xbox"),
     ("Switch", r"\bswitch\b"), ("Wii U", r"wii ?u\b"), ("Wii", r"\bwii\b"), ("GameCube", r"gamecube"),
     ("N64", r"nintendo 64|\bn64\b"), ("SNES", r"super nintendo|\bsnes\b|super famicom"),
@@ -114,7 +114,8 @@ SYSTEMS = [
     ("VB", r"virtual boy|\bvb\b"),
 ]
 _SYSTEMS = [(n, re.compile(p, re.I)) for n, p in SYSTEMS]
-# PlayStation-Kennungen ohne Plattform: CUSA/PLAS PS4, PPSA PS5, NPWR PS3 oder Vita, sonst nur „PS“ unbestimmt
+# PlayStation-Kennungen ohne Plattform: CUSA/PLAS PS4, PPSA PS5, NPWR PS3 oder Vita, sonst nur „PS“ unbestimmt.
+# Die erste PlayStation heißt seit 0.6.1 „PS1“ (vorher „PS“)
 # NPWR… sind Trophäenlisten: Playnite führt so Spiele von PS3 und PS Vita, ohne zu sagen, von welcher
 _PSN_SYS = {"CUSA": "PS4", "PLAS": "PS4", "PPSA": "PS5", "PCSA": "PS Vita", "PCSB": "PS Vita", "PCSE": "PS Vita",
             "NPWR": "PS3 / Vita"}
@@ -144,6 +145,7 @@ def system_order(name):
     """Reihenfolge der Reiter: PC vorn, dann wie in SYSTEMS."""
     names = ["PC"] + [n for n, _ in SYSTEMS] + EXTRA_ORDER
     names.insert(names.index("PS3") + 1, "PS3 / Vita")
+    names.insert(names.index("PS1") + 1, "PS")       # PlayStation ohne erkennbare Generation
     return names.index(name) if name in names else len(names)
 
 

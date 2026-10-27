@@ -6,7 +6,7 @@
   --deal:#1d5fbf; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
   --go:#0d6b4f; --go-bg:#dcefe4; --stop:#b3261e; --stop-bg:#f8dfdc; --warn:#6b3fb3; --warn-bg:#ece5fa;
   /* Nur für die Reiter je System in der Sammlung: Nintendo, PlayStation, PC */
-  --sys-nin:#c8102e; --sys-ps:#0060c0; --sys-pc:#4a7a00;
+  --sys-nin:#e60012; --sys-ps:#0060c0; --sys-pc:#4a7a00;
   /* Sammlung (wie im eShopKompass): offene Zeile, Genre-Blasen und Wertung als Farbton */
   --open:#f8f6f0; --gg-s:52%; --gg-bl:90%; --gg-ts:40%; --gg-tl:28%; --sc-s:70%; --sc-l:34%;
 }
@@ -16,7 +16,7 @@
   --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
-  --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
   --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }}
 :root[data-theme=dark]{color-scheme:dark;
@@ -24,7 +24,7 @@
   --accent:#cfdcda; --brand:#4fc3d4; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
-  --sys-nin:#ff6b6b; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
   --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }
 :root[data-theme=light]{color-scheme:light}
@@ -165,7 +165,8 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .systabs button.fam-pc{--fam:var(--sys-pc)}
 .systabs button:not([class*=fam-]){--fam:var(--accent)}
 .systabs button:hover{border-bottom-color:color-mix(in srgb,var(--fam) 40%,transparent)}
-.systabs button.on{border-bottom:3px solid var(--fam);color:var(--fam);font-weight:600}
+/* Gewählt: Linie in der Familienfarbe, Name in Textfarbe (0.6.1; verschiedene Rottöne beißen sich sonst) */
+.systabs button.on{border-bottom:3px solid var(--fam);color:var(--ink);font-weight:600}
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
 .chips.mix{margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 .chips.mix button{white-space:nowrap}
@@ -235,6 +236,8 @@ details.menu input[type=search]{width:100%}
 .legend .shopmark{border:2px solid var(--go);border-radius:6px;padding:0 5px}
 .legend .best-t{color:var(--best);font-weight:600}
 .sched{font-size:14px}
+/* Aktualisieren und Verbindung testen gleich hoch (wie im eShopKompass) */
+.bar.slim>button{padding:4px 12px;font-size:14px;line-height:1.4}
 .sched input[type=number]{width:64px}
 .rate{color:var(--ink)}
 .rate.win{color:var(--go);font-weight:600}
@@ -268,11 +271,20 @@ details.op .ux{color:var(--warn)}
 .gr.open button.link.g-n{font-weight:600}
 .gr .ux,.gr .ux *{color:var(--warn)}
 .gtags{display:flex;flex-wrap:wrap;gap:3px 4px;min-width:0}
+.gtags.fit{max-height:19px;overflow:hidden}
+.gtags>[hidden]{display:none}
+.chip.gmore{background:none;padding:0 2px}
+.gxc,.gxc *{color:var(--warn)}
+.b.vrb{background:var(--brand);color:var(--card)}
 .chip{display:inline-block;font-size:11px;border-radius:999px;padding:0 7px;background:var(--chip);color:var(--muted);white-space:nowrap}
 .chip.gg{background:hsl(var(--gh) var(--gg-s) var(--gg-bl));color:hsl(var(--gh) var(--gg-ts) var(--gg-tl))}
 .gsc{color:hsl(var(--sh) var(--sc-s) var(--sc-l));font-weight:600}
-.gme{flex:none;display:inline-flex;gap:4px;align-items:center;font-size:13px}
+/* Feste Höhe: größere Zeichen (✓, ★) dürfen die Zeile nicht höher machen; ○ und ▷ sitzen in der Schrift tiefer */
+.gme{flex:none;display:inline-flex;gap:4px;align-items:center;align-self:center;height:14px;line-height:14px;font-size:13px}
+.gme>span{display:inline-block;height:14px;line-height:14px}
 .gme .gst.done,.gme .gfav{font-size:15px}
+.gme .gst.backlog,.gme .gst.started{position:relative;top:-1px}
+.gmark .gst,.gmark .gfav{display:inline-block;width:1em;text-align:center;line-height:1}
 .gst{-webkit-text-stroke:.5px currentColor}
 .gst.backlog{color:var(--stop)}
 .gst.started{color:var(--deal)}
@@ -280,11 +292,15 @@ details.op .ux{color:var(--warn)}
 .gfav{color:var(--best)}
 .gr.open,.gd{background:var(--open);box-shadow:-10px 0 0 var(--open),10px 0 0 var(--open)}
 .gr.open{border-top-style:solid}
-.gd{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;padding:4px 0 10px;font-size:13px}
-.gdf{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 14px;align-content:start;padding-left:14px}
+/* Einzelheiten im Raster der Liste (wie im eShopKompass): Angaben unter dem Namen, Mein Stand ab der zweiten
+   Spalte, in jedem Reiter an derselben Stelle */
+.gd{display:grid;grid-template-columns:var(--gcols);gap:6px 10px;padding:4px 0 10px;font-size:13px}
+.gdf{grid-column:1/2;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 14px;align-content:start;padding-left:14px}
+.gdv{grid-column:1/2}
+.gdm{grid-column:2/-1;padding-top:2px}
 .gd .fl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .gd .fv{min-width:0;overflow-wrap:anywhere}
-.gdm{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.gdm{display:flex;flex-direction:column;gap:5px;align-items:flex-start;align-self:start}
 .gmk{display:flex;flex-wrap:wrap;gap:6px}
 .gmark{display:inline-flex}
 .gmark button{flex:none;white-space:nowrap;font-size:12px;padding:1px 8px;background:var(--card)}
@@ -304,5 +320,6 @@ details.menu .opts .chip{font-size:12px}
   .gr>span[data-l]:not(.c-gen)::before{content:attr(data-l) " ";color:var(--muted);font-size:11px}
   .gr .c-gen{flex:1 0 100%}
   .gd{grid-template-columns:minmax(0,1fr)}
+  .gdf,.gdv,.gdm{grid-column:1}
   .gdf,.gdv,.gd .gds{padding-left:4px}
 }
