@@ -211,6 +211,16 @@ Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DA
 wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb` in `collection.json`
 (`none: true` ohne Treffer); ein neuer Playnite-Export und eine neue Retro-Liste behalten es.
 
+## PC-Wunschliste (ab 0.8.2)
+
+Die ganze gg.deals-Wunschliste (über den Teilen-Link, das Lesezeichen oder eine Datei) liegt in
+`pcwish.json`; eine neue Liste behält Steam-ID und Preise je Spiel. Nach den Konten:
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Steam-Suche | `store.steampowered.com/api/storesearch/?term=<Name>&l=german&cc=DE` | nur ohne Steam-ID aus Titeln oder Sammlung, 30 je Lauf, je Spiel höchstens alle 7 Tage | App-ID bei genau einem gleichen Namen |
+| gg.deals-Preise | `https://api.gg.deals/v1/prices/by-steam-app-id/?ids=<IDs>&region=de` (mit Schlüssel) | jeder Lauf, Pakete zu 100 IDs | Händler und Keyshop jetzt, bisheriges Tief, Link |
+
 ## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
 
 Für „VR per Mod“ am PC: nur PC-Spiele, die laut Steam kein VR eingebaut haben. Bekannte Spiele (viele

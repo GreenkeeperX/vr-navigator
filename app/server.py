@@ -10,7 +10,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import collection, imports, library, lists, retro, sources, store, sync, titles
+from . import collection, imports, library, lists, pcwish, retro, sources, store, sync, titles
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -134,7 +134,7 @@ def import_retro(data, text, dry):
 def state():
     data = store.load_data()
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
-                marks=data["marks"], version=sources.VERSION,
+                marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
                 sync=sync.status(), settings=settings_view())
 
 

@@ -297,6 +297,8 @@ details.op .ux{color:var(--warn)}
 .gr .t .b{flex:none;font-size:11px}
 .gr button.link.g-n{text-decoration:none;color:inherit;text-align:left;font:inherit;padding:0;min-width:3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
 .gr button.link.g-n:hover{text-decoration:underline}
+.gr a.g-n{color:inherit;text-decoration:none;min-width:3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+.gr a.g-n:hover{text-decoration:underline}
 .gr.open button.link.g-n{font-weight:600;color:var(--ink-hi)}
 .gr .ux,.gr .ux *{color:var(--warn)}
 .gtags{display:flex;flex-wrap:wrap;gap:3px 4px;min-width:0}
@@ -366,7 +368,7 @@ details.menu .opts .chip{font-size:12px}
   .gr.nph{display:none}
   .gr{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline}
   .gr .t{flex:1 0 100%;flex-wrap:wrap;white-space:normal}
-  .gr button.link.g-n{white-space:normal}
+  .gr button.link.g-n,.gr a.g-n{white-space:normal}
   .gr .nil{display:none}
   .gr>span[data-l]:not(.c-gen)::before{content:attr(data-l) " ";color:var(--muted);font-size:11px}
   .gr .c-gen{flex:1 0 100%}

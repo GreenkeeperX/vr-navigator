@@ -513,6 +513,8 @@ def import_ggpage(data, payload, dry=True):
         res.update(wish_added=r["wish_added"], wish_removed=r["wish_removed"], unknown=r["unknown"])
         data["gg_unknown"] = r["unknown"]
         data["imports"]["ggwish"] = {"at": titles.now_iso(), "n": len(items), "new": 0, "via": "Lesezeichen"}
+        from . import pcwish
+        pcwish.replace(items, "Lesezeichen")         # 0.8.2: die ganze Liste für den Unterreiter PC
     res["what"] = "gg.deals-Wunschliste"
     res["note"] = ("Gezählt werden Titel, die das Tool schon kennt. Die übrigen sucht der nächste Abgleich im "
                    "Steam-Store und nimmt sie auf, wenn sie VR können.")
@@ -553,6 +555,8 @@ def import_ggwish(data, text, dry=True):
         r = accounts.apply_gg_wishes(data, items)
         res.update(wish_added=r["wish_added"], wish_removed=r["wish_removed"], unknown=r["unknown"])
         data["imports"]["ggwish"] = {"at": titles.now_iso(), "n": len(items), "new": 0}
+        from . import pcwish
+        pcwish.replace(items, "Datei")
     res["what"] = "gg.deals-Wunschliste"
     res["note"] = "Es zählen nur Titel, die das Tool schon kennt; ob ein unbekanntes Spiel VR kann, lässt sich ohne Steam-ID nicht prüfen."
     return res
