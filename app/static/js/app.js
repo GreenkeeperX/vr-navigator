@@ -479,7 +479,7 @@ function allGames(){
   if(!GM || GM.s !== S || GM.c !== C)
     GM = {s: S, c: C, list: ((C && C.games) || []).concat((S.library || []).map(r => ({key: "vr:" + r.key, lib: r, name: r.name, system: "VR",
       store: vrStore(r), guess: false, mp: [], players: 0, genres: [], score: r.rating?.score ?? null, reviews: r.rating?.steam?.n ?? null,
-      year: "", added: r.added || "", dev: "", pub: "", rel: "", gem: 0, url: ""})))};
+      year: "", added: r.added || "", dev: "", pub: "", rel: "", desc: "", gem: 0, url: ""})))};
   return GM.list;
 }
 /* Genres in fester Reihenfolge, in jeder Zeile gleich (wie im eShopKompass): zuerst das in der Sammlung
@@ -579,6 +579,10 @@ const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab
 const G_NIL = `<span class="hint">–</span>`;
 // Wertung (wie im eShopKompass): fein gestuft von Rot über Gelb nach Grün, Skala 50 bis 95
 const gScoreHue = v => Math.round(Math.max(0, Math.min(1, (v - 50) / 45)) * 125);
+// Zusammenfassung der Steam-Rezensionen auf Deutsch, wie im Steam-Store
+const RDESC = {"Overwhelmingly Positive": "Äußerst positiv", "Very Positive": "Sehr positiv", "Positive": "Positiv",
+  "Mostly Positive": "Größtenteils positiv", "Mixed": "Ausgeglichen", "Mostly Negative": "Größtenteils negativ",
+  "Negative": "Negativ", "Very Negative": "Sehr negativ", "Overwhelmingly Negative": "Äußerst negativ"};
 const gScore = (v, tip) => v == null ? "" : `<span class="gsc" style="--sh:${gScoreHue(v)}" title="${esc(tip)}">${v} %</span>`;
 /* Genres als Blasen, Farbton nach Verwandtschaft (wie im eShopKompass): Action und Kampf rot, Tempo
    orange bis gelbgrün, Plattformer gelb, ruhiges Leben grün, Erkunden türkis bis cyan, Denken blau bis
@@ -695,16 +699,23 @@ function gDetail(g){
   const row = (l, v, tip) => v ? `<span class="fl">${l}</span><span class="fv"${tip ? ` title="${esc(tip)}"` : ""}>${v}</span>` : "";
   const m = mine(g);
   const marks = `<span class="seg gmark">${G_ST.map(([k, l, ic, tip]) => `<button data-act="gmark" data-s="${esc(g.key)}" data-k="s" data-v="${m.s === k ? "" : k}" class="${m.s === k ? "on" : ""}" title="${esc(m.s === k ? "Zurücknehmen" : tip)}"><span class="gst ${k}">${ic}</span> ${l}</button>`).join("")}</span><span class="seg gmark"><button data-act="gmark" data-s="${esc(g.key)}" data-k="fav" data-v="${m.fav ? "" : "1"}" class="${m.fav ? "on" : ""}" title="${m.fav ? "Kein Favorit mehr" : "Als Favorit merken"}"><span class="gfav">${m.fav ? "★" : "☆"}</span> Favorit</button></span>`;
-  const side = `<div class="gdm"><span class="fl">Mein Stand</span><span class="gmk">${marks}</span></div>`;
+  // Kurzbeschreibung (0.7.1, Steam auf Deutsch) unter Mein Stand
+  const side = `<div class="gdm"><span class="fl">Mein Stand</span><span class="gmk">${marks}</span>${g.desc ? `<p class="gdesc" title="Kurzbeschreibung laut Steam">${esc(g.desc)}</p>` : ""}</div>`;
   if(g.lib){
     const r = g.lib;
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
   }
   const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : ""].filter(Boolean).join(", ") : "";
-  // Nur, was die Zeile nicht schon zeigt (0.6.2): Wertung, Spieler, Genre, Jahr und Launcher stehen in den Spalten
-  const facts = row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
+  // Nur, was die Zeile nicht schon zeigt (0.6.2): Spieler, Genre, Jahr und Launcher stehen in den Spalten.
+  // Dazu wie im eShopKompass (0.7.1): Wertung aus weiteren Quellen, genaues Erscheinen, Sprachen
+  const score = [g.mc != null && `Metacritic ${gScore(g.mc, "Metacritic laut Steam")}`,
+    g.rdesc && `Steam <span title="${esc(g.reviews != null ? num(g.reviews) + " Rezensionen" : "")}">${esc(RDESC[g.rdesc] || g.rdesc)}</span>`].filter(Boolean).join(" · ");
+  const date = g.sdate && !/^\d{4}$/.test(g.sdate) ? g.sdate : g.rel?.length > 4 ? day(g.rel) : "";
+  const who = [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n");
+  const langs = g.sde == null ? "" : g.sde ? `Deutsch${g.slangs > 1 ? ` und ${g.slangs - 1} weitere Sprache${g.slangs > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>${g.slangs ? ` (${g.slangs} Sprache${g.slangs > 1 ? "n" : ""})` : ""}`;
+  const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
-  const src = g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : chk(g) ? "Playnite, mit Steam abgeglichen" : g.system === "PC" ? "nur Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite";
+  const src = g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : chk(g) ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "nur Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite";
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
@@ -1043,13 +1054,23 @@ const KINDS = {sheet: "Vergleichstabelle", playnite: "Playnite-Export", meta: "M
 function metaCard(){
   const p = V.prev.meta, lm = S.imports.meta, lw = S.imports.metawish, lg = S.imports.ggwish;
   const info = [lm && `Meta-Käufe ${day(lm.at)}`, lw && `Meta-Wunschliste ${day(lw.at)}`, lg && `gg.deals ${day(lg.at)}`].filter(Boolean).join(", ") || "noch nie";
-  return sub("imp-meta", "Lesezeichen: Meta und gg.deals", info, `<ol>
-      <li>Leg einmal dieses Lesezeichen an: <a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">Seite lesen</a>
-        <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></li>
-      <li>Öffne angemeldet <a href="https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions" target="_blank" rel="noopener noreferrer">deine Transaktionen bei Meta Pay</a>, <a href="https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME" target="_blank" rel="noopener noreferrer">deine Meta-Bestellungen</a> oder ${metaWishLink()} und klick das Lesezeichen an. Es scrollt selbst, bis alles geladen ist.
-        Genauso auf deiner <a href="https://gg.deals/wishlist/" target="_blank" rel="noopener noreferrer">Wunschliste bei gg.deals</a>: Dein Browser kommt an der Prüfseite vorbei, der Server nicht.</li>
-      <li>Im Kasten oben rechts „Im VR-Navigator übernehmen“: Dieses Tool öffnet sich und übernimmt Käufe oder Wunschliste. Ein altes Lesezeichen „Meta lesen“ ersetzt du durch dieses. Die Daten stehen nur in der Adresse hinter #.</li></ol>
-      ${p ? previewHtml(p) : ""}`, !!(lm || lw) && !p, "imp-meta");
+  // Wie die Browser-Helfer im eShopKompass (0.7.1): Knopf zum Ziehen, „Code kopieren“, Anleitung zum Aufklappen,
+  // dann je Seite eine Zeile mit Link und Stand (violett: älter als eine Woche oder nie gelesen)
+  const st = x => !x ? `<span class="warnc">noch nie</span>` : `<span class="${(Date.now() - new Date(x.at)) / 864e5 > 7 ? "warnc" : "ok"}">${esc(day(x.at))}</span>`;
+  const a = (href, t) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${t}</a>`;
+  const rows = [[a("https://www.meta.com/my/orders/?order_type=digital_products&amp;timeFilter=ALL_TIME", "Meta-Bestellungen") + " oder " + a("https://accountscenter.meta.com/meta_pay_wallet/?tab=transactions", "Meta-Pay-Transaktionen"), st(lm), "Käufe"],
+    [metaWishLink().replace("deine Wunschliste im Meta Store", "Meta-Wunschliste"), st(lw), "VR-Wünsche"],
+    [a("https://gg.deals/wishlist/", "gg.deals-Wunschliste"), st(lg), "PC-Wünsche; der Server sieht dort nur die Prüfseite"]];
+  return sub("imp-meta", "Lesezeichen: Meta und gg.deals", info, `
+    <span class="bm-w"><a class="bm" href="${esc(metaBm())}" data-act="nobm" title="In die Lesezeichenleiste ziehen">⠿ <b>Seite lesen</b></a>
+      <button data-act="bmcopy" title="Für ein von Hand angelegtes Lesezeichen, auch am Handy">Code kopieren</button></span>
+    <details class="how" ${foldAttr("bmhow", true)}><summary class="hint">So legst du es an</summary><ul class="hint">
+      <li>Am Computer: Lesezeichenleiste einblenden (Strg+Umschalt+B, am Mac ⌘+Umschalt+B) und den Knopf hineinziehen.</li>
+      <li>Ohne Ziehen, auch am Handy: „Code kopieren“, ein beliebiges Lesezeichen anlegen, bearbeiten, „Seite lesen“ als Namen und den Code als Adresse einfügen.</li>
+      <li>Ein älteres Lesezeichen „Meta lesen“ oder „Seite lesen“ vorher löschen.</li></ul></details>
+    <p class="hint">Eine dieser Seiten angemeldet öffnen und das Lesezeichen anklicken. Es scrollt selbst, bis alles geladen ist, dann im Kasten oben rechts „Im VR-Navigator übernehmen“. Die Daten stehen nur in der Adresse hinter #.</p>
+    <div class="scroll"><table class="mini-t"><tbody>${rows.map(([l, s, n]) => `<tr><td>${l}</td><td>${s}</td><td class="hint">${n}</td></tr>`).join("")}</tbody></table></div>
+    ${p ? previewHtml(p) : ""}`, !!(lm || lw) && !p, "imp-meta");
 }
 // Die Seite der Wunschliste merkt sich das Tool beim ersten Lesen; davor die Startseite des Stores
 function metaWishLink(){

@@ -44,7 +44,9 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   `Infobox_game.Steam_AppID` und seine VR-Zeile mit den eben gelesenen Feldern); die Startseite
   von uevr-profiles.com; DekuDeals-Suche und Artikelseite (Kasten Details, Beschreibung);
   die Startseite von HowLongToBeat; libretro `metadat/genre`, `maxusers`, `releaseyear`,
-  `developer` des Retro-Systems; IGDB mit Twitch-Schlüssel (`games` per Suche, dann
+  `developer` des Retro-Systems; seit 0.7.1 zuerst `cargotables` (die VR-Tabelle heißt nicht
+  `VR_support`), die Skriptdatei der UEVR-Seite (die Seite baut sich erst im Browser) und IGDB beim
+  PC-Spiel über `external_games` (Steam-ID); IGDB mit Twitch-Schlüssel (`games` per Suche, dann
   `game_time_to_beats` zum ersten Treffer, eine Sekunde Pause je Anfrage). IGDB-Client-ID und
   -Secret stehen in `settings.json`, erscheinen nie im Ergebnis und nie im Browser.
 
@@ -141,7 +143,7 @@ Nur mit einer Sammlung. Ohne Schlüssel, nach den Rezensionen.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Details | `https://store.steampowered.com/api/appdetails?appids=<App-ID>&l=english` | je Lauf höchstens 80 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 90 Tagen neu | Genres, Kategorien (Mehrspieler-Arten, VR), Erscheinungsjahr |
+| Details | `https://store.steampowered.com/api/appdetails?appids=<App-ID>&l=german&cc=de` | je Lauf höchstens 120 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 90 Tagen neu, Einträge von vor 0.7.1 (ohne `v` 2) sofort | Genres, Kategorien (Mehrspieler-Arten, VR), Erscheinungsjahr; seit 0.7.1 auch Metacritic, Kurzbeschreibung (deutsch, ohne HTML, bis 400 Zeichen), Erscheinungsdatum, Entwickler, Verlag, Zahl der Sprachen und ob Deutsch dabei ist. Genres und Kategorien werden über ihre Kennungen gelesen, die Sprache der Antwort ändert daran nichts |
 
 Steam-Genres werden auf die Genre-Gruppen der Sammlung abgebildet (Action, Strategie, Rollenspiel,
 Casual, Rennen, Sport, Abenteuer, Simulation), Kategorien auf die Mehrspieler-Arten. Was Playnite

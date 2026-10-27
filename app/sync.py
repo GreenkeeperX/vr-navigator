@@ -58,7 +58,7 @@ SHARENITE_PAGES = 40        # 100 Spiele je Seite; ohne VR-Filter wird die ganze
 SHARENITE_H = 20            # Sharenite höchstens so oft lesen (Stunden)
 REVIEWS_MAX = 100           # Steam-Rezensionen je Lauf für Entdecken (Bekanntheit, Geheimtipps)
 REVIEWS_DAYS = 30           # so alt darf eine Rezensionszahl werden
-DETAILS_MAX = 80            # Steam-Store-Daten je Lauf für Entdecken (Genres, Mehrspieler, Jahr)
+DETAILS_MAX = 120           # Steam-Store-Daten je Lauf für Entdecken (Genres, Mehrspieler, Jahr)
 DETAILS_DAYS = 90
 VRDB = "https://vrdb.app"
 VRDB_MAX = 30               # VRDB-Titelseiten je Lauf (Crossbuy, Version, Meta-Wertung)
@@ -861,7 +861,7 @@ def _gg_pending(log, budget):
     return {"at": stamp, "ok": True, "requests": n, "errors": 0, "msg": "", "via": "Lesezeichen"}
 
 
-def _per_game(log, label, field, days, limit, url, parse):
+def _per_game(log, label, field, days, limit, url, parse, stale=None):
     """Abruf je Steam-Spiel der Sammlung (Entdecken): zuerst die ohne Wert, dann die ältesten;
     höchstens limit je Lauf, nach days Tagen neu. Ergebnis je Spiel unter field in
     collection.json. Liefert (Quelle, gelesen {Schlüssel: Wert}, noch offen)."""
@@ -869,7 +869,7 @@ def _per_game(log, label, field, days, limit, url, parse):
     old = _iso(now() - timedelta(days=days))
     todo = sorted(((g.get(field) or {}).get("at") or "", k) for k, g in (col.get("games") or {}).items()
                   if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
-                  and ((g.get(field) or {}).get("at") or "") < old)
+                  and (((g.get(field) or {}).get("at") or "") < old or (stale and stale(g.get(field)))))
     src = _Source(label, log)
     if not todo:
         log(f"{label}: alle aktuell" if col.get("games") else f"{label}: keine Sammlung, nichts zu tun")
@@ -1135,8 +1135,10 @@ def _details(log):
     start = time.monotonic()
     src, got, left = _per_game(
         log, "Steam-Details", "steam", DETAILS_DAYS, DETAILS_MAX,
-        lambda gid: f"{STEAM}/api/appdetails?appids={gid}&l=english",
-        lambda text, gid: _checked(prices.steam_details(text, gid)))
+        lambda gid: f"{STEAM}/api/appdetails?appids={gid}&l=german&cc=de",
+        lambda text, gid: _checked(prices.steam_details(text, gid)),
+        # Ältere Einträge (vor 0.7.1) ohne Beschreibung und Metacritic kommen erneut dran
+        stale=lambda r: bool(r) and r.get("ok") and r.get("v", 1) < prices.DETAILS_V)
     if got is not None:
         ok = sum(1 for r in got.values() if r.get("ok"))
         log(f"Steam-Details: {len(got)} Spiele gelesen, {ok} im Store"
@@ -1554,7 +1556,7 @@ def diagnose():
     def rev_info(text):
         r = prices.steam_reviews(text)
         return (f"App {rapp}: {r['n']} Rezensionen, {r['pct']} % positiv" if r and r["n"] else
-                f"App {rapp}: Steam kennt die App, noch keine Rezensionen" if r else f"App {rapp}: Antwort nicht lesbar")
+                f"App {rapp}: Steam kennt die App, noch keine Rezensionen" if r else f"App {rapp}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
     probe("Steam, Rezensionen", f"{STEAM}/appreviews/{rapp}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
 
     if not key:

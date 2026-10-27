@@ -46,9 +46,12 @@ def samples(col):
           and str(g.get("id") or "").isdigit()]
     pc.sort(key=lambda g: -((g.get("rev") or {}).get("n") or 0))
     con = [g for g in games if (g.get("system") or "PC") not in ("PC", "VR") and g.get("src") != "retro"]
-    ret = [g for g in games if g.get("src") == "retro"]
+    # Retro: ein Spiel aus No-Intro oder Redump (mit Region, ohne Homebrew und Hack), am liebsten eines,
+    # dessen Fassung schon gefunden wurde (0.7.1: ein ROM-Hack fand naturgemäß nichts)
+    ret = [g for g in games if g.get("src") == "retro" and g.get("regions") and not g.get("flags")]
+    ret.sort(key=lambda g: (not g.get("de"), g.get("name") or ""))
     return {"pc": pc[0] if pc else {"name": "Portal 2", "id": "620"},
-            "console": con[0] if con else None, "retro": ret[0] if ret else None}
+            "console": con[0] if con else {"name": "Celeste", "system": "Vorgabe"}, "retro": ret[0] if ret else None}
 
 
 def steam_details_info(appid):
@@ -105,18 +108,25 @@ def deku_search_slug(text):
     return m.group(1) if m else ""
 
 
+def _plain(n):
+    """Name zum Vergleichen: ohne Klammern, „Legend of Pixels, The“ wie „The Legend of Pixels“."""
+    n = re.sub(r"\(.*?\)|\[.*?\]", "", n or "").strip()
+    m = re.match(r"(.+), (The|A|An|Der|Die|Das|Le|La|Les)$", n)
+    n = f"{m.group(2)} {m.group(1)}" if m else n
+    return re.sub(r"[^a-z0-9]+", " ", n.casefold()).strip()
+
+
 def metadat_info(name):
     """Eine metadat-Datei (genre, maxusers, releaseyear) der libretro-database: Zahl der Einträge, und
     was sie zum Spiel der Sammlung sagt."""
-    want = re.sub(r"[^a-z0-9]+", " ", (name or "").casefold()).strip()
+    want = _plain(name)
 
     def info(text):
         entries = re.findall(r'(?s)game \(\s*(.*?)\n\)', text)
         hit = ""
         for e in entries:
             m = re.search(r'(?:comment|name) "([^"]+)"', e)
-            n = re.sub(r"\(.*?\)|\[.*?\]", "", m.group(1) if m else "")
-            if want and re.sub(r"[^a-z0-9]+", " ", n.casefold()).strip() == want:
+            if want and _plain(m.group(1) if m else "") == want:
                 hit = " ".join(x for x in e.split() if x)[:160]
                 break
         return f"{len(entries)} Einträge" + (f"; zu „{name[:40]}“: {hit}" if hit else f"; „{(name or '')[:40]}“ nicht gefunden" if name else "")
@@ -150,8 +160,19 @@ def igdb(lines, keys, names, sleep):
             return json.loads(r["text"] or "[]"), ""
         except ValueError:
             return None, "Antwort nicht lesbar"
-    for label, n in names:
-        games, err = ask("games", f'search {json.dumps(n, ensure_ascii=False)}; {IGDB_FIELDS}')
+    for label, n, *rest in names:
+        games, err = None, ""
+        if rest and rest[0]:
+            # PC (0.7.1): über die Steam-ID statt den Namen („… Legacy“ fand die Suche nicht)
+            ext, err = ask("external_games", f'fields game,uid; where uid = "{rest[0]}" & external_game_source = 1; limit 1;')
+            if not ext:
+                ext, err = ask("external_games", f'fields game,uid; where uid = "{rest[0]}" & category = 1; limit 1;')
+            gid = (ext or [{}])[0].get("game")
+            if gid:
+                games, err = ask("games", f"{IGDB_FIELDS.replace('limit 2;', '')} where id = {int(gid)};")
+                label += " über Steam-ID"
+        if not games:
+            games, err = ask("games", f'search {json.dumps(n, ensure_ascii=False)}; {IGDB_FIELDS}')
         if games is None:
             lines.append(f"IGDB, {label} „{n[:40]}“: {err}")
             if "403" in err or "429" in err:
@@ -189,14 +210,23 @@ def run(probe, lines, col, keys, sleep):
                  + ", Retro " + (f"„{ret['name'][:40]}“ ({ret.get('system')})" if ret else "keins in der Sammlung"))
     probe("Steam, Details", f"{STEAM}/api/appdetails?appids={appid}&cc=de&l=german", steam_details_info(appid))
 
-    # PCGamingWiki (Cargo, offen): welche VR-Felder gibt es, und was steht beim Spiel (auch VR per Mod)?
-    vrf = []
+    # PCGamingWiki (Cargo, offen): welche Tabellen gibt es (0.7.1: „VR_support“ gibt es nicht), welche Felder hat
+    # die VR-Tabelle, und was steht beim Spiel (auch VR per Mod)?
+    tabs = []
 
-    def fields_info(t):
-        vrf.extend(sorted(json.loads(t).get("cargofields") or {}))
-        return pcgw_fields_info(t)
-    probe("PCGamingWiki, VR-Felder", PCGW + "?" + urllib.parse.urlencode(
-        {"action": "cargofields", "table": "VR_support", "format": "json"}), fields_info)
+    def tables_info(t):
+        tabs.extend(json.loads(t).get("cargotables") or [])
+        hit = [x for x in tabs if re.search(r"(?i)vr|infobox|game", x)]
+        return f"{len(tabs)} Tabellen, passend: {', '.join(hit[:20]) or 'keine'}" if tabs else f"keine Tabellen. Anfang: {' '.join(t[:160].split())}"
+    probe("PCGamingWiki, Tabellen", PCGW + "?" + urllib.parse.urlencode({"action": "cargotables", "format": "json"}), tables_info)
+    vrt = next((x for x in tabs if re.search(r"(?i)^vr|_vr|vr_", x)), "")
+    vrf = []
+    if vrt:
+        def fields_info(t):
+            vrf.extend(sorted(json.loads(t).get("cargofields") or {}))
+            return pcgw_fields_info(t)
+        probe(f"PCGamingWiki, Felder von {vrt}", PCGW + "?" + urllib.parse.urlencode(
+            {"action": "cargofields", "table": vrt, "format": "json"}), fields_info)
     page = {}
 
     def game_info(text):
@@ -204,7 +234,7 @@ def run(probe, lines, col, keys, sleep):
         if rows:
             page.update(rows[0])
         return (f"{len(rows)} Treffer für App {appid}" + (f": „{rows[0].get('page')}“, Entwickler {rows[0].get('Developers') or '?'}, "
-                f"Verlag {rows[0].get('Publishers') or '?'}, Genres {rows[0].get('Genres') or '?'}" if rows else ""))
+                f"Verlag {rows[0].get('Publishers') or '?'}, Genres {rows[0].get('Genres') or '?'}" if rows else f". Anfang: {' '.join(text[:200].split())}"))
     probe("PCGamingWiki, Spiel", PCGW + "?" + urllib.parse.urlencode({
         "action": "cargoquery", "tables": "Infobox_game", "format": "json", "limit": 1,
         "fields": "Infobox_game._pageName=page,Infobox_game._pageID=id,Infobox_game.Developers,Infobox_game.Publishers,Infobox_game.Genres",
@@ -212,15 +242,23 @@ def run(probe, lines, col, keys, sleep):
     if page.get("id") and vrf:
         # Felder aus der Probe davor, so passt die Abfrage auch nach einer Änderung des Wikis
         probe("PCGamingWiki, VR des Spiels", PCGW + "?" + urllib.parse.urlencode({
-            "action": "cargoquery", "tables": "VR_support", "format": "json", "limit": 1,
-            "fields": ",".join(f"VR_support.{f}" for f in vrf[:40] if re.fullmatch(r"\w+", f)),
-            "where": f'VR_support._pageID = {int(page["id"])}'}),
+            "action": "cargoquery", "tables": vrt, "format": "json", "limit": 1,
+            "fields": ",".join(f"{vrt}.{f}" for f in vrf[:40] if re.fullmatch(r"\w+", f)),
+            "where": f'{vrt}._pageID = {int(page["id"])}'}),
             lambda t: "; ".join(f"{k} {v}" for k, v in (pcgw_rows(t) or [{}])[0].items()) or "keine VR-Zeile")
 
     # UEVR-Profile: Unreal-Spiele, die per Mod in VR laufen
-    probe("UEVR-Profile", UEVR, uevr_info)
+    home = probe("UEVR-Profile", UEVR, uevr_info) or ""
+    js = re.findall(r'<script[^>]+src="([^"]+\.js)"', home)
+    if js:
+        u = urllib.parse.urljoin(UEVR, js[-1])
+        if urllib.parse.urlsplit(u).hostname == urllib.parse.urlsplit(UEVR).hostname:
+            probe("UEVR-Profile, Skript", u, lambda t: "Adressen im Skript: " + (", ".join(sorted(set(
+                re.findall(r"https://[a-z0-9.-]+(?:/[A-Za-z0-9_./-]*)?", t)))[:12]) or "keine")
+                + f"; Pfade mit api: {sorted(set(re.findall(r'/api/[A-Za-z0-9/_-]+', t)))[:8] or 'keine'}")
 
-    # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele
+    # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
+    # in der Sammlung mit einer Vorgabe)
     if con:
         slug = {}
 
@@ -249,5 +287,5 @@ def run(probe, lines, col, keys, sleep):
     else:
         lines.append("libretro metadat: keine Retro-Liste, nicht angefragt")
 
-    names = [("PC", pc["name"])] + ([("Konsole", con["name"])] if con else []) + ([("Retro", ret["name"])] if ret else [])
+    names = [("PC", pc["name"], appid), ("Konsole", con["name"])] + ([("Retro", ret["name"])] if ret else [])
     igdb(lines, keys, names, sleep)

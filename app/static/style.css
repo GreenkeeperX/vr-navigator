@@ -104,7 +104,10 @@ pre.log{font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
 .card h2{font-size:17px;margin:0 0 6px}
 .card ol{margin:6px 0;padding-left:20px}
-.bm{display:inline-block;background:var(--brand);color:#fff;border-radius:8px;padding:6px 12px;text-decoration:none;font-weight:600;cursor:grab}
+/* Lesezeichen wie die Browser-Helfer im eShopKompass (0.7.1) */
+a.bm{display:inline-block;border:1px solid var(--accent);border-radius:8px;padding:4px 10px;color:var(--ink);text-decoration:none;cursor:grab;background:var(--card)}
+a.bm:active{cursor:grabbing}
+.bm-w{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 6px}
 .prev{margin-top:8px;font-size:13px}
 .prev ul{margin:6px 0;padding-left:18px;max-height:260px;overflow:auto}
 .prev .new{color:var(--go)}
@@ -153,6 +156,9 @@ details.sub{border-top:1px solid var(--line);padding:8px 0 4px;margin-top:8px}
 details.sub>summary{cursor:pointer}
 details.sub>summary .n{color:var(--muted);font-size:13px}
 details.sub details.sub{margin-left:12px;padding-left:10px;border-top:0;border-left:2px solid var(--line)}
+details.how{margin:0 0 6px}
+details.how>summary{cursor:pointer;margin:0}
+details.how ul{margin:4px 0}
 .foldall{font-size:13px;color:var(--muted)}
 /* Sprungleiste der Einstellungen */
 .jump{position:sticky;top:var(--stick,0px);z-index:4;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;background:var(--bg);padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--line);font-size:13px}
@@ -263,7 +269,7 @@ details.op .ux{color:var(--warn)}
    aus der Ansicht), Kopf zum Sortieren, offene Zeile mit Einzelheiten. Am Handy untereinander */
 .glist{padding:4px 10px}
 .glist.box{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
-.gr{display:grid;grid-template-columns:var(--gcols);gap:0 10px;align-items:center;padding:4px 0;border-top:1px dashed var(--line);font-size:13px;min-height:22px}
+.gr{display:grid;grid-template-columns:var(--gcols);gap:0 10px;align-items:start;padding:4px 0;border-top:1px dashed var(--line);font-size:13px;min-height:22px}
 .glist>.gr:first-child,.gr.nph+.gr{border-top:0}
 .gr.nph{padding-top:4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);align-items:end;border-bottom:1px solid var(--line)}
 .gr.nph .sth{cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -312,6 +318,8 @@ details.op .ux{color:var(--warn)}
 .gmark{display:inline-flex}
 .gmark button{flex:none;white-space:nowrap;font-size:12px;padding:1px 8px;background:var(--card)}
 .gd .gmark button.on{background:color-mix(in srgb,var(--ink) 16%,var(--card));color:var(--ink);border-color:var(--line)}
+.gdesc{margin:8px 0 0;max-width:62ch;line-height:1.45;color:var(--ink)}
+.gno{color:var(--stop)}
 .gd .gds{grid-column:1/-1;font-size:12px;padding-left:14px;margin:0}
 .gdv{display:flex;flex-direction:column;gap:6px;min-width:0;padding-left:14px}
 .gdv>.b{align-self:flex-start}

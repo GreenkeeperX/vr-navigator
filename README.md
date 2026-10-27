@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.1:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -261,7 +261,9 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
   PCGamingWiki (VR-Felder, auch per Mod), UEVR-Profile, DekuDeals (Wertung, HowLongToBeat,
   Beschreibung für Konsolen), HowLongToBeat, libretro-metadat (Genre, Spieler, Jahr, Entwickler)
   und mit Schlüssel IGDB (Genre, Spieler, Wertung, Spielzeit, Beschreibung, Firmen). Welche
-  Quelle welches Feld liefert, wird nach den Ergebnissen entschieden. Die Steam-Rezensionen prüft
+  Quelle welches Feld liefert, wird nach den Ergebnissen entschieden. Seit 0.7.1 schlägt die Probe
+  bei PCGamingWiki zuerst die Tabellen nach, fragt IGDB beim PC-Spiel über die Steam-ID, nimmt als
+  Retro-Spiel eines aus No-Intro oder Redump (kein Hack) und ohne Konsolenspiel eine Vorgabe. Die Steam-Rezensionen prüft
   er an einem Spiel der Sammlung, das welche hat.
 - **Protokoll** (klappbar, zu außer nach Fehlern): live während des Laufs, zum Kopieren. Die
   zweite Zeile fasst zusammen („Kurz: 4 Wunschtitel im Angebot, 2 günstiger; alles glaubhaft“).
@@ -342,8 +344,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   zurück zur gewählten Sortierung. Die Wertung ist von Rot über Gelb nach Grün eingefärbt (50 bis
   95 %), Genres stehen als farbige Blasen (verwandte Genres in ähnlichem Farbton, violett bleibt
   frei). Ein Klick auf den Namen klappt die Einzelheiten auf: Die Genres der Zeile laufen nach
-  unten weiter, darunter steht nur, was keine Spalte zeigt (bei Retro-Spielen Sprachen, gesuchte
-  Fassung, Dateien; seit 0.6.2 ohne Wiederholung von Wertung, Spielern, Jahr und Launcher),
+  unten weiter (Name und Spalten bleiben dabei, wo sie sind), darunter steht nur, was keine Spalte
+  zeigt: bei Steam-Spielen Metacritic und die Zusammenfassung der Steam-Rezensionen („Sehr
+  positiv“), das genaue Erscheinen (Entwickler und Verlag im Tooltip) und die Sprachen („Deutsch
+  und 12 weitere Sprachen“, rot „ohne Deutsch“), bei Retro-Spielen Sprachen, gesuchte Fassung und
+  Dateien; unter Mein Stand die Kurzbeschreibung aus dem Steam-Store auf Deutsch (0.7.1),
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
   Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der
   hinter dem Namen steht, sich filtern lässt („Mein Stand“, Mischung „Aus dem Backlog“) und in

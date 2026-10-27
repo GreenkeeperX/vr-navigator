@@ -56,7 +56,9 @@ Sammlung, Spalte Launcher (PC) bzw. System (Konsole), Genres einzeilig mit „+n
 fester Reihenfolge, Mein Stand an fester Stelle, PS1 statt PS, Quellen in den Einstellungen
 farbig. 0.6.2 Einzelheiten nur mit Mehrwert, Genres klappen in der Zeile auf, Entwickler und
 Verlag im Tooltip am Jahr, Quellen als kompakte Tabelle (Entscheidungen 27.10.2026). 0.7.0 Proben
-der neuen Quellen im Verbindungstest, IGDB-Schlüssel in den Einstellungen. Grundsatz (Entscheidung 22.10.2026): so wenig
+der neuen Quellen im Verbindungstest, IGDB-Schlüssel in den Einstellungen. 0.7.1 Einzelheiten mit
+Metacritic, Sprachen, Erscheinen und Kurzbeschreibung aus den Steam-Details, Aufklappen ohne Springen,
+Lesezeichen wie die Browser-Helfer im eShopKompass, Proben nachgeschärft. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

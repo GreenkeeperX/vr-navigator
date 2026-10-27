@@ -341,6 +341,13 @@ def check(r, st):
     r["genres"] = r["genres"] + sorted(sg - set(r["genres"]))
     r["mpc"] = [x for x in r["mp"] if x in sm]
     r["mp"] = r["mp"] + [x for x in MP_LABEL if x in sm and x not in r["mp"]]
+    # Einzelheiten (0.7.1): Steam vor Playnite bei Entwickler und Verlag
+    r.update(mc=st.get("mc"), desc=st.get("desc") or "", sdate=st.get("date") or "",
+             slangs=st.get("langs") or 0, sde=st.get("de"))
+    if st.get("devs"):
+        r["dev"] = ", ".join(st["devs"])
+    if st.get("pubs"):
+        r["pub"] = ", ".join(st["pubs"])
     y = st.get("year") or ""
     r["year_ok"], r["syear"] = bool(y) and y == r["year"], y
     if y and not r["year"]:
@@ -363,6 +370,7 @@ def view(col):
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
+        r["rdesc"] = rev.get("desc") or ""
         if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
             # Wertung nur von Steam, sobald genug Rezensionen da sind
             r["score"], r["score_src"] = rev["pct"], "Steam"

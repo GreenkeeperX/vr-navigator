@@ -70,7 +70,9 @@ Leertaste ebenso; der dritte Klick nimmt die Sortierung zurück. Der Name ist ei
 die Einzelheiten (`.gd`) auf: links nur Angaben ohne eigene Spalte (`.gdf`, Name und Wert), rechts
 Mein Stand (`.gdm`), darunter klein Herkunft und Links. Die Genre-Zelle der offenen Zeile zeigt alle
 Genres (ohne `fit`), statt sie in den Einzelheiten zu wiederholen (0.6.2). Erscheinen, Entwickler und
-Verlag stehen im Tooltip am Jahr. Unter 760 px stehen die Werte je Zeile mit kleinem
+Verlag stehen im Tooltip am Jahr. Die Zeile richtet ihre Zellen oben aus (`align-items:start`), damit
+Name und Spalten beim Aufklappen nicht springen (0.7.1). Die Kurzbeschreibung (`.gdesc`) steht unter Mein
+Stand, höchstens 62 Zeichen breit. Unter 760 px stehen die Werte je Zeile mit kleinem
 Namen davor untereinander, leere Werte fallen weg.
 
 Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,

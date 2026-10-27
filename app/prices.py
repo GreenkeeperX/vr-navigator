@@ -192,6 +192,9 @@ STEAM_MP = {"multi": {1, 9, 20, 24, 27, 36, 37, 38, 39, 44, 47, 48, 49}, "online
 STEAM_VR = {31, 53, 54}
 
 
+DETAILS_V = 2
+
+
 def steam_details(text, appid):
     """appdetails einer App: Genre-Gruppen, Mehrspieler-Arten aus den Kategorien, Erscheinungsjahr,
     VR, Zahl der Empfehlungen. None, wenn Steam die App nicht (mehr) liefert."""
@@ -212,11 +215,22 @@ def steam_details(text, appid):
     m = re.search(r"(19|20)\d\d", str((d.get("release_date") or {}).get("date") or ""))
     if "29" in gids:
         cats.add(20)                    # Genre „Massively Multiplayer“ zählt wie die Kategorie MMO
+    # Ab 0.7.1 (v 2) auch für die Einzelheiten: Metacritic, Kurzbeschreibung, Erscheinen, Firmen, Sprachen
+    langs = [x for x in re.split(r"\s*,\s*", re.sub(r"<[^>]+>|\*", "", str(d.get("supported_languages") or ""))) if x.strip()]
+    try:
+        mc = int((d.get("metacritic") or {}).get("score"))
+    except (TypeError, ValueError):
+        mc = None
+    desc = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", str(d.get("short_description") or ""))).split())
+    names = lambda k: [str(x)[:80] for x in d.get(k) or [] if isinstance(x, str) and x.strip()][:3]
     return {"type": str(d.get("type") or ""), "name": str(d.get("name") or "")[:200],
             "genres": [STEAM_GENRES[x] for x in gids if x in STEAM_GENRES],
             "mp": [k for k, ids in STEAM_MP.items() if cats & ids], "vr": bool(cats & STEAM_VR),
             "year": m.group(0) if m else "",
-            "recs": int(((d.get("recommendations") or {}).get("total")) or 0)}
+            "recs": int(((d.get("recommendations") or {}).get("total")) or 0),
+            "mc": mc, "desc": desc[:400], "date": str((d.get("release_date") or {}).get("date") or "")[:30],
+            "devs": names("developers"), "pubs": names("publishers"), "langs": len(langs),
+            "de": any(x.strip().casefold() in ("deutsch", "german") for x in langs), "v": DETAILS_V}
 
 
 def steam_search(text):
