@@ -43,7 +43,8 @@ LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
-         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen"}
+         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
+         "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -915,6 +916,36 @@ def _reviews(log):
     return src.result()
 
 
+def _eshop(log):
+    """Switch-Sammlung aus dem eShopKompass im eigenen Netz (0.7.3): eine Anfrage an ESHOP_URL/api/sammlung,
+    nur lesend. Ersetzt die Switch-Spiele aus dem eShopKompass, alles andere bleibt."""
+    start = time.monotonic()
+    label = NAMES["eshop"]
+    src = _Source(label, log)
+    url = sources.eshop_url()
+    text = src.get(url, shown=f"{label} (Sammlung)")
+    if text is None:
+        return src.result()
+    try:
+        d = json.loads(text)
+    except ValueError:
+        d = None
+    if not isinstance(d, dict) or d.get("app") != "eshop-kompass" or not isinstance(d.get("games"), list):
+        src.stopped = "keine Sammlung des eShopKompass"
+        log(f"{label}: Antwort ist nicht die Sammlung des eShopKompass (ab Version 1.7.16)")
+        return src.result()
+    games = collection.from_eshop(d["games"])
+    with store.lock:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        new, gone = collection.replace_eshop(col, games)
+        store.save_json(collection.FILE, col)
+    s2 = sum(1 for g in games.values() if g["system"] == "Switch 2")
+    src.stats = {"read": len(games), "new": new}
+    log(f"{label}: {len(games)} Spiele (Switch 2: {s2}), {new} neu" + (f", {gone} nicht mehr dabei" if gone else "")
+        + f", eShopKompass {str(d.get('version') or '?')[:12]}, {_took(start)}")
+    return src.result()
+
+
 def _retro(log):
     """Retro-Fassungen: je System der Retro-Liste die Fassungsliste (No-Intro oder Redump aus der
     libretro-database) und die Retool-Liste, höchstens alle RETRO_DAYS Tage; dazwischen gilt die
@@ -1410,6 +1441,8 @@ def run(only=None, boot=False, by_hand=False):
             do("vrdb", lambda: _vrdb(log))
         if not only or "retro" in only:
             do("retro", lambda: _retro(log))
+        if sources.eshop_url() and (not only or "eshop" in only):
+            do("eshop", lambda: _eshop(log))
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)
@@ -1549,6 +1582,15 @@ def diagnose():
         p = prices.steam_prices(text).get(appid)
         return (f"App {appid}: {p['price']} € statt {p['base']} €, −{p['discount']} %" if p and p["discount"]
                 else f"App {appid}: {p['price']} €" if p and p["price"] else f"App {appid}: kostenlos oder ohne Preis" if p else f"App {appid}: kein Preis im deutschen Store")
+    if sources.eshop_url():
+        def eshop_info(text):
+            d = json.loads(text)
+            gs = d.get("games") if isinstance(d, dict) and d.get("app") == "eshop-kompass" else None
+            return (f"Sammlung mit {len(gs)} Spielen, eShopKompass {str(d.get('version') or '?')[:12]}" if isinstance(gs, list)
+                    else "Antwort ist nicht die Sammlung des eShopKompass (ab 1.7.16)")
+        probe("eShopKompass (eigenes Netz)", sources.eshop_url(), eshop_info)
+    else:
+        lines.append("eShopKompass: nicht eingerichtet (ESHOP_URL im Stack, siehe README)")
     probe("Steam, Preise", f"{STEAM}/api/appdetails?appids={appid}&cc=de&filters=price_overview", steam_info)
     sname = (st or t or {}).get("name") or "vr"
     probe("Steam, Suche", f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": sname, "l": "german", "cc": "DE"}),

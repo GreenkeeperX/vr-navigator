@@ -10,7 +10,7 @@ was später je Spiel abgerufen wird (Feld „rev“), bleibt erhalten.
 import math
 import re
 
-from . import titles
+from . import sources, titles
 
 FILE = "collection.json"
 EMPTY = {"games": {}, "at": "", "n": 0}
@@ -107,7 +107,7 @@ SYSTEMS = [
     ("PS2", r"playstation ?2|\bps ?2\b"), ("PS Vita", r"\bvita\b"), ("PSP", r"\bpsp\b|playstation portable"),
     ("PS1", r"playstation(?! ?[2-5])|\bps ?1\b|\bpsx\b"),
     ("Xbox Series", r"xbox series"), ("Xbox One", r"xbox one"), ("Xbox 360", r"xbox 360"), ("Xbox", r"xbox"),
-    ("Switch", r"\bswitch\b"), ("Wii U", r"wii ?u\b"), ("Wii", r"\bwii\b"), ("GameCube", r"gamecube"),
+    ("Switch 2", r"\bswitch ?2\b"), ("Switch", r"\bswitch\b"), ("Wii U", r"wii ?u\b"), ("Wii", r"\bwii\b"), ("GameCube", r"gamecube"),
     ("N64", r"nintendo 64|\bn64\b"), ("SNES", r"super nintendo|\bsnes\b|super famicom"),
     ("NES", r"nintendo entertainment system|\bnes\b|famicom"), ("3DS", r"\b3ds\b"), ("DS", r"\bds(i)?\b"),
     ("GBA", r"game ?boy advance|\bgba\b"), ("GBC", r"game ?boy colou?r|\bgbc\b"), ("GB", r"game ?boy|\bgb\b"),
@@ -281,8 +281,8 @@ def replace(col, games, src="playnite"):
     stehen, ebenso die Spiele aus der Retro-Liste. Gibt die Zahl der neuen Spiele zurück."""
     old = col.get("games") or {}
     systems = {g.get("system") or "PC" for g in games.values()}
-    # Spiele aus der Retro-Liste gehören nicht zum Playnite-Export und bleiben immer stehen
-    games = dict({k: g for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") == "retro")
+    # Spiele aus der Retro-Liste und dem eShopKompass gehören nicht zum Playnite-Export und bleiben immer stehen
+    games = dict({k: g for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") in ("retro", ESHOP))
                   and k not in games}, **games)
     new = 0
     for k, g in games.items():
@@ -298,6 +298,56 @@ def replace(col, games, src="playnite"):
     col["n"] = len(games)
     col["src"] = src
     return new
+
+
+ESHOP = "eshop"
+ESHOP_MAX = 5000
+
+
+def _pl(v):
+    """Spielerspanne [von, bis] aus dem eShopKompass, sonst None."""
+    return [int(v[0]), int(v[1])] if isinstance(v, list) and len(v) == 2 and all(isinstance(x, int) for x in v) else None
+
+
+def from_eshop(items):
+    """Spiele aus der Sammlung des eShopKompass (/api/sammlung) als Einträge der Sammlung, Schlüssel
+    eshop:<slug>. Nur, was dort steht; was fehlt oder nicht passt, fällt weg."""
+    out = {}
+    for e in items[:ESHOP_MAX] if isinstance(items, list) else []:
+        if not isinstance(e, dict) or not str(e.get("slug") or "").strip() or not str(e.get("title") or "").strip():
+            continue
+        slug = re.sub(r"[^a-z0-9-]", "", str(e["slug"]).lower())[:120]
+        txt = lambda k, n=200: str(e.get(k) or "").strip()[:n]
+        num = lambda k: e[k] if isinstance(e.get(k), (int, float)) and not isinstance(e.get(k), bool) else None
+        off, loc, on = _pl(e.get("offline")), _pl(e.get("local")), _pl(e.get("online"))
+        mp = [x for x, ok in (("couch", off and off[1] > 1), ("online", on and on[1] > 1 or e.get("online_any") is True),
+                              ("coop", e.get("coop") is True)) if ok]
+        mine = e.get("mine") if isinstance(e.get("mine"), dict) else {}
+        out[f"{ESHOP}:{slug}"] = {
+            "name": txt("title"), "system": "Switch 2" if e.get("system") == "Switch 2" else "Switch", "src": ESHOP,
+            "store": "Nintendo", "id": slug, "genres": [str(x)[:40] for x in e.get("genres") or [] if isinstance(x, str)][:12],
+            "mp": (["multi"] if mp else []) + mp, "players": int(e["max"]) if isinstance(e.get("max"), int) else 0,
+            "pl": {k: v for k, v in (("offline", off), ("local", loc), ("online", on)) if v},
+            "mc": num("mc"), "oc": num("oc"), "hours": num("hours"), "released": txt("released", 10),
+            "dev": txt("developer"), "pub": txt("publisher"), "usk": txt("usk", 4), "desc": txt("desc", 1200),
+            "desc_lang": "en" if e.get("desc_lang") == "en" else "de",
+            "langs": [str(x)[:20] for x in e.get("langs") or [] if isinstance(x, str)][:40],
+            "added": txt("bought", 10),
+            "ext_mine": {k: v for k, v in mine.items() if k in ("s", "fav") and isinstance(v, (str, bool))}}
+    return out
+
+
+def replace_eshop(col, games):
+    """Die Spiele des eShopKompass ersetzen; alle anderen bleiben. Gibt (neu, entfallen) zurück."""
+    old = col.get("games") or {}
+    before = {k for k, g in old.items() if g.get("src") == ESHOP}
+    for k in before - set(games):
+        old.pop(k)
+    old.update(games)
+    col["games"] = old
+    col["n"] = len(old)
+    col["eshop_at"] = titles.now_iso()
+    return len(set(games) - before), len(before - set(games))
 
 
 def link(k, g):
@@ -363,6 +413,14 @@ def view(col):
              "score_src": "", "year": (g.get("released") or "")[:4],
              "added": g.get("added") or "", "dev": g.get("dev") or "", "pub": g.get("pub") or "",
              "rel": g.get("released") or "", "url": link(k, g)}
+        if g.get("src") == ESHOP:
+            # eShopKompass (0.7.3): Wertung Metacritic, sonst OpenCritic; Mein Stand von dort, nur lesend
+            sc, src = (g["mc"], "Metacritic") if g.get("mc") is not None else (g.get("oc"), "OpenCritic") if g.get("oc") is not None else (None, "")
+            r.update(eshop=True, score=sc, score_src=src, hours=g.get("hours"), desc=g.get("desc") or "",
+                     desc_lang=g.get("desc_lang") or "de", usk=g.get("usk") or "", langs=g.get("langs") or [],
+                     pl=g.get("pl") or {}, mine=g.get("ext_mine") or {}, slug=g.get("id") or "")
+            rows.append(r)
+            continue
         if g.get("src") == "retro":
             r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
                      regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
@@ -378,11 +436,16 @@ def view(col):
             r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
         check(r, g.get("steam") or {})
         rows.append(r)
+    # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
+    esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}
+    if esh:
+        rows = [r for r in rows if r.get("eshop") or not (r["system"].startswith("Switch") and titles.norm(r["name"]) in esh)]
     rows.sort(key=lambda r: titles.norm(r["name"]))
     systems = {}
     for r in rows:
         systems[r["system"]] = systems.get(r["system"], 0) + 1
     return {"at": col.get("at") or "", "n": len(rows), "games": rows, "mp_label": MP_LABEL,
+            "eshop_at": col.get("eshop_at") or "", "eshop_link": sources.eshop_link(),
             "genres": sorted({x for r in rows for x in r["genres"]}),
             "systems": [[n, systems[n]] for n in sorted(systems, key=system_order)]}
 

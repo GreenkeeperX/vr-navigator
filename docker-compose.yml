@@ -18,6 +18,11 @@ services:
     # Namen im eigenen Netz (.home.arpa, .local, .lan, .internal) gelten ohne Eintrag
     # environment:
     #   ALLOWED_HOSTS: "vr.beispiel.de"
+    # Switch-Sammlung aus dem eShopKompass (ab 0.7.3, nur lesend): ESHOP_URL ist die Adresse, unter der
+    # dieser Container den eShopKompass erreicht (am einfachsten im selben Docker-Netz über den
+    # Containernamen), ESHOP_LINK die Adresse für Links im Browser
+    #   ESHOP_URL: "http://eshop-kompass:8787"
+    #   ESHOP_LINK: "http://server.home.arpa:8787"
     volumes:
       - vr-daten:/data
     labels:

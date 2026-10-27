@@ -144,7 +144,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", eshop: "eShopKompass"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -446,7 +446,10 @@ const G_ST = [["backlog", "Backlog", "○", "Willst du spielen, noch nicht angef
   ["done", "durchgespielt", "✓", "Durchgespielt"]];
 const G_STF = [["", "egal"], ["open", "nicht durchgespielt"], ["backlog", "Backlog"], ["started", "angefangen"], ["done", "durchgespielt"],
   ["fav", "Favoriten"], ["none", "ohne Stand"]];
-const mine = g => (S.marks || {})[g.key] || {};
+// Switch-Spiele aus dem eShopKompass (0.7.3): Mein Stand von dort, hier nur lesend
+const mine = g => g.eshop ? g.mine || {} : (S.marks || {})[g.key] || {};
+const ESH = "Laut eShopKompass";
+const hrs = h => `${String(Math.round(h * 2) / 2).replace(".", ",")} h`;
 const meOk = (m, f) => f === "open" ? m.s !== "done" : f === "fav" ? !!m.fav : f === "none" ? !m.s && !m.fav : m.s === f;
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
@@ -504,8 +507,8 @@ function genreOrder(list){
 // Sprache der Retro-Spiele: mit Deutsch, deutsche Fassung fehlt, ohne Deutsch (keine bekannt)
 const LANG_FILTER = [["", "alle"], ["de", "mit Deutsch"], ["miss", "DE fehlt"], ["nde", "ohne Deutsch"]];
 function langOk(g, f){
-  const de = (g.langs || []).includes("De"), miss = g.de?.st === "missing";
-  return f === "de" ? de : f === "miss" ? miss : f === "nde" ? !!g.retro && !de && !miss : true;
+  const de = (g.langs || []).includes(g.eshop ? "german" : "De"), miss = g.de?.st === "missing";
+  return f === "de" ? de : f === "miss" ? miss : f === "nde" ? !!(g.retro || g.eshop && g.langs?.length) && !de && !miss : true;
 }
 // „Alle“ heißt alle Systeme aus Playnite und der Retro-Liste; VR-Titel stehen nur unter VR, am PC
 // meist ohnehin auch unter PC
@@ -608,7 +611,7 @@ const one = (g, list, x) => chk(g) && !(list || []).includes(x);
 function gGenres(g, all){
   if(!g.genres.length) return "";
   const only = g.genres.filter(x => one(g, g.gc, x));
-  const tip = chk(g) ? (only.length ? `Nur eine Quelle (Playnite oder Steam): ${only.join(", ")}; die übrigen nennen beide` : "Playnite und Steam einig") : "Laut Playnite";
+  const tip = chk(g) ? (only.length ? `Nur eine Quelle (Playnite oder Steam): ${only.join(", ")}; die übrigen nennen beide` : "Playnite und Steam einig") : g.eshop ? ESH : "Laut Playnite";
   return `<span class="gtags${all ? "" : " fit"}" title="${esc(tip)}">${genreOrder(g.genres).map(gTag).join("")}</span>`;
 }
 function gMp(g){
@@ -617,7 +620,7 @@ function gMp(g){
 }
 function gYear(g){
   if(!g.year) return "";
-  const tip = chk(g) ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : g.retro ? "" : "Laut Playnite";
+  const tip = chk(g) ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : g.retro ? "" : g.eshop ? ESH : "Laut Playnite";
   // Wie im eShopKompass: Erscheinen, Entwickler und Verlag im Tooltip (0.6.2), die Suche findet sie
   const who = [g.rel?.length > 4 && `Erschienen am ${day(g.rel)}`, g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean);
   return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(who.concat(tip ? [tip] : []).join("\n"))}">${esc(g.year)}</span>`;
@@ -631,6 +634,8 @@ function gSrc(g){
 const LANG_SHORT = {De: "DE", En: "EN", Ja: "JP"};
 function langBadge(g){
   if(!g.langs?.length) return "";
+  // Switch (0.7.3): Sprachen laut Nintendo Europa, englische Namen
+  if(g.eshop) return g.langs.includes("german") ? `<span title="Laut Nintendo Europa: Deutsch und ${g.langs.length - 1} weitere">DE</span>` : `<span class="gno" title="Laut Nintendo Europa ohne Deutsch: ${esc(g.langs.join(", "))}">ohne DE</span>`;
   const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
   return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
 }
@@ -664,8 +669,9 @@ const COLS = [
     sort: g => g.lib.opinion?.fassung || null},
   {k: "pl", l: "Spieler", w: "52px", cls: "r", tip: "Höchste Spielerzahl laut Playnite", d0: -1, cell: g => g.players ? `bis ${g.players}` : "", sort: g => g.players || null},
   {k: "mp", l: "Mehrspieler", w: "minmax(90px,.7fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen; violett: nur eine Quelle", cell: gMp, sort: g => g.mp.length || null, d0: -1},
-  {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "Anteil positiver Steam-Rezensionen, ab 50 Rezensionen", d0: -1,
-    cell: g => gScore(g.score, `Anteil positiver Steam-Rezensionen (${g.reviews != null ? num(g.reviews) : "–"})`), sort: g => g.score},
+  {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "Steam: Anteil positiver Rezensionen, ab 50 Rezensionen; Switch: Metacritic, sonst OpenCritic", d0: -1,
+    cell: g => g.eshop ? gScore(g.score, `${g.score_src}, laut eShopKompass`, "") : gScore(g.score, `Anteil positiver Steam-Rezensionen (${g.reviews != null ? num(g.reviews) : "–"})`), sort: g => g.score},
+  {k: "hours", l: "Spielzeit", w: "70px", cls: "r", tip: "HowLongToBeat (über den eShopKompass): Story, sonst allein", cell: g => g.hours ? hrs(g.hours) : "", sort: g => g.hours || null},
   {k: "rev", l: "Rezensionen", w: "98px", cls: "r", tip: "Wie bekannt: Zahl der Steam-Rezensionen", d0: -1, cell: g => g.reviews != null ? num(g.reviews) : "", sort: g => g.reviews},
   {k: "lang", l: "Sprache", w: "58px", tip: "Laut Dateiname; violett: nur aus der Region geschätzt", cell: langBadge, sort: g => g.langs?.includes("De") ? 0 : g.langs?.length ? 1 : null},
   {k: "genre", l: "Genre", w: "minmax(0,1fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen", cell: gGenres, sort: g => g.genres[0] || null},
@@ -706,11 +712,27 @@ function gDetail(g){
   const row = (l, v, tip) => v ? `<span class="fl">${l}</span><span class="fv"${tip ? ` title="${esc(tip)}"` : ""}>${v}</span>` : "";
   const m = mine(g);
   const marks = `<span class="seg gmark">${G_ST.map(([k, l, ic, tip]) => `<button data-act="gmark" data-s="${esc(g.key)}" data-k="s" data-v="${m.s === k ? "" : k}" class="${m.s === k ? "on" : ""}" title="${esc(m.s === k ? "Zurücknehmen" : tip)}"><span class="gst ${k}">${ic}</span> ${l}</button>`).join("")}</span><span class="seg gmark"><button data-act="gmark" data-s="${esc(g.key)}" data-k="fav" data-v="${m.fav ? "" : "1"}" class="${m.fav ? "on" : ""}" title="${m.fav ? "Kein Favorit mehr" : "Als Favorit merken"}"><span class="gfav">${m.fav ? "★" : "☆"}</span> Favorit</button></span>`;
-  // Kurzbeschreibung (0.7.1, Steam auf Deutsch) unter Mein Stand
-  const side = `<div class="gdm"><span class="fl">Mein Stand</span><span class="gmk">${marks}</span>${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="Kurzbeschreibung laut Steam${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
+  // Switch (0.7.3): Mein Stand setzt du im eShopKompass, hier steht er nur
+  const st = G_ST.find(x => x[0] === m.s);
+  const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im eShopKompass</span>` : `<span class="gmk">${marks}</span>`;
+  // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
+  const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : "Kurzbeschreibung laut Steam";
+  const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
   if(g.lib){
     const r = g.lib;
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
+  }
+  if(g.eshop){
+    // Wie „Spiele“ im eShopKompass: Wertung, Spielzeit, Erschienen (Firmen im Tooltip), USK, Sprachen
+    const de = g.langs.includes("german");
+    const facts = row("Wertung", g.score != null ? `${esc(g.score_src)} ${gScore(g.score, g.score_src, "")}` : "") +
+      row("Spielzeit", g.hours ? hrs(g.hours) : "", "HowLongToBeat: Story, sonst allein") +
+      row("Erschienen", g.rel?.length > 4 ? day(g.rel) : "", [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n")) +
+      row("USK", esc(g.usk)) +
+      row("Sprachen", !g.langs.length ? "" : de ? `Deutsch${g.langs.length > 1 ? ` und ${g.langs.length - 1} weitere Sprache${g.langs.length > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>`, "Laut Nintendo Europa");
+    const link = C.eshop_link ? `<a href="${esc(C.eshop_link)}/#spiele?q=${encodeURIComponent(g.name)}" target="_blank" rel="noopener noreferrer">im eShopKompass</a>` : "";
+    const small = [g.added && `gekauft am ${day(g.added)}`, `laut eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}`, link].filter(Boolean).join(" · ");
+    return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
   }
   const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : ""].filter(Boolean).join(", ") : "";
   // Nur, was die Zeile nicht schon zeigt (0.6.2): Spieler, Genre, Jahr und Launcher stehen in den Spalten.
@@ -758,7 +780,7 @@ function moreOnScroll(){
   moreObs.observe(m);
 }
 // Farbe eines System-Reiters: Nintendo rot, PlayStation blau, PC grün, VR im Türkis des Tools
-const NINTENDO = new Set(["Switch", "Wii U", "Wii", "GameCube", "N64", "SNES", "NES", "3DS", "DS", "GBA", "GBC", "GB", "VB", "Pokémon Mini"]);
+const NINTENDO = new Set(["Switch 2", "Switch", "Wii U", "Wii", "GameCube", "N64", "SNES", "NES", "3DS", "DS", "GBA", "GBC", "GB", "VB", "Pokémon Mini"]);
 const sysFam = n => n === "PC" ? "fam-pc" : n === "VR" ? "fam-vr" : /^PS/.test(n) ? "fam-ps" : NINTENDO.has(n) ? "fam-nin" : "";
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
@@ -826,7 +848,7 @@ function findView(){
     ${pick.length ? glist(pick.map(g => gRow(g, cols, true)).join("")) : `<p class="hint">Nichts passt zu den Filtern.</p>`}
     <div class="actions"><button data-act="dpickoff">Schließen</button><button class="primary" data-act="dmix" data-v="${d.mix}">Noch mal</button></div></div>` : "";
   const at = S.imports.collection?.at, rat = S.imports.retro?.at;
-  const nRetro = inTab.filter(g => g.retro).length, nPn = inTab.length - nRetro, pcTab = !d.sys || d.sys === "PC";
+  const nRetro = inTab.filter(g => g.retro).length, nEsh = inTab.filter(g => g.eshop).length, nPn = inTab.length - nRetro - nEsh, pcTab = !d.sys || d.sys === "PC";
   const gone = C.games.filter(g => g.gone);
   // Spiele, die in der letzten Retro-Liste fehlen: einmal ansehen, dann Stand übernehmen oder behalten
   const goneCard = gone.length ? `<div class="card"><h2>Nicht mehr in der Retro-Liste <span class="n">${gone.length}</span></h2>
@@ -835,6 +857,7 @@ function findView(){
       <button class="primary" data-act="retrogone" data-v="drop" title="Die Spiele werden aus der Sammlung entfernt">Stand übernehmen</button></div></div>` : "";
   const src = vr ? `Deine VR-Titel: Meta-Käufe und VR-Spiele aus Playnite. Wertungen von Meta (VRDB, sonst aus dem Sternschnitt) und Steam, Spieler und Updates von Steam, Recherche aus Foren und Tests violett.`
     : [nPn && `${at ? `Playnite-Export vom ${day(at)}. ` : ""}Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (violett: nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.`,
+      nEsh && `Switch-Sammlung aus dem eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}: Genre, Spieler, Wertung und Spielzeit von DekuDeals und Nintendo, Mein Stand setzt du dort.`,
       nRetro && `Retro-Liste${rat ? ` vom ${day(rat)}` : ""}: Sprache laut Dateiname, violett: nur aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""}. Genres und Spielerzahl für Retro-Spiele kommen später.`].filter(Boolean).join(" ");
   const note = `<p class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${inTab.length} Spiele`) : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys)})` : ""}. ${src}</p>`;
   const head = `<div class="gr nph" role="row">${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
@@ -863,7 +886,7 @@ function nowView(){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"]];
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){
