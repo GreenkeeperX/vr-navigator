@@ -156,7 +156,16 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Familie mit nur einem System steht als dieses System). Der Familienreiter (`@ps`, `@nin` …)
   zeigt alle Spiele der Familie; rechts daneben gleiten ihre Konsolen aus (`.subtabs`, kleiner,
   `.anim` nur beim Wechsel der Familie, nicht bei reduzierter Bewegung). Ist eine Konsole gewählt,
-  bleibt die Familie halb unterstrichen (`.part`).
+  bleibt die Familie halb unterstrichen (`.part`). Das Gleiten (0.7.5) dauert 0,34 s mit Aufdecken von
+  links (`clip-path`); wird gleich danach neu gezeichnet, läuft es mit negativer Verzögerung weiter
+  (`V.famAt`), statt abzubrechen.
+- Switch-Spiele (0.7.5, Entscheidung 27.10.2026): ein Reiter „Switch 2“ für beide, Filter „System“
+  (alle, Switch 2, nur Switch, `d.sw`). Mit der Zeile aus dem eShopKompass (`kv`) gelten dessen
+  Spalten (`K_COLS`, Kopf „Spieler“ über Konsole, Lokal, Online), Marken (`.lgt`: Switch 2, S2-Upgrade,
+  fehlende Spielmodi, GameShare blau, ohne Deutsch rot, „aus: Paket“) und Einzelheiten (`kDetail`);
+  violett heißt dort wie hier: Nintendo nennt anderes als DekuDeals; OpenCritic grau kursiv (`.galt`),
+  USK 16 blau, 18 rot. Mein Stand nur lesend mit Link, der das Spiel im eShopKompass öffnet.
+- Über der Liste nur „Alle n Spiele (Reiter).“; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
 - Einstellungen (0.7.4): Zahlen in „Zu erledigen“ in der Farbe für Prüfen (`b.warnc`), auch in den
   Gruppen. Der Knopf „ROM-Ordner wählen“ ist dezent (`label.btn.quiet`), nicht hell gefüllt.
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand

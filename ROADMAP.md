@@ -67,7 +67,11 @@ Spielzeit, Beschreibung und Mein Stand von dort. 0.7.4 Sammlung mit Reitern je F
 Nintendo …), deren Konsolen rechts ausklappen; „alle aufklappen“ bis 150 Spiele; Zahlen in „Zu
 erledigen“ farbig, dezenter Knopf für den ROM-Ordner; Steam-Rezensionen mit drei Formen der Adresse;
 Proben: PCGamingWiki-Vorlagen sauber gelesen, Lenkrad und Force Feedback (Sim-Racing), Nexus Mods
-(Spielseite, beliebte Mods, Mods mit VR im Namen), DekuDeals-Treffer, mehr IGDB-Namensversuche. Grundsatz (Entscheidung 22.10.2026): so wenig
+(Spielseite, beliebte Mods, Mods mit VR im Namen), DekuDeals-Treffer, mehr IGDB-Namensversuche. 0.7.5 Gleiten der Konsolen einheitlich und ruhiger, Switch und Switch 2 in
+einem Reiter mit Filter „System“, Switch-Spiele wie „Spiele“ im eShopKompass (Spalten Konsole, Lokal,
+Online, Koop, Metacritic, Spielzeit; Marken; Einzelheiten) und Link direkt auf das Spiel dort, Infotext
+zum Aufklappen; Steam-Rezensionen zusätzlich über die Store-Schnittstelle der Web API; Proben: bester
+DekuDeals-Treffer, Lenkrad an einem Rennspiel, IGDB über einen Teil des Namens. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

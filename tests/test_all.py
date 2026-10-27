@@ -1248,6 +1248,13 @@ class TestSync(unittest.TestCase):
         self.assertIn("reviews", store.load_json("sync.json", {})["sources"])
         self.assertIsNone(prices.steam_reviews('{"success": 2}'))
         self.assertEqual(prices.steam_reviews('{"success": 1, "query_summary": {"total_reviews": 0}}')["pct"], None)
+        # 0.7.5: Store-Schnittstelle (IStoreBrowseService/GetItems)
+        sb = {"response": {"store_items": [{"appid": 3000101, "success": 1, "reviews": {"summary_filtered": {
+            "review_count": 1234, "percent_positive": 91, "review_score": 8, "review_score_label": "Very Positive"}}}]}}
+        self.assertEqual(prices.steam_reviews(json.dumps(sb)), {"n": 1234, "pct": 91, "desc": "Very Positive"})
+        self.assertEqual(prices.steam_reviews('{"response": {"store_items": [{"appid": 1, "success": 1}]}}'), {"n": 0, "pct": None, "desc": ""})
+        self.assertIsNone(prices.steam_reviews('{"response": {"store_items": [{"appid": 1, "success": 2}]}}'))
+        self.assertIn("IStoreBrowseService", sync.review_url("3000101", 3))
 
     def test_retro_source(self):
         """Fassungslisten je System der Retro-Liste, danach wöchentlich; „de“ je Spiel."""
@@ -1366,7 +1373,9 @@ class TestSync(unittest.TestCase):
             ans = {"app": "eshop-kompass", "version": "1.7.16", "games": [
                 {"slug": "moon-racer", "title": "Moon Racer", "system": "Switch", "genres": ["Rennspiel"], "max": 4,
                  "offline": [1, 4], "online": [1, 8], "coop": False, "mc": 81, "hours": 6.5, "released": "2021-05-04",
-                 "desc": "Rennen auf dem Mond.", "langs": ["english", "german"], "mine": {"s": "done", "fav": True}},
+                 "desc": "Rennen auf dem Mond.", "langs": ["english", "german"], "mine": {"s": "done", "fav": True},
+                 "kv": {"players": {"offline": {"v": [1, 4], "ok": False, "alt": [1, 2]}}, "mcu": 7.9, "hltb": {"main": 6.5},
+                        "url": "https://example.org/", "pack": {"title": "Moon Bundle", "filled": ["mc"]}}},
                 {"slug": "pixel-garden-nintendo-switch-2-edition", "title": "Pixel Garden", "system": "Switch 2", "oc": 77,
                  "desc_lang": "en", "desc": "A garden."},
                 {"title": "ohne Slug"}, "kaputt"]}
@@ -1384,7 +1393,12 @@ class TestSync(unittest.TestCase):
             self.assertEqual(m["mp"], ["multi", "couch", "online"])
             p = rows["eshop:pixel-garden-nintendo-switch-2-edition"]
             self.assertEqual((p["system"], p["score"], p["score_src"], p["desc_lang"]), ("Switch 2", 77, "OpenCritic", "en"))
-            self.assertEqual(dict(v["systems"]).get("Switch 2"), 1)
+            # 0.7.5: Switch und Switch 2 in einem Reiter, sw1 merkt das Switch-1-Spiel
+            self.assertEqual((dict(v["systems"]).get("Switch 2"), "Switch" in dict(v["systems"])), (2, False))
+            self.assertEqual((m["system"], m.get("sw1"), p.get("sw1")), ("Switch 2", True, None))
+            # 0.7.5: die Zeile der Ansicht „Spiele“ (kv), nur bekannte Felder
+            self.assertEqual(m["kv"]["players"]["offline"]["alt"], [1, 2])
+            self.assertEqual((m["kv"]["mcu"], m["kv"]["pack"]["title"], "url" in m["kv"], p["kv"]), (7.9, "Moon Bundle", False, {}))
             self.assertIn("eShopKompass: 2 Spiele (Switch 2: 1)", "\n".join(sync.status()["log"]))
             # Eine Antwort, die nicht vom eShopKompass kommt, ändert nichts
             sources.fetch = FakeNet({"/api/sammlung": json.dumps({"games": []})})
@@ -1677,23 +1691,26 @@ class TestSync(unittest.TestCase):
         col = {"games": {
             "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}},
             "steam:3000102": {"name": "Tiny Tennis", "store": "Steam", "id": "3000102", "rev": {"n": 5}},
+            "steam:3000103": {"name": "Rally Moth", "store": "Steam", "id": "3000103", "rev": {"n": 50}, "genres": ["Rennen"]},
             "name:orbit golf": {"name": "Orbit Golf", "system": "PS4", "store": "PlayStation"},
             "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro", "regions": ["Europe"]},
             "retro:snes:pixel hack": {"name": "Pixel Hack", "system": "SNES", "src": "retro", "regions": ["USA"], "flags": ["hack"]}}}
-        self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop", "Orbit Golf"])
+        self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Rally Moth", "Harbor Heist", "Orbit Golf", "Star Hop", "Orbit Golf"])
         self.assertEqual(probes.search_name("Moon Räcer: Édition Spéciale (Europe)"), "Moon Racer: Edition Speciale")
         details = {"3000101": {"success": True, "data": {"name": "Harbor Heist", "metacritic": {"score": 84},
                    "genres": [{"description": "Action"}], "categories": [{"description": "VR-Unterstützung"}],
                    "release_date": {"date": "12. März 2019"}, "developers": ["Kite Works"], "publishers": ["Paper Moon"],
                    "supported_languages": "Englisch, Deutsch", "short_description": "Ein <b>Raubzug</b> im Hafen."}}}
-        deku = ('<html><head><meta property="og:description" content="Golf im Orbit."></head><body>'
-                '<li>Genres: Sports</li><li>Metacritic: 81</li><li>How Long To Beat: Main Story 6 hours</li></body></html>')
+        deku = ('<html><head><meta content="Golf im Orbit." property="og:description"></head><body>'
+                '<li>Genres: Sports</li><li>Metacritic: 81 7.9</li><li>How Long To Beat: Main Story 6 hours</li></body></html>')
         meta = 'clrmamepro ( name "x" )\n\ngame (\n\tcomment "Star Hop (Europe)"\n\tgenre "Platform"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Racing"\n)\n'
         answers = [("appdetails", 200, json.dumps(details)),
                    ("api/appid.php?appid=3000101", 200, '<script>RLCONF={"wgPageName":"Harbor_Heist","wgTitle":"Harbor Heist"};</script>'),
                    ("action=parse", 200, json.dumps({"parse": {"wikitext": {"*": "==VR support==\n{{VR support\n|native 3d = false\n|vorpx = true\n|vorpx modes = G3D\n|vorpx notes = \n|3rd space gaming vest =\n|3rd space gaming vest notes =\n|openxr = \n|steamvr = false\n}}\n"
                                                                                   "==Input==\n{{Input\n|controller support = true\n|steering wheel support = [[Glossary:Wheel|true]]<ref>Test</ref>\n|steering wheel support notes = nur Logitech\n|force feedback = unknown\n}}\n"}}})),
-                   ("dekudeals.com/search", 200, '<a class="main-link" href="https://www.dekudeals.com/items/orbit-golf?format=digital">Orbit Golf</a>'),
+                   ("api/appid.php?appid=3000103", 200, '<script>RLCONF={"wgPageName":"Rally_Moth","wgTitle":"Rally Moth"};</script>'),
+                   ("dekudeals.com/search", 200, '<a href="/items/orbit-golf-deluxe-party">Orbit Golf Deluxe Party</a>'
+                                                 '<a class="main-link" href="https://www.dekudeals.com/items/orbit-golf?format=digital">Orbit Golf</a>'),
                    ("api.nexusmods.com", 200, None),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
@@ -1741,7 +1758,9 @@ class TestSync(unittest.TestCase):
         self.assertIn("native 3d false; vorpx true; vorpx modes G3D; steamvr false", text)
         self.assertNotIn("vest", text)
         self.assertIn("PCGamingWiki, Lenkrad: steering wheel support true; force feedback unknown (3 Felder", text)
-        self.assertEqual(sum("action=parse" in u for u, d in seen), 1)
+        self.assertEqual(sum("action=parse" in u for u, d in seen), 2)
+        self.assertIn("PCGamingWiki, Rennspiel „Rally Moth“", text)
+        self.assertIn("PCGamingWiki, Lenkrad (Rennspiel): steering wheel support true", text)
         self.assertIn("Nexus Mods, Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
         self.assertIn("Nexus Mods, beliebt: „Better Boats“ (310 Empfehlungen, 9000 Downloads)", text)
         self.assertIn("Nexus Mods, mit VR im Namen (1): „Harbor VR Fix“", text)
@@ -1750,13 +1769,24 @@ class TestSync(unittest.TestCase):
         self.assertIn("IGDB, PC über Steam-ID", text)
         self.assertIn("DekuDeals, Suche (PS4)", text)
         self.assertIn("erster Treffer „orbit-golf“", text)
-        self.assertIn("Metacritic: 81", text)
+        self.assertIn("Metacritic: 81 (Nutzer 7.9)", text)
         self.assertIn("Beschreibung „Golf im Orbit.“", text)
         self.assertIn("2 Einträge; zu „Star Hop“", text)
         self.assertIn("Spielzeit eilig 5,0 h, normal 7,0 h, komplett 10,0 h (12 Angaben)", text)
         self.assertIn("Entwickler ['Kite Works']", text)
         self.assertNotIn("a" * 30, text)
         self.assertTrue(any("game_id = 5" in (d or b"").decode() for u, d in seen))
+        # 0.7.5: findet die Suche nichts, der Name als Teilstück bis zum ersten Sonderzeichen
+        seen.clear(); lines.clear()
+        answers[:] = [a for a in answers if a[0] not in ("v4/games", "v4/external_games")] + [("v4/games", 200, "[]")]
+        sources.request = fake_request
+        try:
+            probes.igdb(lines, {"igdb_id": "a" * 30, "igdb_secret": "b" * 30}, [("Konsole", "Moon Wars: Masters of Rändern", None, "PS1")], lambda s: None)
+        finally:
+            sources.request = old
+        bodies = [(d or b"").decode() for u, d in seen if "v4/games" in u]
+        self.assertIn('where name ~ *"Masters of R"* & platforms = (7); limit 2;', bodies[-1])
+        self.assertIn("keine Treffer", lines[-1])
 
     def test_review_form_fallback(self):
         """Schickt Steam bei den Rezensionen eine Seite statt Daten, gilt die nächste Form der Adresse (0.7.4)."""
@@ -1782,7 +1812,7 @@ class TestSync(unittest.TestCase):
             pages.get = lambda url, shown=None: asked.append(url) or "<html></html>"
             sync._rev_get(pages, "3000103", "x")
             sync._rev_get(pages, "3000104", "x")
-            self.assertEqual(len(asked), 3 + 3 + 1)
+            self.assertEqual(len(asked), 3 + 4 + 1)
         finally:
             sync._rev_q.update(old)
 

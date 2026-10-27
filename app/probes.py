@@ -53,7 +53,9 @@ def samples(col):
     ret.sort(key=lambda g: (not g.get("de"), g.get("name") or ""))
     # DekuDeals kennt nur Switch, PlayStation 4 und 5 und Xbox (0.7.2: eine PS1-Suche fand naturgemäß nichts)
     deku = [g for g in con if g.get("system") in DEKU_SYSTEMS]
-    return {"pc": pc[0] if pc else {"name": "Portal 2", "id": "620"},
+    # Sim-Racing (0.7.5): ein Rennspiel am PC, damit die Probe Lenkrad-Angaben überhaupt finden kann
+    race = [g for g in pc if any(re.search(r"(?i)renn|racing|driving", x) for x in g.get("genres") or [])]
+    return {"race": race[0] if race else None, "pc": pc[0] if pc else {"name": "Portal 2", "id": "620"},
             "console": con[0] if con else {"name": "Celeste", "system": "Vorgabe"}, "retro": ret[0] if ret else None,
             "deku": deku[0] if deku else None}
 
@@ -118,7 +120,7 @@ def wheel_info(fields):
     """Lenkrad-Angaben aus der Vorlage „Input“: Felder mit wheel, force feedback oder haptic."""
     hit = {k: v for k, v in fields.items() if re.search(r"wheel|force feedback|haptic|racing", k)}
     return ("; ".join(f"{k} {v}" for k, v in hit.items()) if hit else "keine Angaben zu Lenkrädern") + (
-        f" ({len(fields)} Felder in „Input“: {', '.join(sorted(fields))[:300]})" if fields else " (keine Vorlage „Input“)")
+        f" ({len(fields)} Felder in „Input“: {', '.join(sorted(fields))[:700]})" if fields else " (keine Vorlage „Input“)")
 
 
 NEXUS_GQL = "https://api.nexusmods.com/v2/graphql"
@@ -177,7 +179,13 @@ def deku_item_info(text):
     hits = list(rx.finditer(vis))
     vals = {m.group(1): vis[m.end():hits[i + 1].start() if i + 1 < len(hits) else m.end() + 80].strip()[:80]
             for i, m in enumerate(hits)}
-    desc = re.search(r'<meta[^>]+(?:property|name)="(?:og:)?description"[^>]+content="([^"]*)"', text)
+    # 0.7.5: hinter Metacritic steht die Nutzerwertung („46 1.3“)
+    mc = re.fullmatch(r"(\d{1,3})\s+(\d(?:\.\d)?|10(?:\.0)?)\b.*", vals.get("Metacritic", ""))
+    if mc:
+        vals["Metacritic"] = f"{mc.group(1)} (Nutzer {mc.group(2)})"
+    # Beschreibung: Reihenfolge der Attribute egal (0.7.5: „keine Beschreibung“ trotz Text)
+    desc = next((m for m in (re.search(r'content="([^"]+)"', t) for t in re.findall(
+        r'<meta\b[^>]*(?:property|name)="(?:og:)?description"[^>]*>', text)) if m), None)
     return ("; ".join(f"{k}: {v}" for k, v in vals.items()) or "keine Angaben im Kasten Details") + (
         f"; Beschreibung „{_short(desc.group(1))}“" if desc else "; keine Beschreibung")
 
@@ -190,10 +198,19 @@ def uevr_info(text):
             f"Hinweise auf eine Schnittstelle: {api or 'keine'}")
 
 
-def deku_search_slug(text):
-    # Auch mit Zusatz (?format=…) oder ganzer Adresse (0.7.4: der PS4-Test fand mit dem engen Muster nichts)
-    m = re.search(r"""(?:href=["']|dekudeals\.com)(?:https://www\.dekudeals\.com)?/items/([A-Za-z0-9][\w-]*)(?=["'?#\s>])""", text)
-    return m.group(1) if m else ""
+def deku_search_slug(text, name=""):
+    # Auch mit Zusatz (?format=…) oder ganzer Adresse (0.7.4: der PS4-Test fand mit dem engen Muster nichts).
+    # 0.7.5: der passendste Treffer statt des ersten (der erste war eine Sammlung mit dem Spiel): gleicher Name
+    # zuerst, sonst die meisten gemeinsamen Wörter bei den wenigsten zusätzlichen
+    slugs = list(dict.fromkeys(re.findall(r"""(?:href=["']|dekudeals\.com)(?:https://www\.dekudeals\.com)?/items/([A-Za-z0-9][\w-]*)(?=["'?#\s>])""", text)))
+    if not slugs or not name:
+        return slugs[0] if slugs else ""
+    want = set(re.sub(r"[^a-z0-9]+", " ", search_name(name).lower()).split())
+    def rank(i_slug):
+        i, sl = i_slug
+        have = set(sl.split("-"))
+        return (-(have == want), -len(want & have), len(have - want), i)
+    return min(enumerate(slugs), key=rank)[1]
 
 
 def _plain(n):
@@ -272,6 +289,15 @@ def igdb(lines, keys, names, sleep):
                              + IGDB_FIELDS.replace("limit 2;", f"where platforms = ({pl}); limit 2;" if pl else "limit 2;"))
             if games and (q, pl) != tries[0]:
                 label += f" (gesucht als „{q[:40]}“{'' if pl else ', ohne Plattform'})"
+        # 0.7.5: Die Suche fand einen Namen mit Umlauten in keiner Schreibweise. Zuletzt der Name als Teilstück bis zum
+        # ersten Sonderzeichen, in der Liste der Namen statt über die Suche
+        raw = (n.split(":", 1)[1] if ":" in n else n).strip()
+        part = re.match(r"[A-Za-z0-9 '&.-]*", raw).group(0).strip()
+        if not games and len(part) >= 6 and part != raw:
+            games, err = ask("games", IGDB_FIELDS.replace("limit 2;", f'where name ~ *{json.dumps(part)}*'
+                                                          + (f" & platforms = ({plat})" if plat else "") + "; limit 2;"))
+            if games:
+                label += f" (Name enthält „{part[:40]}“)"
         if games is None:
             lines.append(f"IGDB, {label} „{n[:40]}“: {err}")
             if "403" in err or "429" in err:
@@ -327,6 +353,21 @@ def run(probe, lines, col, keys, sleep):
                 lines.append(f"PCGamingWiki, Lenkrad: {wheel_info(pcgw_vr(wt, 'Input'))}")
             except ValueError:
                 lines.append("PCGamingWiki, Lenkrad: Seite nicht lesbar")
+    # 0.7.5: dasselbe an einem Rennspiel der Sammlung (das PC-Spiel oben ist meist keins)
+    race = s.get("race")
+    if race and str(race.get("id")) != appid:
+        rt = {}
+
+        def race_page(t):
+            rt["t"] = pcgw_title(t)
+            return f"Seite „{rt['t']}“" if rt["t"] else f"keine Seite für App {race.get('id')}"
+        probe(f"PCGamingWiki, Rennspiel „{race['name'][:40]}“", PCGW_APPID + "?" + urllib.parse.urlencode({"appid": race.get("id")}), race_page)
+        if rt.get("t"):
+            probe("PCGamingWiki, Lenkrad (Rennspiel)", PCGW + "?" + urllib.parse.urlencode(
+                {"action": "parse", "page": rt["t"], "prop": "wikitext", "format": "json", "redirects": 1}),
+                lambda t: wheel_info(pcgw_vr(t, "Input")))
+    elif not race:
+        lines.append("PCGamingWiki, Lenkrad: kein Rennspiel am PC in der Sammlung")
 
     # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
     # in der Sammlung mit einer Vorgabe)
@@ -335,7 +376,7 @@ def run(probe, lines, col, keys, sleep):
         slug = {}
 
         def search_info(t):
-            slug["s"] = deku_search_slug(t)
+            slug["s"] = deku_search_slug(t, deku["name"])
             return f"erster Treffer „{slug['s'] or 'keiner'}“"
         probe(f"DekuDeals, Suche ({deku.get('system')})", f"{DEKU}/search?" + urllib.parse.urlencode({"q": search_name(deku["name"])}), search_info)
         if slug.get("s"):

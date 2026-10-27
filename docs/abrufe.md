@@ -66,12 +66,15 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   Spielseite, die drei beliebtesten Mods und Mods mit „VR“ im Namen; Fehler stehen wörtlich im
   Ergebnis. DekuDeals erkennt Treffer auch als ganze Adresse mit Zusatz; IGDB versucht bei Konsolen
   auch den Namen ohne Satzzeichen und den Teil nach dem Doppelpunkt.
+  Seit 0.7.5: DekuDeals nimmt den Treffer, dessen Name am besten passt (nicht den ersten), und trennt
+  Metacritic und Nutzerwertung. Lenkrad und Force Feedback zusätzlich an einem Rennspiel der Sammlung.
+  IGDB sucht zuletzt über einen Teil des Namens bis zum ersten Sonderzeichen (`name ~ *"…"*`).
 
 ## eShopKompass (eigenes Netz, ab 0.7.3)
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Switch-Sammlung | `ESHOP_URL/api/sammlung` (Umgebungsvariable, etwa `http://eshop-kompass:8787`) | jeder Abgleich einmal, nur mit `ESHOP_URL` | je Spiel Name, System (Switch, Switch 2), Genres, Spieler, Koop, Metacritic oder OpenCritic, Spielzeit, Erscheinen, Firmen, USK, Sprachen, Beschreibung, Kaufdatum, Mein Stand. Ersetzt nur die Einträge `eshop:<slug>`; eine Antwort, die nicht vom eShopKompass kommt, ändert nichts |
+| Switch-Sammlung | `ESHOP_URL/api/sammlung` (Umgebungsvariable, etwa `http://eshop-kompass:8787`) | jeder Abgleich einmal, nur mit `ESHOP_URL` | je Spiel Name, System (Switch, Switch 2), Genres, Spieler, Koop, Metacritic oder OpenCritic, Spielzeit, Erscheinen, Firmen, USK, Sprachen, Beschreibung, Kaufdatum, Mein Stand; ab eShopKompass 1.7.17 unter `kv` die Zeile seiner Ansicht „Spiele“ (nur bekannte Felder, gekürzt). Ersetzt nur die Einträge `eshop:<slug>`; eine Antwort, die nicht vom eShopKompass kommt, ändert nichts |
 
 Das ist die einzige Adresse außerhalb des öffentlichen Internets, die das Tool abruft
 (`sources.eshop_url`, genau diese eine Adresse mit diesem Pfad; Weiterleitungen woandershin nicht).
@@ -163,7 +166,11 @@ Form der Adresse (0.7.4): Am 27.10.2026 leitete Steam die Adresse oben bei allen
 Startseite um. Kommt eine Seite statt Daten, versucht der Abruf beim selben Spiel Form 2
 (`…&review_type=all&num_per_page=1&filter=all&cursor=*`) und Form 3 (`json=1&filter=recent&language=all&num_per_page=1`)
 und bleibt bis zum Neustart bei der, die Daten liefert; das Protokoll nennt den Wechsel. Gilt für
-Sammlung und Wunschliste.
+Sammlung und Wunschliste. Form 4 (0.7.5): `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/`
+mit `input_json` (App-ID, `include_reviews`), ohne Schlüssel; liest `reviews.summary_filtered`
+(Zahl, Anteil positiv, Text). Lieferte bei einem Spiel keine Form Daten, fragt der Lauf danach je Spiel
+nur noch die zuletzt gültige Form. Der Verbindungstest prüft Form 1 und 4 an drei Spielen, Form 2 und 3
+am ersten.
 
 Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. Hat ein Spiel mit
 nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter

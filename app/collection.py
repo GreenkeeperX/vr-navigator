@@ -309,6 +309,27 @@ def _pl(v):
     return [int(v[0]), int(v[1])] if isinstance(v, list) and len(v) == 2 and all(isinstance(x, int) for x in v) else None
 
 
+# Zeile der Ansicht „Spiele“ im eShopKompass (ab 1.7.17 unter "kv"): nur diese Felder, Text und Listen gekürzt
+ESHOP_KV = ("genre", "players", "max", "coop", "modes", "gs", "paid_online", "s2", "via", "mc", "mcu", "oc", "hltb",
+            "hours", "size_gb", "year", "year_ok", "year_alt", "released", "developer", "publisher", "pub_alt",
+            "usk", "pegi", "langs", "nin", "read", "pack", "ed")
+
+
+def _plain_json(v, depth=0):
+    """Nur einfache Werte (Text, Zahl, ja/nein, Listen, Wörterbücher), gekürzt; alles andere fällt weg."""
+    if v is None or isinstance(v, (bool, int, float)):
+        return v
+    if isinstance(v, str):
+        return v[:300]
+    if depth >= 3:
+        return None
+    if isinstance(v, list):
+        return [_plain_json(x, depth + 1) for x in v[:40]]
+    if isinstance(v, dict):
+        return {str(k)[:40]: _plain_json(x, depth + 1) for k, x in list(v.items())[:30]}
+    return None
+
+
 def from_eshop(items):
     """Spiele aus der Sammlung des eShopKompass (/api/sammlung) als Einträge der Sammlung, Schlüssel
     eshop:<slug>. Nur, was dort steht; was fehlt oder nicht passt, fällt weg."""
@@ -333,6 +354,7 @@ def from_eshop(items):
             "desc_lang": "en" if e.get("desc_lang") == "en" else "de",
             "langs": [str(x)[:20] for x in e.get("langs") or [] if isinstance(x, str)][:40],
             "added": txt("bought", 10),
+            "kv": {k: _plain_json(v) for k, v in (e.get("kv") if isinstance(e.get("kv"), dict) else {}).items() if k in ESHOP_KV},
             "ext_mine": {k: v for k, v in mine.items() if k in ("s", "fav") and isinstance(v, (str, bool))}}
     return out
 
@@ -418,7 +440,7 @@ def view(col):
             sc, src = (g["mc"], "Metacritic") if g.get("mc") is not None else (g.get("oc"), "OpenCritic") if g.get("oc") is not None else (None, "")
             r.update(eshop=True, score=sc, score_src=src, hours=g.get("hours"), desc=g.get("desc") or "",
                      desc_lang=g.get("desc_lang") or "de", usk=g.get("usk") or "", langs=g.get("langs") or [],
-                     pl=g.get("pl") or {}, mine=g.get("ext_mine") or {}, slug=g.get("id") or "")
+                     pl=g.get("pl") or {}, mine=g.get("ext_mine") or {}, slug=g.get("id") or "", kv=g.get("kv") or {})
             rows.append(r)
             continue
         if g.get("src") == "retro":
@@ -440,6 +462,11 @@ def view(col):
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}
     if esh:
         rows = [r for r in rows if r.get("eshop") or not (r["system"].startswith("Switch") and titles.norm(r["name"]) in esh)]
+    # Switch und Switch 2 in einem Reiter „Switch 2“ (0.7.5, Entscheidung 27.10.2026: alle Switch-Spiele laufen
+    # auf der Switch 2); sw1 merkt, dass es ein Switch-1-Spiel ist (Filter „System“)
+    for r in rows:
+        if r["system"] == "Switch":
+            r["system"], r["sw1"] = "Switch 2", True
     rows.sort(key=lambda r: titles.norm(r["name"]))
     systems = {}
     for r in rows:
