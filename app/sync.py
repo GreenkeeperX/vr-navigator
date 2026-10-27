@@ -865,15 +865,24 @@ def _gg_pending(log, budget):
 
 # Steam-Rezensionen (0.7.4): Im Test am 27.10.2026 leitete Steam die bisherige Adresse bei drei von drei Apps
 # auf die Startseite um. Schickt Steam statt Daten eine Seite, versucht der Abruf die nächste Form der Adresse
-# und bleibt bis zum Neustart bei der, die Daten liefert
+# und bleibt bis zum Neustart bei der, die Daten liefert. 0.7.5: Im Test leitete Steam alle drei Formen um;
+# Form 4 ist die Store-Schnittstelle der Steam Web API (IStoreBrowseService/GetItems, ohne Schlüssel), die
+# je App die Zusammenfassung der Rezensionen nennt
 REVIEW_Q = ["json=1&language=all&purchase_type=all&num_per_page=0&filter=summary",
             "json=1&language=all&purchase_type=all&review_type=all&num_per_page=1&filter=all&cursor=*",
-            "json=1&filter=recent&language=all&num_per_page=1"]
+            "json=1&filter=recent&language=all&num_per_page=1",
+            "storebrowse"]
+STOREBROWSE = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/"
 _rev_q = {"i": 0}
 
 
 def review_url(gid, i=None):
-    return f"{STEAM}/appreviews/{gid}?{REVIEW_Q[_rev_q['i'] if i is None else i]}"
+    q = REVIEW_Q[_rev_q['i'] if i is None else i]
+    if q == "storebrowse":
+        return STOREBROWSE + "?" + urllib.parse.urlencode({"input_json": json.dumps(
+            {"ids": [{"appid": int(gid)}], "context": {"language": "english", "country_code": "DE"},
+             "data_request": {"include_reviews": True}}, separators=(",", ":"))})
+    return f"{STEAM}/appreviews/{gid}?{q}"
 
 
 def _rev_get(src, gid, shown):
@@ -1637,16 +1646,18 @@ def diagnose():
         def info(text):
             r = prices.steam_reviews(text)
             if r:
-                return (f"App {rapp}, Form {form}: {r['n']} Rezensionen, {r['pct']} % positiv" if r["n"]
+                return (f"App {rapp}, Form {form}: {r['n']} Rezensionen, {r['pct']} % positiv ({r['desc'] or 'ohne Text'})" if r["n"]
                         else f"App {rapp}, Form {form}: Steam kennt die App, noch keine Rezensionen")
             t = re.search(r"(?s)<title>(.*?)</title>", text)
             return (f"App {rapp}, Form {form}: Store-Seite statt Daten" + (f" („{' '.join(html.unescape(t.group(1)).split())[:80]}“)" if t else "")
                     if text.lstrip()[:1] == "<" else f"App {rapp}, Form {form}: Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}")
         return info
+    sb = REVIEW_Q.index("storebrowse")
     for rapp in rapps:
         probe("Steam, Rezensionen", review_url(rapp, 0), rev_info(rapp, 1))
+        probe("Steam, Rezensionen", review_url(rapp, sb), rev_info(rapp, sb + 1))
     # 0.7.4: am ersten Spiel jede Form der Adresse, damit klar ist, welche Steam noch beantwortet
-    for i in range(1, len(REVIEW_Q)):
+    for i in range(1, sb):
         probe("Steam, Rezensionen", review_url(rapps[0], i), rev_info(rapps[0], i + 1))
 
     if not key:

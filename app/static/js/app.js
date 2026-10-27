@@ -417,7 +417,7 @@ function wishRow(r){
    ersten Öffnen geladen). Filter, Sortierung und Zufall laufen im Browser; der Zustand steht in der
    Adresse (#sammlung?…), so lässt sich eine Mischung als Lesezeichen merken. */
 let C = null, cLoading = false;
-const D0 = {sys: "PC", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", sw: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
@@ -450,6 +450,8 @@ const G_STF = [["", "egal"], ["open", "nicht durchgespielt"], ["backlog", "Backl
 // Switch-Spiele aus dem eShopKompass (0.7.3): Mein Stand von dort, hier nur lesend
 const mine = g => g.eshop ? g.mine || {} : (S.marks || {})[g.key] || {};
 const ESH = "Laut eShopKompass";
+// Link auf das Spiel im eShopKompass, dort aufgeklappt (ab eShopKompass 1.7.18: #spiele?o=<slug>)
+const eshUrl = g => `${C.eshop_link.replace(/\/+$/, "")}/#spiele?o=${encodeURIComponent(g.slug)}`;
 const hrs = h => `${String(Math.round(h * 2) / 2).replace(".", ",")} h`;
 const meOk = (m, f) => f === "open" ? m.s !== "done" : f === "fav" ? !!m.fav : f === "none" ? !m.s && !m.fav : m.s === f;
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
@@ -523,7 +525,7 @@ const famName = k => (FAMS.find(f => f[0] === k) || [k, k])[1];
 const inSys = (g, sys) => sys ? (sys[0] === "@" ? famOf(g.system) === sys : g.system === sys) : g.system !== "VR";
 function dFilter(d){
   const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
-  return allGames().filter(g => inSys(g, d.sys) && d.mp.every(m => g.mp.includes(m))
+  return allGames().filter(g => inSys(g, d.sys) && (!d.sw || (d.sw === "s1") === !!g.sw1) && d.mp.every(m => g.mp.includes(m))
     // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
@@ -686,7 +688,104 @@ const COLS = [
   {k: "year", l: "Jahr", w: "44px", cls: "r", d0: -1, cell: gYear, sort: g => g.year || null},
   {k: "store", l: "Launcher", w: "92px", tip: "PC: Launcher laut Playnite (violett: nur vermutet); Konsolen: das System", cell: gSrc, sort: g => g.system !== "PC" ? g.system : g.store || null},
 ];
-const colsFor = (d, rows) => COLS.filter(c => (d.sys === "VR") === !!c.vr && (!c.only || c.only(d)) && rows.some(g => c.cell(g)));
+/* Switch-Spiele (0.7.5, Entscheidung 27.10.2026): Spalten, Marken und Einzelheiten 1:1 wie „Spiele“ im
+   eShopKompass, aus der Zeile, die er unter kv mitgibt (ab eShopKompass 1.7.17). Violett heißt wie dort:
+   Nintendo nennt etwas anderes als DekuDeals (Tooltip); grau und kursiv: OpenCritic statt Metacritic */
+const kOn = g => !!(g.eshop && g.kv && Object.keys(g.kv).length);
+const kHours = h => h == null ? "" : h < 1 ? "unter 1 h" : h < 10 ? `${String(Math.round(h * 2) / 2).replace(".", ",")} h` : `${Math.round(h)} h`;
+const kRange = v => esc(!v ? "ja" : v[0] === v[1] ? String(v[1]) : `${v[0]}–${v[1]}`);
+const kVal = (v, tip, bad) => `<span class="${bad ? "gxc" : ""}" title="${esc(tip)}">${v}</span>`;
+const kPl = (g, k) => { const p = (g.kv.players || {})[k]; return p ? (p.v ? p.v[1] : 2) : null; };
+const K_PL = {offline: "an einer Konsole", local: "lokal drahtlos", online: "online"};
+const K_HLTB = {main: "Story", extra: "mit Nebenaufgaben", complete: "insgesamt", solo: "allein", coop: "Koop", vs: "gegeneinander", all: "alle Spielweisen"};
+const K_MODE = {tv: "TV", tabletop: "Tisch", handheld: "Handheld"};
+const K_LANG = {german: "Deutsch", english: "Englisch", french: "Französisch", italian: "Italienisch", spanish: "Spanisch", dutch: "Niederländisch",
+  portuguese: "Portugiesisch", russian: "Russisch", japanese: "Japanisch", korean: "Koreanisch", chinese: "Chinesisch", polish: "Polnisch"};
+const kLangs = l => l.map(x => K_LANG[x] || x).join(", ");
+function kPlayers(g, k){
+  const p = (g.kv.players || {})[k];
+  if(!p) return "";
+  const tip = (p.ok ? `${K_PL[k]}: DekuDeals und Nintendo einig` : p.alt ? `${K_PL[k]}: DekuDeals ${kRange(p.v)}, Nintendo ${kRange(p.alt)}`
+    : p.src === "Nintendo" ? `${K_PL[k]}: nur laut Nintendo` : `${K_PL[k]}: nur laut DekuDeals`) +
+    (k === "online" && g.kv.paid_online ? ". Braucht die Online-Mitgliedschaft (Nintendo)" : "");
+  return kVal(kRange(p.v), tip, !!p.alt);
+}
+function kCoopTip(c){
+  if(!c) return "";
+  if(c.src !== "IGDB") return "Nur ein Hinweis: HowLongToBeat kennt eine Koop-Spielzeit";
+  const n = v => v === true ? "" : ` bis ${v}`;
+  return "Koop laut IGDB: " + ([c.local && `an einer Konsole${n(c.local)}`, c.online && `online${n(c.online)}`, c.split && "geteilter Bildschirm"].filter(Boolean).join(", ") || "ja, ohne Einzelheiten");
+}
+function kCoop(g){
+  const c = g.kv.coop;
+  if(!c) return "";
+  return `<span title="${esc(kCoopTip(c))}">${c.local && c.online ? "beides" : c.local ? "lokal" : c.online ? "online" : "ja"}</span>`;
+}
+function kScore(g){
+  const k = g.kv, more = [k.mcu != null && `Metacritic-Nutzer ${String(k.mcu).replace(".", ",")}`, k.oc != null && `OpenCritic ${k.oc}`].filter(Boolean).join(", ");
+  if(k.mc != null) return `<span class="gsc" style="--sh:${gScoreHue(k.mc)}" title="${esc(`Metacritic ${k.mc}${more ? `; ${more}` : ""} (über DekuDeals)`)}">${esc(k.mc)}</span>`;
+  if(k.oc != null) return `<span class="galt" title="${esc(`Keine Metacritic-Wertung. OpenCritic ${k.oc} (über DekuDeals)`)}">${esc(k.oc)}</span>`;
+  return "";
+}
+function kYear(g){
+  const k = g.kv;
+  if(!k.year) return "";
+  const tip = [k.year_ok ? "DekuDeals und Nintendo einig" : k.year_alt ? `DekuDeals ${k.year}, Nintendo ${k.year_alt} (Erscheinen je Region verschieden)` : "Nur eine Quelle",
+    k.developer && `Entwickler: ${k.developer}`, k.publisher && `Verlag: ${k.publisher}`].filter(Boolean).join("\n");
+  return kVal(esc(k.year), tip, !!k.year_alt);
+}
+const kHltbTip = g => "HowLongToBeat (über DekuDeals): " + Object.entries(g.kv.hltb || {}).map(([a, b]) => `${K_HLTB[a] || a} ${kHours(b)}`).join(", ");
+// Marken hinter dem Namen wie dort: Switch 2, fehlende Spielmodi, GameShare, ohne Deutsch, „aus: Paket“
+function kBadges(g){
+  const k = g.kv, b = [];
+  if(k.s2 && k.s2 !== "edition") b.push(`<span class="lgt de" title="${k.s2 === "upgrade" ? "Mit Upgrade-Paket für die Switch 2, das du hast" : "Spiel für die Switch 2"}">${k.s2 === "upgrade" ? "S2-Upgrade" : "Switch 2"}</span>`);
+  const ms = (k.modes || []).map(m => m.n), miss = ["tv", "tabletop", "handheld"].filter(m => !ms.includes(m));
+  if(ms.length && miss.length) b.push(`<span class="lgt de" title="${esc(`Spielbar: ${ms.map(m => K_MODE[m]).join(", ")}. Nicht: ${miss.map(m => K_MODE[m]).join(", ")}`)}">${miss.length === 1 ? `ohne ${K_MODE[miss[0]]}` : `nur ${ms.map(m => K_MODE[m]).join(", ")}`}</span>`);
+  if(k.gs) b.push(`<span class="lgt gsh" title="${esc(`GameShare laut Nintendo: ${[k.gs.local && "lokal", k.gs.online && "online über GameChat"].filter(Boolean).join(" und ")}. Freunde spielen mit, ohne das Spiel zu haben`)}">GameShare</span>`);
+  if(g.langs?.length && !g.langs.includes("german")) b.push(`<span class="lgt no" title="${esc("Laut Nintendo Europa ohne Deutsch. Sprachen: " + kLangs(g.langs))}">ohne Deutsch</span>`);
+  if(k.via) b.push(`<small class="hint gvia" title="${esc("Hast du im Paket " + k.via)}">aus: ${esc(k.via)}</small>`);
+  return b.join("");
+}
+const K_COLS = [
+  {k: "koff", l: "Konsole", w: "68px", cls: "c-pl", tip: "Spieler an einer Konsole (Couch, Splitscreen)", d0: -1, cell: g => kPlayers(g, "offline"), sort: g => kPl(g, "offline")},
+  {k: "kloc", l: "Lokal", w: "48px", cls: "c-pl", tip: "Spieler mit mehreren Konsolen im selben Raum", d0: -1, cell: g => kPlayers(g, "local"), sort: g => kPl(g, "local")},
+  {k: "kon", l: "Online", w: "52px", cls: "c-pl", tip: "Spieler online", d0: -1, cell: g => kPlayers(g, "online"), sort: g => kPl(g, "online")},
+  {k: "kcoop", l: "Koop", w: "50px", cls: "c-pl", tip: "Laut IGDB: lokal, online oder beides; „ja“: nur ein Hinweis von HowLongToBeat", d0: -1, cell: kCoop,
+    sort: g => g.kv.coop ? (g.kv.coop.local && g.kv.coop.online ? 3 : g.kv.coop.local || g.kv.coop.online ? 2 : 1) : null},
+  {k: "kmc", l: "Metacritic", w: "86px", cls: "r", tip: "Grau und kursiv: keine Metacritic-Wertung, dafür OpenCritic", d0: -1, cell: kScore, sort: g => g.kv.mc ?? g.kv.oc ?? null},
+  {k: "khours", l: "Spielzeit", w: "66px", cls: "r", tip: "HowLongToBeat: Story, sonst allein", cell: g => g.kv.hours ? `<span title="${esc(kHltbTip(g))}">${kHours(g.kv.hours)}</span>` : "", sort: g => g.kv.hours ?? null},
+  {k: "genre", l: "Genre", w: "minmax(0,1fr)", tip: "Von Nintendo, sonst DekuDeals", cell: gGenres, sort: g => g.genres[0] || null},
+  {k: "kyear", l: "Jahr", w: "42px", cls: "r", d0: -1, cell: kYear, sort: g => g.kv.year || null}];
+// Einzelheiten wie dort: Wertung, Spielzeit, Erschienen, USK, Spieler-Widersprüche, Koop, GameShare, Online;
+// rechts Mein Stand (setzt du im eShopKompass), darunter klein Sprachen, Größe, Kaufdatum, Paket und Links
+function kDetail(g, side){
+  const k = g.kv;
+  const row = (l, v, tip) => v ? `<span class="fl">${l}</span><span class="fv"${tip ? ` title="${esc(tip)}"` : ""}>${v}</span>` : "";
+  const n1 = v => String(v).replace(".", ",");
+  const sc = (v, x = v) => `<span class="gsc" style="--sh:${gScoreHue(x)}">${esc(v)}</span>`;
+  const score = [k.mc != null && `Metacritic ${sc(k.mc)}`, k.mcu != null && `Nutzer ${sc(n1(k.mcu), k.mcu * 10)}`, k.oc != null && `OpenCritic ${sc(k.oc)}`].filter(Boolean).join(" · ");
+  const hltb = Object.entries(k.hltb || {}).map(([a, b]) => `${esc(K_HLTB[a] || a)} ${kHours(Number(b))}`).join(" · ");
+  const who = [k.developer && `Entwickler: ${k.developer}`, k.publisher && `Verlag: ${k.publisher}${k.pub_alt ? ` (Nintendo: ${k.pub_alt})` : ""}`].filter(Boolean).join("\n");
+  const rel = k.released ? `${esc(k.released.length > 4 ? day(k.released) : k.released)}${k.year_alt ? ` <span class="gxc">(Nintendo: ${esc(k.year_alt)})</span>` : ""}` : "";
+  const age = k.usk ? `<span class="${["16", "18"].includes(k.usk) ? "usk" + k.usk : ""}">${esc(k.usk)}</span>` : k.pegi ? `<span title="Keine USK-Angabe">PEGI ${esc(k.pegi)}</span>` : "";
+  const odd = ["offline", "local", "online"].filter(x => (k.players || {})[x]?.alt)
+    .map(x => `${K_PL[x]} <span class="gxc">DekuDeals ${kRange(k.players[x].v)}, Nintendo ${kRange(k.players[x].alt)}</span>`).join(" · ");
+  const facts = row("Wertung", score) + row("Spielzeit", hltb, "HowLongToBeat, über DekuDeals") +
+    row("Erschienen", rel, who) + row("USK", age, [k.usk && `USK ${k.usk}`, k.pegi && `PEGI ${k.pegi}`].filter(Boolean).join(", ")) +
+    (odd ? row("Spieler", odd, "DekuDeals und Nintendo nennen verschiedene Zahlen") : "") +
+    (k.coop?.src === "IGDB" ? row("Koop", esc(kCoopTip(k.coop).replace("Koop laut IGDB: ", "")), "IGDB") : "") +
+    (k.gs ? row("GameShare", [k.gs.local && "lokal", k.gs.online && "online über GameChat"].filter(Boolean).join(", "), "Laut Nintendos Liste der hervorgehobenen GameShare-Spiele") : "") +
+    (k.paid_online ? row("Online", "mit Mitgliedschaft", "Laut Nintendo braucht das Online-Spiel die Nintendo Switch Online-Mitgliedschaft") : "");
+  const langs = g.langs?.length ? `<span title="${esc("Sprachen laut Nintendo Europa: " + kLangs(g.langs))}">${g.langs.includes("german") ? `Deutsch${g.langs.length > 1 ? ` und ${g.langs.length - 1} weitere Sprache${g.langs.length > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>`}</span>` : "";
+  const pk = k.pack ? `aus ${esc(k.pack.title)}${k.pack.filled?.length ? " (Angaben teils vom Paket)" : ""}` : "";
+  const ed = k.ed ? `<span title="${esc("Du hast das Upgrade-Paket: Spieler, Spielzeit und Größe von der Seite der Switch-2-Edition" + (Object.keys(k.ed.diff || {}).length ? ". Die Switch-1-Seite nennt anderes bei: " + Object.keys(k.ed.diff).join(", ") : ""))}">Angaben der Switch-2-Edition</span>` : "";
+  const deku = `<a href="https://www.dekudeals.com/items/${encodeURIComponent(g.slug)}" target="_blank" rel="noopener noreferrer">DekuDeals</a>${k.nin ? ", von Nintendo geprüft" : k.read ? ", noch nicht von Nintendo geprüft" : ", Seite noch nicht gelesen"}`;
+  const small = [langs, k.size_gb && `${esc(n1(k.size_gb))} GB`, g.added && `gekauft am ${day(g.added)}`, pk, ed, deku,
+    `laut eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}`].filter(Boolean).join(" · ");
+  return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
+}
+// Nur Switch-Spiele mit der Zeile aus dem eShopKompass: dessen Spalten (0.7.5)
+const colsFor = (d, rows) => rows.length && rows.every(kOn) ? K_COLS : COLS.filter(c => (d.sys === "VR") === !!c.vr && (!c.only || c.only(d)) && rows.some(g => c.cell(g)));
 /* Marken hinter dem Namen, knapp: Mein Stand, VR, Geheimtipp, Retro (DE fehlt, Homebrew, Hack, nicht mehr
    in der Liste), bei VR-Titeln Wunsch, Bundle und was zu prüfen ist */
 function gBadges(g){
@@ -699,6 +798,7 @@ function gBadges(g){
     if(r.steam_appid && !r.steam_sure) b.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt : "Steam-ID nur nach dem Namen zugeordnet")}">Steam-ID prüfen</span>`);
     return b.join("");
   }
+  if(kOn(g)) return b.join("") + kBadges(g);
   if(g.vr) b.push(`<span class="b vrb" title="Laut Steam mit VR-Unterstützung">VR</span>`);
   if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
   if(g.retro){
@@ -722,7 +822,7 @@ function gDetail(g){
   const marks = `<span class="seg gmark">${G_ST.map(([k, l, ic, tip]) => `<button data-act="gmark" data-s="${esc(g.key)}" data-k="s" data-v="${m.s === k ? "" : k}" class="${m.s === k ? "on" : ""}" title="${esc(m.s === k ? "Zurücknehmen" : tip)}"><span class="gst ${k}">${ic}</span> ${l}</button>`).join("")}</span><span class="seg gmark"><button data-act="gmark" data-s="${esc(g.key)}" data-k="fav" data-v="${m.fav ? "" : "1"}" class="${m.fav ? "on" : ""}" title="${m.fav ? "Kein Favorit mehr" : "Als Favorit merken"}"><span class="gfav">${m.fav ? "★" : "☆"}</span> Favorit</button></span>`;
   // Switch (0.7.3): Mein Stand setzt du im eShopKompass, hier steht er nur
   const st = G_ST.find(x => x[0] === m.s);
-  const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im eShopKompass</span>` : `<span class="gmk">${marks}</span>`;
+  const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern ${C.eshop_link ? `<a href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer">im eShopKompass</a>` : "im eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
   // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
   const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
@@ -730,15 +830,16 @@ function gDetail(g){
     const r = g.lib;
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
   }
+  if(kOn(g)) return kDetail(g, side);
   if(g.eshop){
-    // Wie „Spiele“ im eShopKompass: Wertung, Spielzeit, Erschienen (Firmen im Tooltip), USK, Sprachen
+    // Wie „Spiele“ im eShopKompass (vor eShopKompass 1.7.17, ohne kv): Wertung, Spielzeit, Erschienen (Firmen im Tooltip), USK, Sprachen
     const de = g.langs.includes("german");
     const facts = row("Wertung", g.score != null ? `${esc(g.score_src)} ${gScore(g.score, g.score_src, "")}` : "") +
       row("Spielzeit", g.hours ? hrs(g.hours) : "", "HowLongToBeat: Story, sonst allein") +
       row("Erschienen", g.rel?.length > 4 ? day(g.rel) : "", [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n")) +
       row("USK", esc(g.usk)) +
       row("Sprachen", !g.langs.length ? "" : de ? `Deutsch${g.langs.length > 1 ? ` und ${g.langs.length - 1} weitere Sprache${g.langs.length > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>`, "Laut Nintendo Europa");
-    const link = C.eshop_link ? `<a href="${esc(C.eshop_link)}/#spiele?q=${encodeURIComponent(g.name)}" target="_blank" rel="noopener noreferrer">im eShopKompass</a>` : "";
+    const link = C.eshop_link ? `<a href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer">im eShopKompass</a>` : "";
     const small = [g.added && `gekauft am ${day(g.added)}`, `laut eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}`, link].filter(Boolean).join(" · ");
     return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
   }
@@ -805,14 +906,18 @@ function findView(){
   const fams = {};
   for(const [n, c] of sys) if(n !== "PC" && n !== "VR"){ const f = famOf(n); (fams[f] = fams[f] || []).push([n, c]); }
   const famKeys = Object.keys(fams).filter(f => fams[f].length > 1);
+  if(d.sys === "Switch"){ d.sys = "Switch 2"; d.sw = "s1"; }      // Lesezeichen von vor 0.7.5
   if(d.sys && !sys.some(([n]) => n === d.sys) && !famKeys.includes(d.sys)) d.sys = sys.length === 1 ? sys[0][0] : "";
   // „Alle“ nur, wenn Playnite und Retro-Liste mehr als ein System liefern
   const nAll = C.games.length, multi = (C.systems || []).length > 1;
   if(!d.sys && !multi && sys.length) d.sys = sys[0][0];
   const curFam = d.sys && (d.sys[0] === "@" ? d.sys : famKeys.includes(famOf(d.sys)) ? famOf(d.sys) : "");
   // Herausgleiten nur beim Öffnen der Familie, nicht bei jedem neuen Zeichnen
-  const anim = curFam && V.lastFam !== curFam;
+  // Neu gezeichnet wird oft gleich danach (Sammlung geladen, Abgleich): die Animation läuft dann an derselben
+  // Stelle weiter (negative Verzögerung), statt abzubrechen; so gleiten alle Familien gleich (0.7.5)
+  if(curFam && V.lastFam !== curFam) V.famAt = Date.now();
   V.lastFam = curFam;
+  const since = Date.now() - (V.famAt || 0), anim = curFam && since < 340;
   const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${sysFam(v)}${d.sys === v ? " on" : ""}${cls || ""}"${tip ? ` title="${esc(tip)}"` : ""}>${esc(l)} <span class="n">${c}</span></button>`;
   const top = sys.filter(([n]) => n === "PC" || n === "VR").map(([n, c]) => tab(n, n, c, "", n === "VR" ? "Deine VR-Titel bei Meta und am PC" : ""));
   for(const [f] of FAMS){
@@ -820,7 +925,7 @@ function findView(){
     if(!famKeys.includes(f)){ const [n, c] = fams[f][0]; top.push(tab(n, n, c)); continue; }
     const open = curFam === f;
     top.push(tab(f, famName(f), fams[f].reduce((a, [, x]) => a + x, 0), open && d.sys !== f ? " part" : "", `Alle Spiele von ${famName(f)}; ein Klick zeigt die Konsolen einzeln`) +
-      (open ? `<span class="subtabs${anim ? " anim" : ""}">${fams[f].map(([m, x]) => tab(m, m, x, " sub")).join("")}</span>` : ""));
+      (open ? `<span class="subtabs${anim ? " anim" : ""}"${anim && since > 30 ? ` style="animation-delay:-${since}ms"` : ""}>${fams[f].map(([m, x]) => tab(m, m, x, " sub")).join("")}</span>` : ""));
   }
   const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${multi ? tab("", "Alle", nAll, "", "Alle Systeme aus Playnite, der Retro-Liste und dem eShopKompass; deine VR-Titel stehen unter VR") : ""}${top.join("")}</div>` : "";
   const inTab = allGames().filter(g => inSys(g, d.sys)), vr = d.sys === "VR";
@@ -849,7 +954,9 @@ function findView(){
     <p class="hint">Mehrere gewählt: alle müssen passen.</p>
     ${mpIn.map(k => `<label><input type="checkbox" data-dmp="${esc(k)}"${d.mp.includes(k) ? " checked" : ""}> ${esc(C.mp_label[k])} <span class="n">${mn[k]}</span></label>`).join("")}</div></details>` : "";
   const label = dLabel(d);
-  const filters = `<div class="dfilter">${kinds}${genres}
+  // Switch und Switch 2 stehen in einem Reiter (0.7.5); wie im eShopKompass lässt sich das System wählen
+  const sw = inTab.some(g => g.sw1) && inTab.some(g => g.system === "Switch 2" && !g.sw1);
+  const filters = `<div class="dfilter">${sw ? `<label>System <select data-dset="sw">${opt([["", "alle"], ["s2", "Switch 2"], ["s1", "nur Switch"]], d.sw)}</select></label>` : ""}${kinds}${genres}
       ${inTab.some(g => g.players) ? `<label>Spieler <select data-dset="min">${opt([[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>` : ""}
       ${stores.length > 1 ? `<label>${vr ? "Besitz" : "Launcher"} <select data-dset="st">${opt([["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>` : ""}
       ${inTab.some(g => g.score != null) ? `<label>Wertung <select data-dset="sc">${opt([[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>` : ""}
@@ -882,8 +989,10 @@ function findView(){
     : [nPn && `${at ? `Playnite-Export vom ${day(at)}. ` : ""}Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (violett: nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.`,
       nEsh && `Switch-Sammlung aus dem eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}: Genre, Spieler, Wertung und Spielzeit von DekuDeals und Nintendo, Mein Stand setzt du dort.`,
       nRetro && `Retro-Liste${rat ? ` vom ${day(rat)}` : ""}: Sprache laut Dateiname, violett: nur aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""}. Genres und Spielerzahl für Retro-Spiele kommen später.`].filter(Boolean).join(" ");
-  const note = `<p class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${inTab.length} Spiele`) : `${rows.length} von ${inTab.length} Spielen`}${d.sys ? ` (${esc(d.sys[0] === "@" ? famName(d.sys) : d.sys)})` : ""}. ${src}</p>`;
-  const head = `<div class="gr nph" role="row">${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
+  // Kurz, die Herkunft zum Aufklappen (0.7.5, Entscheidung 27.10.2026: der lange Text war zu viel)
+  const note = `<details class="gnote"><summary class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${num(inTab.length)} Spiele`) : `${num(rows.length)} von ${num(inTab.length)} Spielen`}${d.sys ? ` (${esc(d.sys[0] === "@" ? famName(d.sys) : d.sys)})` : ""}.</summary><p class="hint">${src}</p></details>`;
+  const es = cols === K_COLS;
+  const head = `<div class="gr nph${es ? " es" : ""}" role="row">${es ? `<span class="gh-sp" aria-hidden="true">Spieler</span>` : ""}${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
   return goneCard + tabs + bar + mixes + filters + pickCard + note +
     glist(rows.slice(0, d.n).map(g => gRow(g, cols)).join("") || `<p class="hint">Kein Treffer.</p>`, head) +
     (rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : "");
@@ -1404,7 +1513,7 @@ document.addEventListener("click", async ev => {
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort, sys: V.d.sys}); delete V.sorts.find; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
-    V.d.sys = v; V.d.st = ""; V.d.cb = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
+    V.d.sys = v; V.d.sw = ""; V.d.st = ""; V.d.cb = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
     if(V.d.mix && !(v === "VR" ? MIXES.find(x => x[0] === V.d.mix)?.[4] : true)) V.d = Object.assign({}, D0, {sys: v, sort: V.d.sort});
     if(V.d.mix) V.d.seed = newSeed();
     render();

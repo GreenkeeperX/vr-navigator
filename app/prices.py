@@ -177,6 +177,16 @@ def steam_reviews(text):
         d = json.loads(text)
     except ValueError:
         return None
+    # Store-Schnittstelle (0.7.5, IStoreBrowseService/GetItems): Zusammenfassung je App
+    items = (d.get("response") or {}).get("store_items") if isinstance(d, dict) and isinstance(d.get("response"), dict) else None
+    if isinstance(items, list):
+        it = items[0] if items and isinstance(items[0], dict) and items[0].get("success") == 1 else None
+        if it is None:
+            return None
+        r = ((it.get("reviews") or {}).get("summary_filtered") or {})
+        n = r.get("review_count") if isinstance(r.get("review_count"), int) else 0
+        pct = r.get("percent_positive") if isinstance(r.get("percent_positive"), int) and n else None
+        return {"n": n, "pct": pct, "desc": str(r.get("review_score_label") or "")[:40]}
     q = d.get("query_summary") if isinstance(d, dict) and d.get("success") == 1 else None
     if not isinstance(q, dict) or not isinstance(q.get("total_reviews"), int):
         return None

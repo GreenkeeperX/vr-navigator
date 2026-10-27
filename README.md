@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.4:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.5:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -358,7 +358,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   höchstens 150 sind (sonst grau, der Tooltip sagt, wie viele es sind; 0.7.4). Die Reiter oben
   zeigen Alle, PC, VR, PlayStation, Nintendo und Weitere (alle übrigen Systeme); ein Klick
   auf eine Familie zeigt alle ihre Spiele und klappt rechts daneben ihre Konsolen aus (PS1 bis PS5,
-  Switch, 3DS …; 0.7.4),
+  Switch 2, 3DS …; 0.7.4). Switch und Switch 2 stehen in einem Reiter „Switch 2“, der Filter
+  „System“ trennt sie wieder; die Switch-Spiele zeigen Spalten, Marken und Einzelheiten wie „Spiele“
+  im eShopKompass (ab eShopKompass 1.7.17), „im eShopKompass“ öffnet das Spiel dort aufgeklappt
+  (0.7.5). Über der Liste steht kurz die Zahl der Spiele, die Herkunft der Angaben klappt auf,
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
   Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der
   hinter dem Namen steht, sich filtern lässt („Mein Stand“, Mischung „Aus dem Backlog“) und in
