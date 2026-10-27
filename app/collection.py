@@ -114,8 +114,10 @@ SYSTEMS = [
     ("VB", r"virtual boy|\bvb\b"),
 ]
 _SYSTEMS = [(n, re.compile(p, re.I)) for n, p in SYSTEMS]
-# PlayStation-Kennungen ohne Plattform: CUSA/PLAS PS4, PPSA PS5, sonst nur „PS“ unbestimmt
-_PSN_SYS = {"CUSA": "PS4", "PLAS": "PS4", "PPSA": "PS5", "PCSA": "PS Vita", "PCSB": "PS Vita", "PCSE": "PS Vita"}
+# PlayStation-Kennungen ohne Plattform: CUSA/PLAS PS4, PPSA PS5, NPWR PS3 oder Vita, sonst nur „PS“ unbestimmt
+# NPWR… sind Trophäenlisten: Playnite führt so Spiele von PS3 und PS Vita, ohne zu sagen, von welcher
+_PSN_SYS = {"CUSA": "PS4", "PLAS": "PS4", "PPSA": "PS5", "PCSA": "PS Vita", "PCSB": "PS Vita", "PCSE": "PS Vita",
+            "NPWR": "PS3 / Vita"}
 
 
 def system_of(platforms, source="", gid=""):
@@ -141,6 +143,7 @@ EXTRA_ORDER = ["Pokémon Mini", "Mega Drive", "Master System", "Game Gear", "Sat
 def system_order(name):
     """Reihenfolge der Reiter: PC vorn, dann wie in SYSTEMS."""
     names = ["PC"] + [n for n, _ in SYSTEMS] + EXTRA_ORDER
+    names.insert(names.index("PS3") + 1, "PS3 / Vita")
     return names.index(name) if name in names else len(names)
 
 

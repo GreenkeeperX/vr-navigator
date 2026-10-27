@@ -405,7 +405,7 @@ function wishRow(r){
    Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
    (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
 let C = null, cLoading = false;
-const D0 = {sys: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
@@ -546,6 +546,9 @@ function moreOnScroll(){
   moreObs = new IntersectionObserver(es => { if(es.some(e => e.isIntersecting)){ moreObs.disconnect(); m.click(); } }, {rootMargin: "400px"});
   moreObs.observe(m);
 }
+// Farbe eines System-Reiters: Nintendo rot, PlayStation blau, PC grün, „Alle“ im Türkis des Tools
+const NINTENDO = new Set(["Switch", "Wii U", "Wii", "GameCube", "N64", "SNES", "NES", "3DS", "DS", "GBA", "GBC", "GB", "VB", "Pokémon Mini"]);
+const sysFam = n => n === "PC" ? "fam-pc" : /^PS/.test(n) ? "fam-ps" : NINTENDO.has(n) ? "fam-nin" : "";
 function findView(){
   if(!C){ loadCollection(); return `<p class="hint">Lädt die Sammlung …</p>`; }
   if(C.error) return `<p class="err">Sammlung nicht lesbar: ${esc(C.error)}</p>`;
@@ -556,10 +559,12 @@ function findView(){
   const opt = (k, list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
   const inTab = d.sys ? C.games.filter(g => (g.system || "PC") === d.sys) : C.games;
   const stores = [...new Set(inTab.map(g => g.store).filter(Boolean))].sort();
-  // Reiter je System, „Alle“ vorn; nur, wenn mehr als ein System da ist
+  // Reiter je System, „Alle“ vorn; nur, wenn mehr als ein System da ist. Gibt es das gewählte
+  // System nicht (etwa PC, der Standard, ohne PC-Spiele), gilt „Alle“
   const sys = C.systems || [];
+  if(d.sys && !sys.some(([n]) => n === d.sys)) d.sys = "";
   const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${[["", "Alle", C.games.length]].concat(sys.map(([n, c]) => [n, n, c])).map(([v, l, c]) =>
-    `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${d.sys === v ? "on" : ""}">${esc(l)} <span class="n">${c}</span></button>`).join("")}</div>` : "";
+    `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${sysFam(v)}${d.sys === v ? " on" : ""}">${esc(l)} <span class="n">${c}</span></button>`).join("")}</div>` : "";
   // ein Klick auf die gewählte Mischung nimmt sie wieder zurück
   const mixes = `<div class="chips mix">${MIXES.map(([k, l, tip]) => `<button data-act="${d.mix === k ? "dmixoff" : "dmix"}" data-v="${k}" title="${esc(d.mix === k ? "Zurücknehmen" : tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
   // Filter als Menüs mit Häkchen. Die Zahl hinter einem Genre: Spiele mit diesem Genre unter den übrigen
@@ -930,11 +935,13 @@ function previewHtml(p){
   if(p.error) return `<p class="err">${esc(p.error)}</p>`;
   const pc = p.collection, sy = Object.entries(pc?.systems || {}).filter(([n]) => n !== "PC");
   const cons = sy.length ? ` Davon für Konsolen: ${sy.map(([n, c]) => `${esc(n)} ${c}`).join(", ")}.` : "";
-  const col = !pc ? "" : pc.n ? ` Dazu die ganze Sammlung für Entdecken: ${pc.n} Spiele, ${pc.new} neu.${cons}${pc.kept ? ` Spiele anderer Systeme bleiben stehen (${pc.kept}).` : ""}`
-    : ` Die Sammlung für Entdecken bleibt, wie sie ist${pc.kept ? ` (${pc.kept} Spiele)` : ""}.`;
+  const col = !pc ? "" : pc.n ? ` Dazu die ganze Sammlung: ${pc.n} Spiele, ${pc.new} neu.${cons}${pc.kept ? ` Spiele anderer Systeme bleiben stehen (${pc.kept}).` : ""}`
+    : ` Die Sammlung bleibt, wie sie ist${pc.kept ? ` (${pc.kept} Spiele)` : ""}.`;
+  // Playnite: die erste Zahl zählt nur VR-Titel für Bibliothek und Wunschliste
+  const found = pc && !p.n ? "keine VR-Titel darin (Bibliothek bleibt, wie sie ist)." : `${p.n} ${pc ? "VR-Titel " : ""}erkannt, davon ${p.new} neu.`;
   if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}: ${p.n} erkannt, ${p.new} neu angelegt.${col}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
-  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${p.n} erkannt, davon ${p.new} neu.${col} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
+  return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}: ` : ""}${found}${col} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
 /* ---------------------------------------------------------------- Bearbeiten */
