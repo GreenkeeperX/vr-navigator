@@ -1,5 +1,5 @@
 "use strict";
-/* VR-Navigator, Oberfläche ohne Build. Reiter: Jetzt, VR-Wunschliste, Sammlung (mit VR), Einstellungen.
+/* VR-Navigator, Oberfläche ohne Build. Reiter: Jetzt, Wunschliste (VR, PC), Sammlung (mit VR), Einstellungen.
    Farben, Marken und Klappen folgen docs/oberflaeche.md.
    Alle fremden Texte (Titel, Notizen, Links) laufen durch esc() bzw. safeUrl(). */
 
@@ -14,8 +14,8 @@ const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de
 
 let S = null;                                   // Zustand vom Server
 // Die Bibliothek ist seit 0.6.0 der Reiter VR in der Sammlung
-const TABS = [["now", "Jetzt"], ["wish", "VR-Wunschliste"], ["find", "Sammlung"], ["settings", "Einstellungen"]];
-const V = {tab: "wish", q: "", sort: "name", prev: {}, folds: {}, sorts: {}};
+const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["find", "Sammlung"], ["settings", "Einstellungen"]];
+const V = {tab: "wish", wsub: "vr", pcSort: "near", q: "", sort: "name", prev: {}, folds: {}, sorts: {}};
 // Ansicht je Browser (vn.view): Reiter, Klappzustände, Sortierung nach Spalte. Bis 0.2.1 gab es die
 // Reiter Abrufe und Import, beide stehen jetzt unter Einstellungen; „lib“ führt in die Sammlung, Reiter VR.
 let LIB_IN = false;
@@ -26,8 +26,9 @@ try{
   V.tab = t === "sync" || t === "import" ? "settings" : LIB_IN ? "find" : TABS.some(x => x[0] === t) ? t : V.tab;
   V.folds = v.folds && typeof v.folds === "object" ? v.folds : {};
   V.sorts = v.sorts && typeof v.sorts === "object" ? v.sorts : {};
+  if(v.wsub === "pc") V.wsub = "pc";
 }catch(e){}
-function saveView(){ try{ localStorage.setItem("vn.view", JSON.stringify({tab: V.tab, folds: V.folds, sorts: V.sorts})); }catch(e){} }
+function saveView(){ try{ localStorage.setItem("vn.view", JSON.stringify({tab: V.tab, wsub: V.wsub, folds: V.folds, sorts: V.sorts})); }catch(e){} }
 
 /* ---------------------------------------------------------------- Zeiten, Hinweise, Kopieren */
 function ago(iso){
@@ -117,7 +118,7 @@ function renderNav(){
   const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
-  const cnt = {now: c.now || "", wish: c.wish, find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
+  const cnt = {now: c.now || "", wish: c.wish + (S.pcwish?.n || 0) || "", find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
   $("nav").innerHTML = TABS.map(([k, l]) =>
     `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${cnt[k] !== "" ? `<span class="cnt">${esc(cnt[k])}</span>` : ""}</button>`).join("");
   renderHead();
@@ -290,7 +291,36 @@ function legendHtml(){
 }
 
 /* ---------------------------------------------------------------- Wunschliste */
+/* Wunschliste mit Unterreitern VR und PC (0.8.2). PC spiegelt die ganze gg.deals-Wunschliste; gepflegt
+   wird sie dort (Entscheidung 27.10.2026), das Tool holt Steam-ID und Preise dazu */
 function wishView(){
+  const pw = S.pcwish || {n: 0};
+  if(!pw.n) return vrWishView();
+  const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${V.wsub === v}" data-act="wsub" data-v="${v}" class="${cls}${V.wsub === v ? " on" : ""}" title="${esc(tip)}">${l} <span class="n">${c}</span></button>`;
+  const tabs = `<div class="systabs" role="tablist" aria-label="Wunschliste">${tab("vr", "VR", S.counts.wish, "", "Deine VR-Wünsche bei Meta und am PC, mit Preisen beider Läden")}${tab("pc", "PC", pw.n, "fam-pc", "Deine ganze Wunschliste bei gg.deals, mit Preisen von Händlern und Keyshops")}</div>`;
+  return tabs + (V.wsub === "pc" ? pcWishView(pw) : vrWishView());
+}
+const PC_SORTS = [["near", "Nah am Tief"], ["best", "Preis"], ["name", "Name"], ["new", "Neu"]];
+function pcWishView(pw){
+  const q = V.q.trim().toLowerCase();
+  let rows = pw.rows.filter(r => !q || r.name.toLowerCase().includes(q));
+  const key = {near: r => r.over ?? 1e9, best: r => r.best ?? 1e9, new: r => -Date.parse(r.since || 0) || 0}[V.pcSort];
+  if(key) rows = rows.slice().sort((a, b) => key(a) - key(b));
+  const sel = `<label class="kind">Sortieren <select data-sort="pc">${PC_SORTS.map(([v, l]) => `<option value="${v}"${V.pcSort === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
+  const bar = `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel suchen" aria-label="Titel suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span><span class="tools">${sel}</span></div>`;
+  const src = {Server: "über den Teilen-Link", Lesezeichen: "per Lesezeichen", Datei: "aus einer Datei"}[pw.via] || "";
+  const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === pw.n ? `Alle ${num(pw.n)} Spiele deiner gg.deals-Wunschliste.` : `${num(rows.length)} von ${num(pw.n)} Spielen.`}</summary>
+    <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach genau gleichem Namen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.</p></details>`;
+  const cols = "minmax(160px,2fr) 82px 82px 82px 82px 74px";
+  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt: Händler oder Keyshop">Jetzt</span><span class="r" title="Offizielle Händler laut gg.deals">Händler</span><span class="r" title="Keyshops laut gg.deals">Keyshop</span><span class="r" title="Bisheriges Tief, Händler oder Keyshop">Tief</span><span class="r" title="Wie weit der Preis jetzt über dem bisherigen Tief liegt">über Tief</span></div>`;
+  const row = r => `<div class="gr"><span class="t">${r.url ? `<a class="g-n" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" title="${esc(r.name)} bei gg.deals">${esc(r.name)}</a>` : esc(r.name)}${r.vr ? `<span class="b vrb" title="Steht als VR-Titel im Tool">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.near ? `<span class="b go" title="Höchstens 5 % über dem bisherigen Tief">nah am Tief</span>` : ""}</span>` +
+    `<span class="r" data-l="Jetzt">${r.best != null ? `<b title="${esc(r.best_from)}">${eur(r.best)}</b>` : `<span class="hint" title="${r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">–</span>`}</span>` +
+    `<span class="r${r.retail != null ? "" : " nil"}" data-l="Händler">${r.retail != null ? eur(r.retail) : G_NIL}</span><span class="r${r.keyshops != null ? "" : " nil"}" data-l="Keyshop">${r.keyshops != null ? eur(r.keyshops) : G_NIL}</span>` +
+    `<span class="r${r.low != null ? "" : " nil"}" data-l="Tief" title="${esc([r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", "))}">${r.low != null ? eur(r.low) : G_NIL}</span>` +
+    `<span class="r${r.over == null ? " nil" : ""}" data-l="über Tief">${r.over == null ? G_NIL : r.over <= 0.005 ? `<span class="ok">am Tief</span>` : `+${Math.round(r.over * 100)} %`}</span></div>`;
+  return bar + note + (rows.length ? `<div class="glist box pcw" style="--gcols:${cols}">${head}${rows.map(row).join("")}</div>` : `<p class="hint">Kein Treffer.</p>`);
+}
+function vrWishView(){
   const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"], ["added", "Neu"]];
   let rows = S.wishlist.filter(r => match(r) && lfOk(r, ["cb", "sale", "best", "good"]));
   const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0), rating: byRating, added: byAdded}[V.sort];
@@ -1600,6 +1630,7 @@ document.addEventListener("click", async ev => {
   else if(a === "dgop"){ V.d.gop = v; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dgclear"){ V.d.g = []; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort, sys: V.d.sys}); delete V.sorts.find; render(); }
+  else if(a === "wsub"){ V.wsub = v === "pc" ? "pc" : "vr"; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
     V.d.sys = v; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
@@ -1708,7 +1739,7 @@ document.addEventListener("input", ev => {
 document.addEventListener("change", async ev => {
   const t = ev.target, dt = t.dataset;
   // Sortieren, Filter-Häkchen, Genre und Mehrspieler in Entdecken; ein offenes Menü bleibt offen
-  if(dt.sort){ V[{wish: "sort", now: "nowSort"}[dt.sort]] = t.value; render(); return; }
+  if(dt.sort){ V[{wish: "sort", now: "nowSort", pc: "pcSort"}[dt.sort]] = t.value; render(); return; }
   if(dt.lf){ V.lf[dt.lf] = t.checked; V.menu = "lf"; render(); return; }
   if(dt.dg || dt.dmp || dt.dhow){
     const f = dt.dg ? "g" : dt.dhow ? "how" : "mp", x = dt.dg || dt.dmp || dt.dhow;

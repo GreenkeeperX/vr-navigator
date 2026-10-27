@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, mods, prices, probes, retro, sources, store, titles
+from . import accounts, collection, igdb, mods, pcwish, prices, probes, retro, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "eshop": "eShopKompass"}
+         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -80,6 +80,7 @@ PCGW_DAYS = 90
 NEXUS_MAX = 60              # Nexus-Mod-Abfragen je Lauf
 NEXUS_DAYS = 30
 NEXUS_LIST_DAYS = 7         # Spieleliste von Nexus Mods (nexus_games.json) so oft neu
+PCWISH_SEARCH = 30          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
@@ -808,6 +809,7 @@ def _gg_wish(settings, log, budget):
         data = store.load_data()
         res = accounts.apply_gg_wishes(data, items, stamp)
         store.save_data(data)
+    pcwish.replace(items, "Server", stamp)
     added, steam_n = _gg_resolve(res["unknown"], log, budget, stamp, list(res["keys"]))
     unknown = [n for n in res["unknown"] if n not in added]
     log(f"gg.deals-Wunschliste: {len(items)} Spiele auf {page - 1} Seiten, davon {len(res['keys']) + len(added)} VR-Titel im Tool"
@@ -1338,6 +1340,80 @@ def _igdb(settings, log):
     return src.result()
 
 
+def _pcwish(settings, log):
+    """PC-Wunschliste (0.8.2): Steam-ID je Spiel (erst aus dem, was das Tool kennt, dann Steam-Suche mit genau
+    gleichem Namen, PCWISH_SEARCH je Lauf), dann die Preise über die gg.deals-API (mit Schlüssel)."""
+    start = time.monotonic()
+    pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+    items = pw.get("items") or {}
+    src = _Source("PC-Wunschliste", log)
+    if not items:
+        log("PC-Wunschliste: noch keine gg.deals-Wunschliste gelesen")
+        return src.result()
+    idx = pcwish.steam_index(store.load_data(), store.load_json(collection.FILE, collection.EMPTY))
+    ids, found = {}, 0
+    for k, e in items.items():
+        if not e.get("appid") and idx.get(titles.norm(e["name"])):
+            ids[k] = idx[titles.norm(e["name"])]
+    old = _iso(now() - timedelta(days=MISS_DAYS))
+    todo = [k for k, e in items.items() if not e.get("appid") and k not in ids and (e.get("tried") or "") < old]
+    tried = {}
+    for k in todo[:PCWISH_SEARCH]:
+        progress("PC-Wunschliste: Steam-IDs", len(tried), min(len(todo), PCWISH_SEARCH))
+        name = items[k]["name"]
+        text = src.get(f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}),
+                       shown=f"Steam-Suche „{name[:40]}“")
+        if text is None:
+            if src.stopped:
+                break
+            continue
+        tried[k] = titles.now_iso()
+        same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) == titles.norm(name)]
+        if len(same) == 1:
+            ids[k] = str(same[0]["appid"])
+    got = {}
+    if settings["gg_key"]:
+        apps = {}
+        for k, e in items.items():
+            a = ids.get(k) or e.get("appid")
+            if a:
+                apps.setdefault(str(a), []).append(k)
+        gg = _Source("gg.deals", log)
+        al = list(apps)
+        for i in range(0, len(al), 100):
+            q = urllib.parse.urlencode({"ids": ",".join(al[i:i + 100]), "region": "de"})
+            text = gg.get(f"{GG_API}?{q}&key={urllib.parse.quote(settings['gg_key'])}", shown=f"{GG_API}?{q}")
+            if text is None:
+                continue
+            try:
+                p = prices.gg_prices(text)
+            except ValueError as e:
+                log(str(e))
+                break
+            stamp = titles.now_iso()
+            for a, v in p.items():
+                for k in apps.get(a, []):
+                    got[k] = dict(v, at=stamp)
+        src.n += gg.n
+    with store.lock:
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        for k, e in (pw.get("items") or {}).items():
+            if k in ids and not e.get("appid"):
+                e["appid"] = ids[k]
+                found += 1
+            if k in tried:
+                e["tried"] = tried[k]
+            if k in got:
+                e["gg"] = got[k]
+        store.save_json(pcwish.FILE, pw)
+    noid = sum(1 for k, e in items.items() if not e.get("appid") and k not in ids)
+    log(f"PC-Wunschliste: {len(items)} Spiele, {found} Steam-IDs neu zugeordnet ({len(tried)} Steam-Suchen), "
+        + (f"{len(got)} mit Preis von gg.deals" if settings["gg_key"] else "ohne gg.deals-Schlüssel keine Preise")
+        + (f", {noid} ohne Steam-ID" if noid else "") + f", {_took(start)}")
+    src.stats = {"items": len(items), "priced": len(got), "noid": noid}
+    return src.result()
+
+
 def _pc_no_vr(g):
     return (g.get("system") or "PC") == "PC" and not (g.get("steam") or {}).get("vr")
 
@@ -1661,6 +1737,8 @@ def run(only=None, boot=False, by_hand=False):
             log("gg.deals-Wunschliste: nur per Lesezeichen" + (f", zuletzt gelesen {_ago_text(last['at'])}" if last.get("at") else ", noch nie gelesen"))
             results["ggwish"] = {"at": titles.now_iso(), "ok": True, "manual": True, "msg": "per Lesezeichen",
                                  "requests": 0, "errors": 0}
+        if not only or "pcwish" in only:
+            do("pcwish", lambda: _pcwish(settings, log))
         if settings["sharenite"]:
             last = ((prev.get("sources") or {}).get("sharenite") or {})
             fresh = last.get("ok") and (last.get("at") or "") > _iso(now() - timedelta(hours=SHARENITE_H))

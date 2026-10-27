@@ -1819,6 +1819,41 @@ class TestSync(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(mods.mod_url("harborheist", 2), "https://www.nexusmods.com/harborheist/mods/2")
 
+    def test_pc_wishlist(self):
+        """PC-Wunschliste (0.8.2): ganze gg.deals-Liste, Steam-ID aus der Sammlung oder der Steam-Suche, Preise über
+        die gg.deals-API; eine neue Liste behält, was schon bekannt ist."""
+        from app import pcwish
+        store.save_json(collection.FILE, {"games": {"steam:3100001": {"name": "Harbor Heist", "store": "Steam", "id": "3100001"}}})
+        sync.save_settings({"gg_key": "geheim-1234567890abcd"})
+        added, gone = pcwish.replace([{"slug": "harbor-heist", "name": "Harbor Heist"}, {"slug": "rally-moth", "name": "Rally Moth"},
+                                      {"slug": "night-tram", "name": "Night Tram"}], "Lesezeichen")
+        self.assertEqual((len(added), gone), (3, []))
+        gg = {"success": True, "data": {
+            "3100001": {"url": "https://gg.deals/game/harbor-heist/", "prices": {"currentRetail": "20.00", "currentKeyshops": "15.50",
+                                                                                 "historicalRetail": "18.00", "historicalKeyshops": "15.00", "currency": "EUR"}},
+            "3100002": {"url": "https://gg.deals/game/rally-moth/", "prices": {"currentRetail": "9.99", "currentKeyshops": None,
+                                                                               "historicalRetail": "4.99", "historicalKeyshops": None, "currency": "EUR"}}}}
+        net = FakeNet({"storesearch/?term=Rally": json.dumps({"items": [{"id": 3100002, "name": "Rally Moth", "type": "app"}]}),
+                       "storesearch/?term=Night": json.dumps({"items": [{"id": 3100009, "name": "Night Tram Deluxe", "type": "app"}]}),
+                       "api.gg.deals": json.dumps(gg)})
+        sources.fetch = net
+        logs = []
+        self.assertTrue(sync._pcwish(sync.load_settings(), logs.append)["ok"])
+        self.assertIn("3 Spiele, 2 Steam-IDs neu zugeordnet (2 Steam-Suchen), 2 mit Preis von gg.deals, 1 ohne Steam-ID", "\n".join(logs))
+        self.assertNotIn("geheim-1234567890abcd", "\n".join(logs))
+        self.assertFalse(any("Harbor" in u for u in net.calls if "storesearch" in u))     # aus der Sammlung
+        v = {r["slug"]: r for r in pcwish.view(store.load_data())["rows"]}
+        self.assertEqual((v["harbor-heist"]["best"], v["harbor-heist"]["best_from"], v["harbor-heist"]["low"]), (15.5, "Keyshop", 15.0))
+        self.assertTrue(v["harbor-heist"]["near"])
+        self.assertTrue(v["harbor-heist"]["owned"])
+        self.assertEqual(v["rally-moth"]["over"], 1.002)
+        self.assertEqual(v["night-tram"]["appid"], "")
+        # neue Liste: Bekanntes bleibt, Fehlendes fällt weg
+        added, gone = pcwish.replace([{"slug": "rally-moth", "name": "Rally Moth"}], "Server")
+        self.assertEqual((added, sorted(gone)), ([], ["Harbor Heist", "Night Tram"]))
+        self.assertEqual(store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["rally-moth"]["appid"], "3100002")
+        sync.save_settings({"gg_key": ""})
+
     def test_diagnose(self):
         self.seed()
         sync.save_settings({"gg_key": "geheim-1234567890abcd"})
