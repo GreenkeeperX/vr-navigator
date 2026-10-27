@@ -349,7 +349,7 @@ def view(col):
         if g.get("src") == "retro":
             r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
                      regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
-                     gone=bool(g.get("gone")))
+                     gone=bool(g.get("gone")), de=g.get("de") or None)
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None

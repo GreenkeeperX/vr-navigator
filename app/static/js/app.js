@@ -405,7 +405,7 @@ function wishRow(r){
    Filter, Sortierung und Zufall laufen hier im Browser. Der Zustand steht in der Adresse
    (#entdecken?…), so lässt sich eine Mischung als Lesezeichen merken und wieder aufrufen. */
 let C = null, cLoading = false;
-const D0 = {sys: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge
@@ -445,6 +445,12 @@ async function loadCollection(){
   cLoading = false;
   if(V.tab === "find" && !document.querySelector("dialog[open]")) render();
 }
+// Sprache der Retro-Spiele: mit Deutsch, deutsche Fassung fehlt, ohne Deutsch (keine bekannt)
+const LANG_FILTER = [["", "alle"], ["de", "mit Deutsch"], ["miss", "DE fehlt"], ["nde", "ohne Deutsch"]];
+function langOk(g, f){
+  const de = (g.langs || []).includes("De"), miss = g.de?.st === "missing";
+  return f === "de" ? de : f === "miss" ? miss : f === "nde" ? !!g.retro && !de && !miss : true;
+}
 function dFilter(d){
   const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
   return C.games.filter(g => (!d.sys || (g.system || "PC") === d.sys) && d.mp.every(m => g.mp.includes(m))
@@ -452,7 +458,7 @@ function dFilter(d){
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
-    && (!d.old || (g.added && g.added < cut))
+    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang))
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))));
 }
 function dSort(rows, d){
@@ -500,11 +506,12 @@ const LANG_SHORT = {De: "DE", En: "EN", Ja: "JP"};
 function langBadge(g){
   if(!g.langs?.length) return "";
   const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
-  return `<span class="b" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (aus der Region geschätzt)" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}${g.lang_guess ? " ≈" : ""}</span>`;
+  return `<span class="b" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}${g.lang_guess ? " ≈" : ""}</span>`;
 }
 function retroBadges(g){
   if(!g.retro) return "";
-  return [langBadge(g), g.flags.includes("homebrew") ? `<span class="b">Homebrew</span>` : "", g.flags.includes("hack") ? `<span class="b">Hack</span>` : "",
+  const de = g.de?.st === "missing" ? `<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt${g.de.guess ? " ≈" : ""}</span>` : "";
+  return [langBadge(g), de, g.flags.includes("homebrew") ? `<span class="b">Homebrew</span>` : "", g.flags.includes("hack") ? `<span class="b">Hack</span>` : "",
     g.gone ? `<span class="b warn" title="Stand in der letzten Retro-Liste nicht mehr">nicht mehr in der Liste</span>` : ""].join(" ");
 }
 function gameRow(g){
@@ -526,6 +533,7 @@ function gameRow(g){
       ${g.year ? `<span title="${esc(yrTip)}">${yr}</span>` : ""}
       ${g.store ? `<span title="${g.guess ? "Laden nur vermutet (Kennung ohne Angabe des Ladens)" : chk ? "Laden von Steam bestätigt" : "Laden laut Playnite"}">${esc(g.store)}${g.guess ? " ≈" : ""}</span>` : ""}
       ${!V.d.sys && g.system && g.system !== "PC" ? `<span class="b" title="System laut ${g.retro ? "Retro-Liste" : "Playnite"}">${esc(g.system)}</span>` : ""}
+      ${g.de?.st === "missing" ? `<span class="hint">gesucht: ${esc(g.de.alt)}</span>` : ""}
       ${g.files > 1 ? `<span class="hint" title="Regionen, Fassungen oder Discs desselben Spiels">${g.files} Dateien${g.regions?.length ? ", " + esc(g.regions.join(", ")) : ""}</span>` : g.regions?.length ? `<span class="hint">${esc(g.regions.join(", "))}</span>` : ""}
       ${chk || (g.system && g.system !== "PC") ? "" : `<span class="hint" title="Noch nicht mit Steam abgeglichen (nur Steam-Spiele, je Lauf ein Teil)">nur Playnite</span>`}</div></div>`;
 }
@@ -572,6 +580,7 @@ function findView(){
       <label>Spieler <select data-dset="min">${opt("min", [[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>
       <label>Laden <select data-dset="st">${opt("st", [["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>
       <label>Wertung <select data-dset="sc">${opt("sc", [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>
+      ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt("lang", LANG_FILTER, d.lang)}</select></label>` : ""}
       <label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label></div>
     ${label ? `<div class="chips act">${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="Name, Entwickler oder Genre suchen" aria-label="Name, Entwickler oder Genre suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren" aria-label="Suche leeren">×</button>` : ""}</span>
@@ -589,7 +598,7 @@ function findView(){
     <div class="actions"><button data-act="retrogone" data-v="keep" title="Die Spiele bleiben in der Sammlung, der Hinweis verschwindet">Behalten</button>
       <button class="primary" data-act="retrogone" data-v="drop" title="Die Spiele werden aus der Sammlung entfernt">Stand übernehmen</button></div></div>` : "";
   return goneCard + tabs + mixes + filters + bar + pickCard +
-    `<p class="hint">${rows.length} von ${inTab.length} Spielen${d.sys ? ` (${esc(d.sys)})` : ""}${at && nRetro < inTab.length ? `, Playnite-Export vom ${day(at)}` : ""}${rat && nRetro ? `, Retro-Liste vom ${day(rat)} (Sprache laut Dateiname, ≈ = aus der Region geschätzt)` : ""}.${nRetro === inTab.length ? " Genres und Spielerzahl für Retro-Spiele kommen in einer späteren Version.</p>" : ""}${nRetro === inTab.length ? "" : ` Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.</p>`}
+    `<p class="hint">${rows.length} von ${inTab.length} Spielen${d.sys ? ` (${esc(d.sys)})` : ""}${at && nRetro < inTab.length ? `, Playnite-Export vom ${day(at)}` : ""}${rat && nRetro ? `, Retro-Liste vom ${day(rat)} (Sprache laut Dateiname, ≈ = aus der Region geschätzt${inTab.some(g => g.de) ? `; deutsche Fassung fehlt bei ${inTab.filter(g => g.de?.st === "missing").length}, laut No-Intro, Redump und Retool` : ""})` : ""}.${nRetro === inTab.length ? " Genres und Spielerzahl für Retro-Spiele kommen in einer späteren Version.</p>" : ""}${nRetro === inTab.length ? "" : ` Genres und Mehrspieler aus Playnite${pcTab ? `, bei PC-Spielen mit Steam abgeglichen: ${inTab.filter(g => g.src === "steam").length} bisher (≈ = nur eine Quelle). Wertung aus Steam-Rezensionen ab 50 (${inTab.filter(g => g.reviews != null).length} abgerufen)` : "; Steam-Abgleich und Wertung gibt es nur für PC-Spiele"}.</p>`}
     <div class="list">${rows.slice(0, d.n).map(gameRow).join("") || `<p class="hint">Kein Treffer.</p>`}</div>
     ${rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : ""}`;
 }
@@ -613,8 +622,8 @@ function nowView(){
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
-  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Entdecken)"], ["details", "Steam-Details (Entdecken)"], ["rating", "Steam-Wertungen (Wunschliste, Bibliothek)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"]];
+  ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Bibliothek)"],
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"]];
 const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 function srcState(k, x){
   if(!x) return `<span class="hint">${k === "gg" && !S.settings?.gg_key_set ? "ohne Schlüssel aus" : "noch nicht gelaufen"}</span>`;

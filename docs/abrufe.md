@@ -178,6 +178,23 @@ Spielerzahl mit 404, hat die App keine (unveröffentlicht, Demo, nie gestartet):
 als Fehler, steht als „Apps ohne Zahl bei Steam“ in der Summenzeile und wird nach 20 Stunden
 wieder gefragt.
 
+## Retro-Fassungen (Sammlung)
+
+Nur mit einer Retro-Liste, je System, das darin vorkommt. Ohne Schlüssel, nach VRDB.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Fassungsliste | `https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/<System>.dat` (Discs: `…/metadat/redump/…`) | je System höchstens alle 7 Tage | alle bekannten Fassungen mit Region, Sprachen und bei GBA, GBC und DS dem Produktcode |
+| Retool-Liste | `https://raw.githubusercontent.com/unexpectedpanda/retool-clonelists-metadata/main/clonelists/<System> (No-Intro).json` | mit der Fassungsliste | Gruppen von Fassungen eines Spiels mit verschiedenen Titeln |
+
+Fassungen gehören zusammen, wenn sie denselben Titel haben, denselben Produktcode ohne den
+Buchstaben für die Region („AMRE“ und „AMRD“) oder in derselben Retool-Gruppe stehen. Beta,
+Proto, Demo und Ähnliches zählen nicht. Je Retro-Spiel steht danach unter `de`: Deutsch
+vorhanden (`have`), deutsche Fassung fehlt (`missing`, mit der gesuchten Fassung `alt`, ob ihr
+Deutsch nur aus der Region geschätzt ist, und worüber sie gefunden wurde), keine deutsche
+Fassung bekannt (`none`) oder nicht in der Liste (`unknown`). Systeme ohne Liste (3DS) bleiben
+ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-Liste einmal ab.
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils
@@ -191,8 +208,10 @@ wieder gefragt.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan und gg.deals-Schlüssel.
+- `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
+  geholt, wenn sie fehlt oder älter als sieben Tage ist.
 - `collection.json`: die ganze Sammlung (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite;
   Spiele aus der Retro-Liste mit `src` „retro“, Schlüssel `retro:<system>:<name>`, dazu `files`, `regions`,
   `langs`, `lang_guess`, `flags`, gegebenenfalls `tid` und `serial` (3DS) und `gone` (Tag, seit dem es in der
-  Liste fehlt), nie Pfade; und
+  Liste fehlt) und `de` (siehe Retro-Fassungen), nie Pfade; und
   `rev` (Steam-Rezensionen) und `steam` (Steam-Details).
