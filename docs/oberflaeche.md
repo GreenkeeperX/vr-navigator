@@ -31,6 +31,16 @@ gold; nur als Zeichen, nie als Fläche. Die Marke „VR“ hinter dem Namen ist 
 (`.b.vrb`). Der gewählte System-Reiter: Linie in der Familienfarbe, Schrift in `--ink`
 (Nintendo-Rot `#e60012`, dunkel `#ff3d48`).
 
+Text (0.7.2, wie eShopKompass 1.7.15, Entscheidung 27.10.2026: der Darkmode blendete): Im Dunkeln ist
+die Grundschrift gedeckt (`--ink` #cdd5d4 statt #e5ebea, im Farbton des Tools). Hell (`--ink-hi`)
+bleiben nur, was bewusst hervorsticht: der Name oben (`header.top h1`), Überschriften (`h1`–`h4`),
+der aktive Reiter (`nav button.on`, `.systabs button.on`), der Name der offenen Zeile in der Sammlung
+(`.gr.open .g-n`) und der große Preis je Laden (`.shop .big`). Im Hellen sind beide Töne gleich.
+Gefüllte Knöpfe (primär, gewählt: `button.primary`, `.chips button.on`, `.seg button.on`,
+`.bar .tools>button.on`, `label.btn`) nutzen alle `--accent`, im Dunkeln so hell wie `--ink`, also
+gleich hell. Gewählte Knöpfe sind nicht fett, sonst wächst der Knopf und die Reihe springt; fett
+bleiben nur Reiter (wie im eShopKompass) und die Einträge im Ansichtsmenü (untereinander, ohne Springen).
+
 Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle
 (in der Sammlung seit 0.6.1 kein „≈“ mehr: unbestätigt steht violett, `.gxc`, der Tooltip nennt die
 Quelle; das gilt nach und nach überall);
@@ -72,7 +82,13 @@ Mein Stand (`.gdm`), darunter klein Herkunft und Links. Die Genre-Zelle der offe
 Genres (ohne `fit`), statt sie in den Einzelheiten zu wiederholen (0.6.2). Erscheinen, Entwickler und
 Verlag stehen im Tooltip am Jahr. Die Zeile richtet ihre Zellen oben aus (`align-items:start`), damit
 Name und Spalten beim Aufklappen nicht springen (0.7.1). Die Kurzbeschreibung (`.gdesc`) steht unter Mein
-Stand, höchstens 62 Zeichen breit. Unter 760 px stehen die Werte je Zeile mit kleinem
+Stand, wie im eShopKompass höchstens 68 Zeichen breit und vier Zeilen hoch, ein Klick zeigt alles
+(`V.gDesc`, markieren klappt nicht um; 0.7.2). Die Wertung in den Einzelheiten steht als Zahl
+(„Steam 97 % · Metacritic 96“, Farbton wie die Spalte; Steams Worte wie „Sehr positiv“ und die Zahl
+der Rezensionen im Tooltip; 0.7.2). „alle aufklappen · alle zuklappen“ (`.foldall`) steht hinter
+Sortieren (`V.gAll`, einzeln zugeklappte in `V.gShut`, nicht gemerkt, Wechsel des Reiters setzt
+zurück); „alle aufklappen“ geht nur mit Filter oder Suche und höchstens 100 Treffern, sonst grau mit
+Tooltip (0.7.2). Unter 760 px stehen die Werte je Zeile mit kleinem
 Namen davor untereinander, leere Werte fallen weg.
 
 Die Einzelheiten (`.gd`) nutzen dasselbe Raster wie die Zeile: Angaben in der Spalte des Namens,

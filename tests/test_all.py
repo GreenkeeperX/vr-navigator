@@ -1625,7 +1625,8 @@ class TestSync(unittest.TestCase):
             "name:orbit golf": {"name": "Orbit Golf", "system": "PS4", "store": "PlayStation"},
             "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro", "regions": ["Europe"]},
             "retro:snes:pixel hack": {"name": "Pixel Hack", "system": "SNES", "src": "retro", "regions": ["USA"], "flags": ["hack"]}}}
-        self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop"])
+        self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop", "Orbit Golf"])
+        self.assertEqual(probes.search_name("Moon Räcer: Teräs Edition (Europe)"), "Moon Racer: Teras Edition")
         details = {"3000101": {"success": True, "data": {"name": "Harbor Heist", "metacritic": {"score": 84},
                    "genres": [{"description": "Action"}], "categories": [{"description": "VR-Unterstützung"}],
                    "release_date": {"date": "12. März 2019"}, "developers": ["Kite Works"], "publishers": ["Paper Moon"],
@@ -1634,12 +1635,8 @@ class TestSync(unittest.TestCase):
                 '<li>Genres: Sports</li><li>Metacritic: 81</li><li>How Long To Beat: Main Story 6 hours</li></body></html>')
         meta = 'clrmamepro ( name "x" )\n\ngame (\n\tcomment "Star Hop (Europe)"\n\tgenre "Platform"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Racing"\n)\n'
         answers = [("appdetails", 200, json.dumps(details)),
-                   ("cargotables", 200, json.dumps({"cargotables": ["Availability", "Infobox_game", "VR"]})),
-                   ("cargofields", 200, json.dumps({"cargofields": {"OpenXR": {}, "vorpX": {}, "VR_only": {}}})),
-                   ("Infobox_game", 200, json.dumps({"cargoquery": [{"title": {"page": "Harbor Heist", "id": "77", "Developers": "Kite Works"}}]})),
-                   ("tables=VR&", 200, json.dumps({"cargoquery": [{"title": {"OpenXR": "", "vorpX": "true", "VR_only": "false"}}]})),
-                   ("uevr-profiles.com/assets", 200, 'fetch("https://data.example-db.com/rest/v1/games")'),
-                   ("uevr-profiles", 200, '<title>UEVR Profiles</title><a href="/games/harbor-heist">x</a><script type="module" src="/assets/index-1.js"></script>'),
+                   ("api/appid.php?appid=3000101", 200, '<script>RLCONF={"wgPageName":"Harbor_Heist","wgTitle":"Harbor Heist"};</script>'),
+                   ("action=parse", 200, json.dumps({"parse": {"wikitext": {"*": "==VR support==\n{{VR support\n|native 3d = false\n|vorpx = true\n|vorpx modes = G3D\n|vorpx notes = \n|openxr = \n|steamvr = false\n}}\n"}}})),
                    ("dekudeals.com/search", 200, '<a href="/items/orbit-golf">Orbit Golf</a>'),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
@@ -1673,12 +1670,12 @@ class TestSync(unittest.TestCase):
         self.assertIn("Metacritic 84", text)
         self.assertIn("VR ['VR-Unterstützung']", text)
         self.assertIn("Beschreibung 21 Zeichen: „Ein Raubzug im Hafen.“", text)
-        self.assertIn("3 Felder: OpenXR, VR_only, vorpX", text)
-        self.assertIn("vorpX true", text)
-        self.assertIn("passend: Infobox_game, VR", text)
-        self.assertIn("https://data.example-db.com/rest/v1/games", text)
+        self.assertIn("Seite „Harbor Heist“", text)
+        self.assertIn("native 3d false; vorpx true; vorpx modes G3D; steamvr false", text)
+        self.assertTrue(any("page=Harbor+Heist" in u for u, d in seen))
+        self.assertFalse(any("uevr" in u or "cargo" in u for u, d in seen))
         self.assertIn("IGDB, PC über Steam-ID", text)
-        self.assertIn("1 Spiel-Links", text)
+        self.assertIn("DekuDeals, Suche (PS4)", text)
         self.assertIn("Metacritic: 81", text)
         self.assertIn("Beschreibung „Golf im Orbit.“", text)
         self.assertIn("2 Einträge; zu „Star Hop“", text)

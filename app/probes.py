@@ -1,6 +1,6 @@
 """Proben für neue Quellen (0.7, Konzept „Datenbasis je Plattform“): Was liefern IGDB, die Steam-Details,
-PCGamingWiki, DekuDeals, die libretro-metadat, HowLongToBeat und die UEVR-Profile zu je einem Spiel
-deiner Sammlung? Nur im Verbindungstest, nichts wird gespeichert. Erst nach den Ergebnissen wird
+PCGamingWiki, DekuDeals, die libretro-metadat und HowLongToBeat zu je einem Spiel deiner Sammlung?
+(Die UEVR-Profile sind seit 0.7.2 nicht mehr dabei: eine Browser-App ohne offene Schnittstelle.) Nur im Verbindungstest, nichts wird gespeichert. Erst nach den Ergebnissen wird
 entschieden, welche Quelle welches Feld liefert (wie im eShopKompass).
 
 Jede Probe bekommt `probe(name, url, info, headers=None, shown=None, data=None)` aus sync.diagnose:
@@ -8,6 +8,7 @@ die Funktion fragt einmal an, beachtet Pausen und Sperren und schreibt eine Zeil
 import html
 import json
 import re
+import unicodedata
 import urllib.parse
 
 from . import sources
@@ -16,7 +17,7 @@ STEAM = "https://store.steampowered.com"
 PCGW = "https://www.pcgamingwiki.com/w/api.php"
 DEKU = "https://www.dekudeals.com"
 HLTB = "https://howlongtobeat.com/"
-UEVR = "https://uevr-profiles.com/"
+PCGW_APPID = "https://www.pcgamingwiki.com/api/appid.php"
 IGDB = "https://api.igdb.com/v4/"
 TWITCH = "https://id.twitch.tv/oauth2/token"
 LIBRETRO_META = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/"
@@ -50,8 +51,29 @@ def samples(col):
     # dessen Fassung schon gefunden wurde (0.7.1: ein ROM-Hack fand naturgemäß nichts)
     ret = [g for g in games if g.get("src") == "retro" and g.get("regions") and not g.get("flags")]
     ret.sort(key=lambda g: (not g.get("de"), g.get("name") or ""))
+    # DekuDeals kennt nur Switch, PlayStation 4 und 5 und Xbox (0.7.2: eine PS1-Suche fand naturgemäß nichts)
+    deku = [g for g in con if g.get("system") in DEKU_SYSTEMS]
     return {"pc": pc[0] if pc else {"name": "Portal 2", "id": "620"},
-            "console": con[0] if con else {"name": "Celeste", "system": "Vorgabe"}, "retro": ret[0] if ret else None}
+            "console": con[0] if con else {"name": "Celeste", "system": "Vorgabe"}, "retro": ret[0] if ret else None,
+            "deku": deku[0] if deku else None}
+
+
+DEKU_SYSTEMS = {"Switch", "Switch 2", "PS4", "PS5", "Xbox One", "Xbox Series"}
+# Plattform-Kennungen von IGDB je System der Sammlung, damit die Namenssuche das richtige Spiel trifft
+IGDB_PLATFORMS = {"PC": 6, "PS1": 7, "PS2": 8, "PS3": 9, "PS4": 48, "PS5": 167, "PSP": 38, "PS Vita": 46,
+                  "Xbox": 11, "Xbox 360": 12, "Xbox One": 49, "Xbox Series": 169, "Switch": 130, "Wii U": 41,
+                  "Wii": 5, "GameCube": 21, "N64": 4, "SNES": 19, "NES": 18, "3DS": 37, "DS": 20, "GBA": 24,
+                  "GBC": 22, "GB": 33, "VB": 87, "Mega Drive": 29, "Master System": 64, "Game Gear": 35,
+                  "Saturn": 32, "Dreamcast": 23}
+
+
+def search_name(n):
+    """Name für eine Suche: ohne Klammern, Artikel vorn, Sonderzeichen als Grundbuchstabe
+    („Pokémon“ wie „Pokemon“)."""
+    n = re.sub(r"\(.*?\)|\[.*?\]", "", n or "").strip()
+    m = re.match(r"(.+), (The|A|An|Der|Die|Das|Le|La|Les)$", n)
+    n = f"{m.group(2)} {m.group(1)}" if m else n
+    return " ".join("".join(c for c in unicodedata.normalize("NFKD", n) if not unicodedata.combining(c)).split())
 
 
 def steam_details_info(appid):
@@ -72,13 +94,22 @@ def steam_details_info(appid):
     return info
 
 
-def pcgw_fields_info(text):
-    d = json.loads(text).get("cargofields") or {}
-    return f"{len(d)} Felder: " + ", ".join(sorted(d))[:600] if d else f"keine Felder. Anfang: {' '.join(text[:160].split())}"
+def pcgw_title(text):
+    """Seitenname aus der Wiki-Seite, auf die appid.php umleitet."""
+    m = re.search(r'"wgPageName":"([^"]+)"', text) or re.search(r"(?s)<title>(.*?)(?: - PCGamingWiki[^<]*)?</title>", text)
+    return html.unescape(m.group(1)).replace("_", " ").strip() if m else ""
 
 
-def pcgw_rows(text):
-    return [r.get("title") or {} for r in json.loads(text).get("cargoquery") or []]
+def pcgw_vr(text):
+    """Felder der Vorlage „VR support“ aus dem Wikitext einer Seite (action=parse). Die Cargo-Abfrage
+    ist seit 2026 nur angemeldet erlaubt (0.7.1: permissiondenied), die Vorlage steht im Text."""
+    wt = ((json.loads(text).get("parse") or {}).get("wikitext") or {}).get("*") or ""
+    m = re.search(r"(?is)\{\{\s*VR support\s*(.*?)\n\}\}", wt)
+    out = {}
+    for k, v in re.findall(r"(?m)^\|\s*([\w ]+?)\s*=\s*(.*?)\s*$", m.group(1) if m else ""):
+        if v and not k.endswith("notes"):
+            out[k] = v[:40]
+    return out
 
 
 def deku_item_info(text):
@@ -171,8 +202,16 @@ def igdb(lines, keys, names, sleep):
             if gid:
                 games, err = ask("games", f"{IGDB_FIELDS.replace('limit 2;', '')} where id = {int(gid)};")
                 label += " über Steam-ID"
-        if not games:
-            games, err = ask("games", f'search {json.dumps(n, ensure_ascii=False)}; {IGDB_FIELDS}')
+        # Name (0.7.2): erst wie geschrieben mit Plattform, dann ohne Sonderzeichen, zuletzt ohne Plattform
+        plat = IGDB_PLATFORMS.get(rest[1]) if len(rest) > 1 else None
+        tries = [(n, plat), (search_name(n), plat)] + ([(search_name(n), None)] if plat else [])
+        for q, pl in dict.fromkeys(tries):
+            if games:
+                break
+            games, err = ask("games", f'search {json.dumps(q, ensure_ascii=False)}; '
+                             + IGDB_FIELDS.replace("limit 2;", f"where platforms = ({pl}); limit 2;" if pl else "limit 2;"))
+            if games and (q, pl) != tries[0]:
+                label += f" (gesucht als „{q[:40]}“{'' if pl else ', ohne Plattform'})"
         if games is None:
             lines.append(f"IGDB, {label} „{n[:40]}“: {err}")
             if "403" in err or "429" in err:
@@ -210,66 +249,33 @@ def run(probe, lines, col, keys, sleep):
                  + ", Retro " + (f"„{ret['name'][:40]}“ ({ret.get('system')})" if ret else "keins in der Sammlung"))
     probe("Steam, Details", f"{STEAM}/api/appdetails?appids={appid}&cc=de&l=german", steam_details_info(appid))
 
-    # PCGamingWiki (Cargo, offen): welche Tabellen gibt es (0.7.1: „VR_support“ gibt es nicht), welche Felder hat
-    # die VR-Tabelle, und was steht beim Spiel (auch VR per Mod)?
-    tabs = []
+    # PCGamingWiki (0.7.2): Cargo ist gesperrt, also Seite über die Steam-ID (appid.php leitet um), dann der
+    # Wikitext mit der Vorlage „VR support“ (auch VR per Mod: vorpX, UEVR …)
+    title = {}
 
-    def tables_info(t):
-        tabs.extend(json.loads(t).get("cargotables") or [])
-        hit = [x for x in tabs if re.search(r"(?i)vr|infobox|game", x)]
-        return f"{len(tabs)} Tabellen, passend: {', '.join(hit[:20]) or 'keine'}" if tabs else f"keine Tabellen. Anfang: {' '.join(t[:160].split())}"
-    probe("PCGamingWiki, Tabellen", PCGW + "?" + urllib.parse.urlencode({"action": "cargotables", "format": "json"}), tables_info)
-    vrt = next((x for x in tabs if re.search(r"(?i)^vr|_vr|vr_", x)), "")
-    vrf = []
-    if vrt:
-        def fields_info(t):
-            vrf.extend(sorted(json.loads(t).get("cargofields") or {}))
-            return pcgw_fields_info(t)
-        probe(f"PCGamingWiki, Felder von {vrt}", PCGW + "?" + urllib.parse.urlencode(
-            {"action": "cargofields", "table": vrt, "format": "json"}), fields_info)
-    page = {}
-
-    def game_info(text):
-        rows = pcgw_rows(text)
-        if rows:
-            page.update(rows[0])
-        return (f"{len(rows)} Treffer für App {appid}" + (f": „{rows[0].get('page')}“, Entwickler {rows[0].get('Developers') or '?'}, "
-                f"Verlag {rows[0].get('Publishers') or '?'}, Genres {rows[0].get('Genres') or '?'}" if rows else f". Anfang: {' '.join(text[:200].split())}"))
-    probe("PCGamingWiki, Spiel", PCGW + "?" + urllib.parse.urlencode({
-        "action": "cargoquery", "tables": "Infobox_game", "format": "json", "limit": 1,
-        "fields": "Infobox_game._pageName=page,Infobox_game._pageID=id,Infobox_game.Developers,Infobox_game.Publishers,Infobox_game.Genres",
-        "where": f'Infobox_game.Steam_AppID HOLDS "{appid}"'}), game_info)
-    if page.get("id") and vrf:
-        # Felder aus der Probe davor, so passt die Abfrage auch nach einer Änderung des Wikis
-        probe("PCGamingWiki, VR des Spiels", PCGW + "?" + urllib.parse.urlencode({
-            "action": "cargoquery", "tables": vrt, "format": "json", "limit": 1,
-            "fields": ",".join(f"{vrt}.{f}" for f in vrf[:40] if re.fullmatch(r"\w+", f)),
-            "where": f'{vrt}._pageID = {int(page["id"])}'}),
-            lambda t: "; ".join(f"{k} {v}" for k, v in (pcgw_rows(t) or [{}])[0].items()) or "keine VR-Zeile")
-
-    # UEVR-Profile: Unreal-Spiele, die per Mod in VR laufen
-    home = probe("UEVR-Profile", UEVR, uevr_info) or ""
-    js = re.findall(r'<script[^>]+src="([^"]+\.js)"', home)
-    if js:
-        u = urllib.parse.urljoin(UEVR, js[-1])
-        if urllib.parse.urlsplit(u).hostname == urllib.parse.urlsplit(UEVR).hostname:
-            probe("UEVR-Profile, Skript", u, lambda t: "Adressen im Skript: " + (", ".join(sorted(set(
-                re.findall(r"https://[a-z0-9.-]+(?:/[A-Za-z0-9_./-]*)?", t)))[:12]) or "keine")
-                + f"; Pfade mit api: {sorted(set(re.findall(r'/api/[A-Za-z0-9/_-]+', t)))[:8] or 'keine'}")
+    def page_info(t):
+        title["t"] = pcgw_title(t)
+        return f"Seite „{title['t']}“" if title["t"] else f"keine Seite für App {appid}"
+    probe("PCGamingWiki, Seite", PCGW_APPID + "?" + urllib.parse.urlencode({"appid": appid}), page_info)
+    if title.get("t"):
+        probe("PCGamingWiki, VR", PCGW + "?" + urllib.parse.urlencode(
+            {"action": "parse", "page": title["t"], "prop": "wikitext", "format": "json", "redirects": 1}),
+            lambda t: "; ".join(f"{k} {v}" for k, v in pcgw_vr(t).items()) or "keine Angaben zu VR")
 
     # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
     # in der Sammlung mit einer Vorgabe)
-    if con:
+    deku = s["deku"]
+    if deku:
         slug = {}
 
         def search_info(t):
             slug["s"] = deku_search_slug(t)
             return f"erster Treffer „{slug['s'] or 'keiner'}“"
-        probe("DekuDeals, Suche", f"{DEKU}/search?" + urllib.parse.urlencode({"q": con["name"]}), search_info)
+        probe(f"DekuDeals, Suche ({deku.get('system')})", f"{DEKU}/search?" + urllib.parse.urlencode({"q": search_name(deku["name"])}), search_info)
         if slug.get("s"):
             probe("DekuDeals, Spiel", f"{DEKU}/items/{slug['s']}", deku_item_info)
     else:
-        lines.append("DekuDeals: kein Konsolenspiel in der Sammlung, nicht angefragt")
+        lines.append("DekuDeals: kein Spiel für Switch, PS4, PS5 oder Xbox in der Sammlung, nicht angefragt")
 
     # HowLongToBeat direkt: nur erreichbar oder nicht (die Suche hat keine offene Schnittstelle)
     probe("HowLongToBeat", HLTB, lambda t: f"erreichbar, {'Seite mit Suche' if 'search' in t.casefold() else 'ohne Suchfeld'}")
@@ -287,5 +293,6 @@ def run(probe, lines, col, keys, sleep):
     else:
         lines.append("libretro metadat: keine Retro-Liste, nicht angefragt")
 
-    names = [("PC", pc["name"], appid), ("Konsole", con["name"])] + ([("Retro", ret["name"])] if ret else [])
+    names = [("PC", pc["name"], appid), ("Konsole", con["name"], None, con.get("system"))] + (
+        [("Retro", ret["name"], None, ret.get("system"))] if ret else [])
     igdb(lines, keys, names, sleep)

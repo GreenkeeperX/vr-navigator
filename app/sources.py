@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.7.1"
+VERSION = "0.7.2"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
@@ -113,6 +113,7 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate", headers=None, da
             out["status"] = getattr(resp, "status", None) or resp.getcode()
             out["enc"] = (resp.headers.get("Content-Encoding") or "").lower()
             out["server"] = resp.headers.get("Server") or ""
+            out["final"] = resp.geturl() if hasattr(resp, "geturl") else url   # nach Umleitungen (0.7.2, Diagnose)
             if out["enc"] not in ("", "identity", "gzip", "deflate") and encoding != "identity":
                 return request(url, ua, timeout, "identity", headers, data)   # z. B. Brotli
             charset = resp.headers.get_content_charset() or "utf-8"

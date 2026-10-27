@@ -49,6 +49,14 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   PC-Spiel über `external_games` (Steam-ID); IGDB mit Twitch-Schlüssel (`games` per Suche, dann
   `game_time_to_beats` zum ersten Treffer, eine Sekunde Pause je Anfrage). IGDB-Client-ID und
   -Secret stehen in `settings.json`, erscheinen nie im Ergebnis und nie im Browser.
+  Seit 0.7.2: PCGamingWiki ohne Cargo (die Abfrage ist nur noch angemeldet erlaubt,
+  „permissiondenied“): `api/appid.php?appid=<App-ID>` leitet auf die Seite des Spiels, dann
+  `action=parse&prop=wikitext` und daraus die Vorlage „VR support“ (Native 3D, vorpX, OpenXR,
+  SteamVR …). Die UEVR-Profile fallen weg (Browser-App ohne offene Schnittstelle). DekuDeals nur mit
+  einem Spiel für Switch, PS4, PS5 oder Xbox (PS1 führt DekuDeals nicht). IGDB sucht Konsolen- und
+  Retro-Namen mit der Plattform des Systems, dann ohne Sonderzeichen („é“ als „e“), zuletzt
+  ohne Plattform. Die Steam-Rezensionen prüft der Test an drei Spielen (das bekannteste, eins aus der
+  Mitte, eins ohne Wert) und nennt bei einer HTML-Antwort Titel und Ziel der Umleitung.
 
 ## Konten (vor den Preisen)
 
@@ -131,7 +139,7 @@ Nur mit einer Sammlung (Playnite-Export). Ohne Schlüssel, nach den Preisen.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Rezensionen | `https://store.steampowered.com/appreviews/<App-ID>?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary` | je Lauf höchstens 100 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 30 Tagen neu | Zahl der Rezensionen und Anteil positiv |
+| Rezensionen | `https://store.steampowered.com/appreviews/<App-ID>?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary` | je Lauf höchstens 100 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 30 Tagen neu | Zahl der Rezensionen und Anteil positiv; kommt statt Daten eine Store-Seite (etwa bei Spielen ab 18 ohne Anmeldung), merkt sich der Eintrag `page` und das Protokoll zählt sie (0.7.2) |
 
 Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. Hat ein Spiel mit
 nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter
