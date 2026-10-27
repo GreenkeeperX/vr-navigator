@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.6.2:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.7.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -256,6 +256,13 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 
 - **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
   Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
+  Seit 0.7.0 fragt er auch die Kandidaten für die Datenbasis je Plattform an, je mit einem Spiel
+  deiner Sammlung (PC, Konsole, Retro): Steam-Details (Metacritic, Beschreibung, VR-Kategorien),
+  PCGamingWiki (VR-Felder, auch per Mod), UEVR-Profile, DekuDeals (Wertung, HowLongToBeat,
+  Beschreibung für Konsolen), HowLongToBeat, libretro-metadat (Genre, Spieler, Jahr, Entwickler)
+  und mit Schlüssel IGDB (Genre, Spieler, Wertung, Spielzeit, Beschreibung, Firmen). Welche
+  Quelle welches Feld liefert, wird nach den Ergebnissen entschieden. Die Steam-Rezensionen prüft
+  er an einem Spiel der Sammlung, das welche hat.
 - **Protokoll** (klappbar, zu außer nach Fehlern): live während des Laufs, zum Kopieren. Die
   zweite Zeile fasst zusammen („Kurz: 4 Wunschtitel im Angebot, 2 günstiger; alles glaubhaft“).
   Warteschlangen nennen die Läufe bis zum Ende („noch etwa 12 Läufe“), Cent-Schwankungen unter

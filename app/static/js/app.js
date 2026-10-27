@@ -1106,7 +1106,7 @@ function retroPreview(p){
 /* Konten: bei jedem Abgleich automatisch gelesen */
 function accountsCard(){
   const se = S.settings || {};
-  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.sharenite && "Sharenite"].filter(Boolean);
+  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.igdb_set && "IGDB", se.sharenite && "Sharenite"].filter(Boolean);
   return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form acc" style="margin-top:8px">
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
@@ -1116,11 +1116,15 @@ function accountsCard(){
       ${se.gg_wish_set ? `<span class="clr"><label><input type="checkbox" name="gg_wish_clear"> Link löschen</label></span>` : ""}
       <label for="a-gg">gg.deals-Schlüssel</label><input type="password" id="a-gg" name="gg_key" autocomplete="off" placeholder="${se.gg_key_set ? `gespeichert${se.gg_key_end ? " (…" + esc(se.gg_key_end) + ")" : ""}, leer lassen zum Behalten` : "für Händlerpreise; kostenlos auf gg.deals unter Einstellungen, API"}">
       ${se.gg_key_set ? `<span class="clr"><label><input type="checkbox" name="gg_clear"> gg.deals-Schlüssel löschen</label></span>` : ""}
+      <label for="a-ii">IGDB Client-ID</label><input type="password" id="a-ii" name="igdb_id" autocomplete="off" placeholder="${se.igdb_set ? "gespeichert, leer lassen zum Behalten" : "derselbe Twitch-Schlüssel wie im eShopKompass"}">
+      <label for="a-is">IGDB Secret</label><input type="password" id="a-is" name="igdb_secret" autocomplete="off" placeholder="${se.igdb_set ? "gespeichert, leer lassen zum Behalten" : "Client-Secret der Twitch-App"}">
+      ${se.igdb_set ? `<span class="clr"><label><input type="checkbox" name="igdb_clear"> IGDB-Schlüssel löschen</label></span>` : ""}
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
       <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs; die Wunschliste lässt sich abschalten, dann zählt am PC nur gg.deals. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
       <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
+      <li><b>IGDB:</b> Spielinfos für alle Plattformen (Genre, Spieler, Wertung, Spielzeit, Beschreibung). Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (dev.twitch.tv, Anwendung registrieren); derselbe Schlüssel wie im eShopKompass geht. Bis 0.7 nur im Verbindungstest.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
     <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server (settings.json im Datenordner), stehen nicht in der Sicherung und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
@@ -1475,6 +1479,8 @@ document.addEventListener("submit", async ev => {
     if(f.gg_wish_clear?.checked) body.gg_wish = "";
     if(f.gg_key.value.trim()) body.gg_key = f.gg_key.value.trim();
     if(f.gg_clear?.checked) body.gg_key = "";
+    for(const k of ["igdb_id", "igdb_secret"]) if(f[k].value.trim()) body[k] = f[k].value.trim();
+    if(f.igdb_clear?.checked) body.igdb_id = body.igdb_secret = "";
     if(await act("/api/settings", body, $("a-err"))) toast("Gespeichert, gilt ab dem nächsten Abgleich");
   }
   if(kind === "edit"){
