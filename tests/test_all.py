@@ -1626,7 +1626,7 @@ class TestSync(unittest.TestCase):
             "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro", "regions": ["Europe"]},
             "retro:snes:pixel hack": {"name": "Pixel Hack", "system": "SNES", "src": "retro", "regions": ["USA"], "flags": ["hack"]}}}
         self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop", "Orbit Golf"])
-        self.assertEqual(probes.search_name("Moon Räcer: Teräs Edition (Europe)"), "Moon Racer: Teras Edition")
+        self.assertEqual(probes.search_name("Moon Räcer: Édition Spéciale (Europe)"), "Moon Racer: Edition Speciale")
         details = {"3000101": {"success": True, "data": {"name": "Harbor Heist", "metacritic": {"score": 84},
                    "genres": [{"description": "Action"}], "categories": [{"description": "VR-Unterstützung"}],
                    "release_date": {"date": "12. März 2019"}, "developers": ["Kite Works"], "publishers": ["Paper Moon"],
