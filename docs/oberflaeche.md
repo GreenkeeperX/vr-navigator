@@ -184,6 +184,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
   hat. Einzelheiten: Zeile „Sim-Racing“ mit Link auf die Liste und den Schlagwörtern (violett ohne Liste).
 - Über der Liste nur „Alle n Spiele (Reiter).“ mit Aufklappdreieck; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
+- „Zu erledigen“, Gruppe „Retro: ähnlicher Name“ (0.8.4): je Spiel System, ähnlicher Titel der Fassungsliste,
+  Knöpfe „dasselbe“ und „anderes“. Sprachen eines 3DS-Spiels über den Produktcode sind nicht violett; der
+  Tooltip nennt „laut No-Intro“ und die Fassung.
 - Einstellungen (0.7.4): Zahlen in „Zu erledigen“ in der Farbe für Prüfen (`b.warnc`), auch in den
   Gruppen. Der Knopf „ROM-Ordner wählen“ ist dezent (`label.btn.quiet`), nicht hell gefüllt.
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand

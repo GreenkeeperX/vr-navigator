@@ -115,7 +115,7 @@ const foldAll = `<span class="foldall"><button class="link" data-act="foldall" d
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
-  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length;
+  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length + (S.retro_near || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
   const cnt = {now: c.now || "", wish: c.wish + (S.pcwish?.n || 0) || "", find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
@@ -691,7 +691,7 @@ function langBadge(g){
   // Switch (0.7.3): Sprachen laut Nintendo Europa, englische Namen
   if(g.eshop) return g.langs.includes("german") ? `<span title="Laut Nintendo Europa: Deutsch und ${g.langs.length - 1} weitere">DE</span>` : `<span class="gno" title="Laut Nintendo Europa ohne Deutsch: ${esc(g.langs.join(", "))}">ohne DE</span>`;
   const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
-  return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen laut Dateiname: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
+  return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen ${g.de?.langs ? `laut No-Intro (über den Produktcode: ${esc(g.de.rel)})` : "laut Dateiname"}: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
 }
 const FASS_SHORT = {quest: "Quest besser", pc: "PC besser", gleich: "gleichwertig"};
 const MP_SHORT = {lebendig: "lebendig", ruhig: "ruhig", tot: "tot", keiner: "keiner"};
@@ -892,7 +892,7 @@ function gBadges(g){
   else if(g.wheel) b.push(`<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\nSteam-Schlagwörter: ${g.wheel.tags.join(", ")}`)}">Lenkrad?</span>`);
   if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
   if(g.retro){
-    if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
+    if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen", alias: "den von dir bestätigten ähnlichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
     if(g.flags.includes("homebrew")) b.push(`<span class="b">Homebrew</span>`);
     if(g.flags.includes("hack")) b.push(`<span class="b">Hack</span>`);
     if(g.gone) b.push(`<span class="b warn" title="Stand in der letzten Retro-Liste nicht mehr">nicht mehr in der Liste</span>`);
@@ -945,7 +945,7 @@ function gDetail(g){
   const date = g.sdate && !/^\d{4}$/.test(g.sdate) ? g.sdate : g.rel?.length > 4 ? day(g.rel) : "";
   const who = [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n");
   const langs = g.sde == null ? "" : g.sde ? `Deutsch${g.slangs > 1 ? ` und ${g.slangs - 1} weitere Sprache${g.slangs > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>${g.slangs ? ` (${g.slangs} Sprache${g.slangs > 1 ? "n" : ""})` : ""}`;
-  const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
+  const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : g.de?.langs ? `Laut No-Intro über den Produktcode: ${g.de.rel}` : "Laut Dateiname") +
     row("VR per Mod", vrModHtml(g)) + row("Nexus Mods", nexusHtml(g)) + row("Sim-Racing", wheelHtml(g)) +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
   const src = [g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
@@ -1179,7 +1179,7 @@ function settingsView(){
   // Wie im eShopKompass: grün, was läuft, rot mit Namen, was nicht läuft
   const badNames = shown.filter(([k]) => isBad(k)).map(([k]) => SRC_NAME[k] || k).join(", ");
   const srcInfo = [okN && `<b class="ok">${okN} ok</b>`, bad && `<b class="err">${bad} mit Problem</b> (${esc(badNames)})`].filter(Boolean).join(", ") || "noch nicht gelaufen";
-  const todo = S.todo || [], lists = S.lists || [], open = sug + todo.length + lists.length;
+  const todo = S.todo || [], lists = S.lists || [], near = S.retro_near || [], open = sug + todo.length + lists.length + near.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
@@ -1198,6 +1198,12 @@ function settingsView(){
       <span class="row2"><span class="hint">${esc(x.why)}${x.row?.origin?.length ? `. Herkunft: ${originText(x.row)}` : ""}</span>
         <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
+  // Retro (0.8.4): Titel ohne Treffer in der Fassungsliste, dort aber ein ähnlicher
+  const nearList = `<p class="hint">Diese Retro-Spiele stehen nicht unter ihrem Namen in der Fassungsliste (No-Intro oder Redump), dort aber ein ähnlicher Titel. Ist es dasselbe Spiel, prüft das Tool darüber, ob es eine Fassung mit Deutsch gab.</p>
+    <div class="list">${near.map(x => `<div class="item"><span class="nm">${esc(x.name)} <span class="hint">(${esc(x.system)})</span></span>
+      <span class="row2"><span class="hint">ähnlich: „${esc(x.near)}“</span>
+        <button data-act="nearok" data-k="${esc(x.key)}" title="Dasselbe Spiel; der Titel der Liste gilt fortan">dasselbe</button>
+        <button data-act="nearno" data-k="${esc(x.key)}" title="Ein anderes Spiel; dieser Vorschlag kommt nicht wieder">anderes</button></span></div>`).join("")}</div>`;
   // Zahlen, die etwas zu tun bedeuten, violett und fett (0.7.4, wie im eShopKompass „offen“)
   const tn = n => `<b class="warnc">${n}</b>`;
   const sugCard = open ? box("todo", "Zu erledigen", `${tn(open)} offen`, `
@@ -1205,7 +1211,8 @@ function settingsView(){
     ${listsHtml()}
     ${sug ? sub("sug", "Derselbe Titel?", `${tn(S.suggestions.length)} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
     ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", tn(steamTodo.length), steamList) : ""}
-    ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}`) : "";
+    ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}
+    ${near.length ? sub("retronear", "Retro: ähnlicher Name", tn(near.length), nearList) : ""}`) : "";
   const ll = lastLine(sy);
   const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
@@ -1708,6 +1715,15 @@ document.addEventListener("click", async ev => {
       const res = await api("/api/retro/gone", {action: v});
       C = res.collection; if(S.imports.retro) S.imports.retro.gone = 0;
       toast(v === "drop" ? `${res.changed} Spiele aus der Sammlung entfernt` : `${res.changed} Spiele behalten`);
+    }catch(e){ toast(e.message); }
+    render();
+  }
+  else if(a === "nearok" || a === "nearno"){
+    const k = el.dataset.k, x = (S.retro_near || []).find(y => y.key === k) || {};
+    try{
+      const res = await api("/api/retro/near", {key: k, ok: a === "nearok"});
+      C = res.collection; S.retro_near = res.retro_near;
+      toast(a === "nearok" ? `„${x.name}“ gilt jetzt als „${x.near}“` : `Vorschlag für „${x.name}“ verworfen`);
     }catch(e){ toast(e.message); }
     render();
   }

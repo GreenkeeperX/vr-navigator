@@ -16,7 +16,7 @@ from . import collection, titles
 
 SRC = "retro"
 CACHE = "retro_dat.json"     # Fassungen je System (aus No-Intro, Redump, Retool), im Datenordner
-INDEX_V = 1
+INDEX_V = 2                 # 2 (0.8.4): Produktcodes je Fassung, Titel für ähnliche Namen
 MAX_LINES = 100000
 
 # Endungen, die das System allein bestimmen
@@ -287,7 +287,7 @@ def apply(col, games, dry=True):
     for k, g in games.items():
         o = old.get(k)
         if o:
-            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag"):
+            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag", "alias", "near_no"):
                 if f in o:
                     g[f] = o[f]
         old[k] = g
@@ -332,7 +332,10 @@ DATS = {
     "Master System": ("no-intro", "Sega - Master System - Mark III"), "Game Gear": ("no-intro", "Sega - Game Gear"),
     "GameCube": ("redump", "Nintendo - GameCube"), "Wii": ("redump", "Nintendo - Wii"),
     "PS1": ("redump", "Sony - PlayStation"), "PS2": ("redump", "Sony - PlayStation 2"), "PSP": ("redump", "Sony - PlayStation Portable"),
+    "3DS": ("no-intro", "Nintendo - Nintendo 3DS"),
 }
+# Weitere Listen desselben Systems (0.8.4): beim 3DS die Download-Titel aus dem eShop
+EXTRA_DATS = {"3DS": ["Nintendo - Nintendo 3DS (Digital)"]}
 _SKIP_REL = re.compile(r"\((?:Beta|Proto|Demo|Sample|Kiosk|Pirate|Debug)[^)]*\)", re.I)
 
 
@@ -346,18 +349,35 @@ def urls(system):
     return LIBRETRO + kind + "/" + quote(name) + ".dat", RETOOL + quote(f"{name} ({label})") + ".json"
 
 
+def extra_urls(system):
+    from urllib.parse import quote
+    kind = DATS.get(system, (None,))[0]
+    return [LIBRETRO + kind + "/" + quote(n) + ".dat" for n in EXTRA_DATS.get(system, [])]
+
+
 def _serial_code(serial):
     """Produktcode ohne Region: „AMRD“ und „AMRE“ sind dasselbe Spiel (letzter Buchstabe = Region).
     Redump-Codes wie „SLES-01234“ sind je Region verschieden und zählen nicht."""
     s = str(serial or "").strip().upper()
+    m = re.fullmatch(r"(?:CTR|KTR|NTR|TWL)-[A-Z]-([A-Z0-9]{4})", s)     # 3DS und DSi: „CTR-P-AMKP“ (0.8.4)
+    if m:
+        s = m.group(1)
     return s[:3] if re.fullmatch(r"[A-Z0-9]{4}", s) else ""
+
+
+def _serial_full(serial):
+    """Produktcode mit Region („AMKP“): genau eine Fassung, deren Sprachen die No-Intro-Liste nennt."""
+    s = str(serial or "").strip().upper()
+    m = re.fullmatch(r"(?:CTR|KTR|NTR|TWL)-[A-Z]-([A-Z0-9]{4})", s)
+    return m.group(1) if m else ""
 
 
 def build_index(dat_text, retool_text=""):
     """Fassungen eines Systems aus einer libretro-DAT und der Retool-Liste. Fassungen gehören zu
     einer Gruppe, wenn sie denselben Titel, denselben Produktcode oder dieselbe Retool-Gruppe
     haben. Ergebnis: {"rel": [[Name, Sprachen, geschätzt]], "grp": {Titel: Gruppe},
-    "mem": {Gruppe: [Fassungen]}, "via": {Gruppe: „code“/„retool“/„name“}}."""
+    "mem": {Gruppe: [Fassungen]}, "via": {Gruppe: „code“/„retool“/„name“}, "code": {Produktcode: Gruppe},
+    "ser": {Produktcode mit Region: Fassung}, "tn": {Titel: Titel wie geschrieben}}."""
     rels, parent = [], {}
 
     def find(x):
@@ -372,7 +392,7 @@ def build_index(dat_text, retool_text=""):
             parent[rb] = ra
             joined[ra] = joined.get(ra, set()) | joined.pop(rb, set()) | {why}
     joined = {}
-    retool = {}
+    retool, tn, ser = {}, {}, {}
     if retool_text:
         import json
         try:
@@ -396,6 +416,10 @@ def build_index(dat_text, retool_text=""):
         i = len(rels)
         rels.append([name, ",".join(info["langs"]), 1 if info["lang_guess"] else 0])
         t = "t:" + titles.norm(info["title"])
+        tn.setdefault(t[2:], info["title"][:120])
+        full = _serial_full(sm.group(1) if sm else "")
+        if full:
+            ser.setdefault(full, i)
         union(t, "r:" + str(i), "name")
         code = _serial_code(sm.group(1) if sm else "")
         if code:
@@ -403,15 +427,17 @@ def build_index(dat_text, retool_text=""):
         rg = retool.get(t[2:])
         if rg:
             union(t, rg, "retool")
-    grp, mem = {}, {}
+    grp, mem, codes = {}, {}, {}
     for x in list(parent):
         r = find(x)
         if x.startswith("t:"):
             grp[x[2:]] = r
+        elif x.startswith("c:"):
+            codes[x[2:]] = r
         elif x.startswith("r:"):
             mem.setdefault(r, []).append(int(x[2:]))
     via = {r: ("code" if "code" in w else "retool" if "retool" in w else "name") for r, w in joined.items() if r in mem}
-    return {"rel": rels, "grp": grp, "mem": mem, "via": via}
+    return {"rel": rels, "grp": grp, "mem": mem, "via": via, "code": codes, "ser": ser, "tn": tn}
 
 
 def _de_rank(rel):
@@ -423,19 +449,83 @@ def _de_rank(rel):
 def match(g, idx):
     """Gab es das Spiel mit Deutsch? {"st": have (deine Datei hat Deutsch), missing (es gab eine
     Fassung mit Deutsch, deine hat keins; alt: die gesuchte Fassung), none (keine deutsche Fassung
-    bekannt), unknown (nicht in der Liste)}, dazu via (code, retool, name) und guess, wenn das
-    Deutsch der gesuchten Fassung nur aus der Region geschätzt ist."""
-    if "De" in (g.get("langs") or []):
-        return {"st": "have"}
-    r = (idx.get("grp") or {}).get(titles.norm(g.get("name") or ""))
+    bekannt), unknown (nicht in der Liste; near: ein ähnlicher Titel zum Bestätigen)}, dazu via (code, retool,
+    name, alias) und guess, wenn das Deutsch der gesuchten Fassung nur aus der Region geschätzt ist; langs und rel,
+    wenn der Produktcode die Fassung genau nennt."""
+    # 3DS (0.8.4): Der Produktcode im Dateinamen („CTR-P-AMKP“) nennt genau die Fassung; deren Sprachen laut
+    # No-Intro gelten statt der aus der Region geschätzten
+    exact = {}
+    si = (idx.get("ser") or {}).get(_serial_full(g.get("serial")))
+    if si is not None and si < len(idx.get("rel") or []):
+        langs = [x for x in idx["rel"][si][1].split(",") if x]
+        if langs and not idx["rel"][si][2]:
+            exact = {"langs": langs, "rel": idx["rel"][si][0][:200]}
+    mine = g.get("langs") or []
+    if ("De" in mine and not g.get("lang_guess")) or "De" in (exact["langs"] if exact else mine):
+        return dict({"st": "have"}, **exact)
+    code = _serial_code(g.get("serial"))
+    r = (idx.get("code") or {}).get(code) if code else None
+    r = r or (idx.get("grp") or {}).get(g.get("alias") or titles.norm(g.get("name") or ""))
     members = (idx.get("mem") or {}).get(r) if r else None
     if not members:
-        return {"st": "unknown"}
+        out = {"st": "unknown"}
+        near = None if g.get("alias") or g.get("flags") else similar(g.get("name") or "", idx)
+        if near and titles.norm(near) != (g.get("near_no") or ""):
+            out["near"] = near
+        return dict(out, **exact)
     rels = [idx["rel"][i] for i in members if i < len(idx["rel"])]
     de = sorted((x for x in rels if "De" in x[1].split(",")), key=_de_rank)
+    via = "code" if code and (idx.get("code") or {}).get(code) == r else "alias" if g.get("alias") else (idx.get("via") or {}).get(r, "name")
     if not de:
-        return {"st": "none"}
-    return {"st": "missing", "alt": de[0][0][:200], "guess": bool(de[0][2]), "via": (idx.get("via") or {}).get(r, "name")}
+        return dict({"st": "none"}, **exact)
+    return dict({"st": "missing", "alt": de[0][0][:200], "guess": bool(de[0][2]), "via": via}, **exact)
+
+
+_WORD = re.compile(r"[a-z0-9]+")
+
+
+def _words(n):
+    return set(_WORD.findall(n)) - {"the", "a", "an", "of", "der", "die", "das", "and", "und", "3d"}
+
+
+_INV = {}       # Wörter je Titel einer Fassungsliste, nur im Speicher: {id(Index): (Index, Wörter)}
+
+
+def _inverted(idx):
+    hit = _INV.get(id(idx))
+    if hit and hit[0] is idx:
+        return hit[1]
+    inv = {}
+    for k in idx.get("tn") or {}:
+        for w in _words(k):
+            inv.setdefault(w, []).append(k)
+    if len(_INV) > 40:
+        _INV.clear()
+    _INV[id(idx)] = (idx, inv)
+    return inv
+
+
+def similar(name, idx):
+    """Ähnlichster Titel der Fassungsliste, wenn es keinen gleichen gibt: gleiche Wörter zu mindestens 60 %
+    (Jaccard) oder ein Titel steckt mit mindestens zwei Wörtern ganz im anderen. Nur ein Vorschlag zum
+    Bestätigen in „Zu erledigen“, nie von allein."""
+    tn = idx.get("tn") or {}
+    if not tn:
+        return None
+    inv = _inverted(idx)
+    mine = _words(titles.norm(name))
+    if not mine:
+        return None
+    cands = {k for w in mine for k in inv.get(w, ())[:400]}
+    best, score = None, 0.0
+    for k in cands:
+        other = _words(k)
+        j = len(mine & other) / len(mine | other)
+        inside = min(len(mine), len(other)) >= 2 and (mine <= other or other <= mine)
+        sc = max(j, 0.7 if inside else 0.0)
+        if sc > score or (sc == score and best and k < best):
+            best, score = k, sc
+    return tn[best] if best and score >= 0.6 else None
 
 
 def mark_languages(col, indexes):
@@ -452,3 +542,25 @@ def mark_languages(col, indexes):
         g["de"] = match(g, idx or {})
         count[g["de"]["st"]] = count.get(g["de"]["st"], 0) + 1
     return count
+
+
+def near_list(col):
+    """Retro-Spiele ohne Treffer in der Fassungsliste, aber mit ähnlichem Titel dort (für „Zu erledigen“)."""
+    out = [{"key": k, "name": g["name"], "system": g.get("system") or "", "near": g["de"]["near"]}
+           for k, g in (col.get("games") or {}).items() if g.get("src") == SRC and (g.get("de") or {}).get("near")]
+    return sorted(out, key=lambda x: (x["system"], titles.norm(x["name"])))
+
+
+def settle_near(col, key, ok, idx):
+    """Vorschlag aus „Zu erledigen“: ok heißt dieselbe Fassung (der Titel der Liste gilt fortan für dieses
+    Spiel), sonst kommt dieser Vorschlag nicht wieder. Danach gleich neu zuordnen."""
+    g = (col.get("games") or {}).get(key)
+    near = ((g or {}).get("de") or {}).get("near")
+    if not near:
+        raise ValueError("kein Vorschlag für dieses Spiel")
+    g["alias" if ok else "near_no"] = titles.norm(near)
+    if idx:
+        g["de"] = match(g, idx)
+    else:
+        g["de"] = {"st": "unknown"}
+    return g
