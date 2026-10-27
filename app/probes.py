@@ -54,7 +54,10 @@ def samples(col):
     # DekuDeals kennt nur Switch, PlayStation 4 und 5 und Xbox (0.7.2: eine PS1-Suche fand naturgemäß nichts)
     deku = [g for g in con if g.get("system") in DEKU_SYSTEMS]
     # Sim-Racing (0.7.5): ein Rennspiel am PC, damit die Probe Lenkrad-Angaben überhaupt finden kann
-    race = [g for g in pc if any(re.search(r"(?i)renn|racing|driving", x) for x in g.get("genres") or [])]
+    # 0.7.6: nicht das PC-Spiel oben (ein Open-World-Spiel trug „Racing“ unter vielen Genres); Rennen als
+    # erstes oder zweites Genre zuerst
+    race = [g for g in pc[1:] if any(re.search(r"(?i)renn|racing|driving", x) for x in g.get("genres") or [])]
+    race.sort(key=lambda g: not any(re.search(r"(?i)renn|racing|driving", x) for x in (g.get("genres") or [])[:2]))
     return {"race": race[0] if race else None, "pc": pc[0] if pc else {"name": "Portal 2", "id": "620"},
             "console": con[0] if con else {"name": "Celeste", "system": "Vorgabe"}, "retro": ret[0] if ret else None,
             "deku": deku[0] if deku else None}

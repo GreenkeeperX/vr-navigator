@@ -417,7 +417,7 @@ function wishRow(r){
    ersten Öffnen geladen). Filter, Sortierung und Zufall laufen im Browser; der Zustand steht in der
    Adresse (#sammlung?…), so lässt sich eine Mischung als Lesezeichen merken. */
 let C = null, cLoading = false;
-const D0 = {sys: "PC", sw: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
@@ -525,7 +525,7 @@ const famName = k => (FAMS.find(f => f[0] === k) || [k, k])[1];
 const inSys = (g, sys) => sys ? (sys[0] === "@" ? famOf(g.system) === sys : g.system === sys) : g.system !== "VR";
 function dFilter(d){
   const q = d.q.trim().toLowerCase(), cut = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
-  return allGames().filter(g => inSys(g, d.sys) && (!d.sw || (d.sw === "s1") === !!g.sw1) && d.mp.every(m => g.mp.includes(m))
+  return allGames().filter(g => inSys(g, d.sys) && (!d.sw || (d.sw === "s1") === !!g.sw1) && kFilter(g, d) && d.mp.every(m => g.mp.includes(m))
     // Spielerzahl unbekannt: ein Mehrspieler-Spiel zählt als zwei
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
@@ -591,7 +591,8 @@ function setMix(k){
   V.d.n = D0.n;
   delete V.sorts.find;
 }
-const dLabel = d => [d.mp.map(m => C.mp_label[m] || m).join(" + "), d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
+const dLabel = d => [d.how.map(h => (K_HOW.find(x => x[0] === h) || [h, h])[1]).join(" + "), d.mp.map(m => C.mp_label[m] || m).join(" + "),
+  d.hr && (d.hr > 0 ? `bis ${d.hr} h` : `ab ${-d.hr} h`), d.usk && `USK bis ${d.usk}`, d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1],
   d.cb && "Crossbuy", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
@@ -692,6 +693,33 @@ const COLS = [
    eShopKompass, aus der Zeile, die er unter kv mitgibt (ab eShopKompass 1.7.17). Violett heißt wie dort:
    Nintendo nennt etwas anderes als DekuDeals (Tooltip); grau und kursiv: OpenCritic statt Metacritic */
 const kOn = g => !!(g.eshop && g.kv && Object.keys(g.kv).length);
+// Spielweisen wie im eShopKompass: mehrere gewählt heißt, alle müssen passen
+const K_HOW = [["couch", "An einer Konsole (ab 2)", "Mehrere Spieler an einer Konsole: Couch, Splitscreen, geteilte Joy-Con"],
+  ["local", "Lokal drahtlos", "Mehrere Konsolen im selben Raum"], ["online", "Online", "Über das Internet, mit Mitgliedschaft"],
+  ["coop", "Koop", "Miteinander statt gegeneinander: laut IGDB, sonst kennt HowLongToBeat eine Koop-Spielzeit"],
+  ["coopl", "Koop an einer Konsole", "Laut IGDB Koop lokal"], ["coopo", "Koop online", "Laut IGDB Koop online"],
+  ["gs", "GameShare", "Laut Nintendos Liste mit GameShare: Freunde spielen mit, ohne das Spiel zu haben"],
+  ["handheld", "Handheld", "Unterwegs spielbar"], ["tv", "TV", "Am Fernseher spielbar"]];
+const kAge = k => { const a = parseInt(k.usk ?? k.pegi, 10); return isNaN(a) ? null : a; };
+// Filter nur für Switch-Spiele mit der Zeile aus dem eShopKompass (Spielweise, Spielzeit, USK); andere fallen dann heraus
+function kFilter(g, d){
+  if(!d.how.length && !d.hr && d.usk === "") return true;
+  if(!kOn(g)) return false;
+  const k = g.kv, pl = x => kPl(g, x) || 0;
+  for(const h of d.how){
+    if(h === "couch" && pl("offline") < Math.max(2, d.min)) return false;
+    if((h === "local" || h === "online") && pl(h) < Math.max(2, d.min)) return false;
+    if(h === "coop" && !k.coop) return false;
+    if(h === "coopl" && !k.coop?.local) return false;
+    if(h === "coopo" && !k.coop?.online) return false;
+    if(h === "gs" && !k.gs) return false;
+    if((h === "handheld" || h === "tv") && !(k.modes || []).some(m => m.n === h)) return false;
+  }
+  if(d.usk !== "" && !(kAge(k) !== null && kAge(k) <= Number(d.usk))) return false;
+  if(d.hr > 0 && !(k.hours && k.hours <= d.hr)) return false;
+  if(d.hr < 0 && !(k.hours && k.hours >= -d.hr)) return false;
+  return true;
+}
 const kHours = h => h == null ? "" : h < 1 ? "unter 1 h" : h < 10 ? `${String(Math.round(h * 2) / 2).replace(".", ",")} h` : `${Math.round(h)} h`;
 const kRange = v => esc(!v ? "ja" : v[0] === v[1] ? String(v[1]) : `${v[0]}–${v[1]}`);
 const kVal = (v, tip, bad) => `<span class="${bad ? "gxc" : ""}" title="${esc(tip)}">${v}</span>`;
@@ -735,6 +763,17 @@ function kYear(g){
   return kVal(esc(k.year), tip, !!k.year_alt);
 }
 const kHltbTip = g => "HowLongToBeat (über DekuDeals): " + Object.entries(g.kv.hltb || {}).map(([a, b]) => `${K_HLTB[a] || a} ${kHours(b)}`).join(", ");
+/* „aus: …“ kurz wie dort: was das Paket vom Spielnamen unterscheidet („Golf - Ultimate Edition“ wird
+   „Ultimate Edition“); Pakete mit „+“ oder „&“ bleiben ganz, der volle Name steht im Tooltip */
+function kPackShort(title, pack){
+  if(/\s[+&]\s/.test(pack)) return pack;
+  const w = t => String(t).split(/\s+/), k = x => x.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const a = w(title), b = w(pack);
+  let i = 0; while(i < a.length && i < b.length && k(a[i]) === k(b[i])) i++;
+  let j = 0; while(j < a.length - i && j < b.length - i && k(a[a.length - 1 - j]) === k(b[b.length - 1 - j])) j++;
+  const out = b.slice(j >= 2 ? 0 : i, b.length - (j >= 2 ? j : 0)).join(" ").replace(/^[\s:&+–—-]+|[\s:&+–—-]+$/g, "");
+  return out && out.length < pack.length ? out : pack;
+}
 // Marken hinter dem Namen wie dort: Switch 2, fehlende Spielmodi, GameShare, ohne Deutsch, „aus: Paket“
 function kBadges(g){
   const k = g.kv, b = [];
@@ -743,7 +782,7 @@ function kBadges(g){
   if(ms.length && miss.length) b.push(`<span class="lgt de" title="${esc(`Spielbar: ${ms.map(m => K_MODE[m]).join(", ")}. Nicht: ${miss.map(m => K_MODE[m]).join(", ")}`)}">${miss.length === 1 ? `ohne ${K_MODE[miss[0]]}` : `nur ${ms.map(m => K_MODE[m]).join(", ")}`}</span>`);
   if(k.gs) b.push(`<span class="lgt gsh" title="${esc(`GameShare laut Nintendo: ${[k.gs.local && "lokal", k.gs.online && "online über GameChat"].filter(Boolean).join(" und ")}. Freunde spielen mit, ohne das Spiel zu haben`)}">GameShare</span>`);
   if(g.langs?.length && !g.langs.includes("german")) b.push(`<span class="lgt no" title="${esc("Laut Nintendo Europa ohne Deutsch. Sprachen: " + kLangs(g.langs))}">ohne Deutsch</span>`);
-  if(k.via) b.push(`<small class="hint gvia" title="${esc("Hast du im Paket " + k.via)}">aus: ${esc(k.via)}</small>`);
+  if(k.via) b.push(`<small class="hint gvia" title="${esc("Hast du im Paket " + k.via)}">aus: ${esc(kPackShort(g.name, String(k.via)))}</small>`);
   return b.join("");
 }
 const K_COLS = [
@@ -822,7 +861,7 @@ function gDetail(g){
   const marks = `<span class="seg gmark">${G_ST.map(([k, l, ic, tip]) => `<button data-act="gmark" data-s="${esc(g.key)}" data-k="s" data-v="${m.s === k ? "" : k}" class="${m.s === k ? "on" : ""}" title="${esc(m.s === k ? "Zurücknehmen" : tip)}"><span class="gst ${k}">${ic}</span> ${l}</button>`).join("")}</span><span class="seg gmark"><button data-act="gmark" data-s="${esc(g.key)}" data-k="fav" data-v="${m.fav ? "" : "1"}" class="${m.fav ? "on" : ""}" title="${m.fav ? "Kein Favorit mehr" : "Als Favorit merken"}"><span class="gfav">${m.fav ? "★" : "☆"}</span> Favorit</button></span>`;
   // Switch (0.7.3): Mein Stand setzt du im eShopKompass, hier steht er nur
   const st = G_ST.find(x => x[0] === m.s);
-  const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern ${C.eshop_link ? `<a href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer">im eShopKompass</a>` : "im eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
+  const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im ${C.eshop_link ? `<a class="eshl" href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer" title="Öffnet das Spiel im eShopKompass"><span class="brand">eShop</span>Kompass</a>` : "eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
   // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
   const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
@@ -917,7 +956,7 @@ function findView(){
   // Stelle weiter (negative Verzögerung), statt abzubrechen; so gleiten alle Familien gleich (0.7.5)
   if(curFam && V.lastFam !== curFam) V.famAt = Date.now();
   V.lastFam = curFam;
-  const since = Date.now() - (V.famAt || 0), anim = curFam && since < 340;
+  const since = Date.now() - (V.famAt || 0), anim = curFam && since < 700;
   const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${d.sys === v}" data-act="dsys" data-v="${esc(v)}" class="${sysFam(v)}${d.sys === v ? " on" : ""}${cls || ""}"${tip ? ` title="${esc(tip)}"` : ""}>${esc(l)} <span class="n">${c}</span></button>`;
   const top = sys.filter(([n]) => n === "PC" || n === "VR").map(([n, c]) => tab(n, n, c, "", n === "VR" ? "Deine VR-Titel bei Meta und am PC" : ""));
   for(const [f] of FAMS){
@@ -955,16 +994,25 @@ function findView(){
     ${mpIn.map(k => `<label><input type="checkbox" data-dmp="${esc(k)}"${d.mp.includes(k) ? " checked" : ""}> ${esc(C.mp_label[k])} <span class="n">${mn[k]}</span></label>`).join("")}</div></details>` : "";
   const label = dLabel(d);
   // Switch und Switch 2 stehen in einem Reiter (0.7.5); wie im eShopKompass lässt sich das System wählen
-  const sw = inTab.some(g => g.sw1) && inTab.some(g => g.system === "Switch 2" && !g.sw1);
-  const filters = `<div class="dfilter">${sw ? `<label>System <select data-dset="sw">${opt([["", "alle"], ["s2", "Switch 2"], ["s1", "nur Switch"]], d.sw)}</select></label>` : ""}${kinds}${genres}
+  const sw = d.sys === "Switch 2" && inTab.some(g => g.sw1) && inTab.some(g => !g.sw1);
+  // Nur Switch-Spiele aus dem eShopKompass im Reiter: dessen Filter (0.7.6)
+  const kv = inTab.length > 0 && inTab.every(kOn);
+  const hn = {};
+  if(kv) for(const [k] of K_HOW) hn[k] = dFilter(Object.assign({}, d, {how: d.how.includes(k) ? d.how : d.how.concat(k)})).length;
+  const how = kv ? `<details class="menu" ${menuAttr("how")}><summary>Spielweise${d.how.length ? ` <span class="cnt">${d.how.length}</span>` : ""}</summary><div class="pop">
+    <p class="hint">Mehrere gewählt: alle müssen passen.</p>
+    ${K_HOW.map(([k, l, tip]) => `<label title="${esc(tip)}"><input type="checkbox" data-dhow="${k}"${d.how.includes(k) ? " checked" : ""}> ${esc(l)} <span class="n">${hn[k]}</span></label>`).join("")}</div></details>` : "";
+  const filters = `<div class="dfilter">${sw ? `<label>System <select data-dset="sw">${opt([["", "alle"], ["s2", "Switch 2"], ["s1", "nur Switch"]], d.sw)}</select></label>` : ""}${kv ? how : kinds}${genres}
       ${inTab.some(g => g.players) ? `<label>Spieler <select data-dset="min">${opt([[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>` : ""}
       ${stores.length > 1 ? `<label>${vr ? "Besitz" : "Launcher"} <select data-dset="st">${opt([["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>` : ""}
-      ${inTab.some(g => g.score != null) ? `<label>Wertung <select data-dset="sc">${opt([[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>` : ""}
+      ${inTab.some(g => g.score != null) ? `<label>Wertung <select data-dset="sc">${opt(kv ? [[0, "egal"], [70, "ab 70"], [80, "ab 80"], [90, "ab 90"]] : [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>` : ""}
+      ${kv ? `<label>Spielzeit <select data-dset="hr">${opt([[0, "egal"], [5, "bis 5 h"], [10, "bis 10 h"], [20, "bis 20 h"], [-40, "ab 40 h"]], d.hr)}</select></label>
+      <label title="Höchstens diese Altersfreigabe: USK, ohne USK PEGI; Spiele ohne Angabe fallen heraus">USK <select data-dset="usk">${opt([["", "egal"], ["0", "bis 0"], ["6", "bis 6"], ["12", "bis 12"], ["16", "bis 16"]], d.usk)}</select></label>` : ""}
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
       ${vr ? `<label><input type="checkbox" data-dset="cb"${d.cb ? " checked" : ""}> Crossbuy</label>` : ""}
       ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}</div>
-    ${label ? `<div class="chips act">${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
+    ${label ? `<div class="chips act">${d.how.map(h => `<button data-act="dhowoff" data-v="${esc(h)}" title="Filter entfernen">${esc((K_HOW.find(x => x[0] === h) || [h, h])[1])} ×</button>`).join("")}${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
   const colSort = !!V.sorts.find;
   const canAll = rows.length <= G_ALL;
   if(V.gAll && !canAll){ V.gAll = false; V.gShut.clear(); }
@@ -1414,6 +1462,7 @@ function watchSync(){
     S.sync = st;
     if(!st.running){
       clearInterval(poll); poll = null;
+      C = null;           // Sammlung neu laden: der Abgleich hat sie ergänzt (0.7.6, sonst galt bis zum Neuladen der alte Stand)
       await load();
       toast(st.ok === false ? "Abgleich mit Fehlern beendet" : "Abgleich fertig");
       return;
@@ -1507,13 +1556,13 @@ document.addEventListener("click", async ev => {
     if(a === "dmixoff" && V.d.mix !== "surprise") V.d = Object.assign({}, D0, {sys: V.d.sys}); else V.d.mix = "";
     render();
   }
-  else if(a === "dgoff" || a === "dmpoff"){ const f = a === "dgoff" ? "g" : "mp"; V.d[f] = V.d[f].filter(x => x !== v); V.d.mix = ""; V.d.n = D0.n; render(); }
+  else if(a === "dgoff" || a === "dmpoff" || a === "dhowoff"){ const f = a === "dgoff" ? "g" : a === "dhowoff" ? "how" : "mp"; V.d[f] = V.d[f].filter(x => x !== v); V.d.mix = ""; V.d.n = D0.n; render(); }
   else if(a === "dgop"){ V.d.gop = v; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dgclear"){ V.d.g = []; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort, sys: V.d.sys}); delete V.sorts.find; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
-    V.d.sys = v; V.d.sw = ""; V.d.st = ""; V.d.cb = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
+    V.d.sys = v; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
     if(V.d.mix && !(v === "VR" ? MIXES.find(x => x[0] === V.d.mix)?.[4] : true)) V.d = Object.assign({}, D0, {sys: v, sort: V.d.sort});
     if(V.d.mix) V.d.seed = newSeed();
     render();
@@ -1611,8 +1660,8 @@ document.addEventListener("change", async ev => {
   // Sortieren, Filter-Häkchen, Genre und Mehrspieler in Entdecken; ein offenes Menü bleibt offen
   if(dt.sort){ V[{wish: "sort", now: "nowSort"}[dt.sort]] = t.value; render(); return; }
   if(dt.lf){ V.lf[dt.lf] = t.checked; V.menu = "lf"; render(); return; }
-  if(dt.dg || dt.dmp){
-    const f = dt.dg ? "g" : "mp", x = dt.dg || dt.dmp;
+  if(dt.dg || dt.dmp || dt.dhow){
+    const f = dt.dg ? "g" : dt.dhow ? "how" : "mp", x = dt.dg || dt.dmp || dt.dhow;
     V.d[f] = t.checked ? V.d[f].concat(x) : V.d[f].filter(y => y !== x);
     V.d.mix = ""; V.d.n = D0.n; V.menu = f; render(); return;
   }

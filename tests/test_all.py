@@ -1689,7 +1689,7 @@ class TestSync(unittest.TestCase):
         der IGDB-Schlüssel steht nie im Ergebnis."""
         from app import probes
         col = {"games": {
-            "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}},
+            "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}, "genres": ["Action", "Abenteuer", "Racing"]},
             "steam:3000102": {"name": "Tiny Tennis", "store": "Steam", "id": "3000102", "rev": {"n": 5}},
             "steam:3000103": {"name": "Rally Moth", "store": "Steam", "id": "3000103", "rev": {"n": 50}, "genres": ["Rennen"]},
             "name:orbit golf": {"name": "Orbit Golf", "system": "PS4", "store": "PlayStation"},
