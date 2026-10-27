@@ -385,6 +385,10 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(h["mp"], ["multi", "online", "coop"])
         self.assertEqual((h["players"], h["genres"], h["score"], h["score_src"], h["critic"]), (4, ["Shooter"], 88, "Community", 81))
         self.assertEqual((h["released"], h["added"], h["dev"], h["store_guess"]), ("2019-03-12", "2020-02-01", "Kite Works", False))
+        self.assertNotIn("pub", h)                                 # Export ohne Spalte Publisher
+        p = collection.parse("Name,Spiel-ID,Quelle,Entwickler,Publisher\nOrbit Golf,3000201,Steam,Kite Works,Paper Moon\n")
+        self.assertEqual(p["steam:3000201"]["pub"], "Paper Moon")
+        self.assertEqual(collection.view({"games": p})["games"][0]["pub"], "Paper Moon")
         s = g["epic:abc123def"]
         self.assertEqual(s["mp"], ["multi", "coop", "couch", "split"])
         self.assertEqual(s["players"], 2)                      # Splitscreen ohne Zahl: zwei

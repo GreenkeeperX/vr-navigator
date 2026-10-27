@@ -232,6 +232,7 @@ def parse(text, rows=None, stats=None):
         "rel": _col(h, "erscheinungsdatum", "release date"),
         "add": _col(h, "hinzugefügt", "added"),
         "dev": _col(h, "entwickler", "developers"),
+        "pub": _col(h, "publisher", "publishers", "verlag", "verleger"),
         "hid": _col(h, "versteckt", "hidden"),
         "plat": _col(h, "plattformen", "platforms", "plattform", "platform"),
     }
@@ -258,6 +259,9 @@ def parse(text, rows=None, stats=None):
              "score": score, "score_src": src, "critic": crit, "mine": _score(cell("user")),
              "released": _date(cell("rel")), "added": _date(cell("add")), "dev": _split(cell("dev"))[:1]}
         g["dev"] = g["dev"][0][:80] if g["dev"] else ""
+        pub = _split(cell("pub"))
+        if pub:
+            g["pub"] = pub[0][:80]
         if system != "PC":
             g["system"] = system
         k = game_key(store, g["id"], name, system)
@@ -350,7 +354,8 @@ def view(col):
         r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
              "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
              "score_src": "", "year": (g.get("released") or "")[:4],
-             "added": g.get("added") or "", "dev": g.get("dev") or "", "url": link(k, g)}
+             "added": g.get("added") or "", "dev": g.get("dev") or "", "pub": g.get("pub") or "",
+             "rel": g.get("released") or "", "url": link(k, g)}
         if g.get("src") == "retro":
             r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
                      regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
