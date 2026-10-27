@@ -788,6 +788,31 @@ class TestServer(unittest.TestCase):
         self.assertIn("hours", json.loads(raw)["settings"])
         sync.save_settings({"gg_key": "", "sharenite": ""})
 
+    def test_diag_runs_in_background(self):
+        """Verbindungstest (0.8.0): POST startet, GET liefert den Stand, ein zweiter Start läuft nicht doppelt."""
+        gate, calls = threading.Event(), []
+
+        def slow():
+            calls.append(1)
+            gate.wait(5)
+            return ["Zeile eins"]
+        old, sync.diagnose = sync.diagnose, slow
+        try:
+            first = json.loads(self.call("/api/diag", {})[1])
+            self.assertTrue(first["running"])
+            self.assertTrue(json.loads(self.call("/api/diag", {})[1])["running"])
+            gate.set()
+            for _ in range(50):
+                d = json.loads(self.call("/api/diag")[1])
+                if not d["running"]:
+                    break
+                threading.Event().wait(0.05)
+            self.assertEqual(d["lines"], ["Zeile eins"])
+            self.assertEqual(d["id"], first["id"])
+            self.assertEqual(len(calls), 1)
+        finally:
+            sync.diagnose = old
+
     def test_nexus_key(self):
         """Nexus-Schlüssel (0.7.7): bleibt auf dem Server, die Oberfläche sieht nur, dass er da ist."""
         fake = "ErfundenNexus0123456789--AbCdEfGh+/=="
@@ -1662,6 +1687,81 @@ class TestSync(unittest.TestCase):
         self.assertIn("Steam: kein Preis für 4 App-IDs", text)
         self.assertIn("2 Normalpreise", text)
         self.assertEqual(sync.self_check({"qsdb": {"ok": True, "sale": 12, "pages": 2, "parsed": 2}}, {}, {}), [])
+
+    def test_igdb_sync(self):
+        """IGDB im Abgleich (0.8.0): Steam-Spiele gebündelt über die Steam-ID, andere über den Namen, ein
+        falscher Treffer zählt nicht, Spielzeit dazu; die Zeile bekommt Werte nach Rangfolge."""
+        from app import igdb
+        store.save_json(collection.FILE, {"games": {
+            "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "mp": [], "players": 0, "genres": ["Action"]},
+            "steam:3000102": {"name": "Unknown Moth", "store": "Steam", "id": "3000102", "mp": [], "players": 0, "genres": []},
+            "name:ps1:moon wars masters of randern": {"name": "Moon Wars: Masters of Rändern", "system": "PS1", "mp": [], "players": 0, "genres": []},
+            "name:ps2:star hop": {"name": "Star Hop", "system": "PS2", "mp": [], "players": 0, "genres": []},
+            "eshop:orbit-golf": {"name": "Orbit Golf", "system": "Switch 2", "src": "eshop", "id": "orbit-golf"}}, "n": 5})
+        harbor = {"id": 5, "name": "Harbor Heist", "genres": [{"name": "Shooter"}, {"name": "Adventure"}], "game_modes": [{"name": "Multiplayer"}],
+                  "multiplayer_modes": [{"onlinemax": 4, "onlinecoop": True}], "aggregated_rating": 81.4, "aggregated_rating_count": 5,
+                  "summary": "A heist.", "first_release_date": 1552348800,
+                  "involved_companies": [{"developer": True, "company": {"name": "Kite Works"}}]}
+        moon = {"id": 7, "name": "Moon Wars: Masters of Rändern", "genres": [{"name": "Fighting"}], "multiplayer_modes": [{"offlinemax": 2}],
+                "total_rating": 55.2, "total_rating_count": 14}
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            body = (data or b"").decode()
+            calls.append((url, body, dict(headers or {})))
+            if "twitch" in url:
+                return json.dumps({"access_token": "tok"})
+            if url.endswith("external_games"):
+                return json.dumps([{"game": 5, "uid": "3000101"}])
+            if url.endswith("game_time_to_beats"):
+                return json.dumps([{"game_id": 5, "normally": 25200, "completely": 36000, "count": 12}])
+            if "where id = (5)" in body:
+                return json.dumps([harbor])
+            if "Masters of R" in body and "name ~" in body:
+                return json.dumps([moon])
+            if "Star Hop" in body:
+                return json.dumps([{"id": 9, "name": "Star Hop Galaxy Racing Deluxe"}])
+            return "[]"
+        sources.fetch = fake
+        settings = dict(sync.SETTINGS, igdb_id="a" * 30, igdb_secret="b" * 30)
+        logs = []
+        r = sync._igdb(settings, logs.append)
+        self.assertTrue(r["ok"])
+        self.assertEqual(sum(1 for u, b, h in calls if u.endswith("external_games")), 1)
+        self.assertIn('"3000101","3000102"', next(b for u, b, h in calls if u.endswith("external_games")))
+        self.assertFalse(any("Orbit Golf" in b for u, b, h in calls))
+        self.assertEqual(next(h for u, b, h in calls if "api.igdb" in u)["Authorization"], "Bearer tok")
+        col = store.load_json(collection.FILE, collection.EMPTY)["games"]
+        self.assertEqual(col["steam:3000101"]["igdb"]["hours"]["h"], 7.0)
+        self.assertTrue(col["steam:3000102"]["igdb"]["none"])
+        self.assertEqual(col["name:ps1:moon wars masters of randern"]["igdb"]["id"], 7)
+        self.assertTrue(col["name:ps2:star hop"]["igdb"]["none"])       # falsches Spiel zählt nicht
+        self.assertIn("4 Spiele gelesen, 2 gefunden (1 über die Steam-ID), 1 mit Spielzeit", "\n".join(logs))
+        self.assertNotIn("a" * 30, "\n".join(logs))
+        # zweiter Lauf: nichts zu tun
+        calls.clear()
+        sync._igdb(settings, logs.append)
+        self.assertEqual(calls, [])
+        rows = {x["key"]: x for x in collection.view(store.load_json(collection.FILE, collection.EMPTY))["games"]}
+        h, m = rows["steam:3000101"], rows["name:ps1:moon wars masters of randern"]
+        self.assertEqual((h["score"], h["score_src"], h["score_alt"]), (81, "IGDB Kritik", True))
+        self.assertEqual((h["hours"], h["players"], h["pl_src"]), (7.0, 4, "IGDB"))
+        self.assertEqual(h["genres"], ["Action", "Shooter", "Abenteuer"])
+        self.assertEqual(h["gc"], [])
+        self.assertIn("online", h["mp"])
+        self.assertEqual((h["desc"], h["desc_src"], h["year"], h["dev"]), ("A heist.", "IGDB", "2019", "Kite Works"))
+        self.assertEqual((m["score"], m["score_src"], m.get("score_alt")), (55, "IGDB gesamt", True))
+        self.assertEqual((m["genres"], m["gc"], m["players"]), (["Kampfspiel"], ["Kampfspiel"], 2))
+        self.assertIn("couch", m["mpc"])
+        self.assertEqual(rows["name:ps2:star hop"].get("ig"), None)
+        # Ohne Schlüssel bei Twitch: Problem, keine IGDB-Anfrage
+        store.save_json(collection.FILE, {"games": {"name:ps2:x": {"name": "X Game", "system": "PS2"}}})
+        calls.clear()
+        sources.fetch = lambda url, timeout=25, ua=None, headers=None, data=None: (calls.append(url), "{}")[1]
+        r = sync._igdb(settings, logs.append)
+        self.assertFalse(r["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(igdb.pick([{"name": "Portal 2"}], "Portal"), None)
 
     def test_diagnose(self):
         self.seed()

@@ -37,7 +37,8 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   beschreibt die Antwort: HTTP-Status, Server, Kodierung, Größe und was die Leser erkennen
   (Angebote und Seiten, Suchtreffer, Preis, Tief und Version der Titelseite, Steam-Preis,
   gg.deals-Antwort samt Anfang). Gespeichert wird nichts; der gg.deals-Schlüssel erscheint nie
-  im Ergebnis.
+  im Ergebnis. Seit 0.8.0 läuft er in einem eigenen Faden auf dem Server (`POST /api/diag` startet,
+  `GET /api/diag` liefert den Stand, ein zweiter Start während des Laufs startet nichts neu).
 - **Proben neuer Quellen** (0.7.0, `app/probes.py`): je ein Spiel der Sammlung (PC mit den
   meisten Steam-Rezensionen, ein Konsolenspiel, ein Retro-Spiel). Steam `appdetails` auf Deutsch;
   PCGamingWiki über die Cargo-Schnittstelle (`cargofields` für `VR_support`, dann das Spiel über
@@ -191,6 +192,24 @@ Casual, Rennen, Sport, Abenteuer, Simulation), Kategorien auf die Mehrspieler-Ar
 und Steam beide sagen, gilt als bestätigt; der Rest bleibt mit „≈“. Liefert Steam die App, ist
 ein nur vermuteter Laden bestätigt. Abgelegt je Spiel unter `steam` in `collection.json`
 (`ok: false`, wenn Steam die App nicht kennt); ein neuer Playnite-Export behält es.
+
+## IGDB (Sammlung, ab 0.8.0)
+
+Nur mit Twitch-Schlüssel (Client-ID und Secret in den Einstellungen). Nach den Steam-Wertungen. Je
+Anfrage 0,3 Sekunden Pause (IGDB erlaubt vier je Sekunde), Ende bei 403 und 429 wie überall.
+Switch-Spiele aus dem eShopKompass fragt es nicht an.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Anmeldung | `https://id.twitch.tv/oauth2/token` (POST, client_credentials) | einmal je Lauf, nur wenn etwas zu tun ist | Zugangsmarke für diesen Lauf |
+| Steam-IDs | `https://api.igdb.com/v4/external_games` (POST) | Pakete zu 400 Steam-IDs | IGDB-Spiel je Steam-ID |
+| Spiele | `…/v4/games` (POST, `where id = (…)`) | je Paket einmal | Name, Genres, Spielmodi, Mehrspieler-Angaben, Kritiker- und Gesamtwertung samt Zahl, Beschreibung, Erscheinen, Entwickler, Verlag |
+| Namenssuche | `…/v4/games` (POST, `search` mit Plattform, dann ohne Sonderzeichen, nach dem Doppelpunkt, ohne Plattform, zuletzt Teilname) | höchstens 120 Spiele je Lauf (`IGDB_NAMES`): erst die ohne Steam-ID, dann Steam-Spiele, die IGDB nicht verknüpft hat | wie oben; ein Treffer zählt nur bei gleichem oder weitgehend gleichem Namen |
+| Spielzeiten | `…/v4/game_time_to_beats` (POST) | Pakete zu 400 Spielen | eilig, normal, komplett, Zahl der Angaben |
+
+Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DAYS`), alles sofort,
+wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb` in `collection.json`
+(`none: true` ohne Treffer); ein neuer Playnite-Export und eine neue Retro-Liste behalten es.
 
 ## Steam-Wertungen (Wunschliste, Sammlung VR)
 

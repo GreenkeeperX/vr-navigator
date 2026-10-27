@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, prices, probes, retro, sources, store, titles
+from . import accounts, collection, igdb, prices, probes, retro, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
-         "eshop": "eShopKompass"}
+         "igdb": "IGDB", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -72,6 +72,10 @@ NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Entscheidung 22.10.2026
 RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je System höchstens wöchentlich
+IGDB_DAYS = 90              # IGDB je Spiel so oft neu (0.8.0)
+IGDB_MISS_DAYS = 30         # ohne Treffer erst nach so vielen Tagen neu suchen
+IGDB_NAMES = 120            # Namenssuchen je Lauf (Steam-Spiele gehen gebündelt über die Steam-ID)
+IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
@@ -203,8 +207,9 @@ class _Source:
     """Eine Quelle in einem Lauf: Pausen, Fehlerzähler, zweiter Versuch nach Netzfehler, Ende
     bei Sperre oder Prüfseite (blocked: die Quelle ruht danach)."""
 
-    def __init__(self, name, log, headers=None):
+    def __init__(self, name, log, headers=None, pause=None):
         self.name, self.log, self.headers = name, log, headers
+        self.pause = PAUSE if pause is None else pause
         self.n = self.errors = 0
         self.stopped = ""
         self.blocked = False
@@ -214,18 +219,18 @@ class _Source:
         self.stopped, self.blocked = why, True
         self.log(f"{self.name}: {why} bei {where}, Quelle ruht {REST_H} Stunden")
 
-    def get(self, url, shown=None, absent=()):
+    def get(self, url, shown=None, absent=(), data=None):
         """Text der Antwort, None bei Fehler. Statuscodes in absent heißen „gibt es nicht“: dann
-        "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler)."""
+        "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler). Mit data als POST (IGDB)."""
         if self.stopped:
             return None
         if self.n:
-            sleep(PAUSE)
+            sleep(self.pause)
         self.n += 1
         where = shown or url
         for attempt in (1, 2):
             try:
-                text = sources.fetch(url, headers=self.headers)
+                text = sources.fetch(url, headers=self.headers, data=data) if data is not None else sources.fetch(url, headers=self.headers)
                 break
             except sources.FetchError as e:
                 if e.status == 0 and attempt == 1:
@@ -1225,6 +1230,106 @@ def _details(log):
     return src.result()
 
 
+def _igdb(settings, log):
+    """IGDB (0.8.0): Genre, Spieler, Wertung, Spielzeit, Beschreibung und Firmen je Spiel der Sammlung, für die
+    Spalten aller Reiter. Steam-Spiele gebündelt über die Steam-ID, die übrigen über Name und System
+    (höchstens IGDB_NAMES je Lauf). Switch-Spiele aus dem eShopKompass bringen ihre Angaben selbst mit."""
+    start = time.monotonic()
+    src = _Source("IGDB", log, pause=IGDB_PAUSE)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    games = col.get("games") or {}
+    old, old_miss = _iso(now() - timedelta(days=IGDB_DAYS)), _iso(now() - timedelta(days=IGDB_MISS_DAYS))
+
+    def due(g):
+        r = g.get("igdb")
+        if g.get("src") == collection.ESHOP:
+            return False
+        if not r or r.get("v") != igdb.V:
+            return True
+        return (r.get("at") or "") < (old_miss if r.get("none") else old)
+    todo = sorted(((g.get("igdb") or {}).get("at") or "", k) for k, g in games.items() if due(g))
+    if not todo:
+        log("IGDB: alle aktuell" if games else "IGDB: keine Sammlung, nichts zu tun")
+        return src.result()
+    text = src.get(igdb.TWITCH, shown="Twitch-Anmeldung", data=igdb.token_body(settings["igdb_id"], settings["igdb_secret"]))
+    tok = igdb.token(text)
+    if not tok:
+        if not src.stopped:
+            src.stopped = "keine Anmeldung"
+            log("IGDB: Twitch nimmt den Schlüssel nicht an; Client-ID und Secret in den Einstellungen prüfen")
+        return src.result()
+    src.headers = {"Client-ID": settings["igdb_id"], "Authorization": f"Bearer {tok}", "Accept": "application/json"}
+
+    def ask(path, body, shown):
+        t = src.get(igdb.API + path, shown=shown, data=body.encode())
+        try:
+            return None if t is None else json.loads(t or "[]")
+        except ValueError:
+            return None
+    got, unlinked = {}, []
+    steam = [k for _, k in todo if games[k].get("store") == "Steam" and str(games[k].get("id") or "").isdigit()
+             and (games[k].get("system") or "PC") == "PC"]
+    for part in igdb.chunks(steam):
+        progress("IGDB, Steam-IDs", len(got), len(steam))
+        ids = [games[k]["id"] for k in part]
+        ext = ask("external_games", igdb.steam_query(ids), "Steam-IDs")
+        if ext == []:
+            ext = ask("external_games", igdb.steam_query(ids, old=True), "Steam-IDs")
+        if ext is None:
+            break
+        of = {str(e.get("uid")): e.get("game") for e in ext if isinstance(e, dict) and e.get("game")}
+        found = ask("games", igdb.games_query(sorted(set(of.values()))), "Spiele zu Steam-IDs") if of else []
+        if found is None:
+            break
+        by = {g.get("id"): g for g in found if isinstance(g, dict)}
+        for k in part:
+            hit = by.get(of.get(str(games[k]["id"])))
+            if hit:
+                got[k] = igdb.compact(hit)
+            else:
+                unlinked.append(k)
+    # Ohne Steam-ID, danach Steam-Spiele, die IGDB nicht mit der Steam-ID verknüpft hat: über den Namen
+    names = [k for _, k in todo if k not in steam] + unlinked
+    left = max(0, len(names) - IGDB_NAMES)
+    for i, k in enumerate(names[:IGDB_NAMES]):
+        if src.stopped:
+            break
+        progress("IGDB, Namen", i, min(len(names), IGDB_NAMES))
+        g, hit, res = games[k], None, None
+        for body in igdb.name_queries(g["name"], g.get("system") or "PC"):
+            res = ask("games", body, f"„{g['name'][:40]}“")
+            if res is None:
+                break
+            hit = igdb.pick(res, g["name"])
+            if hit:
+                break
+        if res is None and not hit:
+            continue                    # Fehler: nicht als „kein Treffer“ merken
+        got[k] = igdb.compact(hit) if hit else None
+    ids = sorted({r["id"] for r in got.values() if r and r.get("id")})
+    hours = {}
+    for part in igdb.chunks(ids):
+        if src.stopped:
+            break
+        t = ask("game_time_to_beats", igdb.times_query(part), "Spielzeiten")
+        hours.update(igdb.times(t))
+    stamp = titles.now_iso()
+    with store.lock:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        for k, r in got.items():
+            if k in col.get("games", {}):
+                if r and hours.get(r["id"]):
+                    r["hours"] = hours[r["id"]]
+                col["games"][k]["igdb"] = dict(r, at=stamp, v=igdb.V) if r else {"none": True, "at": stamp, "v": igdb.V}
+        store.save_json(collection.FILE, col)
+    hit = sum(1 for r in got.values() if r)
+    src.stats = {"read": len(got), "found": hit, "left": left}
+    log(f"IGDB: {len(got)} Spiele gelesen, {hit} gefunden ({sum(1 for k, r in got.items() if r and k in steam and k not in unlinked)} über die Steam-ID), "
+        f"{sum(1 for r in got.values() if r and r.get('hours'))} mit Spielzeit"
+        + (f", {left} Namen noch offen (je Lauf {IGDB_NAMES}{_runs(left, IGDB_NAMES, ', ')})" if left else "") + f", {_took(start)}")
+    return src.result()
+
+
 def _sharenite(settings, log):
     """PC-Bibliothek aus einem öffentlichen Sharenite-Profil (Playnite online, alle Läden). Liest
     erst Seite 1 für die Kennungen der VR-Schlagwörter, dann nur die gefilterte Liste; fehlt der
@@ -1479,6 +1584,8 @@ def run(only=None, boot=False, by_hand=False):
             do("details", lambda: _details(log))
         if not only or "rating" in only:
             do("rating", lambda: _rating(log))
+        if settings["igdb_id"] and settings["igdb_secret"] and (not only or "igdb" in only):
+            do("igdb", lambda: _igdb(settings, log))
         if not only or "players" in only:
             do("players", lambda: _players(log))
         if not only or "vrdb" in only:

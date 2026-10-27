@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.7.7"
+VERSION = "0.8.0"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
@@ -149,9 +149,9 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate", headers=None, da
     return out
 
 
-def fetch(url, timeout=25, ua=None, headers=None):
-    """HTTP GET, gibt Text zurück. Wirft FetchError mit Statuscode."""
-    r = request(url, ua, timeout, headers=headers)
+def fetch(url, timeout=25, ua=None, headers=None, data=None):
+    """HTTP GET (mit data POST), gibt Text zurück. Wirft FetchError mit Statuscode."""
+    r = request(url, ua, timeout, headers=headers, data=data)
     if r["error"]:
         raise FetchError(url, 0, r["error"])
     if r["status"] >= 400:

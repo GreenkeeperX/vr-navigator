@@ -10,7 +10,7 @@ was später je Spiel abgerufen wird (Feld „rev“), bleibt erhalten.
 import math
 import re
 
-from . import sources, titles
+from . import igdb, sources, titles
 
 FILE = "collection.json"
 EMPTY = {"games": {}, "at": "", "n": 0}
@@ -290,7 +290,7 @@ def replace(col, games, src="playnite"):
         if o is None:
             new += 1
             continue
-        for f in ("rev", "steam", "mark"):
+        for f in ("rev", "steam", "mark", "igdb"):
             if f in o:
                 g[f] = o[f]
     col["games"] = games
@@ -426,6 +426,55 @@ def check(r, st):
         r["year"] = y                   # nur Steam kennt das Jahr: übernommen, ≈
 
 
+def merge_igdb(r, ig):
+    """IGDB (0.8.0) in eine Zeile, mit fester Rangfolge je Feld. Was IGDB und eine andere Quelle beide sagen,
+    gilt als bestätigt (gc, mpc wie beim Abgleich mit Steam); was nur eine sagt, zeigt die Oberfläche violett.
+    - Wertung: Steam-Rezensionen (ab 50), sonst IGDB-Kritiken (ab 3), sonst IGDB gesamt (ab 10); Ersatz ist
+      IGDB gesamt und am PC jede IGDB-Wertung
+    - Spielzeit: IGDB (normal, sonst eilig)
+    - Spieler: IGDB (höchste Zahl online oder an einer Konsole), sonst Playnite (Ersatz)
+    - Genre und Mehrspieler: alle Quellen zusammen, bestätigt, was zwei nennen
+    - Beschreibung, Jahr, Entwickler, Verlag: Steam, sonst IGDB (Beschreibung auf Englisch)"""
+    r["ig"], r["srcs"] = True, r.get("srcs", []) + ["IGDB"]
+    ig_g = genres(ig.get("genres") or [], [])
+    # Kennt sonst keine Quelle Genres (Konsolen, Retro), widerspricht niemand: dann gilt IGDB als bestätigt
+    r["gc"] = list(dict.fromkeys((r.get("gc") or []) + [x for x in r["genres"] if x in ig_g] + (ig_g if not r["genres"] else [])))
+    r["genres"] = r["genres"] + [x for x in ig_g if x not in r["genres"]]
+    ig_m = igdb.mp_kinds(ig)
+    r["mpc"] = list(dict.fromkeys((r.get("mpc") or []) + [x for x in r["mp"] if x in ig_m] + (ig_m if not r["mp"] else [])))
+    r["mp"] = r["mp"] + [x for x in ig_m if x not in r["mp"]]
+    n = max(ig.get("on") or 0, ig.get("off") or 0)
+    if n > 1:
+        r["players"], r["pl_src"] = n, "IGDB"
+    elif r["players"]:
+        r["pl_src"] = "Playnite"
+    if r["score"] is None:
+        if ig.get("crit") is not None:
+            r.update(score=ig["crit"], score_src="IGDB Kritik", score_n=ig.get("crit_n") or 0)
+        elif ig.get("total") is not None:
+            r.update(score=ig["total"], score_src="IGDB gesamt", score_n=ig.get("total_n") or 0, score_alt=True)
+        if r["score"] is not None and r["system"] == "PC":
+            r["score_alt"] = True           # am PC zählt Steam zuerst, IGDB ist Ersatz
+    if ig.get("crit") is not None and r["score_src"] != "IGDB Kritik":
+        r["icrit"] = ig["crit"]
+    h = ig.get("hours") or {}
+    if h.get("h"):
+        r.update(hours=h["h"], hours_all=h.get("all"), hours_n=h.get("n") or 0, hours_src="IGDB")
+    if not r.get("desc") and ig.get("desc"):
+        r["desc"], r["desc_lang"], r["desc_src"] = ig["desc"], "en", "IGDB"
+    if not r["year"] and ig.get("year"):
+        r["year"], r["year_src"] = ig["year"], "IGDB"
+    if ig.get("year") and r.get("src") != "steam":
+        r["year_ok"] = r["year"] == ig["year"]
+    r["iyear"] = ig.get("year") or ""
+    if not r["dev"] and ig.get("dev"):
+        r["dev"] = ig["dev"]
+    if not r["pub"] and ig.get("pub"):
+        r["pub"] = ig["pub"]
+    if ig.get("name") and titles.norm(ig["name"]) != titles.norm(r["name"]):
+        r["iname"] = ig["name"]
+
+
 def view(col):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele)."""
     rows = []
@@ -457,6 +506,10 @@ def view(col):
         if r["guess"] and r["reviews"]:
             r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
         check(r, g.get("steam") or {})
+        r["srcs"] = ["Playnite"] + (["Steam"] if r["src"] == "steam" else []) if not r.get("retro") else ["Retro-Liste"]
+        ig = g.get("igdb") or {}
+        if ig.get("id"):
+            merge_igdb(r, ig)
         rows.append(r)
     # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}

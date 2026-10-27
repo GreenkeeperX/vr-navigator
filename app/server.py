@@ -47,6 +47,35 @@ def host_allowed(host, extra=None):
     return False
 
 
+DIAG = {"id": 0, "running": False, "lines": None, "error": ""}
+_diag_lock = threading.Lock()
+
+
+def start_diag():
+    """Verbindungstest im Hintergrund (0.8.0): er dauert bis zu einer Minute, länger als ein Proxy davor
+    oft wartet (504). Die Oberfläche fragt den Stand mit GET /api/diag ab."""
+    with _diag_lock:
+        if DIAG["running"]:
+            return False
+        DIAG.update(id=DIAG["id"] + 1, running=True, lines=None, error="")
+
+    def run():
+        try:
+            lines, error = sync.diagnose(), ""
+        except Exception as e:
+            traceback.print_exc()
+            lines, error = None, f"{type(e).__name__}"
+        with _diag_lock:
+            DIAG.update(running=False, lines=lines, error=error)
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
+def diag_view():
+    with _diag_lock:
+        return dict(DIAG)
+
+
 def settings_view():
     """Einstellungen für die Oberfläche: der Schlüssel selbst geht nie zurück an den Browser."""
     s = sync.load_settings()
@@ -298,6 +327,8 @@ class Handler(BaseHTTPRequestHandler):
                                else "text/javascript; charset=utf-8")
             elif path == "/api/state":
                 self._send(200, state())
+            elif path == "/api/diag":
+                self._send(200, diag_view())
             elif path == "/api/status":
                 self._send(200, sync.status())
             elif path == "/api/collection":
@@ -415,7 +446,8 @@ class Handler(BaseHTTPRequestHandler):
                 started = sync.start(only)
                 self._send(200, dict(state(), started=started))
             elif path == "/api/diag":
-                self._send(200, {"lines": sync.diagnose()})
+                start_diag()
+                self._send(200, diag_view())
             elif path == "/api/restore":
                 d = body.get("data")
                 if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):

@@ -169,6 +169,12 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   violett heißt dort wie hier: Nintendo nennt anderes als DekuDeals; OpenCritic grau kursiv (`.galt`),
   USK 16 blau, 18 rot. Mein Stand nur lesend; „eShopKompass“ fett, „eShop“ im Nintendo-Rot wie in seiner
   Kopfzeile, ohne Unterstrich (`a.eshl`), öffnet das Spiel dort.
+- Rangfolge je Feld (0.8.0, `collection.merge_igdb`): Eine Ersatzquelle bei der Wertung steht grau kursiv
+  (`.galt`, wie OpenCritic): am PC jede IGDB-Wertung (Steam zählt zuerst), sonst die IGDB-Gesamtwertung.
+  Spieler aus Playnite, wenn IGDB das Spiel kennt, aber keine Zahl nennt: violett. Genres und Mehrspieler:
+  violett, was nur eine Quelle nennt, solange eine andere etwas sagt (`gc`, `mpc`); kennt sonst keine
+  Quelle Genres, gilt IGDB als bestätigt. Tooltips nennen die Quellen (`g.srcs`). Die Einzelheiten
+  wiederholen die Wertung der Zeile nicht, nur weitere (Metacritic, IGDB neben Steam).
 - Über der Liste nur „Alle n Spiele (Reiter).“ mit Aufklappdreieck; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
 - Einstellungen (0.7.4): Zahlen in „Zu erledigen“ in der Farbe für Prüfen (`b.warnc`), auch in den
   Gruppen. Der Knopf „ROM-Ordner wählen“ ist dezent (`label.btn.quiet`), nicht hell gefüllt.
