@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, mods, pcwish, prices, probes, retro, sources, store, titles
+from . import accounts, collection, igdb, mods, pcwish, prices, probes, retro, sources, store, titles, wheel
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "eshop": "eShopKompass"}
+         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -80,6 +80,9 @@ PCGW_DAYS = 90
 NEXUS_MAX = 60              # Nexus-Mod-Abfragen je Lauf
 NEXUS_DAYS = 30
 NEXUS_LIST_DAYS = 7         # Spieleliste von Nexus Mods (nexus_games.json) so oft neu
+WHEEL_MAX = 400             # Steam-Spiele je Lauf für die Schlagwörter (0.8.3), je Anfrage wheel.BATCH
+WHEEL_DAYS = 90
+WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 30          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
@@ -1513,6 +1516,68 @@ def _nexus(settings, log):
     return src.result()
 
 
+def _wheel(log):
+    """Sim-Racing (0.8.3): die Liste der Rennsimulationen (Bestätigung, alle WHEEL_LIST_DAYS Tage eine Anfrage) und
+    die Steam-Schlagwörter je PC-Spiel von Steam (Hinweis), gebündelt über IStoreBrowseService/GetItems."""
+    start = time.monotonic()
+    src = _Source(NAMES["wheel"], log)
+    old_list = _iso(now() - timedelta(days=WHEEL_LIST_DAYS))
+    wl = store.load_json(wheel.LIST_FILE, {})
+    if (wl.get("at") or "") < old_list:
+        names = wheel.game_list(src.get(wheel.LIST, shown=wheel.LIST_NAME) or "")
+        if len(names) >= 20:            # weniger heißt: die Seite sah anders aus, alte Liste behalten
+            wl = {"at": titles.now_iso(), "names": names}
+            store.save_json(wheel.LIST_FILE, wl)
+        elif not src.stopped:
+            log(f"{NAMES['wheel']}: {wheel.LIST_NAME} nicht lesbar ({len(names)} Namen), "
+                + (f"die vom {wl['at'][:10]} gilt weiter" if wl.get("names") else "ohne Bestätigung"))
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    old = _iso(now() - timedelta(days=WHEEL_DAYS))
+    todo = sorted(((g.get("stag") or {}).get("at") or "", k) for k, g in (col.get("games") or {}).items()
+                  if (g.get("system") or "PC") == "PC" and g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
+                  and ((g.get("stag") or {}).get("at") or "") < old)[:WHEEL_MAX]
+    got = {}
+    if todo:
+        tl = store.load_json(wheel.TAGS_FILE, {})
+        if (tl.get("at") or "") < old_list:
+            known = wheel.tag_list(src.get(wheel.TAGLIST, shown="Liste der Steam-Schlagwörter") or "")
+            if known:
+                tl = {"at": titles.now_iso(), "tags": {str(k): v for k, v in known.items()}}
+                store.save_json(wheel.TAGS_FILE, tl)
+        known = {int(k): v for k, v in (tl.get("tags") or {}).items()}
+        ids = {str(col["games"][k]["id"]): k for _, k in todo}
+        apps = list(ids)
+        for i in range(0, len(apps), wheel.BATCH):
+            progress(NAMES["wheel"], i, len(apps))
+            part = apps[i:i + wheel.BATCH]
+            r = wheel.items(src.get(wheel.items_url(part), shown=f"Steam-Schlagwörter {i + 1}–{i + len(part)}") or "")
+            if r is None:
+                if src.stopped:
+                    break
+                continue
+            stamp = titles.now_iso()
+            for a in part:
+                got[ids[a]] = {"tags": [n for n in wheel.names(r.get(a) or [], known) if n][:12], "at": stamp, "v": wheel.V}
+        with store.lock:
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            for k, r in got.items():
+                if k in col.get("games", {}):
+                    col["games"][k]["stag"] = r
+            store.save_json(collection.FILE, col)
+    games = col.get("games") or {}
+    idx = wheel.index(wl.get("names") or [])
+    pc = [g for g in games.values() if (g.get("system") or "PC") == "PC"]
+    hint = sum(1 for g in pc if wheel.hint((g.get("stag") or {}).get("tags") or []))
+    sure = sum(1 for g in pc if wheel.find(idx, (g.get("igdb") or {}).get("name"), g["name"]))
+    left = len([1 for g in games.values() if (g.get("system") or "PC") == "PC" and g.get("store") == "Steam"
+                and str(g.get("id") or "").isdigit() and ((g.get("stag") or {}).get("at") or "") < old])
+    src.stats = {"read": len(got), "list": len(wl.get("names") or []), "hint": hint, "sure": sure, "left": left}
+    log(f"{NAMES['wheel']}: {len(wl.get('names') or [])} Spiele in der {wheel.LIST_NAME}, {sure} davon in deiner Sammlung; "
+        f"Steam-Schlagwörter für {len(got)} Spiele gelesen, {hint} mit Hinweis auf Sim-Racing"
+        + (f", {left} noch offen" if left else "") + f", {_took(start)}")
+    return src.result()
+
+
 def _sharenite(settings, log):
     """PC-Bibliothek aus einem öffentlichen Sharenite-Profil (Playnite online, alle Läden). Liest
     erst Seite 1 für die Kennungen der VR-Schlagwörter, dann nur die gefilterte Liste; fehlt der
@@ -1775,6 +1840,8 @@ def run(only=None, boot=False, by_hand=False):
             do("pcgw", lambda: _pcgw(log))
         if not only or "nexus" in only:
             do("nexus", lambda: _nexus(settings, log))
+        if not only or "wheel" in only:
+            do("wheel", lambda: _wheel(log))
         if not only or "players" in only:
             do("players", lambda: _players(log))
         if not only or "vrdb" in only:

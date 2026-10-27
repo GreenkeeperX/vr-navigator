@@ -287,7 +287,7 @@ def apply(col, games, dry=True):
     for k, g in games.items():
         o = old.get(k)
         if o:
-            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus"):
+            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag"):
                 if f in o:
                     g[f] = o[f]
         old[k] = g

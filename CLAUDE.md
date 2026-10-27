@@ -52,6 +52,7 @@ Weitere feste Regeln (wie im eShopKompass):
   (libretro-DAT, Retool) zu Gruppen und „DE fehlt“ je Spiel (`build_index`, `match`)
 - `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export,
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
+- `app/wheel.py`: Sim-Racing ohne Netz: Steam-Schlagwörter (Hinweis), Liste der Rennsimulationen (Bestätigung)
 - `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur
   aus der Tabelle), Aktionen für ganze Gruppen, lange nicht gelesene Lesezeichen-Listen
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und den Reiter VR der Sammlung

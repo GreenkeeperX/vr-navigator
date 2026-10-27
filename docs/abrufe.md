@@ -236,6 +236,21 @@ Steam-Rezensionen) zuerst.
 Nexus mit einer Sekunde Pause je Anfrage, mit persönlichem Schlüssel als Kopfzeile `apikey`. Abgelegt je
 Spiel unter `pcgw` und `nexus` in `collection.json`; ein neuer Export behält beides.
 
+## Sim-Racing (Sammlung, ab 0.8.3)
+
+Für die Marke „Lenkrad“ der PC-Spiele. Die Kompatibilitätsliste zu Simagic (simracingsetup.com) zeigt
+dem Server eine Bot-Prüfung und wird nicht abgerufen.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Liste der Rennsimulationen | `https://community.granitedevices.com/raw/5645` (Rohtext eines offenen Beitrags im Simucube-Forum) | höchstens alle 30 Tage (`WHEEL_LIST_DAYS`), eine Anfrage; abgelegt in `wheel_list.json`; unter 20 Namen bleibt die alte Liste | ein Name je Zeile; Zuordnung lokal über den Namen (auch IGDB-Name). Bestätigung |
+| Steam-Schlagwörter, Liste | `https://api.steampowered.com/IStoreService/GetTagList/v1/?language=english` | höchstens alle 30 Tage; abgelegt in `steam_tags.json` | Name je Kennung |
+| Steam-Schlagwörter je Spiel | `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=…` mit `include_tag_count` | je Steam-Spiel am PC nach 90 Tagen (`WHEEL_DAYS`), 50 Apps je Anfrage, höchstens 400 je Lauf (`WHEEL_MAX`) | die stärksten Schlagwörter; Hinweis bei „Automobile Sim“, „Sim Racing“ oder „Racing“/„Driving“ mit „Simulation“ unter den ersten zwölf |
+
+Ohne Schlüssel. Abgelegt je Spiel unter `stag` in `collection.json`; ein neuer Export behält es. Der
+Verbindungstest prüft beide Steam-Abrufe an einem Rennspiel der Sammlung und die Liste (statt der
+PCGamingWiki-Vorlage „Input“, die kein Feld für Lenkräder hat).
+
 ## Steam-Wertungen (Wunschliste, Sammlung VR)
 
 Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.

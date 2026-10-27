@@ -145,7 +145,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", eshop: "eShopKompass"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -447,7 +447,7 @@ function wishRow(r){
    ersten Öffnen geladen). Filter, Sortierung und Zufall laufen im Browser; der Zustand steht in der
    Adresse (#sammlung?…), so lässt sich eine Mischung als Lesezeichen merken. */
 let C = null, cLoading = false;
-const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, vm: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, vm: 0, wh: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
@@ -560,7 +560,7 @@ function dFilter(d){
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
-    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g))
+    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel)
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || (g.pub || "").toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
       || !!g.lib?.note?.toLowerCase().includes(q)));
 }
@@ -624,7 +624,7 @@ function setMix(k){
 const dLabel = d => [d.how.map(h => (K_HOW.find(x => x[0] === h) || [h, h])[1]).join(" + "), d.mp.map(m => C.mp_label[m] || m).join(" + "),
   d.hr && (d.hr > 0 ? `bis ${d.hr} h` : `ab ${-d.hr} h`), d.usk && `USK bis ${d.usk}`, d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1],
-  d.cb && "Crossbuy", d.vm && "VR per Mod", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
+  d.cb && "Crossbuy", d.vm && "VR per Mod", d.wh && "Lenkrad", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 /* Zellen. Leer heißt grauer Strich; violett (.gxc): nur eine Quelle oder geschätzt, der Tooltip sagt woher */
 const G_NIL = `<span class="hint">–</span>`;
@@ -887,6 +887,9 @@ function gBadges(g){
   // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (violett)
   else if(g.vrmod?.length) b.push(`<span class="b" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
   else if(vrMod(g)) b.push(`<span class="b gxc" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
+  // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (violett)
+  if(g.wheel?.list) b.push(`<span class="b" title="${esc(`In der ${WHEEL_LIST}${g.wheel.tags.length ? `\nSteam-Schlagwörter: ${g.wheel.tags.join(", ")}` : ""}`)}">Lenkrad</span>`);
+  else if(g.wheel) b.push(`<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\nSteam-Schlagwörter: ${g.wheel.tags.join(", ")}`)}">Lenkrad?</span>`);
   if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
   if(g.retro){
     if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
@@ -943,12 +946,19 @@ function gDetail(g){
   const who = [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n");
   const langs = g.sde == null ? "" : g.sde ? `Deutsch${g.slangs > 1 ? ` und ${g.slangs - 1} weitere Sprache${g.slangs > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>${g.slangs ? ` (${g.slangs} Sprache${g.slangs > 1 ? "n" : ""})` : ""}`;
   const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
-    row("VR per Mod", vrModHtml(g)) + row("Nexus Mods", nexusHtml(g)) +
+    row("VR per Mod", vrModHtml(g)) + row("Nexus Mods", nexusHtml(g)) + row("Sim-Racing", wheelHtml(g)) +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
   const src = [g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
     g.ig ? `IGDB${g.iname ? ` (dort „${esc(g.iname)}“)` : ""}` : ""].filter(Boolean).join(", ");
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
+}
+const WHEEL_LIST = "Liste der Rennsimulationen (Simucube-Forum)";
+function wheelHtml(g){
+  const w = g.wheel;
+  if(!w) return "";
+  return [w.list && `<a href="https://community.granitedevices.com/t/5645" target="_blank" rel="noopener noreferrer" title="Rennsimulationen für Direktantriebe mit Force Feedback; was dort läuft, läuft auch mit Simagic">in der ${WHEEL_LIST}</a>`,
+    w.tags.length && `<span class="${w.list ? "" : "gxc"}" title="Steam-Schlagwörter${w.list ? "" : ", nur ein Hinweis"}">${esc(w.tags.join(", "))}</span>`].filter(Boolean).join(" · ");
 }
 // VR per Mod und Nexus Mods in den Einzelheiten (0.8.1), mit Links
 const nxLink = (g, m) => `<a href="https://www.nexusmods.com/${encodeURIComponent(g.nexus.dom)}/mods/${Number(m.id)}" target="_blank" rel="noopener noreferrer" title="${num(m.end)} Empfehlungen">${esc(m.name)}</a>`;
@@ -1075,6 +1085,7 @@ function findView(){
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
       ${vr ? `<label><input type="checkbox" data-dset="cb"${d.cb ? " checked" : ""}> Crossbuy</label>` : ""}
+      ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (violett, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> Lenkrad</label>` : ""}
       ${inTab.some(vrMod) ? `<label title="VR per Mod laut PCGamingWiki oder Mods mit VR im Namen bei Nexus Mods (violett, nur ein Hinweis)"><input type="checkbox" data-dset="vm"${d.vm ? " checked" : ""}> VR per Mod</label>` : ""}
       ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}</div>
     ${label ? `<div class="chips act">${d.how.map(h => `<button data-act="dhowoff" data-v="${esc(h)}" title="Filter entfernen">${esc((K_HOW.find(x => x[0] === h) || [h, h])[1])} ×</button>`).join("")}${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
@@ -1133,7 +1144,7 @@ function nowView(){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Liste der Rennsimulationen)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){
@@ -1633,7 +1644,7 @@ document.addEventListener("click", async ev => {
   else if(a === "wsub"){ V.wsub = v === "pc" ? "pc" : "vr"; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
-    V.d.sys = v; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
+    V.d.sys = v; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.wh = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
     if(V.d.mix && !(v === "VR" ? MIXES.find(x => x[0] === V.d.mix)?.[4] : true)) V.d = Object.assign({}, D0, {sys: v, sort: V.d.sort});
     if(V.d.mix) V.d.seed = newSeed();
     render();

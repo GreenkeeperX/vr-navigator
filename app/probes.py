@@ -119,13 +119,6 @@ def pcgw_vr(text, name="VR support"):
     return out
 
 
-def wheel_info(fields):
-    """Lenkrad-Angaben aus der Vorlage „Input“: Felder mit wheel, force feedback oder haptic."""
-    hit = {k: v for k, v in fields.items() if re.search(r"wheel|force feedback|haptic|racing", k)}
-    return ("; ".join(f"{k} {v}" for k, v in hit.items()) if hit else "keine Angaben zu Lenkrädern") + (
-        f" ({len(fields)} Felder in „Input“: {', '.join(sorted(fields))[:700]})" if fields else " (keine Vorlage „Input“)")
-
-
 NEXUS_GQL = "https://api.nexusmods.com/v2/graphql"
 
 
@@ -355,30 +348,36 @@ def run(probe, lines, col, keys, sleep):
         return f"Seite „{title['t']}“" if title["t"] else f"keine Seite für App {appid}"
     probe("PCGamingWiki, Seite", PCGW_APPID + "?" + urllib.parse.urlencode({"appid": appid}), page_info)
     if title.get("t"):
-        wt = probe("PCGamingWiki, VR", PCGW + "?" + urllib.parse.urlencode(
+        probe("PCGamingWiki, VR", PCGW + "?" + urllib.parse.urlencode(
             {"action": "parse", "page": title["t"], "prop": "wikitext", "format": "json", "redirects": 1}),
             lambda t: "; ".join(f"{k} {v}" for k, v in pcgw_vr(t).items()) or "keine Angaben zu VR")
-        # Sim-Racing (0.7.4): was die Vorlage „Input“ derselben Seite zu Lenkrad und Force Feedback sagt
-        if wt:
-            try:
-                lines.append(f"PCGamingWiki, Lenkrad: {wheel_info(pcgw_vr(wt, 'Input'))}")
-            except ValueError:
-                lines.append("PCGamingWiki, Lenkrad: Seite nicht lesbar")
-    # 0.7.5: dasselbe an einem Rennspiel der Sammlung (das PC-Spiel oben ist meist keins)
+    # Sim-Racing (0.8.3): die Vorlage „Input“ von PCGamingWiki kennt kein Lenkrad (Probe 0.7.6). Stattdessen die
+    # Steam-Schlagwörter (Hinweis) und die Liste der Rennsimulationen aus dem Simucube-Forum (Bestätigung)
+    from . import wheel
     race = s.get("race")
-    if race and str(race.get("id")) != appid:
-        rt = {}
+    known = {}
 
-        def race_page(t):
-            rt["t"] = pcgw_title(t)
-            return f"Seite „{rt['t']}“" if rt["t"] else f"keine Seite für App {race.get('id')}"
-        probe(f"PCGamingWiki, Rennspiel „{race['name'][:40]}“", PCGW_APPID + "?" + urllib.parse.urlencode({"appid": race.get("id")}), race_page)
-        if rt.get("t"):
-            probe("PCGamingWiki, Lenkrad (Rennspiel)", PCGW + "?" + urllib.parse.urlencode(
-                {"action": "parse", "page": rt["t"], "prop": "wikitext", "format": "json", "redirects": 1}),
-                lambda t: wheel_info(pcgw_vr(t, "Input")))
-    elif not race:
-        lines.append("PCGamingWiki, Lenkrad: kein Rennspiel am PC in der Sammlung")
+    def tags_info(t):
+        known.update(wheel.tag_list(t))
+        by = {v.casefold(): k for k, v in known.items()}
+        return f"{len(known)} Schlagwörter; " + ", ".join(f"{n} {by.get(n.casefold(), 'fehlt')}" for n in ("Racing", "Driving", "Simulation", "Automobile Sim", "Sim Racing"))
+    probe("Steam, Schlagwörter (Liste)", wheel.TAGLIST, tags_info)
+    apps = ([(race["name"], str(race.get("id")))] if race and str(race.get("id")) != appid else []) + [(pc["name"], appid)]
+
+    def items_info(t):
+        r = wheel.items(t)
+        if r is None:
+            return "Antwort ohne „response“: " + _short(t, 160)
+        return "; ".join(f"„{n[:30]}“: {', '.join(x for x in wheel.names(r.get(a) or [], known)[:8] if x) or 'keine Schlagwörter'}"
+                         f" → {'Hinweis Sim-Racing' if wheel.hint(wheel.names(r.get(a) or [], known)) else 'kein Hinweis'}" for n, a in apps)
+    probe("Steam, Schlagwörter je Spiel (GetItems)", wheel.items_url([a for _, a in apps]), items_info)
+
+    def list_info(t):
+        names = wheel.game_list(t)
+        idx = wheel.index(names)
+        return (f"{len(names)} Spiele, etwa {', '.join(names[:4])}"
+                + (f"; Rennspiel „{race['name'][:30]}“ {'drin' if wheel.find(idx, race['name']) else 'nicht drin'}" if race else ""))
+    probe(wheel.LIST_NAME, wheel.LIST, list_info)
 
     # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
     # in der Sammlung mit einer Vorgabe)

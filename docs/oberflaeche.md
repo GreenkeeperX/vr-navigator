@@ -180,6 +180,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - VR per Mod (0.8.1): Marke „VR per Mod“ (`.b`) nach PCGamingWiki „hackable“; nur Nexus-Mods mit VR im Namen
   oder vorpX: „VR-Mod?“ violett (`.b.gxc`), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
   Spiel im Reiter eins von beiden hat. Einzelheiten: Zeilen „VR per Mod“ und „Nexus Mods“ mit Links.
+- Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das PC-Spiel in der Liste der Rennsimulationen steht; nur
+  Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
+  hat. Einzelheiten: Zeile „Sim-Racing“ mit Link auf die Liste und den Schlagwörtern (violett ohne Liste).
 - Über der Liste nur „Alle n Spiele (Reiter).“ mit Aufklappdreieck; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
 - Einstellungen (0.7.4): Zahlen in „Zu erledigen“ in der Farbe für Prüfen (`b.warnc`), auch in den
   Gruppen. Der Knopf „ROM-Ordner wählen“ ist dezent (`label.btn.quiet`), nicht hell gefüllt.

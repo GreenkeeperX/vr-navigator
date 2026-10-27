@@ -1819,6 +1819,53 @@ class TestSync(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(mods.mod_url("harborheist", 2), "https://www.nexusmods.com/harborheist/mods/2")
 
+    def test_sim_racing(self):
+        """Sim-Racing (0.8.3): Liste der Rennsimulationen bestätigt, Steam-Schlagwörter (gebündelt) sind ein Hinweis."""
+        from app import wheel
+        store.save_json(collection.FILE, {"games": {
+            "steam:3200001": {"name": "Rally Moth", "store": "Steam", "id": "3200001"},
+            "steam:3200002": {"name": "Truck Lanes", "store": "Steam", "id": "3200002"},
+            "steam:3200003": {"name": "Harbor Heist", "store": "Steam", "id": "3200003"},
+            "gog:88": {"name": "Moon Racer Edition", "store": "GOG", "id": "88"},
+            "name:ps4:rally moth": {"name": "Rally Moth", "system": "PS4"}}, "n": 5})
+        raw = "Erfundene Einleitung.\nThis is a Wiki post now, anyone can edit.\n" + "\n".join(
+            ["Rally Moth", "Moon Racer Edition"] + [f"Erfundene Rennsimulation {i}" for i in range(20)])
+        tags = {"response": {"tags": [{"tagid": 599, "name": "Simulation"}, {"tagid": 1644, "name": "Driving"}, {"tagid": 19, "name": "Action"}]}}
+        items = {"response": {"store_items": [{"appid": 3200001, "tags": [{"tagid": 19, "weight": 10}]},
+                                              {"appid": 3200002, "tags": [{"tagid": 1644, "weight": 300}, {"tagid": 599, "weight": 200}]},
+                                              {"appid": 3200003, "tagids": [19]}]}}
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None):
+            calls.append(url)
+            if "granitedevices" in url:
+                return raw
+            if "GetTagList" in url:
+                return json.dumps(tags)
+            if "GetItems" in url:
+                return json.dumps(items)
+            raise sources.FetchError(url, 404)
+        sources.fetch = fake
+        logs = []
+        self.assertTrue(sync._wheel(logs.append)["ok"])
+        self.assertEqual(sum("GetItems" in u for u in calls), 1)                 # alle drei Apps in einer Anfrage
+        self.assertIn("22 Spiele in der Liste der Rennsimulationen (Simucube-Forum), 2 davon in deiner Sammlung", "\n".join(logs))
+        self.assertIn("Steam-Schlagwörter für 3 Spiele gelesen, 1 mit Hinweis auf Sim-Racing", "\n".join(logs))
+        col = store.load_json(collection.FILE, collection.EMPTY)["games"]
+        self.assertEqual(col["steam:3200002"]["stag"]["tags"], ["Driving", "Simulation"])
+        rows = {x["key"]: x for x in collection.view({"games": col})["games"]}
+        self.assertEqual(rows["steam:3200001"]["wheel"], {"list": "Rally Moth", "tags": []})
+        self.assertEqual(rows["steam:3200002"]["wheel"], {"list": "", "tags": ["Driving", "Simulation"]})
+        self.assertEqual(rows["gog:88"]["wheel"]["list"], "Moon Racer Edition")
+        self.assertNotIn("wheel", rows["steam:3200003"])
+        self.assertNotIn("wheel", rows["name:ps4:rally moth"])                  # nur PC
+        self.assertEqual(wheel.hint(["Racing", "Action"]), [])                  # Rennen allein reicht nicht
+        self.assertEqual(wheel.hint(["Automobile Sim"]), ["Automobile Sim"])
+        # zweiter Lauf: alles aktuell, kein Abruf
+        calls.clear()
+        sync._wheel(logs.append)
+        self.assertEqual(calls, [])
+
     def test_pc_wishlist(self):
         """PC-Wunschliste (0.8.2): ganze gg.deals-Liste, Steam-ID aus der Sammlung oder der Steam-Suche, Preise über
         die gg.deals-API; eine neue Liste behält, was schon bekannt ist."""
@@ -1919,6 +1966,13 @@ class TestSync(unittest.TestCase):
                    ("dekudeals.com/search", 200, '<a href="/items/orbit-golf-deluxe-party">Orbit Golf Deluxe Party</a>'
                                                  '<a class="main-link" href="https://www.dekudeals.com/items/orbit-golf?format=digital">Orbit Golf</a>'),
                    ("api.nexusmods.com", 200, None),
+                   ("GetTagList", 200, json.dumps({"response": {"tags": [{"tagid": 699, "name": "Racing"}, {"tagid": 599, "name": "Simulation"},
+                                                                         {"tagid": 19, "name": "Action"}]}})),
+                   ("GetItems", 200, json.dumps({"response": {"store_items": [
+                       {"appid": 3000103, "tags": [{"tagid": 599, "weight": 80}, {"tagid": 699, "weight": 120}]},
+                       {"appid": 3000101, "tagids": [19]}]}})),
+                   ("granitedevices", 200, "Hier eine Liste der Simulationen.\nThis is a Wiki post now, anyone can edit.\n\n"
+                                           + "\n".join(["Rally Moth", "Moon Racer Edition"] + [f"Erfundene Rennsimulation {i}" for i in range(20)])),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
                    ("metadat/", 200, meta),
@@ -1969,10 +2023,12 @@ class TestSync(unittest.TestCase):
         self.assertIn("Seite „Harbor Heist“", text)
         self.assertIn("native 3d false; vorpx true; vorpx modes G3D; steamvr false", text)
         self.assertNotIn("vest", text)
-        self.assertIn("PCGamingWiki, Lenkrad: steering wheel support true; force feedback unknown (3 Felder", text)
-        self.assertEqual(sum("action=parse" in u for u, d in seen), 2)
-        self.assertIn("PCGamingWiki, Rennspiel „Rally Moth“", text)
-        self.assertIn("PCGamingWiki, Lenkrad (Rennspiel): steering wheel support true", text)
+        self.assertEqual(sum("action=parse" in u for u, d in seen), 1)
+        self.assertNotIn("PCGamingWiki, Lenkrad", text)
+        self.assertIn("Steam, Schlagwörter (Liste): 3 Schlagwörter; Racing 699, Driving fehlt, Simulation 599", text)
+        self.assertIn("„Rally Moth“: Racing, Simulation → Hinweis Sim-Racing; „Harbor Heist“: Action → kein Hinweis", text)
+        self.assertIn("Liste der Rennsimulationen (Simucube-Forum): 22 Spiele, etwa Rally Moth, Moon Racer Edition", text)
+        self.assertIn("Rennspiel „Rally Moth“ drin", text)
         self.assertTrue(all(h.get("apikey") == "n" * 40 for u, h in heads if "nexusmods" in u))
         self.assertNotIn("n" * 40, text)
         self.assertIn("Nexus Mods (mit Schlüssel), Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)
