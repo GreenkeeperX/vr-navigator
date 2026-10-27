@@ -498,6 +498,9 @@ def view(col):
             r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
                      regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
                      gone=bool(g.get("gone")), de=g.get("de") or None)
+            if (g.get("de") or {}).get("langs"):
+                # 3DS (0.8.4): Sprachen der Fassung laut No-Intro, gefunden über den Produktcode
+                r.update(langs=g["de"]["langs"], lang_guess=False)
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None

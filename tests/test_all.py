@@ -524,13 +524,48 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(retro.match(g("Star Hop", ["En"]), retro.build_index(RETRO_DAT))["st"], "none")
         self.assertTrue(retro.urls("GBA")[1].endswith("Game%20Boy%20Advance%20%28No-Intro%29.json"))
         self.assertIn("/metadat/redump/", retro.urls("PS1")[0])
-        self.assertIsNone(retro.urls("3DS"))
+        self.assertIsNone(retro.urls("Wii U"))
         col = {"games": {}}
         retro.apply(col, retro.parse("GBA/Moon Rover (USA).gba\nGBA/Pixel Kart (USA, Europe).gba\n3DS/Comet Chase (E).cia\n")[0], dry=False)
         self.assertEqual(retro.mark_languages(col, {"GBA": idx}), {"missing": 1, "none": 1})
         v = {r["name"]: r for r in collection.view(col)["games"]}
         self.assertEqual(v["Moon Rover"]["de"]["alt"], "Mondfahrer (Germany)")
         self.assertIsNone(v["Comet Chase"]["de"])
+
+    def test_retro_3ds_and_near(self):
+        """3DS (0.8.4): Fassung über den Produktcode im Dateinamen, Sprachen dann laut No-Intro; Gruppe über den
+        Code auch bei anderem Titel. Ähnliche Namen nur als Vorschlag, bestätigt gilt der Titel der Liste."""
+        dat = ('game (\n\tname "Moon Rover 3D (Europe) (En,Fr,De)"\n\trom ( name "Moon Rover 3D (Europe) (En,Fr,De).3ds" serial "CTR-P-AMQP" )\n)\n'
+               'game (\n\tname "Moon Rover 3D (USA)"\n\trom ( name "Moon Rover 3D (USA).3ds" serial "CTR-P-AMQE" )\n)\n'
+               'game (\n\tname "Pixel Garden Deluxe (Europe) (En,Fr,De)"\n\trom ( name "Pixel Garden Deluxe (Europe) (En,Fr,De).3ds" serial "CTR-P-BPGP" )\n)\n')
+        digital = 'game (\n\tname "Tiny Tennis Tour (Europe) (eShop)"\n\trom ( name "Tiny Tennis Tour (Europe) (eShop).3ds" serial "CTR-N-JTTP" )\n)\n'
+        idx = retro.build_index(dat + "\n" + digital)
+        col = {"games": {}}
+        retro.apply(col, retro.parse("3DS/0004000000AB1200 Moon Rover 3D (CTR-P-AMQP) (v0) (E).standard.cia\n"
+                                     "3DS/0004000000AB1300 Mondrover (CTR-P-AMQE) (v0) (U).cia\n"
+                                     "3DS/Pixel Garden (E).3ds\n3DS/Comet Chase (E).3ds\n")[0], dry=False)
+        games = col["games"]
+        self.assertEqual(games["retro:3ds:moon rover 3d"]["serial"], "CTR-P-AMQP")
+        retro.mark_languages(col, {"3DS": idx})
+        self.assertEqual(games["retro:3ds:moon rover 3d"]["de"]["st"], "have")
+        self.assertEqual(games["retro:3ds:moon rover 3d"]["de"]["langs"], ["De", "En", "Fr"])
+        self.assertEqual(games["retro:3ds:mondrover"]["de"], {"st": "missing", "alt": "Moon Rover 3D (Europe) (En,Fr,De)", "guess": False, "via": "code"})
+        self.assertEqual(games["retro:3ds:pixel garden"]["de"], {"st": "unknown", "near": "Pixel Garden Deluxe"})
+        self.assertNotIn("near", games["retro:3ds:comet chase"]["de"])
+        v = {r["name"]: r for r in collection.view(col)["games"]}
+        self.assertEqual((v["Moon Rover 3D"]["langs"], v["Moon Rover 3D"]["lang_guess"]), (["De", "En", "Fr"], False))
+        self.assertEqual([x["near"] for x in retro.near_list(col)], ["Pixel Garden Deluxe"])
+        # bestätigen: der Titel der Liste gilt, der Vorschlag ist weg; ablehnen: kommt nicht wieder
+        g = retro.settle_near(col, "retro:3ds:pixel garden", True, idx)
+        self.assertEqual(g["de"]["st"], "have" if "De" in g["langs"] else "missing")
+        self.assertEqual(retro.near_list(col), [])
+        col2 = {"games": {"retro:3ds:pixel": {"name": "Pixel Garden", "system": "3DS", "src": "retro", "langs": ["En"],
+                                              "de": {"st": "unknown", "near": "Pixel Garden Deluxe"}}}}
+        retro.settle_near(col2, "retro:3ds:pixel", False, idx)
+        self.assertEqual(col2["games"]["retro:3ds:pixel"]["de"], {"st": "unknown"})
+        # Liste der Download-Titel beim 3DS
+        self.assertIn("Nintendo%203DS%20%28Digital%29.dat", retro.extra_urls("3DS")[0])
+        self.assertEqual(retro.extra_urls("GBA"), [])
 
     def test_replace_keeps_fetched_and_gem(self):
         col = json.loads(json.dumps(collection.EMPTY))

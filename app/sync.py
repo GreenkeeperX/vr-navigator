@@ -1036,6 +1036,10 @@ def _retro(log):
             if src.stopped:
                 break
             continue
+        for j, u in enumerate(retro.extra_urls(sy)):
+            more = src.get(u, shown=f"Fassungsliste {sy} ({j + 2})", absent=(404,))
+            if more:
+                dat += "\n" + more
         rt = src.get(retool_url, shown=f"Retool-Liste {sy}", absent=(404,)) or ""
         cache[sy] = {"at": titles.now_iso(), "v": retro.INDEX_V, "retool": bool(rt), "idx": retro.build_index(dat, rt)}
         fetched.append(sy)
@@ -1045,10 +1049,12 @@ def _retro(log):
         col = store.load_json(collection.FILE, collection.EMPTY)
         count = retro.mark_languages(col, {sy: c["idx"] for sy, c in cache.items() if sy in systems and c.get("idx")})
         store.save_json(collection.FILE, col)
-    src.stats = {"read": len(fetched), "missing": count.get("missing", 0)}
+    near = sum(1 for g in (col.get("games") or {}).values() if (g.get("de") or {}).get("near"))
+    src.stats = {"read": len(fetched), "missing": count.get("missing", 0), "near": near}
     log(f"{label}: " + (f"Listen neu gelesen für {', '.join(fetched)}" if fetched else "Listen aktuell")
         + f"; Deutsch vorhanden {count.get('have', 0)}, deutsche Fassung fehlt {count.get('missing', 0)}, "
         f"keine deutsche Fassung bekannt {count.get('none', 0)}, nicht in der Liste {count.get('unknown', 0)}"
+        + (f" (davon {near} mit ähnlichem Namen zum Bestätigen)" if near else "")
         + (f"; ohne Fassungsliste: {', '.join(without)}" if without else "") + f", {_took(start)}")
     return src.result()
 

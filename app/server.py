@@ -135,6 +135,7 @@ def state():
     data = store.load_data()
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
                 marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
+                retro_near=retro.near_list(store.load_json(collection.FILE, collection.EMPTY)),
                 sync=sync.status(), settings=settings_view())
 
 
@@ -388,6 +389,16 @@ class Handler(BaseHTTPRequestHandler):
                         data["imports"]["retro"]["gone"] = 0
                         store.save_data(data)
                 self._send(200, {"changed": n, "collection": collection.view(col)})
+            elif path == "/api/retro/near":
+                # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
+                key = _text(body.get("key"), 300)
+                with store.lock:
+                    col = store.load_json(collection.FILE, collection.EMPTY)
+                    g = (col.get("games") or {}).get(key) or {}
+                    idx = (store.load_json(retro.CACHE, {}).get(g.get("system") or "") or {}).get("idx")
+                    retro.settle_near(col, key, bool(body.get("ok")), idx)
+                    store.save_json(collection.FILE, col)
+                self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/mark":

@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.3:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.4:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -154,6 +154,14 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   die Retool-Gruppe (auch bei anderem deutschen Titel) oder den gleichen Namen; ist ihr Deutsch nur
   aus der Region geschätzt, steht die Marke violett. Der Filter „Sprache“ zeigt „mit Deutsch“,
   „DE fehlt“ oder „ohne Deutsch“ (keine deutsche Fassung bekannt).
+- **3DS** (0.8.4): Fassungsliste von No-Intro für Module und für Download-Titel aus dem eShop. Nennt der
+  Dateiname den Produktcode („… (CTR-P-ABCP) (v0) (E).cia“), gelten die Sprachen genau dieser Fassung
+  laut No-Intro statt der aus der Region geschätzten (nicht mehr violett), und die Fassungen anderer
+  Regionen findet das Tool über den Code auch bei anderem Titel.
+- **Ähnlicher Name** (0.8.4): Steht ein Spiel nicht unter seinem Namen in der Fassungsliste, dort aber ein
+  ähnlicher Titel (gleiche Wörter zu 60 %, oder einer steckt ganz im anderen), steht es unter „Zu
+  erledigen“, „Retro: ähnlicher Name“. „dasselbe“: der Titel der Liste gilt fortan für dieses Spiel;
+  „anderes“: der Vorschlag kommt nicht wieder. Hacks und Homebrew bekommen keinen Vorschlag.
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
   „ROM-Hacks“ ergibt „Hack“.
 - **Neu einlesen:** Neue Spiele kommen dazu. Fehlt ein Spiel eines Systems, das in der neuen
@@ -200,8 +208,8 @@ Jeder Abgleich ordnet auch Titel zu, die nicht auf der Wunschliste stehen, etwa 
 
 Was offen bleibt, steht in den Einstellungen unter „Zu erledigen“: „Derselbe Titel?“,
 Steam-IDs, die die Prüfung nicht bestätigt hat („passt“ oder „falsch“; eine falsche App schlägt
-die Suche nicht wieder vor), und Titel, die QuestStoreDB nicht fand. Bundles sind dort als
-solche markiert.
+die Suche nicht wieder vor), Titel, die QuestStoreDB nicht fand, und Retro-Spiele mit ähnlichem
+Namen in der Fassungsliste. Bundles sind dort als solche markiert.
 
 ## Wunschliste abgleichen
 

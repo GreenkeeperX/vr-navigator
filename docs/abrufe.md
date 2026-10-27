@@ -295,7 +295,8 @@ Nur mit einer Retro-Liste, je System, das darin vorkommt. Ohne Schlüssel, nach 
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Fassungsliste | `https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/<System>.dat` (Discs: `…/metadat/redump/…`) | je System höchstens alle 7 Tage | alle bekannten Fassungen mit Region, Sprachen und bei GBA, GBC und DS dem Produktcode |
+| Fassungsliste | `https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/<System>.dat` (Discs: `…/metadat/redump/…`) | je System höchstens alle 7 Tage | alle bekannten Fassungen mit Region, Sprachen und bei GBA, GBC, DS und 3DS dem Produktcode |
+| Fassungsliste, weitere | `…/metadat/no-intro/Nintendo - Nintendo 3DS (Digital).dat` (nur 3DS, ab 0.8.4) | mit der Fassungsliste | Download-Titel aus dem eShop, mit Produktcode |
 | Retool-Liste | `https://raw.githubusercontent.com/unexpectedpanda/retool-clonelists-metadata/main/clonelists/<System> (No-Intro).json` | mit der Fassungsliste | Gruppen von Fassungen eines Spiels mit verschiedenen Titeln |
 
 Fassungen gehören zusammen, wenn sie denselben Titel haben, denselben Produktcode ohne den
@@ -303,8 +304,11 @@ Buchstaben für die Region („AMRE“ und „AMRD“) oder in derselben Retool-
 Proto, Demo und Ähnliches zählen nicht. Je Retro-Spiel steht danach unter `de`: Deutsch
 vorhanden (`have`), deutsche Fassung fehlt (`missing`, mit der gesuchten Fassung `alt`, ob ihr
 Deutsch nur aus der Region geschätzt ist, und worüber sie gefunden wurde), keine deutsche
-Fassung bekannt (`none`) oder nicht in der Liste (`unknown`). Systeme ohne Liste (3DS) bleiben
-ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-Liste einmal ab.
+Fassung bekannt (`none`) oder nicht in der Liste (`unknown`, mit `near`, wenn ein ähnlicher Titel in der
+Liste steht). Nennt der Dateiname eines 3DS-Spiels den Produktcode, stehen unter `langs` und `rel` die
+Sprachen und der Name genau dieser Fassung (ab 0.8.4, `retro_dat.json` in Fassung 2). Bestätigte
+ähnliche Namen stehen je Spiel unter `alias`, abgelehnte unter `near_no`; ein neuer Import behält beides.
+Systeme ohne Liste bleiben ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-Liste einmal ab.
 
 ## Ablage im Datenordner
 
