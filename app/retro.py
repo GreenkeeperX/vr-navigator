@@ -15,6 +15,8 @@ import re
 from . import collection, titles
 
 SRC = "retro"
+CACHE = "retro_dat.json"     # Fassungen je System (aus No-Intro, Redump, Retool), im Datenordner
+INDEX_V = 1
 MAX_LINES = 100000
 
 # Endungen, die das System allein bestimmen
@@ -309,3 +311,140 @@ def settle(col, action):
             games[k].pop("gone", None)
     col["n"] = len(games)
     return len(ks)
+
+
+# ---------------------------------------------------------------- Sprache: welche Fassungen gab es?
+# Listen aller Fassungen je System: No-Intro (Module, Handhelds) und Redump (Discs), wie die
+# libretro-database sie spiegelt, dazu die Retool-Listen, die Fassungen eines Spiels auch bei
+# verschiedenen Titeln zusammenfassen (etwa „Mondfahrer“ in Deutschland und „Moon Rover“ in den USA).
+LIBRETRO = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/"
+RETOOL = "https://raw.githubusercontent.com/unexpectedpanda/retool-clonelists-metadata/main/clonelists/"
+DATS = {
+    "GB": ("no-intro", "Nintendo - Game Boy"), "GBC": ("no-intro", "Nintendo - Game Boy Color"),
+    "GBA": ("no-intro", "Nintendo - Game Boy Advance"), "NES": ("no-intro", "Nintendo - Nintendo Entertainment System"),
+    "SNES": ("no-intro", "Nintendo - Super Nintendo Entertainment System"), "N64": ("no-intro", "Nintendo - Nintendo 64"),
+    "DS": ("no-intro", "Nintendo - Nintendo DS"), "VB": ("no-intro", "Nintendo - Virtual Boy"),
+    "Pokémon Mini": ("no-intro", "Nintendo - Pokemon Mini"), "Mega Drive": ("no-intro", "Sega - Mega Drive - Genesis"),
+    "Master System": ("no-intro", "Sega - Master System - Mark III"), "Game Gear": ("no-intro", "Sega - Game Gear"),
+    "GameCube": ("redump", "Nintendo - GameCube"), "Wii": ("redump", "Nintendo - Wii"),
+    "PS": ("redump", "Sony - PlayStation"), "PS2": ("redump", "Sony - PlayStation 2"), "PSP": ("redump", "Sony - PlayStation Portable"),
+}
+_SKIP_REL = re.compile(r"\((?:Beta|Proto|Demo|Sample|Kiosk|Pirate|Debug)[^)]*\)", re.I)
+
+
+def urls(system):
+    """Adressen der Fassungsliste und der Retool-Liste eines Systems, None ohne Liste."""
+    kind, name = DATS.get(system, (None, None))
+    if not kind:
+        return None
+    from urllib.parse import quote
+    label = "No-Intro" if kind == "no-intro" else "Redump"
+    return LIBRETRO + kind + "/" + quote(name) + ".dat", RETOOL + quote(f"{name} ({label})") + ".json"
+
+
+def _serial_code(serial):
+    """Produktcode ohne Region: „AMRD“ und „AMRE“ sind dasselbe Spiel (letzter Buchstabe = Region).
+    Redump-Codes wie „SLES-01234“ sind je Region verschieden und zählen nicht."""
+    s = str(serial or "").strip().upper()
+    return s[:3] if re.fullmatch(r"[A-Z0-9]{4}", s) else ""
+
+
+def build_index(dat_text, retool_text=""):
+    """Fassungen eines Systems aus einer libretro-DAT und der Retool-Liste. Fassungen gehören zu
+    einer Gruppe, wenn sie denselben Titel, denselben Produktcode oder dieselbe Retool-Gruppe
+    haben. Ergebnis: {"rel": [[Name, Sprachen, geschätzt]], "grp": {Titel: Gruppe},
+    "mem": {Gruppe: [Fassungen]}, "via": {Gruppe: „code“/„retool“/„name“}}."""
+    rels, parent = [], {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b, why):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+            joined[ra] = joined.get(ra, set()) | joined.pop(rb, set()) | {why}
+    joined = {}
+    retool = {}
+    if retool_text:
+        import json
+        try:
+            obj = json.loads(retool_text)
+        except ValueError:
+            obj = {}
+        for g in (obj.get("variants") or []) if isinstance(obj, dict) else []:
+            for t in g.get("titles") or []:
+                term = str(t.get("searchTerm") or "")
+                if term and "(" not in term and not t.get("filters"):
+                    retool[titles.norm(article_front(term))] = "g:" + str(g.get("group") or term)
+    for m in re.finditer(r'rom \( name "([^"]+)"([^)]*)', str(dat_text or "")):
+        fname = m.group(1)
+        if _SKIP_REL.search(fname):
+            continue
+        info = parse_name(fname)
+        if not info["title"]:
+            continue
+        sm = re.search(r'serial "([^"]*)"', m.group(2))
+        name = re.sub(r"\.[A-Za-z0-9]{1,6}$", "", fname)
+        i = len(rels)
+        rels.append([name, ",".join(info["langs"]), 1 if info["lang_guess"] else 0])
+        t = "t:" + titles.norm(info["title"])
+        union(t, "r:" + str(i), "name")
+        code = _serial_code(sm.group(1) if sm else "")
+        if code:
+            union(t, "c:" + code, "code")
+        rg = retool.get(t[2:])
+        if rg:
+            union(t, rg, "retool")
+    grp, mem = {}, {}
+    for x in list(parent):
+        r = find(x)
+        if x.startswith("t:"):
+            grp[x[2:]] = r
+        elif x.startswith("r:"):
+            mem.setdefault(r, []).append(int(x[2:]))
+    via = {r: ("code" if "code" in w else "retool" if "retool" in w else "name") for r, w in joined.items() if r in mem}
+    return {"rel": rels, "grp": grp, "mem": mem, "via": via}
+
+
+def _de_rank(rel):
+    """Beste deutsche Fassung zuerst: Deutsch ausdrücklich genannt, dann Germany, dann Europe."""
+    name, langs, guess = rel
+    return (guess, "(Germany" not in name, "Europe" not in name, len(langs), name)
+
+
+def match(g, idx):
+    """Gab es das Spiel mit Deutsch? {"st": have (deine Datei hat Deutsch), missing (es gab eine
+    Fassung mit Deutsch, deine hat keins; alt: die gesuchte Fassung), none (keine deutsche Fassung
+    bekannt), unknown (nicht in der Liste)}, dazu via (code, retool, name) und guess, wenn das
+    Deutsch der gesuchten Fassung nur aus der Region geschätzt ist."""
+    if "De" in (g.get("langs") or []):
+        return {"st": "have"}
+    r = (idx.get("grp") or {}).get(titles.norm(g.get("name") or ""))
+    members = (idx.get("mem") or {}).get(r) if r else None
+    if not members:
+        return {"st": "unknown"}
+    rels = [idx["rel"][i] for i in members if i < len(idx["rel"])]
+    de = sorted((x for x in rels if "De" in x[1].split(",")), key=_de_rank)
+    if not de:
+        return {"st": "none"}
+    return {"st": "missing", "alt": de[0][0][:200], "guess": bool(de[0][2]), "via": (idx.get("via") or {}).get(r, "name")}
+
+
+def mark_languages(col, indexes):
+    """Ergebnis von match je Retro-Spiel unter „de“ speichern. indexes: {System: Index}.
+    Gibt die Zahl je Ergebnis zurück."""
+    count = {}
+    for g in (col.get("games") or {}).values():
+        if g.get("src") != SRC:
+            continue
+        idx = indexes.get(g.get("system"))
+        if idx is None and "De" not in (g.get("langs") or []):
+            g.pop("de", None)
+            continue
+        g["de"] = match(g, idx or {})
+        count[g["de"]["st"]] = count.get(g["de"]["st"], 0) + 1
+    return count

@@ -497,6 +497,32 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(retro.settle(col, "drop"), 1)
         self.assertNotIn("retro:snes:star hop", col["games"])
 
+    def test_retro_languages(self):
+        """Gab es eine Fassung mit Deutsch? Fassungen eines Spiels über Produktcode (AMRE/AMRD),
+        Retool-Gruppe oder gleichen Namen; Beta-Fassungen zählen nicht."""
+        idx = retro.build_index(RETRO_DAT, RETRO_RETOOL)
+        self.assertEqual(len(idx["rel"]), 7)
+        g = lambda name, langs: {"name": name, "langs": langs}
+        self.assertEqual(retro.match(g("Moon Rover", ["En"]), idx),
+                         {"st": "missing", "alt": "Mondfahrer (Germany)", "guess": True, "via": "code"})
+        self.assertEqual(retro.match(g("Star Hop", ["En"]), idx),
+                         {"st": "missing", "alt": "Sternhuepfer (Europe) (En,Fr,De)", "guess": False, "via": "retool"})
+        self.assertEqual(retro.match(g("The Legend of Pixels", ["En"]), idx)["via"], "name")
+        self.assertEqual(retro.match(g("Pixel Kart", ["En"]), idx), {"st": "none"})
+        self.assertEqual(retro.match(g("Mondfahrer", ["De"]), idx), {"st": "have"})
+        self.assertEqual(retro.match(g("Comet Chase", ["En"]), idx), {"st": "unknown"})
+        # ohne Retool-Liste bleibt die Umbenennung unerkannt
+        self.assertEqual(retro.match(g("Star Hop", ["En"]), retro.build_index(RETRO_DAT))["st"], "none")
+        self.assertTrue(retro.urls("GBA")[1].endswith("Game%20Boy%20Advance%20%28No-Intro%29.json"))
+        self.assertIn("/metadat/redump/", retro.urls("PS")[0])
+        self.assertIsNone(retro.urls("3DS"))
+        col = {"games": {}}
+        retro.apply(col, retro.parse("GBA/Moon Rover (USA).gba\nGBA/Pixel Kart (USA, Europe).gba\n3DS/Comet Chase (E).cia\n")[0], dry=False)
+        self.assertEqual(retro.mark_languages(col, {"GBA": idx}), {"missing": 1, "none": 1})
+        v = {r["name"]: r for r in collection.view(col)["games"]}
+        self.assertEqual(v["Moon Rover"]["de"]["alt"], "Mondfahrer (Germany)")
+        self.assertIsNone(v["Comet Chase"]["de"])
+
     def test_replace_keeps_fetched_and_gem(self):
         col = json.loads(json.dumps(collection.EMPTY))
         self.assertEqual(collection.replace(col, collection.parse(COLLECTION)), 4)
@@ -907,6 +933,59 @@ class TestPrices(unittest.TestCase):
             prices.gg_prices(json.dumps({"success": False, "data": {"message": "Invalid key"}}))
 
 
+# Erfundene Fassungsliste im Aufbau der libretro-DATs (No-Intro) und eine Retool-Liste dazu
+RETRO_DAT = """clrmamepro (
+	name "Nintendo - Game Boy Advance"
+)
+
+game (
+	name "Moon Rover (USA)"
+	region "USA"
+	serial "AMRE"
+	rom ( name "Moon Rover (USA).gba" size 4194304 crc 00000001 serial "AMRE" )
+)
+
+game (
+	name "Mondfahrer (Germany)"
+	region "Germany"
+	serial "AMRD"
+	rom ( name "Mondfahrer (Germany).gba" size 4194304 crc 00000002 serial "AMRD" )
+)
+
+game (
+	name "Star Hop (USA)"
+	rom ( name "Star Hop (USA).gba" size 4194304 crc 00000003 )
+)
+
+game (
+	name "Sternhuepfer (Europe) (En,Fr,De)"
+	rom ( name "Sternhuepfer (Europe) (En,Fr,De).gba" size 4194304 crc 00000004 )
+)
+
+game (
+	name "Sternhuepfer (Europe) (En,Fr,De) (Beta)"
+	rom ( name "Sternhuepfer (Europe) (En,Fr,De) (Beta).gba" size 4194304 crc 00000005 )
+)
+
+game (
+	name "Pixel Kart (USA, Europe)"
+	rom ( name "Pixel Kart (USA, Europe).gba" size 4194304 crc 00000006 serial "APKE" )
+)
+
+game (
+	name "Legend of Pixels, The (Europe) (En,Fr,De)"
+	rom ( name "Legend of Pixels, The (Europe) (En,Fr,De).gba" size 4194304 crc 00000007 )
+)
+
+game (
+	name "Legend of Pixels, The (USA)"
+	rom ( name "Legend of Pixels, The (USA).gba" size 4194304 crc 00000008 )
+)
+"""
+RETRO_RETOOL = json.dumps({"description": {"name": "Nintendo - Game Boy Advance (No-Intro)", "lastUpdated": "2026-01-01"},
+                           "variants": [{"group": "Star Hop", "titles": [{"searchTerm": "Star Hop"}, {"searchTerm": "Sternhuepfer"}]}]})
+
+
 class FakeNet:
     """Attrappe für sources.fetch: Antworten nach Teil der Adresse, merkt sich jeden Abruf."""
 
@@ -1132,6 +1211,26 @@ class TestSync(unittest.TestCase):
         self.assertIn("reviews", store.load_json("sync.json", {})["sources"])
         self.assertIsNone(prices.steam_reviews('{"success": 2}'))
         self.assertEqual(prices.steam_reviews('{"success": 1, "query_summary": {"total_reviews": 0}}')["pct"], None)
+
+    def test_retro_source(self):
+        """Fassungslisten je System der Retro-Liste, danach wöchentlich; „de“ je Spiel."""
+        col = {"games": {}}
+        retro.apply(col, retro.parse("GBA/Moon Rover (USA).gba\nGBA/Star Hop (USA).gba\nVB/Tiny Tennis (World).vb\n")[0], dry=False)
+        store.save_json(collection.FILE, col)
+        net = FakeNet({"no-intro/Nintendo%20-%20Game%20Boy%20Advance.dat": RETRO_DAT,
+                       "Game%20Boy%20Advance%20%28No-Intro%29.json": RETRO_RETOOL})
+        sources.fetch = net
+        sync.run(only={"retro"})
+        self.assertEqual(len(net.calls), 3)                     # GBA: Liste und Retool; VB: Liste fehlt (404), Retool nicht gefragt
+        g = store.load_json(collection.FILE, {})["games"]
+        self.assertEqual((g["retro:gba:moon rover"]["de"]["st"], g["retro:gba:star hop"]["de"]["via"]), ("missing", "retool"))
+        self.assertTrue(store.load_json(retro.CACHE, {})["GBA"]["retool"])
+        res = store.load_json("sync.json", {})["sources"]["retro"]
+        self.assertEqual((res["read"], res["missing"]), (1, 2))
+        net.calls.clear()
+        sync.run(only={"retro"})
+        self.assertEqual([c for c in net.calls if "Advance" in c], [])   # GBA frisch: nicht neu gelesen
+        self.assertEqual(store.load_json(collection.FILE, {})["games"]["retro:gba:moon rover"]["de"]["st"], "missing")
 
     def test_details(self):
         """Steam-Details gleichen Playnite ab: was beide sagen, ist bestätigt, der Rest bleibt mit ≈."""
@@ -1765,6 +1864,9 @@ class TestUi(unittest.TestCase):
                             "ROMs/SNES/Ein sehr langer Retro-Titel mit vielen Wörtern und noch mehr Wörtern (USA).sfc\n")
         retro.apply(col, rg, dry=False)
         retro.apply(col, {k: g for k, g in retro.parse("ROMs/SNES/Star Hop (Japan).sfc\n")[0].items()}, dry=False)
+        for g in col["games"].values():
+            if g["name"].startswith("Ein sehr langer"):
+                g["de"] = {"st": "missing", "alt": "Ein sehr langer deutscher Retro-Titel mit noch mehr Wörtern (Germany) (Rev 1)", "guess": True, "via": "retool"}
         store.save_json(collection.FILE, col)
         data["imports"]["collection"] = {"at": now, "n": len(col["games"]), "new": 0}
         data["imports"]["retro"] = {"at": now, "n": 4, "new": 0, "files": 5, "gone": 1}

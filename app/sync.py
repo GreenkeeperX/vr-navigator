@@ -17,6 +17,7 @@ Versuch.
 Das Protokoll entsteht live (STATE), die Oberfläche liest es während des Laufs; am Ende landet
 es mit dem Ergebnis je Quelle und der Selbstprüfung in sync.json.
 """
+import json
 import re
 import sys
 import threading
@@ -24,7 +25,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, prices, sources, store, titles
+from . import accounts, collection, prices, retro, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -41,7 +42,7 @@ LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
-         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler"}
+         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -68,6 +69,7 @@ PEAK_DAYS = 30              # Spitze über so viele Tage
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Entscheidung 22.10.2026
+RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je System höchstens wöchentlich
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": ""}
@@ -901,6 +903,50 @@ def _reviews(log):
     return src.result()
 
 
+def _retro(log):
+    """Retro-Fassungen: je System der Retro-Liste die Fassungsliste (No-Intro oder Redump aus der
+    libretro-database) und die Retool-Liste, höchstens alle RETRO_DAYS Tage; dazwischen gilt die
+    gespeicherte Fassung (retro_dat.json). Danach bekommt jedes Retro-Spiel „de“: deutsche
+    Fassung vorhanden, fehlt (mit der gesuchten Fassung), gab es nicht oder unbekannt."""
+    start = time.monotonic()
+    label = NAMES["retro"]
+    src = _Source(label, log)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    systems = sorted({g.get("system") for g in (col.get("games") or {}).values() if g.get("src") == retro.SRC})
+    if not systems:
+        log(f"{label}: keine Retro-Liste, nichts zu tun")
+        return src.result()
+    cache = store.load_json(retro.CACHE, {})
+    old = _iso(now() - timedelta(days=RETRO_DAYS))
+    fetched, without = [], [s for s in systems if not retro.urls(s)]
+    for i, sy in enumerate(s for s in systems if retro.urls(s)):
+        c = cache.get(sy) or {}
+        if (c.get("at") or "") >= old and c.get("v") == retro.INDEX_V:
+            continue
+        progress(label, i, len(systems))
+        dat_url, retool_url = retro.urls(sy)
+        dat = src.get(dat_url, shown=f"Fassungsliste {sy}")
+        if not dat:
+            if src.stopped:
+                break
+            continue
+        rt = src.get(retool_url, shown=f"Retool-Liste {sy}", absent=(404,)) or ""
+        cache[sy] = {"at": titles.now_iso(), "v": retro.INDEX_V, "retool": bool(rt), "idx": retro.build_index(dat, rt)}
+        fetched.append(sy)
+    if fetched:
+        store.save_json(retro.CACHE, cache)
+    with store.lock:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        count = retro.mark_languages(col, {sy: c["idx"] for sy, c in cache.items() if sy in systems and c.get("idx")})
+        store.save_json(collection.FILE, col)
+    src.stats = {"read": len(fetched), "missing": count.get("missing", 0)}
+    log(f"{label}: " + (f"Listen neu gelesen für {', '.join(fetched)}" if fetched else "Listen aktuell")
+        + f"; Deutsch vorhanden {count.get('have', 0)}, deutsche Fassung fehlt {count.get('missing', 0)}, "
+        f"keine deutsche Fassung bekannt {count.get('none', 0)}, nicht in der Liste {count.get('unknown', 0)}"
+        + (f"; ohne Fassungsliste: {', '.join(without)}" if without else "") + f", {_took(start)}")
+    return src.result()
+
+
 def _rating(log):
     """Steam-Rezensionen für die Titel des Tools (Wunschliste, Bibliothek) mit Steam-ID, damit
     neben den Meta-Sternen die Steam-Wertung steht. Was Entdecken für dasselbe Spiel schon
@@ -1348,6 +1394,8 @@ def run(only=None, boot=False, by_hand=False):
             do("players", lambda: _players(log))
         if not only or "vrdb" in only:
             do("vrdb", lambda: _vrdb(log))
+        if not only or "retro" in only:
+            do("retro", lambda: _retro(log))
         progress("Speichern")
         applied = apply(upd)
         st["sources"].update(results)
@@ -1536,6 +1584,20 @@ def diagnose():
                     f"{len(vr_tags)} VR-Schlagwörter im Filter" + (f", erstes: {games[0]['name']} ({games[0]['source'] or 'ohne Laden'})" if games else
                     f". Anfang: {' '.join(re.sub(r'<[^>]+>', ' ', text)[:300].split())}"))
         probe("Sharenite", settings["sharenite"] + "?sort=name_asc", sn_info)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    rsys = sorted({g.get("system") for g in (col.get("games") or {}).values() if g.get("src") == retro.SRC and retro.urls(g.get("system"))})
+    if rsys:
+        def dat_info(text):
+            idx = retro.build_index(text)
+            return f"{len(idx['rel'])} Fassungen, davon {sum(1 for r in idx['rel'] if 'De' in r[1].split(','))} mit Deutsch"
+        def retool_info(text):
+            obj = json.loads(text)
+            return f"{len(obj.get('variants') or [])} Gruppen, Stand {(obj.get('description') or {}).get('lastUpdated', '?')}"
+        dat_url, retool_url = retro.urls(rsys[0])
+        probe(f"Fassungsliste {rsys[0]} (libretro)", dat_url, dat_info)
+        probe(f"Retool-Liste {rsys[0]}", retool_url, retool_info)
+    else:
+        lines.append("Retro-Fassungen: keine Retro-Liste, nicht angefragt")
     for secret in (key, settings["steam_key"], settings["gg_wish"]):
         if secret:
             lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]

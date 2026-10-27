@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.6:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System filtern und Vorschläge ziehen, mit Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.5.7:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System filtern und Vorschläge ziehen, mit Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -136,6 +136,13 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
 - **Sprache:** aus dem Dateinamen nach No-Intro und Redump, etwa `(En,Fr,De)`. Ohne Angabe gilt
   die Sprache der Region (Germany Deutsch, Europe, USA und World Englisch, Japan Japanisch) und
   trägt „≈“. In der Sammlung steht DE vor EN vor JP.
+- **Deutsche Fassung:** Beim Abgleich holt das Tool je System die Fassungsliste (No-Intro,
+  bei Discs Redump, über die libretro-database) und die Retool-Liste, höchstens wöchentlich. Gab
+  es eine Fassung mit Deutsch und deine Datei hat keins, steht „DE fehlt“ am Spiel, darunter die
+  gesuchte Fassung („gesucht: … (Germany)“). Gefunden wird sie über den Produktcode (GBA, GBC, DS),
+  die Retool-Gruppe (auch bei anderem deutschen Titel) oder den gleichen Namen; ist ihr Deutsch nur
+  aus der Region geschätzt, trägt die Marke „≈“. Der Filter „Sprache“ zeigt „mit Deutsch“,
+  „DE fehlt“ oder „ohne Deutsch“ (keine deutsche Fassung bekannt).
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
   „ROM-Hacks“ ergibt „Hack“.
 - **Neu einlesen:** Neue Spiele kommen dazu. Fehlt ein Spiel eines Systems, das in der neuen
