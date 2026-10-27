@@ -187,7 +187,7 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .systabs .n{color:var(--muted);font-size:12px;font-weight:400}
 /* Familien (0.7.4): die Konsolen der gewählten Familie gleiten rechts daneben heraus; die Familie bleibt halb markiert */
 .systabs .subtabs{display:flex;gap:2px;padding-left:4px;margin-left:2px;border-left:1px solid var(--line)}
-.systabs .subtabs.anim{animation:subin .34s cubic-bezier(.22,.61,.36,1) both}
+.systabs .subtabs.anim{animation:subin .7s cubic-bezier(.4,0,.2,1) both}
 .systabs button.sub{font-size:13px;padding:6px 8px}
 .systabs button.part{border-bottom:3px solid color-mix(in srgb,var(--fam) 45%,transparent)}
 @keyframes subin{from{opacity:0;transform:translateX(-14px);clip-path:inset(0 100% 0 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
@@ -338,7 +338,7 @@ details.op .ux{color:var(--warn)}
 .gdesc.full{display:block}
 .gno{color:var(--stop)}
 .gnote{margin:4px 0 8px}
-.gnote>summary{cursor:pointer;display:inline-block;margin:0}
+.gnote>summary{cursor:pointer;display:list-item;list-style-position:inside;margin:0}
 .gnote>p{margin:4px 0 0;max-width:110ch}
 /* Switch-Spiele wie im eShopKompass (0.7.5): Marken, OpenCritic grau kursiv, USK 16/18, Kopf „Spieler“ */
 .lgt{flex:none;font-size:10px;font-weight:700;border-radius:3px;padding:0 3px;vertical-align:1px;white-space:nowrap}
@@ -350,6 +350,9 @@ details.op .ux{color:var(--warn)}
 .galt{color:var(--muted);font-style:italic}
 .usk16{color:var(--deal);font-weight:600}
 .usk18{color:var(--stop);font-weight:600}
+a.eshl{text-decoration:none;font-weight:700;color:var(--ink)}
+a.eshl .brand{color:var(--sys-nin)}
+a.eshl:hover{text-decoration:underline}
 .gr.nph.es{row-gap:1px}
 .gr.nph.es>*{grid-row:2}
 .gr.nph.es .gh-sp{grid-row:1;grid-column:2/5;text-align:center;border-bottom:1px solid var(--line);font-size:10px;line-height:1.4}

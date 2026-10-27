@@ -71,7 +71,9 @@ Proben: PCGamingWiki-Vorlagen sauber gelesen, Lenkrad und Force Feedback (Sim-Ra
 einem Reiter mit Filter „System“, Switch-Spiele wie „Spiele“ im eShopKompass (Spalten Konsole, Lokal,
 Online, Koop, Metacritic, Spielzeit; Marken; Einzelheiten) und Link direkt auf das Spiel dort, Infotext
 zum Aufklappen; Steam-Rezensionen zusätzlich über die Store-Schnittstelle der Web API; Proben: bester
-DekuDeals-Treffer, Lenkrad an einem Rennspiel, IGDB über einen Teil des Namens. Grundsatz (Entscheidung 22.10.2026): so wenig
+DekuDeals-Treffer, Lenkrad an einem Rennspiel, IGDB über einen Teil des Namens. 0.7.6 Gleiten langsamer
+wie die Kopfzeile, Filter wie im eShopKompass im Reiter Switch 2 (Spielweise, Spielzeit, USK; System nur
+dort), Link „eShopKompass“ in dessen Marke, Sammlung nach dem Abgleich neu geladen. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
