@@ -80,12 +80,15 @@ sonst Name und System; falscher Treffer zählt nicht), Rangfolge je Feld für We
 Genre, Mehrspieler und Beschreibung in allen Reitern außer Switch und VR; Verbindungstest im Hintergrund
 (kein 504 mehr). 0.8.1 VR per Mod: PCGamingWiki je Steam-Spiel ohne eingebautes VR, Nexus-Spieleliste
 und Mods je PC-Spiel; Marke, Filter, Links in den Einzelheiten. 0.8.2 Wunschliste mit Unterreitern VR
-und PC: die ganze gg.deals-Wunschliste mit Steam-ID und Preisen (Händler, Keyshop, Tief). Grundsatz (Entscheidung 22.10.2026): so wenig
+und PC: die ganze gg.deals-Wunschliste mit Steam-ID und Preisen (Händler, Keyshop, Tief). 0.8.3 Marke
+„Lenkrad“ (Entscheidung 27.10.2026, „Beides“): Liste der Rennsimulationen aus dem Simucube-Forum als
+Bestätigung, Steam-Schlagwörter (gebündelt über die Store-Schnittstelle) als violetter Hinweis; die
+Simagic-Liste liegt hinter einer Bot-Prüfung. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- Marke „Lenkrad“ (Sim-Racing): die PCGamingWiki-Vorlage „Input“ hat kein Feld für Lenkräder (Probe
-  an einem Rennspiel, 0.7.6); andere Quelle suchen
+- Lenkrad: nach dem ersten Verbindungstest prüfen, ob Steam „Sim Racing“ als Schlagwort führt und wie gut
+  die Liste der Rennsimulationen zur Sammlung passt; Rennspiele im VR-Reiter
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
   und „Jetzt“ für alle Wünsche mit Filter VR
 
