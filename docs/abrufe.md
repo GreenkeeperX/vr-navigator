@@ -38,6 +38,15 @@ Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
   (Angebote und Seiten, Suchtreffer, Preis, Tief und Version der Titelseite, Steam-Preis,
   gg.deals-Antwort samt Anfang). Gespeichert wird nichts; der gg.deals-Schlüssel erscheint nie
   im Ergebnis.
+- **Proben neuer Quellen** (0.7.0, `app/probes.py`): je ein Spiel der Sammlung (PC mit den
+  meisten Steam-Rezensionen, ein Konsolenspiel, ein Retro-Spiel). Steam `appdetails` auf Deutsch;
+  PCGamingWiki über die Cargo-Schnittstelle (`cargofields` für `VR_support`, dann das Spiel über
+  `Infobox_game.Steam_AppID` und seine VR-Zeile mit den eben gelesenen Feldern); die Startseite
+  von uevr-profiles.com; DekuDeals-Suche und Artikelseite (Kasten Details, Beschreibung);
+  die Startseite von HowLongToBeat; libretro `metadat/genre`, `maxusers`, `releaseyear`,
+  `developer` des Retro-Systems; IGDB mit Twitch-Schlüssel (`games` per Suche, dann
+  `game_time_to_beats` zum ersten Treffer, eine Sekunde Pause je Anfrage). IGDB-Client-ID und
+  -Secret stehen in `settings.json`, erscheinen nie im Ergebnis und nie im Browser.
 
 ## Konten (vor den Preisen)
 
@@ -207,7 +216,7 @@ ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-
   nicht.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
-- `settings.json`: Zeitplan und gg.deals-Schlüssel.
+- `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB).
 - `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
   geholt, wenn sie fehlt oder älter als sieben Tage ist.
 - `collection.json`: die ganze Sammlung (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite;

@@ -1604,6 +1604,71 @@ class TestSync(unittest.TestCase):
         self.assertNotIn("geheim", text)
         self.assertTrue(any("key=geheim" in u for u in seen))
 
+    def test_probes(self):
+        """Proben der neuen Quellen (0.7): erfundene Antworten im echten Aufbau, nichts wird gespeichert,
+        der IGDB-Schlüssel steht nie im Ergebnis."""
+        from app import probes
+        col = {"games": {
+            "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}},
+            "steam:3000102": {"name": "Tiny Tennis", "store": "Steam", "id": "3000102", "rev": {"n": 5}},
+            "name:orbit golf": {"name": "Orbit Golf", "system": "PS4", "store": "PlayStation"},
+            "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro"}}}
+        self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop"])
+        details = {"3000101": {"success": True, "data": {"name": "Harbor Heist", "metacritic": {"score": 84},
+                   "genres": [{"description": "Action"}], "categories": [{"description": "VR-Unterstützung"}],
+                   "release_date": {"date": "12. März 2019"}, "developers": ["Kite Works"], "publishers": ["Paper Moon"],
+                   "supported_languages": "Englisch, Deutsch", "short_description": "Ein <b>Raubzug</b> im Hafen."}}}
+        deku = ('<html><head><meta property="og:description" content="Golf im Orbit."></head><body>'
+                '<li>Genres: Sports</li><li>Metacritic: 81</li><li>How Long To Beat: Main Story 6 hours</li></body></html>')
+        meta = 'clrmamepro ( name "x" )\n\ngame (\n\tcomment "Star Hop (Europe)"\n\tgenre "Platform"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Racing"\n)\n'
+        answers = [("appdetails", 200, json.dumps(details)),
+                   ("cargofields", 200, json.dumps({"cargofields": {"OpenXR": {}, "vorpX": {}, "VR_only": {}}})),
+                   ("Infobox_game", 200, json.dumps({"cargoquery": [{"title": {"page": "Harbor Heist", "id": "77", "Developers": "Kite Works"}}]})),
+                   ("tables=VR_support", 200, json.dumps({"cargoquery": [{"title": {"OpenXR": "", "vorpX": "true", "VR_only": "false"}}]})),
+                   ("uevr-profiles", 200, '<title>UEVR Profiles</title><a href="/games/harbor-heist">x</a>'),
+                   ("dekudeals.com/search", 200, '<a href="/items/orbit-golf">Orbit Golf</a>'),
+                   ("dekudeals.com/items/orbit-golf", 200, deku),
+                   ("howlongtobeat", 200, "<input placeholder='search'>"),
+                   ("metadat/", 200, meta),
+                   ("id.twitch.tv", 200, json.dumps({"access_token": "tok"})),
+                   ("v4/games", 200, json.dumps([{"id": 5, "name": "Harbor Heist", "genres": [{"name": "Shooter"}],
+                                                  "aggregated_rating": 82.4, "aggregated_rating_count": 6,
+                                                  "summary": "A heist.", "involved_companies": [{"developer": True, "company": {"name": "Kite Works"}}]}])),
+                   ("game_time_to_beats", 200, json.dumps([{"hastily": 18000, "normally": 25200, "completely": 36000, "count": 12}]))]
+        seen, lines = [], []
+
+        def fake_request(url, ua=None, timeout=25, encoding="", headers=None, data=None):
+            seen.append((url, data))
+            for part, code, text in answers:
+                if part in url:
+                    return {"url": url, "status": code, "text": text, "enc": "", "server": "x", "error": ""}
+            return {"url": url, "status": 0, "text": "", "enc": "", "server": "", "error": "unbekannt"}
+
+        def probe(name, url, info, headers=None, shown=None):
+            r = sources.request(url)
+            lines.append(f"{name}: {info(r['text'])}")
+            return r["text"]
+        old = sources.request
+        sources.request = fake_request
+        try:
+            probes.run(probe, lines, col, {"igdb_id": "a" * 30, "igdb_secret": "b" * 30}, lambda s: None)
+        finally:
+            sources.request = old
+        text = "\n".join(lines)
+        self.assertIn("Metacritic 84", text)
+        self.assertIn("VR ['VR-Unterstützung']", text)
+        self.assertIn("Beschreibung 21 Zeichen: „Ein Raubzug im Hafen.“", text)
+        self.assertIn("3 Felder: OpenXR, VR_only, vorpX", text)
+        self.assertIn("vorpX true", text)
+        self.assertIn("1 Spiel-Links", text)
+        self.assertIn("Metacritic: 81", text)
+        self.assertIn("Beschreibung „Golf im Orbit.“", text)
+        self.assertIn("2 Einträge; zu „Star Hop“", text)
+        self.assertIn("Spielzeit eilig 5,0 h, normal 7,0 h, komplett 10,0 h (12 Angaben)", text)
+        self.assertIn("Entwickler ['Kite Works']", text)
+        self.assertNotIn("a" * 30, text)
+        self.assertTrue(any("game_id = 5" in (d or b"").decode() for u, d in seen))
+
     def test_sale_ended_and_due(self):
         from datetime import datetime, timezone
         t = titles.new_title("Sky Garden")

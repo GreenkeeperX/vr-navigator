@@ -55,7 +55,8 @@ eShopKompass. 0.6.1 Feinschliff nach Rückmeldung (27.10.2026): violett statt �
 Sammlung, Spalte Launcher (PC) bzw. System (Konsole), Genres einzeilig mit „+n weitere“ und
 fester Reihenfolge, Mein Stand an fester Stelle, PS1 statt PS, Quellen in den Einstellungen
 farbig. 0.6.2 Einzelheiten nur mit Mehrwert, Genres klappen in der Zeile auf, Entwickler und
-Verlag im Tooltip am Jahr, Quellen als kompakte Tabelle (Entscheidungen 27.10.2026). Grundsatz (Entscheidung 22.10.2026): so wenig
+Verlag im Tooltip am Jahr, Quellen als kompakte Tabelle (Entscheidungen 27.10.2026). 0.7.0 Proben
+der neuen Quellen im Verbindungstest, IGDB-Schlüssel in den Einstellungen. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
@@ -78,14 +79,15 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
   Spielesammlung. „Jetzt“ wird die Startseite für alle Wünsche, mit einem Filter VR; der genaue
   Vergleich Meta gegen Steam bleibt in der VR-Wunschliste. Name: VR-Navigator bleibt
   (Entscheidung 27.10.2026)
-- Datenbasis je Plattform (Entscheidung 27.10.2026): je Reiter dieselben Felder mit fester
-  Rangfolge der Quellen je Feld (wie Metacritic vor OpenCritic im eShopKompass), Ersatzquelle
-  sichtbar; Playnite-Merkmale nur im Nachrang. Neue Quellen (etwa Spielzeit über HowLongToBeat,
-  Wertung und Genre für Konsolen) erst als Probe in „Verbindung testen“, dann entscheiden. „≈“
-  auch in der VR-Wunschliste ablösen und Unklarheiten möglichst selbst auflösen
-- Spalte Spielzeit wie im eShopKompass
-- PC-Wunschliste: die ganze gg.deals-Wunschliste (auch ohne VR) als eigene Ansicht neben der
-  PC-Sammlung, automatisch gelesen, mit Wertung, Spielern und Bestpreisen. Dazu
+- Datenbasis je Plattform (Entscheidungen 27.10.2026): alles Sinnvolle automatisch abrufen, je
+  Feld eine feste Rangfolge der Quellen (wie Metacritic vor OpenCritic im eShopKompass),
+  Ersatzquelle sichtbar; welche Spalten ein Reiter zeigt, wird je Reiter entschieden. Playnite
+  nur im Nachrang, keine Playnite-Plugin-Daten. Nach den Proben (0.7.0) entscheiden: Spielzeit
+  wie im eShopKompass, Kurzbeschreibung je Spiel in den Einzelheiten, „VR per Mod“ (PCGamingWiki,
+  UEVR-Profile). „≈“ auch in der VR-Wunschliste ablösen und Unklarheiten möglichst selbst auflösen
+- PC-Wunschliste: gg.deals bleibt führend (Wunschliste und Sammlung dort), das Tool liest sie
+  wie der eShopKompass DekuDeals (Entscheidung 27.10.2026). Eigene Ansicht als Unterreiter
+  der Wunschliste, automatisch gelesen, mit Wertung, Spielern und Bestpreisen. Dazu
   je Spiel die Läden nah am Bestpreis, damit sich mehrere Spiele in einem Laden bündeln lassen;
   die gg.deals-API liefert nur das günstigste Angebot je Händler und Keyshop, die Liste aller
   Läden steht nur auf der Spielseite (Cloudflare), also vermutlich über das Lesezeichen

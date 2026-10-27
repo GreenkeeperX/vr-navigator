@@ -25,7 +25,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, prices, retro, sources, store, titles
+from . import accounts, collection, prices, probes, retro, sources, store, titles
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -72,8 +72,9 @@ BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Ents
 RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je System höchstens wöchentlich
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
-SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": ""}
-SECRETS = ("gg_key", "steam_key", "gg_wish")      # bleiben auf dem Server, nie im Protokoll
+SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
+            "igdb_id": "", "igdb_secret": ""}
+SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret")      # bleiben auf dem Server, nie im Protokoll
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
@@ -129,6 +130,13 @@ def save_settings(body):
         if v and not m:
             raise ValueError("Sharenite: den Link zu deinem Profil einfügen (https://www.sharenite.link/profiles/…/games)")
         s["sharenite"] = f"https://www.sharenite.link/profiles/{m.group(1)}/games" if m else ""
+    # IGDB (0.7): derselbe Twitch-Schlüssel wie im eShopKompass, Client-ID und Secret
+    for k in ("igdb_id", "igdb_secret"):
+        if k in body:
+            v = str(body[k] or "").strip()
+            if v and not re.fullmatch(r"[A-Za-z0-9]{20,64}", v):
+                raise ValueError("IGDB: Client-ID und Secret der Twitch-App, je 30 Zeichen aus Buchstaben und Ziffern")
+            s[k] = v
     if "auto" in body:
         s["auto"] = bool(body["auto"])
     if "hours" in body:
@@ -1538,10 +1546,16 @@ def diagnose():
     probe("Steam, Suche", f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": sname, "l": "german", "cc": "DE"}),
           lambda text: f"{len(prices.steam_search(text))} Treffer für „{sname}“")
 
+    # Rezensionen an einem Spiel der Sammlung, das welche hat (0.7: ein neuer Wunschtitel hat oft noch keine)
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    rapp = next((str(g["id"]) for g in sorted((col.get("games") or {}).values(), key=lambda g: -((g.get("rev") or {}).get("n") or 0))
+                 if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()), appid)
+
     def rev_info(text):
         r = prices.steam_reviews(text)
-        return f"App {appid}: {r['n']} Rezensionen, {r['pct']} % positiv" if r and r["n"] else f"App {appid}: keine Rezensionen erkannt"
-    probe("Steam, Rezensionen", f"{STEAM}/appreviews/{appid}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
+        return (f"App {rapp}: {r['n']} Rezensionen, {r['pct']} % positiv" if r and r["n"] else
+                f"App {rapp}: Steam kennt die App, noch keine Rezensionen" if r else f"App {rapp}: Antwort nicht lesbar")
+    probe("Steam, Rezensionen", f"{STEAM}/appreviews/{rapp}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary", rev_info)
 
     if not key:
         lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")
@@ -1584,7 +1598,6 @@ def diagnose():
                     f"{len(vr_tags)} VR-Schlagwörter im Filter" + (f", erstes: {games[0]['name']} ({games[0]['source'] or 'ohne Laden'})" if games else
                     f". Anfang: {' '.join(re.sub(r'<[^>]+>', ' ', text)[:300].split())}"))
         probe("Sharenite", settings["sharenite"] + "?sort=name_asc", sn_info)
-    col = store.load_json(collection.FILE, collection.EMPTY)
     rsys = sorted({g.get("system") for g in (col.get("games") or {}).values() if g.get("src") == retro.SRC and retro.urls(g.get("system"))})
     if rsys:
         def dat_info(text):
@@ -1598,7 +1611,8 @@ def diagnose():
         probe(f"Retool-Liste {rsys[0]}", retool_url, retool_info)
     else:
         lines.append("Retro-Fassungen: keine Retro-Liste, nicht angefragt")
-    for secret in (key, settings["steam_key"], settings["gg_wish"]):
+    probes.run(probe, lines, col, settings, sleep)
+    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"]):
         if secret:
             lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]
     return lines
