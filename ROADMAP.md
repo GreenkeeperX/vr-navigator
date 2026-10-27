@@ -75,9 +75,17 @@ DekuDeals-Treffer, Lenkrad an einem Rennspiel, IGDB über einen Teil des Namens.
 wie die Kopfzeile, Filter wie im eShopKompass im Reiter Switch 2 (Spielweise, Spielzeit, USK; System nur
 dort), Link „eShopKompass“ in dessen Marke, Sammlung nach dem Abgleich neu geladen. 0.7.7 Feld für den
 persönlichen Nexus-Schlüssel (geht bei der Nexus-Abfrage mit), Mein Stand in den Einzelheiten auch bei
-Reitern mit wenigen Spalten im Bild. Grundsatz (Entscheidung 22.10.2026): so wenig
+Reitern mit wenigen Spalten im Bild. 0.8.0 IGDB im Abgleich für die ganze Sammlung (Steam-IDs gebündelt,
+sonst Name und System; falscher Treffer zählt nicht), Rangfolge je Feld für Wertung, Spielzeit, Spieler,
+Genre, Mehrspieler und Beschreibung in allen Reitern außer Switch und VR; Verbindungstest im Hintergrund
+(kein 504 mehr). Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
+
+- Marke „VR per Mod“ am PC aus PCGamingWiki („hackable“) und Nexus Mods (Mods mit VR im Namen), in den
+  Einzelheiten Link auf die Nexus-Seite und die beliebtesten Mods
+- Marke „Lenkrad“ (Sim-Racing) aus der PCGamingWiki-Vorlage „Input“
+- PC-Wunschliste (gg.deals) als eigener Unterreiter mit Bestpreis und Läden
 
 - Retro, Sprache: 3DS über die Title-ID, ähnliche Namen ohne Treffer als „≈ vielleicht dieselbe
   Fassung“ zum Bestätigen

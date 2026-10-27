@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.7.7:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -51,7 +51,9 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   Plattformen PlayStation, Xbox oder Nintendo, oder Laden PlayStation ohne Plattform) zählen
   nicht als Besitz am PC; gibt es dasselbe Spiel auch für den PC, zählt dieser Eintrag.
 - **IGDB:** Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (derselbe Schlüssel wie im
-  eShopKompass). Spielinfos für alle Plattformen; bis jetzt nur im Verbindungstest.
+  eShopKompass). Seit 0.8.0 holt jeder Abgleich damit Genre, Spieler, Wertung, Spielzeit,
+  Beschreibung und Firmen für die ganze Sammlung (Steam-Spiele über die Steam-ID, die übrigen über
+  Name und System).
 - **Nexus Mods:** der persönliche API-Schlüssel aus dem Nexus-Konto (Einstellungen, API Keys).
   Die Abfrage geht auch ohne; mit Schlüssel fragt das Tool als dein Konto (0.7.7). Bis jetzt nur im
   Verbindungstest (Spielseite, beliebte Mods, Mods mit VR im Namen).
@@ -262,6 +264,8 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 
 - **Verbindung testen:** fragt jede Quelle einmal an und beschreibt, was zurückkommt (Status,
   Server und was die Leser erkennen); „Ergebnis kopieren“ für eine Rückfrage. Speichert nichts.
+  Seit 0.8.0 läuft der Test auf dem Server weiter und die Seite fragt alle zwei Sekunden nach; ein
+  Proxy davor bricht ihn so nicht mehr mit „Fehler 504“ ab.
   Seit 0.7.0 fragt er auch die Kandidaten für die Datenbasis je Plattform an, je mit einem Spiel
   deiner Sammlung (PC, Konsole, Retro): Steam-Details (Metacritic, Beschreibung, VR-Kategorien),
   PCGamingWiki (VR-Felder, auch per Mod), UEVR-Profile, DekuDeals (Wertung, HowLongToBeat,
@@ -366,7 +370,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Switch 2, 3DS …; 0.7.4). Switch und Switch 2 stehen in einem Reiter „Switch 2“, der Filter
   „System“ trennt sie wieder; die Switch-Spiele zeigen Spalten, Marken und Einzelheiten wie „Spiele“
   im eShopKompass (ab eShopKompass 1.7.17), „im eShopKompass“ öffnet das Spiel dort aufgeklappt
-  (0.7.5), mit dessen Filtern Spielweise, Spielzeit und USK (0.7.6). Über der Liste steht kurz die Zahl
+  (0.7.5), mit dessen Filtern Spielweise, Spielzeit und USK (0.7.6). Alle übrigen Reiter füllt seit
+  0.8.0 IGDB mit fester Rangfolge je Feld: Wertung am PC Steam (ab 50 Rezensionen), sonst IGDB grau
+  und kursiv; auf Konsolen und Retro IGDB-Kritiken, sonst die IGDB-Gesamtwertung grau und kursiv.
+  Spielzeit von IGDB (normal, sonst eilig; komplett im Tooltip), Spieler von IGDB, sonst Playnite
+  (violett). Genres und Mehrspieler aus allen Quellen; was nur eine nennt, während eine andere etwas
+  anderes sagt, ist violett. Ohne Steam-Beschreibung steht die englische von IGDB da. Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
   Favorit ★; steht in allen Reitern an derselben Stelle, die Zeile springt beim Setzen nicht), der

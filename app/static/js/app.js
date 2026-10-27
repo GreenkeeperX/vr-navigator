@@ -144,7 +144,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", eshop: "eShopKompass"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", eshop: "eShopKompass"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -616,25 +616,37 @@ const gTag = n => { const h = G_HUE[n]; return `<span class="chip gg" style="${h
 /* Herkunft (0.6.1, wie im eShopKompass): kein Zeichen. Mit Steam-Details abgeglichen (src „steam“) gilt,
    was Playnite und Steam beide sagen; sagt es nur eine Quelle, ist der Wert dezent violett (.gxc) und der
    Tooltip nennt die Quellen. Ohne Steam-Details gilt alles nur laut Playnite */
-const chk = g => g.src === "steam";
+// 0.8.0: IGDB ist eine weitere Quelle; g.srcs nennt alle, die zu dem Spiel etwas sagen
+const chk = g => g.src === "steam" || !!g.ig;
+const srcList = g => (g.srcs || ["Playnite"]).join(", ").replace(/, ([^,]+)$/, " und $1");
 const one = (g, list, x) => chk(g) && !(list || []).includes(x);
 // In der Zeile einzeilig: was nicht passt, zählt „+n“ (siehe fitTags); in den Einzelheiten alle
 function gGenres(g, all){
   if(!g.genres.length) return "";
   const only = g.genres.filter(x => one(g, g.gc, x));
-  const tip = chk(g) ? (only.length ? `Nur eine Quelle (Playnite oder Steam): ${only.join(", ")}; die übrigen nennen beide` : "Playnite und Steam einig") : g.eshop ? ESH : "Laut Playnite";
+  const tip = chk(g) ? (only.length ? `Nur eine Quelle (${srcList(g)}): ${only.join(", ")}; die übrigen nennen zwei` : `${srcList(g)} einig`) : g.eshop ? ESH : "Laut Playnite";
   return `<span class="gtags${all ? "" : " fit"}" title="${esc(tip)}">${genreOrder(g.genres).map(gTag).join("")}</span>`;
 }
 function gMp(g){
   const ms = g.mp.filter(m => m !== "multi" || g.mp.length === 1);
-  return ms.map(m => `<span${one(g, g.mpc, m) ? ` class="gxc" title="Nur eine Quelle (Playnite oder Steam)"` : ""}>${esc(C?.mp_label?.[m] || m)}</span>`).join(", ");
+  return ms.map(m => `<span${one(g, g.mpc, m) ? ` class="gxc" title="Nur eine Quelle (${esc(srcList(g))})"` : ""}>${esc(C?.mp_label?.[m] || m)}</span>`).join(", ");
 }
 function gYear(g){
   if(!g.year) return "";
-  const tip = chk(g) ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`) : g.retro ? "" : g.eshop ? ESH : "Laut Playnite";
+  const tip = g.src === "steam" ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`)
+    : g.ig ? (g.year_src === "IGDB" ? "Laut IGDB" : g.year_ok ? "Playnite und IGDB einig" : `Playnite ${g.year}, IGDB ${g.iyear || "ohne Jahr"}`)
+    : g.retro ? "" : g.eshop ? ESH : "Laut Playnite";
   // Wie im eShopKompass: Erscheinen, Entwickler und Verlag im Tooltip (0.6.2), die Suche findet sie
   const who = [g.rel?.length > 4 && `Erschienen am ${day(g.rel)}`, g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean);
   return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(who.concat(tip ? [tip] : []).join("\n"))}">${esc(g.year)}</span>`;
+}
+// Wertung nach Rangfolge (0.8.0); eine Ersatzquelle grau und kursiv wie OpenCritic im eShopKompass
+function gSc(g){
+  if(g.score == null) return "";
+  if(g.eshop) return gScore(g.score, `${g.score_src}, laut eShopKompass`, "");
+  if(g.score_src === "Steam") return gScore(g.score, `Anteil positiver Steam-Rezensionen (${g.reviews != null ? num(g.reviews) : "–"})`);
+  const tip = `${g.score_src === "IGDB Kritik" ? `IGDB: Kritiker-Wertung aus ${g.score_n} Tests` : `IGDB: Gesamtwertung aus ${num(g.score_n)} Bewertungen, keine Kritiker-Wertung`}${g.reviews != null && g.reviews < 50 ? `; Steam: erst ${num(g.reviews)} Rezensionen` : ""}`;
+  return g.score_alt ? `<span class="galt" title="${esc(tip)}">${g.score}</span>` : gScore(g.score, tip, "");
 }
 // Launcher bei PC-Spielen (laut Playnite; nur vermutet: violett), sonst das System, solange der Reiter es nicht schon sagt
 function gSrc(g){
@@ -678,11 +690,13 @@ const COLS = [
     cell: g => { const o = g.lib.opinion; if(!o) return ""; const t = [o.fassung && FASS_SHORT[o.fassung], o.mehrspieler && "MP " + MP_SHORT[o.mehrspieler]].filter(Boolean).join(" · ");
       return `<span class="ux" title="Recherche aus Foren und Tests, nicht geprüft${o.stand ? ", " + esc(o.stand) : ""}">${esc(t || "Meinungen")}</span>`; },
     sort: g => g.lib.opinion?.fassung || null},
-  {k: "pl", l: "Spieler", w: "52px", cls: "r", tip: "Höchste Spielerzahl laut Playnite", d0: -1, cell: g => g.players ? `bis ${g.players}` : "", sort: g => g.players || null},
+  {k: "pl", l: "Spieler", w: "52px", cls: "r", tip: "Höchste Spielerzahl online oder an einem Gerät laut IGDB, sonst Playnite (violett)", d0: -1,
+    cell: g => !g.players ? "" : `<span class="${g.ig && g.pl_src !== "IGDB" ? "gxc" : ""}" title="${g.pl_src === "IGDB" ? "Laut IGDB" : g.ig ? "Nur laut Playnite, IGDB nennt keine Zahl" : "Laut Playnite"}">bis ${g.players}</span>`, sort: g => g.players || null},
   {k: "mp", l: "Mehrspieler", w: "minmax(90px,.7fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen; violett: nur eine Quelle", cell: gMp, sort: g => g.mp.length || null, d0: -1},
-  {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "Steam: Anteil positiver Rezensionen, ab 50 Rezensionen; Switch: Metacritic, sonst OpenCritic", d0: -1,
-    cell: g => g.eshop ? gScore(g.score, `${g.score_src}, laut eShopKompass`, "") : gScore(g.score, `Anteil positiver Steam-Rezensionen (${g.reviews != null ? num(g.reviews) : "–"})`), sort: g => g.score},
-  {k: "hours", l: "Spielzeit", w: "70px", cls: "r", tip: "HowLongToBeat (über den eShopKompass): Story, sonst allein", cell: g => g.hours ? hrs(g.hours) : "", sort: g => g.hours || null},
+  {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "PC: Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv). Konsolen und Retro: IGDB-Kritiken, sonst IGDB gesamt (grau und kursiv). Switch: Metacritic, sonst OpenCritic", d0: -1,
+    cell: gSc, sort: g => g.score},
+  {k: "hours", l: "Spielzeit", w: "70px", cls: "r", tip: "IGDB: normal, sonst eilig; Switch: HowLongToBeat über den eShopKompass", sort: g => g.hours || null,
+    cell: g => !g.hours ? "" : g.hours_src === "IGDB" ? `<span title="${esc(`Laut IGDB${g.hours_all ? `; komplett ${hrs(g.hours_all)}` : ""}${g.hours_n ? ` (${g.hours_n} Angaben)` : ""}`)}">${hrs(g.hours)}</span>` : hrs(g.hours)},
   {k: "rev", l: "Rezensionen", w: "98px", cls: "r", tip: "Wie bekannt: Zahl der Steam-Rezensionen", d0: -1, cell: g => g.reviews != null ? num(g.reviews) : "", sort: g => g.reviews},
   {k: "lang", l: "Sprache", w: "58px", tip: "Laut Dateiname; violett: nur aus der Region geschätzt", cell: langBadge, sort: g => g.langs?.includes("De") ? 0 : g.langs?.length ? 1 : null},
   {k: "genre", l: "Genre", w: "minmax(0,1fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen", cell: gGenres, sort: g => g.genres[0] || null},
@@ -863,7 +877,7 @@ function gDetail(g){
   const st = G_ST.find(x => x[0] === m.s);
   const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im ${C.eshop_link ? `<a class="eshl" href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer" title="Öffnet das Spiel im eShopKompass"><span class="brand">eShop</span>Kompass</a>` : "eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
   // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
-  const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : "Kurzbeschreibung laut Steam";
+  const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : g.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
   if(g.lib){
     const r = g.lib;
@@ -887,14 +901,17 @@ function gDetail(g){
   // Dazu wie im eShopKompass (0.7.1): Wertung aus weiteren Quellen, genaues Erscheinen, Sprachen
   // Wertung wie im eShopKompass (0.7.2): Zahlen statt Steams Worten, Steam in Prozent, Metacritic auf 100
   const steamTip = [g.rdesc && (RDESC[g.rdesc] || g.rdesc), g.reviews != null && `${num(g.reviews)} Rezensionen`].filter(Boolean).join(", ");
-  const score = [g.score != null && `Steam ${gScore(g.score, `Anteil positiver Steam-Rezensionen${steamTip ? ": " + steamTip : ""}`)}`,
-    g.mc != null && `Metacritic ${gScore(g.mc, "Metacritic laut Steam", "")}`].filter(Boolean).join(" · ");
+  // Die Zeile zeigt die Wertung schon; hier nur, wenn eine weitere Quelle etwas sagt (Metacritic, IGDB neben Steam)
+  const score = !(g.mc != null || g.icrit != null) ? "" : [g.score != null && g.score_src === "Steam" && `Steam ${gScore(g.score, `Anteil positiver Steam-Rezensionen${steamTip ? ": " + steamTip : ""}`)}`,
+    g.mc != null && `Metacritic ${gScore(g.mc, "Metacritic laut Steam", "")}`,
+    g.icrit != null && `IGDB Kritik ${gScore(g.icrit, "Kritiker-Wertung laut IGDB", "")}`].filter(Boolean).join(" · ");
   const date = g.sdate && !/^\d{4}$/.test(g.sdate) ? g.sdate : g.rel?.length > 4 ? day(g.rel) : "";
   const who = [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n");
   const langs = g.sde == null ? "" : g.sde ? `Deutsch${g.slangs > 1 ? ` und ${g.slangs - 1} weitere Sprache${g.slangs > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>${g.slangs ? ` (${g.slangs} Sprache${g.slangs > 1 ? "n" : ""})` : ""}`;
   const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : "Laut Dateiname") +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
-  const src = g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : chk(g) ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "nur Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite";
+  const src = [g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
+    g.ig ? `IGDB${g.iname ? ` (dort „${esc(g.iname)}“)` : ""}` : ""].filter(Boolean).join(", ");
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
@@ -1068,8 +1085,8 @@ function nowView(){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
-const ACCOUNT_SET = {steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){
   const td = (a, b, c) => `<tr><td>${l}</td><td>${a}</td><td class="hint">${b}</td><td class="hint">${c}</td></tr>`;
@@ -1600,7 +1617,17 @@ document.addEventListener("click", async ev => {
   else if(a === "sync"){ if(await act("/api/sync", {})) watchSync(); }
   else if(a === "diag"){
     V.diagRunning = true; render();
-    try{ V.diag = (await api("/api/diag", {})).lines; V.diagAt = clock(new Date()); }
+    // 0.8.0: der Test läuft auf dem Server weiter, die Seite fragt alle zwei Sekunden nach (kein 504 mehr)
+    try{
+      let d = await api("/api/diag", {}), miss = 0;
+      while(d.running){
+        await new Promise(r => setTimeout(r, 2000));
+        try{ d = await api("/api/diag"); miss = 0; }
+        catch(e){ if(++miss > 5) throw e; }
+      }
+      if(d.error || !d.lines) throw new Error(d.error || "keine Antwort");
+      V.diag = d.lines; V.diagAt = clock(new Date());
+    }
     catch(e){ V.diag = ["Test fehlgeschlagen: " + e.message]; }
     V.diagRunning = false; render();
   }
