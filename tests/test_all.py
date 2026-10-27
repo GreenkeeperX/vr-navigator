@@ -1277,8 +1277,10 @@ class TestSync(unittest.TestCase):
         app = {"3000101": {"success": True, "data": {
             "type": "game", "name": "Harbor Heist", "release_date": {"date": "12 Mar, 2019"},
             "genres": [{"id": "1", "description": "Action"}, {"id": "23", "description": "Indie"}],
-            "categories": [{"id": 1}, {"id": 9}, {"id": 54}], "recommendations": {"total": 1234}}}}
-        net = FakeNet({"appids=3000101&l=english": json.dumps(app), "appids=3000103&l=english": '{"3000103": {"success": false}}'})
+            "categories": [{"id": 1}, {"id": 9}, {"id": 54}], "recommendations": {"total": 1234},
+            "metacritic": {"score": 84}, "short_description": "Ein <b>Raubzug</b> im Hafen.", "developers": ["Kite Works"],
+            "publishers": ["Paper Moon"], "supported_languages": "Englisch<strong>*</strong>, Deutsch, Französisch"}}}
+        net = FakeNet({"appids=3000101&l=german": json.dumps(app), "appids=3000103&l=german": '{"3000103": {"success": false}}'})
         sources.fetch = net
         sync.run(only={"details"})
         self.assertEqual(len(net.calls), 2)
@@ -1290,6 +1292,9 @@ class TestSync(unittest.TestCase):
         self.assertEqual((h["src"], h["vr"], h["year"], h["year_ok"]), ("steam", True, "2019", True))
         self.assertEqual((h["mp"], h["mpc"]), (["multi", "online", "coop"], ["multi", "coop"]))   # Online nur laut Playnite
         self.assertEqual((h["genres"], h["gc"]), (["Shooter", "Action"], []))                      # Action nur laut Steam
+        # Einzelheiten (0.7.1): Metacritic, Beschreibung ohne HTML, Sprachen, Steam vor Playnite bei den Firmen
+        self.assertEqual((h["mc"], h["desc"], h["slangs"], h["sde"], h["pub"], h["sdate"]),
+                         (84, "Ein Raubzug im Hafen.", 3, True, "Paper Moon", "12 Mar, 2019"))
         q = rows["steam:3000103"]                               # Steam kennt die App nicht: bleibt vermutet
         self.assertEqual((q["src"], q["guess"]), ("playnite", True))
         self.assertEqual(rows["epic:abc123def"]["src"], "playnite")
@@ -1300,6 +1305,12 @@ class TestSync(unittest.TestCase):
         store.save_json(collection.FILE, col)
         sync.run(only={"details"})
         self.assertEqual(len(net.calls), 2)
+        # Einträge von vor 0.7.1 (ohne v) kommen erneut dran, auch wenn sie frisch sind
+        col = store.load_json(collection.FILE, {})
+        col["games"]["steam:3000101"]["steam"].pop("v")
+        store.save_json(collection.FILE, col)
+        sync.run(only={"details"})
+        self.assertEqual(len(net.calls), 3)
         self.assertIsNone(prices.steam_details("kein json", "1"))
 
     def test_rating(self):
@@ -1612,7 +1623,8 @@ class TestSync(unittest.TestCase):
             "steam:3000101": {"name": "Harbor Heist", "store": "Steam", "id": "3000101", "rev": {"n": 900}},
             "steam:3000102": {"name": "Tiny Tennis", "store": "Steam", "id": "3000102", "rev": {"n": 5}},
             "name:orbit golf": {"name": "Orbit Golf", "system": "PS4", "store": "PlayStation"},
-            "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro"}}}
+            "retro:snes:star hop": {"name": "Star Hop", "system": "SNES", "src": "retro", "regions": ["Europe"]},
+            "retro:snes:pixel hack": {"name": "Pixel Hack", "system": "SNES", "src": "retro", "regions": ["USA"], "flags": ["hack"]}}}
         self.assertEqual([x and x["name"] for x in probes.samples(col).values()], ["Harbor Heist", "Orbit Golf", "Star Hop"])
         details = {"3000101": {"success": True, "data": {"name": "Harbor Heist", "metacritic": {"score": 84},
                    "genres": [{"description": "Action"}], "categories": [{"description": "VR-Unterstützung"}],
@@ -1622,15 +1634,18 @@ class TestSync(unittest.TestCase):
                 '<li>Genres: Sports</li><li>Metacritic: 81</li><li>How Long To Beat: Main Story 6 hours</li></body></html>')
         meta = 'clrmamepro ( name "x" )\n\ngame (\n\tcomment "Star Hop (Europe)"\n\tgenre "Platform"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Racing"\n)\n'
         answers = [("appdetails", 200, json.dumps(details)),
+                   ("cargotables", 200, json.dumps({"cargotables": ["Availability", "Infobox_game", "VR"]})),
                    ("cargofields", 200, json.dumps({"cargofields": {"OpenXR": {}, "vorpX": {}, "VR_only": {}}})),
                    ("Infobox_game", 200, json.dumps({"cargoquery": [{"title": {"page": "Harbor Heist", "id": "77", "Developers": "Kite Works"}}]})),
-                   ("tables=VR_support", 200, json.dumps({"cargoquery": [{"title": {"OpenXR": "", "vorpX": "true", "VR_only": "false"}}]})),
-                   ("uevr-profiles", 200, '<title>UEVR Profiles</title><a href="/games/harbor-heist">x</a>'),
+                   ("tables=VR&", 200, json.dumps({"cargoquery": [{"title": {"OpenXR": "", "vorpX": "true", "VR_only": "false"}}]})),
+                   ("uevr-profiles.com/assets", 200, 'fetch("https://data.example-db.com/rest/v1/games")'),
+                   ("uevr-profiles", 200, '<title>UEVR Profiles</title><a href="/games/harbor-heist">x</a><script type="module" src="/assets/index-1.js"></script>'),
                    ("dekudeals.com/search", 200, '<a href="/items/orbit-golf">Orbit Golf</a>'),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
                    ("metadat/", 200, meta),
                    ("id.twitch.tv", 200, json.dumps({"access_token": "tok"})),
+                   ("v4/external_games", 200, json.dumps([{"game": 5, "uid": "3000101"}])),
                    ("v4/games", 200, json.dumps([{"id": 5, "name": "Harbor Heist", "genres": [{"name": "Shooter"}],
                                                   "aggregated_rating": 82.4, "aggregated_rating_count": 6,
                                                   "summary": "A heist.", "involved_companies": [{"developer": True, "company": {"name": "Kite Works"}}]}])),
@@ -1660,6 +1675,9 @@ class TestSync(unittest.TestCase):
         self.assertIn("Beschreibung 21 Zeichen: „Ein Raubzug im Hafen.“", text)
         self.assertIn("3 Felder: OpenXR, VR_only, vorpX", text)
         self.assertIn("vorpX true", text)
+        self.assertIn("passend: Infobox_game, VR", text)
+        self.assertIn("https://data.example-db.com/rest/v1/games", text)
+        self.assertIn("IGDB, PC über Steam-ID", text)
         self.assertIn("1 Spiel-Links", text)
         self.assertIn("Metacritic: 81", text)
         self.assertIn("Beschreibung „Golf im Orbit.“", text)
