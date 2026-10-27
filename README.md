@@ -1,13 +1,13 @@
 # VR-Navigator
 
-Eine Bibliothek für Meta-Quest-Spiele aus dem Meta Store und von Steam, mit Wunschliste und
-der Frage: Wo kaufe ich einen Titel, bei Meta oder bei Steam?
+Deine Spielesammlung über alle Systeme (PC, VR, Konsolen, Retro) und eine VR-Wunschliste mit der
+Frage: Wo kaufe ich einen Titel, bei Meta oder bei Steam?
 
 Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/eshop-kompass):
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.5.8:** Bibliothek, Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System filtern und Vorschläge ziehen, mit Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.6.0:** VR-Wunschliste mit Abgleich gegen die Wunschlisten der Läden, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -107,8 +107,8 @@ still nichts zu übernehmen:
   PC dabei, gilt PC, ohne die Spalte erkennt das Tool PlayStation an Kennungen wie
   `CUSA01234_00` (PS4); Kennungen wie `NPWR01234_00` sind Trophäenlisten von PS3 oder PS Vita und
   stehen unter „PS3 / Vita“, weil Playnite die Plattform dort nicht nennt. Die erste Zahl der Vorschau
-  zählt nur VR-Titel für Bibliothek und Wunschliste. Ein neuer Export ersetzt nur die Systeme, die in ihm vorkommen: ein
-  Export nur der PlayStation-Bibliothek lässt die PC-Spiele stehen. In der Bibliothek (VR-Titel)
+  zählt nur VR-Titel für die Sammlung (Reiter VR) und die Wunschliste. Ein neuer Export ersetzt nur die Systeme, die in ihm vorkommen: ein
+  Export nur der PlayStation-Bibliothek lässt die PC-Spiele stehen. Unter VR (deine VR-Titel)
   bleiben Spiele nur für Konsolen weiter draußen.
 - **gg.deals-Wunschliste (CSV)** mit einer Spalte Name und Links auf die geteilte Liste.
 - **Datei des Meta-Lesezeichens** oder kopierter Text der Bestellseite.
@@ -236,7 +236,7 @@ Zusammenführen und Löschen fragen nicht vorher, der Hinweis danach bietet „R
 
 ## Preise abrufen
 
-Unter **Einstellungen**, Abgleich, startet „Jetzt abrufen“ einen Abgleich; danach läuft er nach Zeitplan (Standard
+Unter **Einstellungen**, Abgleich, startet „Aktualisieren“ einen Abgleich (wie der Knopf oben); danach läuft er nach Zeitplan (Standard
 alle 6 Stunden; die Zeile „automatisch alle … Stunden“ oben in der Karte speichert sofort).
 Die Einstellungen folgen dem Weg der Daten: „Zu erledigen“ (nur wenn etwas offen ist),
 Einlesen, Abgleich, Sicherung. Erst liest er die eingerichteten Konten, dann Preise für die Wunschtitel, die du
@@ -274,7 +274,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Angebote stehen zugeklappt darunter („Reduziert, aber noch weit über dem Bestpreis“). Sortiert
   nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
   Wunschliste.
-- **Wunschliste:** Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
+- **VR-Wunschliste** (bis 0.5.8 „Wunschliste“): Was du bei Meta oder am PC schon besitzt, steht unten in der zugeklappten
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   „nicht mehr wünschen“ (in der Klappe unter der Karte) nimmt einen Titel von der Liste (mit Rückgängig);
   „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
@@ -284,7 +284,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
     mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis**
     beider Läden, dem niedrigsten Preis von Meta oder Steam der letzten 24 Monate: rot „+3,50 € über
     Bestpreis“ mit Betrag, Laden und Prozent (jeder Aufpreis rot), gold „★ Bestpreis“
-    (bis 2 % darüber). Kommt der Bestpreis aus dem anderen Laden, steht klein darunter der
+    (bis 2 % darüber). Neben dem Laden steht das Urteil wie im eShopKompass: grün „kaufen“ (bis
+    2 % oder 0,50 € über dem Bestpreis beider Läden), grün umrandet „gut“ (bis 15 % oder 2 €). Kommt der Bestpreis aus dem anderen Laden, steht klein darunter der
     Tiefstpreis des Ladens selbst („Steam-Tief 12 €“ oder „jetzt“); so sieht Steam nicht golden
     aus, wenn Meta einmal günstiger war. Dazu „übliches Angebot“ (so tief wie in mindestens zwei
     getrennten Angeboten). Für Meta reicht der Verlauf von QuestStoreDB Jahre
@@ -309,7 +310,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 
   Ohne Abruf gelten die Werte der Tabelle, gekennzeichnet mit „Tabelle“ und Datum (Differenz
   dort: Meta-Tief minus gg.deals). Am Desktop stehen Preise und Fakten nebeneinander.
-  Werkzeugzeile in Jetzt, Wunschliste und Bibliothek: Suche, „Sortieren“ (Name, „Nah am
+  Werkzeugzeile in Jetzt und Wunschliste: Suche, „Sortieren“ (Name, „Nah am
   Bestpreis“, Rabatt, Wertung, „Neu“), das Menü „Filter“ mit Häkchen (Crossbuy, Im Angebot,
   Am Bestpreis, Gut bewertet: die bessere Wertung ab 85) und „?“ für die Legende der Farben und
   Zeichen. Gewählte Filter stehen darunter als Marken mit ×.
@@ -320,14 +321,26 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   andere steht violett daneben („Tabelle: nein“). Unter „bearbeiten“ heißt „automatisch“: keine
   eigene Angabe. Titel aus der Zeit vor 0.4.8 ohne gespeicherte Herkunft gelten als „Tabelle“,
   wenn eine Tabellenzeile da ist, sonst als von Hand.
-- **Bibliothek:** alles, was du besitzt, in Gruppen „Bei Meta und am PC“, „Nur bei Meta“,
-  „Nur am PC“, mit Suche, Wertungen wie in der Wunschliste, Sortierung nach Name, Wertung oder
-  „Neu“ und den Filtern „Crossbuy“ und „Gut bewertet“; je Titel Kopf, Fakten und die Klappe. Meta-Sterne gibt es dort nur für Titel,
-  deren QuestStoreDB-Seite schon gelesen wurde (etwa weil sie auf der Wunschliste standen).
-- **Sammlung** (bis 0.5.5 „Entdecken“): die ganze Sammlung aus dem Playnite-Export und der Retro-Liste, nicht nur VR, mit einem Reiter je
-  System („Alle“ vorn, dann PC und die Konsolen mit Zahl; nur bei mehr als einem System). Beim
-  Öffnen gilt PC; der gewählte Reiter ist in der Farbe seiner Familie unterstrichen (Nintendo rot,
-  PlayStation blau, PC grün, „Alle“ türkis).
+- **Sammlung** (bis 0.5.5 „Entdecken“): die ganze Sammlung aus dem Playnite-Export und der Retro-Liste, mit einem Reiter je
+  System („Alle“ vorn, nur bei mehr als einem System aus Playnite und Retro-Liste, dann PC, VR
+  und die Konsolen mit Zahl). Beim Öffnen gilt PC; der gewählte Reiter ist in der Farbe seiner
+  Familie unterstrichen (Nintendo rot, PlayStation blau, PC grün, VR türkis).
+  Aufbau wie „Spiele“ im eShopKompass (0.6.0): je Spiel eine Zeile mit Spalten, die nur
+  erscheinen, wenn ein Spiel im Reiter dafür einen Wert hat (Spieler, Mehrspieler, Wertung,
+  Rezensionen, Sprache, Genre, Jahr, Laden; unter „Alle“ das System). Ein Klick auf einen
+  Spaltenkopf sortiert (Wertungen und Zahlen zuerst absteigend), der zweite andersherum, der dritte
+  zurück zur gewählten Sortierung. Die Wertung ist von Rot über Gelb nach Grün eingefärbt (50 bis
+  95 %), Genres stehen als farbige Blasen (verwandte Genres in ähnlichem Farbton, violett bleibt
+  frei). Ein Klick auf den Namen klappt die Einzelheiten auf: alle Angaben untereinander mit
+  Herkunft, daneben **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓, Favorit ★), der
+  hinter dem Namen steht, sich filtern lässt („Mein Stand“, Mischung „Aus dem Backlog“) und in
+  der Sicherung steckt. Am Handy stehen die Werte je Spiel untereinander.
+  **VR** (bis 0.5.8 der Reiter „Bibliothek“): alle VR-Titel, die du bei Meta oder am PC hast,
+  mit den Spalten Besitz, Crossbuy (Herkunft im Tooltip, „T“ aus der Tabelle, „≈“ aus der
+  Recherche), Meta- und Steam-Wertung, Steam-Spieler jetzt, letztes Update und Recherche. Filter
+  Besitz, Wertung, Mein Stand und Crossbuy. Die Einzelheiten zeigen dieselben Fakten, Recherche
+  und Klappe (Links, bearbeiten) wie die Wunschliste. Unter „Alle“ stehen VR-Titel nicht, am PC
+  meist ohnehin unter PC.
   Filter, Mischungen und Zufall gelten im gewählten Reiter; unter „Alle“ trägt ein Konsolenspiel
   sein System als Marke. Steam-Abgleich und Steam-Wertung gibt es nur für PC-Spiele. Filter nach
   Mehrspieler-Art (Menü mit Häkchen; mehrere gewählt: alle müssen passen: Mehrspieler, Online,
@@ -340,16 +353,16 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „Geheimtipps“, „Gut, lange her“; ein zweiter Klick nimmt sie zurück. „Überrasch mich“ zieht
   drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen öfter), „Wilde Mischung“
   würfelt dazu eine Mehrspieler-Art und ein Genre; „Schließen“ blendet die Vorschläge aus.
-  Filter und Zufall stehen in der Adresse (`#entdecken?…`), eine Mischung lässt sich so als
-  Lesezeichen merken.
+  Filter und Zufall stehen in der Adresse (`#sammlung?…`, alte Lesezeichen mit `#entdecken?…`
+  gelten weiter), eine Mischung lässt sich so als Lesezeichen merken.
   Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
   Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
   Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Laden, der nur aus der Kennung
   vermutet ist, trägt „≈“. Bei Steam-Spielen gleicht der Abgleich Genres, Mehrspieler-Arten und
   Jahr mit den Steam-Store-Daten ab (80 je Lauf): was Playnite und Steam beide sagen, steht ohne
   Zeichen, was nur eine Quelle sagt, bleibt drin und trägt „≈“ (Steam kennt nur grobe Genres,
-  Puzzle oder Horror etwa nicht). Spiele ohne Abgleich tragen „nur Playnite“, Steam-Spiele mit
-  VR die Marke „VR“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
+  Puzzle oder Horror etwa nicht). Die Einzelheiten nennen, ob ein Spiel schon abgeglichen ist;
+  Steam-Spiele mit VR tragen die Marke „VR“. Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
   die der Abgleich nach und nach holt (100 je Lauf, siehe [docs/abrufe.md](docs/abrufe.md));
   die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
   unzuverlässig). Die Zahl der Rezensionen zeigt die Bekanntheit. Der Geheimtipp-Wert
@@ -359,17 +372,21 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 Farben haben je eine Bedeutung: Rabatt blau, ★ und „Bestpreis“ Gold, Prüfen, Veraltetes und
 Recherche violett, Grün für das, was für dich spricht (günstigerer Laden, Crossbuy, bessere
 Wertung), Rot für den Aufpreis über dem Bestpreis, Grau für Eigenschaften ohne Wertung („ohne
-Crossbuy“). Gruppen und Karten klappen, der Browser merkt sich, was du
+Crossbuy“). Ausnahmen wie im eShopKompass: die Familienfarben der System-Reiter, die farbigen
+Genre-Blasen und die Wertung als Farbton in der Sammlung. Gruppen und Karten klappen, der Browser merkt sich, was du
 zuklappst; „alle aufklappen · alle zuklappen“ steht darüber, eine Suche öffnet alles. Das
 Suchfeld leert × oder Esc. Oben rechts: hell, dunkel oder wie das Gerät. Regeln für Änderungen:
 [docs/oberflaeche.md](docs/oberflaeche.md).
 
 ## Sicherung
 
-Unter Einstellungen, Sicherung: alle Titel, Notizen und Zuordnungen als eine JSON-Datei herunterladen
-und wieder einspielen, dazu die Sammlung für Entdecken (`collection.json`; Sicherungen ohne
-Sammlung lassen die vorhandene stehen). Die Datei enthält deine Käufe; sie gehört nicht ins Repository. Der
-gg.deals-Schlüssel und der Preisverlauf (`history.json`) sind nicht darin.
+Unter Einstellungen, Sicherung, drei Knöpfe wie im eShopKompass: „Sicherung herunterladen“ (alle
+Titel, Notizen, Zuordnungen und Mein Stand als eine JSON-Datei, dazu die Sammlung,
+`collection.json`), „Sicherung einlesen“ (ersetzt alles; Sicherungen ohne Sammlung lassen die
+vorhandene stehen, Sicherungen vor 0.6.0 ohne Mein Stand laden weiter) und „Abgleichsdaten
+herunterladen“ (Stand und Protokoll des Abgleichs, Preisverlauf und Einstellungen ohne Schlüssel und
+Konten, zum Nachprüfen; zum Einlesen nicht nötig). Die Sicherung enthält deine Käufe; sie gehört
+nicht ins Repository. Schlüssel, Konten und der Preisverlauf (`history.json`) sind nicht darin.
 
 ## Betrieb und Sicherheit
 

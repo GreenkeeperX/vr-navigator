@@ -13,15 +13,21 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 |---|---|---|---|
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
 | Gold | `--best` | am Bestpreis (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
-| Grün | `--go` | spricht für dich, gelingt | günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
+| Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
 | Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
 | Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“, Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „Wunsch · Tabelle“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
 
 Ausnahme, nur für die Reiter je System in der Sammlung (Entscheidung 27.10.2026): der gewählte
 Reiter trägt die Farbe seiner Familie, Nintendo rot (`--sys-nin`), PlayStation blau (`--sys-ps`),
-PC grün (`--sys-pc`), „Alle“ im Türkis des Tools (`--brand`). Diese Töne sind eigene Tokens und
-stehen nirgends sonst.
+PC grün (`--sys-pc`), VR im Türkis des Tools (`--brand`), „Alle“ in `--accent`. Diese Töne sind
+eigene Tokens und stehen nirgends sonst.
+
+Weitere Ausnahmen in der Sammlung, übernommen aus „Spiele“ im eShopKompass (0.6.0, Entscheidung
+27.10.2026): Die Wertung ist ein Farbton von Rot über Gelb nach Grün (`.gsc`, `--sh` aus 50 bis
+95 %), Genres stehen als Blasen im Farbton ihrer Verwandtschaft (`.chip.gg`, `G_HUE`; violett
+bleibt frei). Mein Stand: Backlog ○ rot, angefangen ▷ blau, durchgespielt ✓ grün, Favorit ★
+gold; nur als Zeichen, nie als Fläche.
 
 Herkunft am Wert: ohne Zeichen gemessen oder von Hand; „≈“ abgeleitet oder aus fremder Quelle;
 „Tabelle“ (samt Datum, wo Platz ist) aus der Vergleichstabelle; violett gestrichelt Recherche.
@@ -47,7 +53,19 @@ Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
    gg.deals, Tabelle, Links, Bearbeiten.
 
 Die Karten nutzen die ganze Breite des Fensters. Ab 900 px stehen Preise (bis 560 px) und
-Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
+Fakten nebeneinander. Die Einzelheiten eines VR-Titels in der Sammlung zeigen Marken, Fakten,
+Recherche, Notiz und die Klappe.
+
+## Sammlung
+
+Wie „Spiele“ im eShopKompass (0.6.0): eine Liste (`.glist`) mit Zeilen im Raster (`.gr`), die
+Spalten (`--gcols`) wählt die Ansicht je Reiter aus `COLS`; eine Spalte erscheint nur, wenn ein
+Spiel im Reiter dafür einen Wert hat. Leere Zellen zeigen einen grauen Strich. Der Kopf
+(`.gr.nph`) sortiert per Klick (`data-act="tsort"`, gemerkt in `vn.view`, `sorts`), Enter und
+Leertaste ebenso; der dritte Klick nimmt die Sortierung zurück. Der Name ist ein Knopf und klappt
+die Einzelheiten (`.gd`) auf: links die Angaben (`.gdf`, Name und Wert), rechts Mein Stand
+(`.gdm`), darunter klein Herkunft und Links. Unter 760 px stehen die Werte je Zeile mit kleinem
+Namen davor untereinander, leere Werte fallen weg.
 
 ## Hell, dunkel, System
 
@@ -77,13 +95,16 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
 - Kopfleiste (Name, Stand, Aktualisieren, Reiter) kommt beim Scrollen mit, blendet nach 300 px
   nach unten weich aus (0,8 s) und nach 40 px nach oben wieder ein, wie im eShopKompass; kleine
   Gegenbewegungen unter 8 px zählen nicht. Ohne Bewegung (reduzierte Bewegung) ohne Übergang.
-- Reiter: Jetzt, Wunschliste, Bibliothek, Sammlung, Einstellungen. Am Reiter eine graue Zahl oder ein
+- Reiter: Jetzt, VR-Wunschliste, Sammlung, Einstellungen (die Bibliothek ist seit 0.6.0 der Reiter
+  VR in der Sammlung; ein gemerkter Reiter „Bibliothek“ öffnet ihn). Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
 - Einstellungen in der Reihenfolge der Daten: Sprungleiste oben (bleibt beim Scrollen stehen),
   „Zu erledigen“ (nur wenn etwas offen ist), Einlesen (Konten und Schlüssel, Lesezeichen, ein
   Feld für jede Datei), Abgleich (oben „automatisch alle … Stunden“, speichert sofort; Quellen,
-  „Jetzt abrufen“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung.
+  „Aktualisieren“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung
+  (drei Knöpfe wie im eShopKompass: Abgleichsdaten herunterladen, Sicherung herunterladen,
+  Sicherung einlesen).
   Das Protokoll ist zu, außer der letzte Lauf hatte Fehler.
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter „Sortieren“ als Auswahl,
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
@@ -93,12 +114,12 @@ Fakten nebeneinander. Die Bibliothek zeigt Kopf, Fakten und die Klappe.
   in seiner Familienfarbe unterstrichen (siehe Grundsatz).
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
   übernehmen); Retro-Spiele tragen DE, EN oder JP (≈ aus der Region geschätzt), Homebrew, Hack
-  und „nicht mehr in der Liste“ als Marken, darunter Dateizahl und Regionen. Unterreiter je System („Alle“, PC, dann Konsolen, je mit grauer Zahl; der
+  und „nicht mehr in der Liste“ als Marken, Dateizahl und Regionen in den Einzelheiten. Unterreiter je System („Alle“, PC, VR, dann Konsolen, je mit grauer Zahl; der
   gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
   müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und
   bietet sieben Sekunden „Rückgängig“. Rückfragen bleiben für Dinge, die alles ersetzen
-  (Sicherung einspielen).
+  (Sicherung einlesen).
 - Probleme stehen als violetter Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“.
 
 ## Prüfen vor dem Commit

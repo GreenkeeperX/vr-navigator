@@ -101,9 +101,38 @@ def import_retro(data, text, dry):
 
 
 def state():
-    return dict(library.view(store.load_data(), hist=store.load_json("history.json", {}), settings=sync.load_settings()),
-                version=sources.VERSION,
+    data = store.load_data()
+    return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
+                marks=data["marks"], version=sources.VERSION,
                 sync=sync.status(), settings=settings_view())
+
+
+# Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder
+# durchgespielt und Favorit. Steht in data.json und damit in der Sicherung
+MARK_ST = ("backlog", "started", "done")
+
+
+def set_mark(data, body):
+    key = _text(body.get("key"), 300)
+    k, v = body.get("k"), body.get("v")
+    if not key or k not in ("s", "fav"):
+        raise ValueError("Mein Stand: Spiel und Art fehlen")
+    if k == "s" and v not in (None, "", *MARK_ST):
+        raise ValueError("Mein Stand: unbekannter Stand")
+    m = dict(data["marks"].get(key) or {})
+    if k == "s":
+        m.pop("s", None)
+        if v:
+            m["s"] = v
+    else:
+        m.pop("fav", None)
+        if v:
+            m["fav"] = True
+    if m:
+        data["marks"][key] = m
+    else:
+        data["marks"].pop(key, None)
+    return data["marks"]
 
 
 def _text(v, limit):
@@ -275,6 +304,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
                                  "collection": store.load_json(collection.FILE, collection.EMPTY)},
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
+            elif path == "/api/abgleich":
+                # Zum Nachprüfen (wie im eShopKompass): Stand und Protokoll des Abgleichs, Preisverlauf,
+                # Einstellungen ohne Schlüssel und Links. Zum Einspielen nicht nötig
+                se = {k: v for k, v in sync.load_settings().items() if k not in sync.SECRETS and k not in ("sharenite", "steam_id")}
+                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "settings": se,
+                                 "sync": store.load_json("sync.json", {}), "history": store.load_json("history.json", {})},
+                           extra={"Content-Disposition": 'attachment; filename="vr-navigator-abgleich.json"'})
             else:
                 self._send(404, {"error": "nicht gefunden"})
         except Exception as e:
@@ -321,6 +357,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"changed": n, "collection": collection.view(col)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
+            elif path == "/api/mark":
+                with store.lock:
+                    data = store.load_data()
+                    marks = set_mark(data, body)
+                    store.save_data(data)
+                self._send(200, {"marks": marks})
             elif path == "/api/wishes":
                 # Eine Aktion für mehrere Titel aus „Wunschliste abgleichen“
                 with store.lock:

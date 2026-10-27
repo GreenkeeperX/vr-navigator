@@ -751,6 +751,34 @@ class TestServer(unittest.TestCase):
         self.call("/api/restore", {"data": backup["data"], "collection": backup["collection"]})
         self.assertEqual(json.loads(self.call("/api/collection")[1])["n"], 1)
 
+    def test_marks(self):
+        # Mein Stand (0.6.0): je Spiel gespeichert, in der Sicherung, Zurücknehmen löscht den Eintrag
+        code, body = self.call("/api/mark", {"key": "steam:3000001", "k": "s", "v": "started"})
+        self.assertEqual((code, json.loads(body)["marks"]["steam:3000001"]), (200, {"s": "started"}))
+        self.call("/api/mark", {"key": "steam:3000001", "k": "fav", "v": True})
+        self.assertEqual(json.loads(self.call("/api/state")[1])["marks"]["steam:3000001"], {"s": "started", "fav": True})
+        backup = json.loads(self.call("/api/export")[1])
+        self.assertEqual(backup["data"]["marks"]["steam:3000001"]["s"], "started")
+        self.call("/api/mark", {"key": "steam:3000001", "k": "s", "v": None})
+        self.call("/api/mark", {"key": "steam:3000001", "k": "fav", "v": False})
+        self.assertNotIn("steam:3000001", json.loads(self.call("/api/state")[1])["marks"])
+        self.assertEqual(self.call("/api/mark", {"key": "x", "k": "s", "v": "nie"})[0], 400)
+        self.assertEqual(self.call("/api/mark", {"key": "", "k": "s", "v": "done"})[0], 400)
+        # Sicherung von vor 0.6.0 ohne marks lädt weiter
+        del backup["data"]["marks"]
+        self.assertEqual(self.call("/api/restore", {"data": backup["data"]})[0], 200)
+        self.assertEqual(json.loads(self.call("/api/state")[1])["marks"], {})
+
+    def test_abgleich_download(self):
+        # Abgleichsdaten zum Nachprüfen: nie Schlüssel oder Konten
+        sync.save_settings({"gg_key": "geheim-erfunden-1234", "sharenite": "https://www.sharenite.link/profiles/erfunden/games"})
+        code, raw = self.call("/api/abgleich")
+        self.assertEqual(code, 200)
+        self.assertNotIn(b"geheim-erfunden", raw)
+        self.assertNotIn(b"sharenite.link", raw)
+        self.assertIn("hours", json.loads(raw)["settings"])
+        sync.save_settings({"gg_key": "", "sharenite": ""})
+
     def test_delete_and_merge_can_be_undone(self):
         old_dir, store.DATA_DIR = store.DATA_DIR, tempfile.mkdtemp()
         try:

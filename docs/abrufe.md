@@ -114,7 +114,7 @@ Nur mit eigenem, kostenlosem Schlüssel (gg.deals, Einstellungen, API). Der Schl
 Das Antwortformat ist noch nicht gegen die echte API geprüft. „Verbindung testen“ zeigt, ob
 der Schlüssel angenommen wird, und den Anfang der Antwort.
 
-## Steam-Rezensionen (Entdecken)
+## Steam-Rezensionen (Sammlung)
 
 Nur mit einer Sammlung (Playnite-Export). Ohne Schlüssel, nach den Preisen.
 
@@ -126,7 +126,7 @@ Daraus: Wertung „Steam“ ab 50 Rezensionen, Bekanntheit und Geheimtipp-Wert. 
 nur vermutetem Laden Rezensionen, gilt die Steam-ID als bestätigt. Abgelegt je Spiel unter
 `rev` in `collection.json`; ein neuer Playnite-Export behält es.
 
-## Steam-Details (Entdecken)
+## Steam-Details (Sammlung)
 
 Nur mit einer Sammlung. Ohne Schlüssel, nach den Rezensionen.
 
@@ -134,25 +134,25 @@ Nur mit einer Sammlung. Ohne Schlüssel, nach den Rezensionen.
 |---|---|---|---|
 | Details | `https://store.steampowered.com/api/appdetails?appids=<App-ID>&l=english` | je Lauf höchstens 80 Steam-Spiele der Sammlung, zuerst die ohne Wert, dann die ältesten; jedes nach 90 Tagen neu | Genres, Kategorien (Mehrspieler-Arten, VR), Erscheinungsjahr |
 
-Steam-Genres werden auf die Gruppen von Entdecken abgebildet (Action, Strategie, Rollenspiel,
+Steam-Genres werden auf die Genre-Gruppen der Sammlung abgebildet (Action, Strategie, Rollenspiel,
 Casual, Rennen, Sport, Abenteuer, Simulation), Kategorien auf die Mehrspieler-Arten. Was Playnite
 und Steam beide sagen, gilt als bestätigt; der Rest bleibt mit „≈“. Liefert Steam die App, ist
 ein nur vermuteter Laden bestätigt. Abgelegt je Spiel unter `steam` in `collection.json`
 (`ok: false`, wenn Steam die App nicht kennt); ein neuer Playnite-Export behält es.
 
-## Steam-Wertungen (Wunschliste, Bibliothek)
+## Steam-Wertungen (Wunschliste, Sammlung VR)
 
 Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Rezensionen | wie bei Entdecken (`appreviews`) | je Lauf höchstens 60 Titel, zuerst die ohne Wert; jeder nach 30 Tagen neu, sofort bei geänderter Steam-ID | Zahl der Rezensionen und Anteil positiv |
+| Rezensionen | wie bei der Sammlung (`appreviews`) | je Lauf höchstens 60 Titel, zuerst die ohne Wert; jeder nach 30 Tagen neu, sofort bei geänderter Steam-ID | Zahl der Rezensionen und Anteil positiv |
 
-Hat Entdecken dasselbe Spiel in den letzten 30 Tagen schon gefragt, wird der Wert übernommen
+Hat die Sammlung dasselbe Spiel in den letzten 30 Tagen schon gefragt, wird der Wert übernommen
 statt neu abgerufen. Abgelegt je Titel unter `rev` in `data.json` (mit `app`, der Steam-ID). Die
 Meta-Sterne kommen ohne eigenen Abruf aus der QuestStoreDB-Titelseite (`live.meta.rating`).
 
-## VRDB (Wunschliste, Bibliothek)
+## VRDB (Wunschliste, Sammlung VR)
 
 Für Titel mit Meta-ID, ohne Schlüssel, nach den Steam-Spielern.
 
@@ -163,7 +163,7 @@ Für Titel mit Meta-ID, ohne Schlüssel, nach den Steam-Spielern.
 Abgelegt je Titel unter `vrdb`; ändert sich die Version, steht unter `meta_ver` der Tag, an dem
 das Tool sie zuerst sah (bei der ersten Sicht leer).
 
-## Steam-Spieler und Updates (Wunschliste, Bibliothek)
+## Steam-Spieler und Updates (Wunschliste, Sammlung VR)
 
 Für Titel mit Steam-ID, ohne Schlüssel.
 

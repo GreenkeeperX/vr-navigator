@@ -20,9 +20,10 @@ f.addEventListener("load", () => {
       const views = w.eval("TABS.map(x => x[0])").map(t => [t, `V.q = ''; V.tab = '${t}'`])
         .concat([["wish:suche", "V.tab = 'wish'; V.q = 'sky'"], ["wish:zu", "V.q = ''; V.folds['w-open'] = true"],
                  ["wish:wertung", "V.folds['w-open'] = false; V.sort = 'rating'; V.lf.cb = true"],
-                 ["lib:filter", "V.tab = 'lib'; V.lsort = 'added'; V.lf.good = true; V.lf.cb = false"],
+                 ["find:vr", "V.tab = 'find'; V.d = Object.assign({}, D0, {sys: 'VR'})", "V.gOpen = 'vr:' + S.library[0].key; render()"],
+                 ["find:offen", "V.d = Object.assign({}, D0, {sys: 'PC'}); V.sorts.find = {k: 'sc', dir: -1}; S.marks = {}", "V.gOpen = allGames().find(g => g.system === 'PC').key; S.marks[V.gOpen] = {s: 'started', fav: true}; render()"],
                  ["settings:zu", "V.tab = 'settings'", "document.querySelector('[data-act=foldall][data-v=\"\"]').click(); render()"],
-                 ["find:wild", "V.tab = 'find'; V.folds['d-filter'] = false", "setMix('wild'); render()"],
+                 ["find:wild", "V.tab = 'find'; V.gOpen = null; delete V.sorts.find; V.folds['d-filter'] = false", "setMix('wild'); render()"],
                  ["find:zufall", "V.d = Object.assign({}, D0, {sort: 'random', seed: 7})"],
                  ["find:system", "V.d = Object.assign({}, D0, {sys: 'PS4'})", "document.querySelector('[data-act=dsys][data-v=\"\"]').click()"],
                  ["find:retro", "V.d = Object.assign({}, D0, {sys: 'GB'})"],

@@ -13,7 +13,7 @@ DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), ".
 
 # titles: {Schlüssel: Titel}, Form siehe titles.new_title
 # imports: {Art: {"at": Zeit, "n": Anzahl, "new": neu angelegt}}
-EMPTY_DATA = {"titles": {}, "imports": {}}
+EMPTY_DATA = {"titles": {}, "imports": {}, "marks": {}}     # marks: Mein Stand je Spiel (0.6.0)
 
 lock = threading.RLock()
 
