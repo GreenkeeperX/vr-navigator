@@ -100,7 +100,10 @@ als eigene Spiele der Sammlung in allen Abrufen (Steam-Details, Rezensionen, IGD
 mit den übrigen Spielen statt nach allen PC-Spielen. 0.8.10: Mein Stand in den Einzelheiten wieder gleich nach der
 Spalte „Spiel“. 0.8.11: PC-Wunschliste mit Spielinfos von Steam und IGDB (Wertung, Spielzeit, Genre,
 Einzelheiten), „Jetzt“ für alle Wünsche mit Schalter Alle, VR, PC. 0.8.12: Wunschliste PC und Jetzt brachen bei einer
-Wertung nur von IGDB ab (fehlende Zahl der Bewertungen); Hinweisklappe dezenter und über die volle Breite. Grundsatz (Entscheidung 22.10.2026): so wenig
+Wertung nur von IGDB ab (fehlende Zahl der Bewertungen); Hinweisklappe dezenter und über die volle Breite. 0.8.13: Preise als Links, Abstand zum Tief in Euro; SimRacing
+und Geheimtipp farbig, Geheimtipp erst ab 0,4, Filter VR im Reiter PC; Retro-Genre nur noch als Fall, wenn libretro
+und IGDB sich einig sind, Sprachen bestätigt bei genau gleicher Datei in der Fassungsliste; „Zu erledigen“ klärt
+Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam-Namen ohne Leerzeichen gleich. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

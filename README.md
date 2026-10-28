@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.12:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.13:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -155,7 +155,9 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   gesuchte Fassung („gesucht: … (Germany)“). Gefunden wird sie über den Produktcode (GBA, GBC, DS),
   die Retool-Gruppe (auch bei anderem deutschen Titel) oder den gleichen Namen; ist ihr Deutsch nur
   aus der Region geschätzt, steht die Marke violett. Der Filter „Sprache“ zeigt „mit Deutsch“,
-  „DE fehlt“ oder „ohne Deutsch“ (keine deutsche Fassung bekannt).
+  „DE fehlt“ oder „ohne Deutsch“ (keine deutsche Fassung bekannt). Ab 0.8.12 gelten die Sprachen auch ohne
+  Sprachangabe im Namen als bestätigt (nicht violett), wenn deine Datei genau so in der Fassungsliste steht:
+  No-Intro nennt die Sprachen nur, wenn sie von der Sprache der Region abweichen.
 - **3DS** (0.8.4): Fassungsliste von No-Intro für Module und für Download-Titel aus dem eShop. Nennt der
   Dateiname den Produktcode („… (CTR-P-ABCP) (v0) (E).cia“), gelten die Sprachen genau dieser Fassung
   laut No-Intro statt der aus der Region geschätzten (nicht mehr violett), und die Fassungen anderer
@@ -182,8 +184,11 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   („Jump & Run“ wird zur Genre-Gruppe Plattformer, „Brett- & Kartenspiele“ zu Karten und Brett …). Reihe,
   Untergruppe, Ordner und der Titel laut Dateiname stehen in den Einzelheiten; die Suche findet auch die Reihe.
   Die Vorschau nennt, wie viele Zeilen zu einer Datei passen, was nur in der Liste steht und welche Dateien
-  in der Liste fehlen. Nennen libretro oder IGDB ein ganz anderes Genre (keine nahe Gruppe, „Jump & Run“ und
-  „Action“ gelten als nah), steht das Spiel unter „Zu erledigen“, „Retro: Genre weicht von deiner Liste ab“.
+  in der Liste fehlen. Die Genres von libretro und IGDB kommen in der Zeile zu deinem dazu. Nennen libretro
+  und IGDB beide ein ganz anderes Genre und sind sich darin einig (keine nahe Gruppe, „Jump & Run“ und
+  „Action“ gelten als nah; „Party & Minispiele“ widerspricht nie), steht das Spiel unter „Zu erledigen“,
+  „Retro: Genre weicht von deiner Liste ab“ (ab 0.8.12; vorher genügte eine Quelle, das traf vor allem Ordner
+  nach Reihe oder Lizenz). Was nur eine Quelle anders sieht, steht in den Einzelheiten.
   „Liste gilt“ (auch für alle auf einmal) blendet den Hinweis aus, bis sich ein Wert ändert. Liest du die
   Liste später ohne Ordner-Liste ein (etwa als Text), bleiben die Angaben der letzten Ordner-Liste.
 - **Größe** (0.8.8): Die Ordnerwahl schickt je Datei die Größe mit; die Einzelheiten zeigen sie bei „Dateien“.
@@ -245,10 +250,14 @@ zusammenpasst, steht unter „Zu erledigen“, je Gruppe mit einer Aktion für a
 
 - **Gekauft, noch auf der Wunschliste:** du besitzt ihn (Meta-Käufe, Steam-Konto, Sharenite,
   Playnite). Links führen zur Liste im Laden, wo er noch steht; „von der Wunschliste“ nimmt ihn
-  im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst.
+  im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst. Ab 0.8.12 klärt der Abgleich
+  selbst: Steht ein gekaufter Titel auf keiner Wunschliste eines Ladens (und nicht von Hand), ist der
+  Wunsch erfüllt und fällt weg (Protokoll „Wunschliste: gekauft …“); bei Meta mit Crossbuy gekauft gilt
+  auch ein Eintrag auf der gg.deals- oder Steam-Wunschliste als erledigt.
 - **Im Tool entfernt, im Laden noch gewünscht:** der Hinweis geht, sobald der Laden ihn nicht
   mehr führt; „wieder wünschen“ holt ihn zurück.
-- **Fehlt auf einer Laden-Wunschliste:** gewünscht, aber in einem Laden, der den Titel führt,
+- **Fehlt auf einer Laden-Wunschliste** (bis 0.8.11; ab 0.8.12 nur noch als Marke an der Karte, weil das
+  Tool die Preise beider Läden ohnehin holt): gewünscht, aber in einem Laden, der den Titel führt,
   nicht auf deiner Wunschliste (Meta: Meta-ID und die Meta-Wunschliste wurde gelesen; PC:
   Steam-ID und weder auf der Steam- noch auf der gg.deals-Wunschliste). „+ Meta“, „+ Steam“ und
   „+ gg.deals“ öffnen die Seite, auf der du ihn mit einem Klick einträgst (bei gg.deals die
@@ -440,6 +449,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Rennen, „Racing“ oder „Driving“, und eine Simulation, „Automobile Sim“ oder „Simulation“), steht
   violett „Lenkrad?“ (ein Hinweis). Die Kompatibilitätsliste zu Simagic selbst liegt hinter einer
   Bot-Prüfung und wird deshalb nicht abgerufen. Filter „Lenkrad“, Zeile „Sim-Racing“ in den Einzelheiten.
+  Ab 0.8.12 heißt die Marke „SimRacing“ (orange wie VR türkis, „SimRacing?“ bleibt violett), dazu im Reiter PC
+  ein Filter „VR“ neben „SimRacing“ und „VR per Mod“.
   Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,
   daneben ab der Spalte Spieler **Mein Stand** (Backlog ○, angefangen ▷, durchgespielt ✓,
@@ -487,7 +498,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
   unzuverlässig). Die Zahl der Rezensionen zeigt die Bekanntheit. Der Geheimtipp-Wert
   G = (Wertung − 70) / 30 · (1 − log10(Rezensionen + 1) / 5) ist hoch bei guter Wertung und
-  wenigen Rezensionen; die Marke „Geheimtipp“ steht ab 0,2.
+  wenigen Rezensionen; die Marke „Geheimtipp“ (grün umrandet) steht ab 0,4 (bis 0.8.11 ab 0,2, das traf zu viele Spiele, um noch ein Tipp zu sein).
 
 Farben haben je eine Bedeutung: Rabatt blau, ★ und „Bestpreis“ Gold, Prüfen, Veraltetes und
 Recherche violett, Grün für das, was für dich spricht (günstigerer Laden, Crossbuy, bessere

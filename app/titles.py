@@ -436,7 +436,28 @@ def is_bundle(t):
 def names_match(t, other):
     """Passt ein Name aus einem Shop zu einem der Namen des Titels (ohne Klammer- und VR-Zusatz)?"""
     b = base_norm(other)
-    return bool(b) and b in {base_norm(x) for x in store_names(t)}
+    if not b:
+        return False
+    mine = {base_norm(x) for x in store_names(t)}
+    if b in mine:
+        return True
+    # 0.8.12: ohne Leerzeichen gleich („MoonRover VR“ zu „Moon Rover“), oder alle Wörter des kürzeren Namens (mindestens
+    # drei, gleiche Zahlen) stehen in derselben Reihenfolge im längeren („Harbor Heist: Night Run“ zu „Harbor Heist: The
+    # Night Run“)
+    sq = lambda x: re.sub(r"vr$", "", re.sub(r"[^0-9a-z]", "", x))
+    digits = lambda ws: {w for w in ws if w.isdigit()}
+    for m in mine:
+        if m and sq(m) == sq(b):
+            return True
+        short, long_ = sorted((m.split(), b.split()), key=len)
+        if len(short) >= 3 and short[0] == long_[0] and digits(short) == digits(long_) and _in_order(short, long_):
+            return True
+    return False
+
+
+def _in_order(short, long_):
+    it = iter(long_)
+    return all(w in it for w in short)
 
 
 def steam_verdict(t, info):
