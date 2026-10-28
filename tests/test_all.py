@@ -1822,9 +1822,11 @@ class TestSync(unittest.TestCase):
             if "nexusmods" in url:
                 q = json.loads(data)
                 if "games(" in q["query"]:
-                    return json.dumps({"data": {"games": {"totalCount": 2, "nodes": [
-                        {"id": 1, "domainName": "harborheist", "name": "Harbor Heist", "modCount": 42},
-                        {"id": 2, "domainName": "paperlantern", "name": "Paper Lantern", "modCount": 3}]}}})
+                    # Nexus liefert weniger als erbeten (0.8.5): hier ein Spiel je Seite
+                    nodes = [{"id": 1, "domainName": "harborheist", "name": "Harbor Heist", "modCount": 42},
+                             {"id": 2, "domainName": "paperlantern", "name": "Paper Lantern", "modCount": 3}]
+                    o = q["variables"]["o"]
+                    return json.dumps({"data": {"games": {"totalCount": 2, "nodes": nodes[o:o + 1]}}})
                 return json.dumps({"data": {"top": {"nodes": [{"name": "Better Boats", "endorsements": 310, "modId": 1}]},
                                             "vr": {"totalCount": 2, "nodes": [{"name": "VRAM Saver", "endorsements": 50, "modId": 3},
                                                                               {"name": "Harbor VR Fix", "endorsements": 12, "modId": 2}]},
@@ -1836,7 +1838,7 @@ class TestSync(unittest.TestCase):
         self.assertFalse(any("3000103" in u for u, d, h in calls))       # VR eingebaut: nicht gefragt
         self.assertIn("PCGamingWiki: 2 Spiele gelesen, 2 mit Seite, 1 mit VR per Mod", "\n".join(logs))
         self.assertTrue(sync._nexus(dict(sync.SETTINGS, nexus_key="k" * 30), logs.append)["ok"])
-        self.assertEqual(sum(1 for u, d, h in calls if "games(" in d), 1)
+        self.assertEqual([json.loads(d)["variables"]["o"] for u, d, h in calls if "games(" in d], [0, 1])
         self.assertTrue(all(h.get("apikey") == "k" * 30 for u, d, h in calls if "nexusmods" in u))
         col = store.load_json(collection.FILE, collection.EMPTY)["games"]
         self.assertEqual(col["gog:77"]["nexus"]["dom"], "paperlantern")     # „Legacy“ fällt beim Vergleich weg
@@ -1866,6 +1868,14 @@ class TestSync(unittest.TestCase):
         raw = "Erfundene Einleitung.\nThis is a Wiki post now, anyone can edit.\n" + "\n".join(
             ["Rally Moth", "Moon Racer Edition"] + [f"Erfundene Rennsimulation {i}" for i in range(20)])
         tags = {"response": {"tags": [{"tagid": 599, "name": "Simulation"}, {"tagid": 1644, "name": "Driving"}, {"tagid": 19, "name": "Action"}]}}
+        # SimHub (0.8.5): Bilder mit der Steam-ID im Namen, Namen darunter; Flugsimulationen zählen nicht
+        simhub = ('<h2>Supported Games</h2><h3>Racing</h3>'
+                  '<figure><img src="https://www.simhubdash.com/wp-content/uploads/2020/03/3200009-300x140.jpg" alt=""><figcaption>Comet Kart VR (PC only)</figcaption></figure>'
+                  + "".join(f'<figure><img src="https://www.simhubdash.com/wp-content/uploads/2019/01/39000{i:02d}-300x140.jpg"><figcaption>Erfundenes Rennen {i}</figcaption></figure>' for i in range(20))
+                  + '<h3>Flight simulators</h3><figure><img src="https://www.simhubdash.com/wp-content/uploads/2019/01/3200003-300x140.jpg"><figcaption>Harbor Heist</figcaption></figure>')
+        data = store.load_data()
+        data["titles"]["comet"] = dict(titles.new_title("Comet Kart VR"), steam_appid="3200009", wish=True)
+        store.save_data(data)
         items = {"response": {"store_items": [{"appid": 3200001, "tags": [{"tagid": 19, "weight": 10}]},
                                               {"appid": 3200002, "tags": [{"tagid": 1644, "weight": 300}, {"tagid": 599, "weight": 200}]},
                                               {"appid": 3200003, "tagids": [19]}]}}
@@ -1875,6 +1885,8 @@ class TestSync(unittest.TestCase):
             calls.append(url)
             if "granitedevices" in url:
                 return raw
+            if "simhubdash" in url:
+                return simhub
             if "GetTagList" in url:
                 return json.dumps(tags)
             if "GetItems" in url:
@@ -1883,19 +1895,27 @@ class TestSync(unittest.TestCase):
         sources.fetch = fake
         logs = []
         self.assertTrue(sync._wheel(logs.append)["ok"])
-        self.assertEqual(sum("GetItems" in u for u in calls), 1)                 # alle drei Apps in einer Anfrage
-        self.assertIn("22 Spiele in der Liste der Rennsimulationen (Simucube-Forum), 2 davon in deiner Sammlung", "\n".join(logs))
-        self.assertIn("Steam-Schlagwörter für 3 Spiele gelesen, 1 mit Hinweis auf Sim-Racing", "\n".join(logs))
+        self.assertEqual(sum("GetItems" in u for u in calls), 1)                 # alle vier Apps in einer Anfrage
+        self.assertIn("3200009", next(u for u in calls if "GetItems" in u))      # auch der VR-Titel
+        self.assertIn("Listen der Rennspiele mit 22 (Simucube-Forum) und 21 Spielen (SimHub, 21 mit Steam-ID), darin 1 VR-Titel und 2 Spiele der Sammlung", "\n".join(logs))
+        self.assertIn("Steam-Schlagwörter für 4 Spiele gelesen, 1 mit Hinweis auf Sim-Racing", "\n".join(logs))
         col = store.load_json(collection.FILE, collection.EMPTY)["games"]
         self.assertEqual(col["steam:3200002"]["stag"]["tags"], ["Driving", "Simulation"])
         rows = {x["key"]: x for x in collection.view({"games": col})["games"]}
-        self.assertEqual(rows["steam:3200001"]["wheel"], {"list": "Rally Moth", "tags": []})
-        self.assertEqual(rows["steam:3200002"]["wheel"], {"list": "", "tags": ["Driving", "Simulation"]})
-        self.assertEqual(rows["gog:88"]["wheel"]["list"], "Moon Racer Edition")
+        self.assertEqual(rows["steam:3200001"]["wheel"], {"src": ["Simucube-Forum"], "tags": []})
+        self.assertEqual(rows["steam:3200002"]["wheel"], {"src": [], "tags": ["Driving", "Simulation"]})
+        self.assertEqual(rows["gog:88"]["wheel"]["src"], ["Simucube-Forum"])
+        self.assertNotIn("wheel", rows["steam:3200003"])                        # nur unter „Flight simulators“
+        lib = {r["key"]: r for r in library.view(store.load_data())["wishlist"]}
+        self.assertEqual(lib["comet"]["wheel"]["src"], ["SimHub"])               # VR-Titel über die Steam-ID
         self.assertNotIn("wheel", rows["steam:3200003"])
         self.assertNotIn("wheel", rows["name:ps4:rally moth"])                  # nur PC
         self.assertEqual(wheel.hint(["Racing", "Action"]), [])                  # Rennen allein reicht nicht
-        self.assertEqual(wheel.hint(["Automobile Sim"]), ["Automobile Sim"])
+        self.assertEqual(wheel.hint(["Open World", "Action", "Automobile Sim", "Shooter"]), [])   # Autos allein reichen nicht
+        self.assertEqual(wheel.hint(["Racing", "Automobile Sim"]), ["Racing", "Automobile Sim"])
+        raw2 = ("Erfundener Name | 2021-12-15 11:01:45 UTC | #1\n\nHi,\nRally Moth \nMoon Racer Edition\n\n-------------------------\n\n"
+                "Anderer Name | 2022-01-02 10:00:00 UTC | #2\n\nPixel Kart\n")
+        self.assertEqual(wheel.game_list(raw2), ["Rally Moth", "Moon Racer Edition"])     # nur der erste Beitrag
         # zweiter Lauf: alles aktuell, kein Abruf
         calls.clear()
         sync._wheel(logs.append)
@@ -2008,6 +2028,7 @@ class TestSync(unittest.TestCase):
                        {"appid": 3000101, "tagids": [19]}]}})),
                    ("granitedevices", 200, "Hier eine Liste der Simulationen.\nThis is a Wiki post now, anyone can edit.\n\n"
                                            + "\n".join(["Rally Moth", "Moon Racer Edition"] + [f"Erfundene Rennsimulation {i}" for i in range(20)])),
+                   ("simhubdash", 200, '<h3>Racing</h3><figure><img src="/wp-content/uploads/2018/09/3000103-300x140.jpg"><figcaption>Rally Moth (PC only)</figcaption></figure><h3>Flight simulators</h3>'),
                    ("dekudeals.com/items/orbit-golf", 200, deku),
                    ("howlongtobeat", 200, "<input placeholder='search'>"),
                    ("metadat/", 200, meta),
@@ -2064,6 +2085,7 @@ class TestSync(unittest.TestCase):
         self.assertIn("„Rally Moth“: Racing, Simulation → Hinweis Sim-Racing; „Harbor Heist“: Action → kein Hinweis", text)
         self.assertIn("Liste der Rennsimulationen (Simucube-Forum): 22 Spiele, etwa Rally Moth, Moon Racer Edition", text)
         self.assertIn("Rennspiel „Rally Moth“ drin", text)
+        self.assertIn("SimHub, unterstützte Rennspiele: 1 Rennspiele, 1 mit Steam-ID im Bild, etwa Rally Moth (PC only); Rennspiel „Rally Moth“ drin", text)
         self.assertTrue(all(h.get("apikey") == "n" * 40 for u, h in heads if "nexusmods" in u))
         self.assertNotIn("n" * 40, text)
         self.assertIn("Nexus Mods (mit Schlüssel), Spiel „Harbor Heist“: „Harbor Heist“, 42 Mods, Seite https://www.nexusmods.com/games/harborheist", text)

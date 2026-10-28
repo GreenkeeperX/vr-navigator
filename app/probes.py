@@ -379,6 +379,12 @@ def run(probe, lines, col, keys, sleep):
                 + (f"; Rennspiel „{race['name'][:30]}“ {'drin' if wheel.find(idx, race['name']) else 'nicht drin'}" if race else ""))
     probe(wheel.LIST_NAME, wheel.LIST, list_info)
 
+    def simhub_info(t):
+        r = wheel.simhub(t)
+        return (f"{len(r['names'])} Rennspiele, {len(r['apps'])} mit Steam-ID im Bild, etwa {', '.join(r['names'][:3])}"
+                + (f"; Rennspiel „{race['name'][:30]}“ {'drin' if wheel.matcher({'simhub': r})(race.get('id'), race['name']) else 'nicht drin'}" if race else ""))
+    probe(wheel.SIMHUB_NAME, wheel.SIMHUB, simhub_info)
+
     # DekuDeals: Wertung, Spielzeit (HowLongToBeat) und Beschreibung für Konsolenspiele (ohne Konsolenspiel
     # in der Sammlung mit einer Vorgabe)
     deku = s["deku"]

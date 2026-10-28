@@ -1,7 +1,7 @@
 """Ansichten: Bibliothek, Wunschliste und „Jetzt“ als Zeilen für die Oberfläche."""
 from datetime import datetime, timedelta, timezone
 
-from . import lists, prices, titles
+from . import lists, prices, store, titles, wheel
 
 STALE_H = 48        # ältere Live-Preise markiert die Oberfläche als veraltet
 
@@ -242,6 +242,13 @@ def _sale(r):
 
 def view(data, at=None, hist=None, settings=None):
     rows = sorted((row(k, t, at, hist, data) for k, t in data["titles"].items()), key=lambda r: titles.norm(r["name"]))
+    # Sim-Racing (0.8.5): auch die VR-Titel, denn Rennsimulationen spielt man oft in VR
+    wmatch = wheel.matcher(store.load_json(wheel.LIST_FILE, {}))
+    for r in rows:
+        t = data["titles"][r["key"]]
+        w = wheel.row(wmatch, t.get("steam_appid"), t.get("stag"), t["name"])
+        if w:
+            r["wheel"] = w
     owned = [r for r in rows if r["where"]]
     # Die Wunschliste führt auch Titel, die du inzwischen besitzt; die Oberfläche blendet sie
     # aus, solange du sie nicht ausdrücklich zeigen lässt (owned_wish zählt sie)

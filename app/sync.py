@@ -1471,16 +1471,17 @@ def _nexus(settings, log):
         return src.result()
     cache = store.load_json("nexus_games.json", {})
     if not cache.get("games") or (cache.get("at") or "") < _iso(now() - timedelta(days=NEXUS_LIST_DAYS)):
-        games, total = [], None
+        games, total, raw = [], None, 0
         for page in range(mods.GAMES_PAGES):
-            r = mods.games_page(src.get(mods.GQL, shown=f"Spieleliste Seite {page + 1}", data=mods.games_query(page * mods.GAMES_PAGE)))
+            r = mods.games_page(src.get(mods.GQL, shown=f"Spieleliste Seite {page + 1}", data=mods.games_query(raw)))
             if r is None:
                 break
             games += r[0]
             total = r[1]
-            if not r[0] or len(games) >= total:
+            raw += r[2]
+            if not r[2] or raw >= total:
                 break
-        if games and total is not None and len(games) >= min(total, mods.GAMES_PAGE * mods.GAMES_PAGES):
+        if games and total is not None and raw >= total:
             cache = {"at": titles.now_iso(), "games": games}
             store.save_json("nexus_games.json", cache)
         elif not cache.get("games"):
@@ -1523,25 +1524,44 @@ def _nexus(settings, log):
 
 
 def _wheel(log):
-    """Sim-Racing (0.8.3): die Liste der Rennsimulationen (Bestätigung, alle WHEEL_LIST_DAYS Tage eine Anfrage) und
-    die Steam-Schlagwörter je PC-Spiel von Steam (Hinweis), gebündelt über IStoreBrowseService/GetItems."""
+    """Sim-Racing (0.8.3): zwei Listen von Rennspielen für Lenkräder (Bestätigung, je alle WHEEL_LIST_DAYS Tage
+    eine Anfrage: Simucube-Forum, ab 0.8.5 SimHub) und die Steam-Schlagwörter (Hinweis), gebündelt über
+    IStoreBrowseService/GetItems: zuerst die VR-Titel des Tools (0.8.5), dann die Steam-Spiele der Sammlung."""
     start = time.monotonic()
-    src = _Source(NAMES["wheel"], log)
+    label = NAMES["wheel"]
+    src = _Source(label, log)
     old_list = _iso(now() - timedelta(days=WHEEL_LIST_DAYS))
     wl = store.load_json(wheel.LIST_FILE, {})
+    changed = False
     if (wl.get("at") or "") < old_list:
         names = wheel.game_list(src.get(wheel.LIST, shown=wheel.LIST_NAME) or "")
         if len(names) >= 20:            # weniger heißt: die Seite sah anders aus, alte Liste behalten
-            wl = {"at": titles.now_iso(), "names": names}
-            store.save_json(wheel.LIST_FILE, wl)
+            wl.update(at=titles.now_iso(), names=names)
+            changed = True
         elif not src.stopped:
-            log(f"{NAMES['wheel']}: {wheel.LIST_NAME} nicht lesbar ({len(names)} Namen), "
-                + (f"die vom {wl['at'][:10]} gilt weiter" if wl.get("names") else "ohne Bestätigung"))
+            log(f"{label}: {wheel.LIST_NAME} nicht lesbar ({len(names)} Namen), "
+                + (f"die vom {wl['at'][:10]} gilt weiter" if wl.get("names") else "ohne diese Bestätigung"))
+    sh = wl.get("simhub") or {}
+    if (sh.get("at") or "") < old_list and not src.stopped:
+        r = wheel.simhub(src.get(wheel.SIMHUB, shown=wheel.SIMHUB_NAME) or "")
+        if len(r["apps"]) >= 20 or len(r["names"]) >= 20:
+            wl["simhub"] = dict(r, at=titles.now_iso())
+            changed = True
+        elif not src.stopped:
+            log(f"{label}: {wheel.SIMHUB_NAME} nicht lesbar ({len(r['apps'])} Steam-IDs, {len(r['names'])} Namen), "
+                + (f"die vom {sh['at'][:10]} gilt weiter" if sh.get("at") else "ohne diese Bestätigung"))
+    if changed:
+        store.save_json(wheel.LIST_FILE, wl)
     col = store.load_json(collection.FILE, collection.EMPTY)
+    data = store.load_data()
     old = _iso(now() - timedelta(days=WHEEL_DAYS))
-    todo = sorted(((g.get("stag") or {}).get("at") or "", k) for k, g in (col.get("games") or {}).items()
-                  if (g.get("system") or "PC") == "PC" and g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
-                  and ((g.get("stag") or {}).get("at") or "") < old)[:WHEEL_MAX]
+    stale = lambda x: ((x.get("stag") or {}).get("at") or "") < old
+    todo = [("t", k, str(t["steam_appid"])) for k, t in sorted(data["titles"].items(), key=lambda kv: (kv[1].get("stag") or {}).get("at") or "")
+            if str(t.get("steam_appid") or "").isdigit() and stale(t)]
+    todo += [("g", k, str(g["id"])) for _, k, g in sorted(((g.get("stag") or {}).get("at") or "", k, g) for k, g in (col.get("games") or {}).items()
+             if (g.get("system") or "PC") == "PC" and g.get("store") == "Steam" and str(g.get("id") or "").isdigit() and stale(g))]
+    left_all = len(todo)
+    todo = todo[:WHEEL_MAX]
     got = {}
     if todo:
         tl = store.load_json(wheel.TAGS_FILE, {})
@@ -1551,10 +1571,10 @@ def _wheel(log):
                 tl = {"at": titles.now_iso(), "tags": {str(k): v for k, v in known.items()}}
                 store.save_json(wheel.TAGS_FILE, tl)
         known = {int(k): v for k, v in (tl.get("tags") or {}).items()}
-        ids = {str(col["games"][k]["id"]): k for _, k in todo}
-        apps = list(ids)
+        apps = list(dict.fromkeys(a for _, _, a in todo))
+        tags = {}
         for i in range(0, len(apps), wheel.BATCH):
-            progress(NAMES["wheel"], i, len(apps))
+            progress(label, i, len(apps))
             part = apps[i:i + wheel.BATCH]
             r = wheel.items(src.get(wheel.items_url(part), shown=f"Steam-Schlagwörter {i + 1}–{i + len(part)}") or "")
             if r is None:
@@ -1563,22 +1583,31 @@ def _wheel(log):
                 continue
             stamp = titles.now_iso()
             for a in part:
-                got[ids[a]] = {"tags": [n for n in wheel.names(r.get(a) or [], known) if n][:12], "at": stamp, "v": wheel.V}
+                tags[a] = {"tags": [n.strip() for n in wheel.names(r.get(a) or [], known) if n.strip()][:12], "at": stamp, "v": wheel.V}
+        got = {(kind, k): tags[a] for kind, k, a in todo if a in tags}
         with store.lock:
             col = store.load_json(collection.FILE, collection.EMPTY)
-            for k, r in got.items():
-                if k in col.get("games", {}):
+            for (kind, k), r in got.items():
+                if kind == "g" and k in col.get("games", {}):
                     col["games"][k]["stag"] = r
             store.save_json(collection.FILE, col)
+            data = store.load_data()
+            for (kind, k), r in got.items():
+                if kind == "t" and k in data["titles"]:
+                    data["titles"][k]["stag"] = r
+            store.save_data(data)
     games = col.get("games") or {}
-    idx = wheel.index(wl.get("names") or [])
-    pc = [g for g in games.values() if (g.get("system") or "PC") == "PC"]
-    hint = sum(1 for g in pc if wheel.hint((g.get("stag") or {}).get("tags") or []))
-    sure = sum(1 for g in pc if wheel.find(idx, (g.get("igdb") or {}).get("name"), g["name"]))
-    left = len([1 for g in games.values() if (g.get("system") or "PC") == "PC" and g.get("store") == "Steam"
-                and str(g.get("id") or "").isdigit() and ((g.get("stag") or {}).get("at") or "") < old])
-    src.stats = {"read": len(got), "list": len(wl.get("names") or []), "hint": hint, "sure": sure, "left": left}
-    log(f"{NAMES['wheel']}: {len(wl.get('names') or [])} Spiele in der {wheel.LIST_NAME}, {sure} davon in deiner Sammlung; "
+    match = wheel.matcher(wl)
+    pc = [g for g in games.values() if (g.get("system") or "PC") == "PC" and g.get("src") != "retro"]
+    hint = sum(1 for x in pc + list(data["titles"].values()) if wheel.hint((x.get("stag") or {}).get("tags") or []))
+    sure = sum(1 for g in pc if match(g.get("id") if g.get("store") == "Steam" else "", (g.get("igdb") or {}).get("name"), g["name"]))
+    sure_vr = sum(1 for t in data["titles"].values() if match(t.get("steam_appid"), t["name"]))
+    left = left_all - len(got)
+    sh = wl.get("simhub") or {}
+    src.stats = {"read": len(got), "list": len(wl.get("names") or []), "simhub": len(sh.get("apps") or []), "hint": hint,
+                 "sure": sure + sure_vr, "left": left}
+    log(f"{label}: Listen der Rennspiele mit {len(wl.get('names') or [])} (Simucube-Forum) und {len(sh.get('names') or [])} Spielen "
+        f"(SimHub, {len(sh.get('apps') or [])} mit Steam-ID), darin {sure_vr} VR-Titel und {sure} Spiele der Sammlung; "
         f"Steam-Schlagwörter für {len(got)} Spiele gelesen, {hint} mit Hinweis auf Sim-Racing"
         + (f", {left} noch offen" if left else "") + f", {_took(start)}")
     return src.result()

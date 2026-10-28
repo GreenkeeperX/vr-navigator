@@ -196,6 +196,7 @@ function badges(r){
   }
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
+  out.push(wheelBadge(r.wheel));
   out.push(wishListBadge(r));
   return out.filter(Boolean).join(" ");
 }
@@ -522,7 +523,7 @@ function allGames(){
   if(!GM || GM.s !== S || GM.c !== C)
     GM = {s: S, c: C, list: ((C && C.games) || []).concat((S.library || []).map(r => ({key: "vr:" + r.key, lib: r, name: r.name, system: "VR",
       store: vrStore(r), guess: false, mp: [], players: 0, genres: [], score: r.rating?.score ?? null, reviews: r.rating?.steam?.n ?? null,
-      year: "", added: r.added || "", dev: "", pub: "", rel: "", desc: "", gem: 0, url: ""})))};
+      year: "", added: r.added || "", dev: "", pub: "", rel: "", desc: "", gem: 0, url: "", wheel: r.wheel || null})))};
   return GM.list;
 }
 /* Genres in fester Reihenfolge, in jeder Zeile gleich (wie im eShopKompass): zuerst das in der Sammlung
@@ -879,6 +880,7 @@ function gBadges(g){
     const r = g.lib;
     if(r.wish) b.push(`<span class="b" title="Steht auch auf der Wunschliste">Wunsch</span>`);
     if(r.bundle) b.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
+    b.push(wheelBadge(r.wheel));
     if(r.steam_appid && !r.steam_sure) b.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt : "Steam-ID nur nach dem Namen zugeordnet")}">Steam-ID prüfen</span>`);
     return b.join("");
   }
@@ -888,8 +890,7 @@ function gBadges(g){
   else if(g.vrmod?.length) b.push(`<span class="b" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
   else if(vrMod(g)) b.push(`<span class="b gxc" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
   // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (violett)
-  if(g.wheel?.list) b.push(`<span class="b" title="${esc(`In der ${WHEEL_LIST}${g.wheel.tags.length ? `\nSteam-Schlagwörter: ${g.wheel.tags.join(", ")}` : ""}`)}">Lenkrad</span>`);
-  else if(g.wheel) b.push(`<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\nSteam-Schlagwörter: ${g.wheel.tags.join(", ")}`)}">Lenkrad?</span>`);
+  b.push(wheelBadge(g.wheel));
   if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
   if(g.retro){
     if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen", alias: "den von dir bestätigten ähnlichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
@@ -953,12 +954,21 @@ function gDetail(g){
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
-const WHEEL_LIST = "Liste der Rennsimulationen (Simucube-Forum)";
+// Sim-Racing (0.8.3, Listen ab 0.8.5): bestätigt in einer Liste der Rennspiele; nur Steam-Schlagwörter: violett
+const WHEEL_SRC = {"SimHub": ["https://www.simhubdash.com/supported-games/", "SimHub unterstützt das Spiel (Liste der Rennspiele)"],
+  "Simucube-Forum": ["https://community.granitedevices.com/t/5645", "Rennsimulationen für Direktantriebe mit Force Feedback; was dort läuft, läuft auch mit Simagic"]};
+const WHEEL_LIST = "Liste der Rennspiele (SimHub, Simucube-Forum)";
+function wheelBadge(w){
+  if(!w) return "";
+  const tags = w.tags.length ? `Steam-Schlagwörter: ${w.tags.join(", ")}` : "";
+  return w.src.length ? `<span class="b" title="${esc([`Laut ${w.src.join(" und ")}`, tags].filter(Boolean).join("\n"))}">Lenkrad</span>`
+    : `<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">Lenkrad?</span>`;
+}
 function wheelHtml(g){
   const w = g.wheel;
   if(!w) return "";
-  return [w.list && `<a href="https://community.granitedevices.com/t/5645" target="_blank" rel="noopener noreferrer" title="Rennsimulationen für Direktantriebe mit Force Feedback; was dort läuft, läuft auch mit Simagic">in der ${WHEEL_LIST}</a>`,
-    w.tags.length && `<span class="${w.list ? "" : "gxc"}" title="Steam-Schlagwörter${w.list ? "" : ", nur ein Hinweis"}">${esc(w.tags.join(", "))}</span>`].filter(Boolean).join(" · ");
+  return [...w.src.map(s => `<a href="${WHEEL_SRC[s]?.[0] || ""}" target="_blank" rel="noopener noreferrer" title="${esc(WHEEL_SRC[s]?.[1] || "")}">${esc(s)}</a>`),
+    w.tags.length && `<span class="${w.src.length ? "" : "gxc"}" title="Steam-Schlagwörter${w.src.length ? "" : ", nur ein Hinweis"}">${esc(w.tags.join(", "))}</span>`].filter(Boolean).join(" · ");
 }
 // VR per Mod und Nexus Mods in den Einzelheiten (0.8.1), mit Links
 const nxLink = (g, m) => `<a href="https://www.nexusmods.com/${encodeURIComponent(g.nexus.dom)}/mods/${Number(m.id)}" target="_blank" rel="noopener noreferrer" title="${num(m.end)} Empfehlungen">${esc(m.name)}</a>`;
@@ -1144,7 +1154,7 @@ function nowView(){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Liste der Rennsimulationen)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){

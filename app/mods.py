@@ -15,8 +15,8 @@ from .probes import NEXUS_GQL, PCGW, PCGW_APPID, pcgw_title, pcgw_vr, search_nam
 V = 1
 HEADSETS = {"htc vive": "HTC Vive", "oculus rift": "Oculus Rift", "windows mixed reality": "Windows Mixed Reality",
             "osvr": "OSVR", "openxr": "OpenXR", "steamvr": "SteamVR", "oculusvr": "Oculus"}
-GAMES_PAGE = 1000           # Spiele je Seite der Nexus-Spieleliste
-GAMES_PAGES = 10
+GAMES_PAGE = 100            # erbetene Spiele je Seite; Nexus liefert höchstens 80 (Verbindungstest 0.8.4),
+GAMES_PAGES = 150           # deshalb weiter um so viele, wie kamen
 VR_NAME = re.compile(r"(?i)\bvr\b|uevr|vorpx|virtual reality|\bopenxr\b|\bvrik\b")
 _TAIL = re.compile(r"(?i)\s*[-:–]?\s*\b(legacy|enhanced|remastered|definitive edition|game of the year edition|goty|"
                    r"complete edition|special edition|anniversary edition)$")
@@ -53,7 +53,7 @@ def games_query(offset):
 
 
 def games_page(text):
-    """(Spiele, Gesamtzahl) einer Seite der Spieleliste; None bei einer Fehlerantwort."""
+    """(Spiele, Gesamtzahl, Zahl der Einträge der Seite) einer Seite der Spieleliste; None bei einer Fehlerantwort."""
     try:
         d = json.loads(text or "{}")
     except ValueError:
@@ -63,7 +63,7 @@ def games_page(text):
         return None
     nodes = [{"dom": str(n.get("domainName") or ""), "name": str(n.get("name") or "")[:200], "mods": int(n.get("modCount") or 0)}
              for n in g.get("nodes") or [] if isinstance(n, dict) and n.get("domainName")]
-    return nodes, int(g.get("totalCount") or 0)
+    return nodes, int(g.get("totalCount") or 0), len(g.get("nodes") or [])
 
 
 def keys(name):

@@ -230,7 +230,7 @@ Steam-Rezensionen) zuerst.
 |---|---|---|---|
 | PCGamingWiki, Seite | `https://www.pcgamingwiki.com/api/appid.php?appid=<App-ID>` | je Steam-Spiel, 60 je Lauf (`PCGW_MAX`), nach 90 Tagen neu | Seitenname (Umleitung) |
 | PCGamingWiki, Wikitext | `…/w/api.php?action=parse&page=<Seite>&prop=wikitext&format=json` | je Seite einmal | Vorlage „VR support“: Brillen mit „hackable“ (VR per Mod), „true“ (eingebaut), vorpX |
-| Nexus Mods, Spieleliste | `https://api.nexusmods.com/v2/graphql` (POST, `games(count:1000, offset)`) | höchstens wöchentlich (`NEXUS_LIST_DAYS`), bis 10 Seiten; abgelegt in `nexus_games.json` | Kürzel, Name und Zahl der Mods je Spiel; Zuordnung lokal über den Namen (auch IGDB-Name, ohne Zusätze wie „Legacy“) |
+| Nexus Mods, Spieleliste | `https://api.nexusmods.com/v2/graphql` (POST, `games(count:100, offset)`; Nexus liefert höchstens 80 je Seite, ab 0.8.5 weiter um so viele, wie kamen) | höchstens wöchentlich (`NEXUS_LIST_DAYS`), bis 150 Seiten mit einer Sekunde Pause; abgelegt in `nexus_games.json` | Kürzel, Name und Zahl der Mods je Spiel; Zuordnung lokal über den Namen (auch IGDB-Name, ohne Zusätze wie „Legacy“) |
 | Nexus Mods, Mods | dieselbe Adresse (POST, `mods` nach Kürzel) | je zugeordnetem Spiel, 60 je Lauf (`NEXUS_MAX`), nach 30 Tagen neu | die drei beliebtesten Mods, bis drei Mods mit VR im Namen (ganzes Wort, UEVR, vorpX) |
 
 Nexus mit einer Sekunde Pause je Anfrage, mit persönlichem Schlüssel als Kopfzeile `apikey`. Abgelegt je
@@ -243,11 +243,13 @@ dem Server eine Bot-Prüfung und wird nicht abgerufen.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Liste der Rennsimulationen | `https://community.granitedevices.com/raw/5645` (Rohtext eines offenen Beitrags im Simucube-Forum) | höchstens alle 30 Tage (`WHEEL_LIST_DAYS`), eine Anfrage; abgelegt in `wheel_list.json`; unter 20 Namen bleibt die alte Liste | ein Name je Zeile; Zuordnung lokal über den Namen (auch IGDB-Name). Bestätigung |
+| Liste der Rennsimulationen | `https://community.granitedevices.com/raw/5645` (Rohtext eines offenen Themas im Simucube-Forum; gelesen wird nur der erste Beitrag) | höchstens alle 30 Tage (`WHEEL_LIST_DAYS`), eine Anfrage; abgelegt in `wheel_list.json`; unter 20 Namen bleibt die alte Liste | ein Name je Zeile; Zuordnung lokal über den Namen (auch IGDB-Name). Bestätigung |
+| SimHub, unterstützte Spiele (ab 0.8.5) | `https://www.simhubdash.com/supported-games/` | höchstens alle 30 Tage, eine Anfrage; in `wheel_list.json` unter `simhub` | nur der Abschnitt „Racing“: Steam-IDs aus den Bildnamen, die Namen darunter. Bestätigung |
 | Steam-Schlagwörter, Liste | `https://api.steampowered.com/IStoreService/GetTagList/v1/?language=english` | höchstens alle 30 Tage; abgelegt in `steam_tags.json` | Name je Kennung |
-| Steam-Schlagwörter je Spiel | `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=…` mit `include_tag_count` | je Steam-Spiel am PC nach 90 Tagen (`WHEEL_DAYS`), 50 Apps je Anfrage, höchstens 400 je Lauf (`WHEEL_MAX`) | die stärksten Schlagwörter; Hinweis bei „Automobile Sim“, „Sim Racing“ oder „Racing“/„Driving“ mit „Simulation“ unter den ersten zwölf |
+| Steam-Schlagwörter je Spiel | `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=…` mit `include_tag_count` | zuerst die VR-Titel mit Steam-ID (ab 0.8.5), dann die Steam-Spiele am PC, je nach 90 Tagen (`WHEEL_DAYS`), 50 Apps je Anfrage, höchstens 400 je Lauf (`WHEEL_MAX`) | die stärksten Schlagwörter; Hinweis, wenn unter den ersten zehn „Racing“ oder „Driving“ und „Automobile Sim“ oder „Simulation“ stehen |
 
-Ohne Schlüssel. Abgelegt je Spiel unter `stag` in `collection.json`; ein neuer Export behält es. Der
+Ohne Schlüssel. Abgelegt je Spiel unter `stag` in `collection.json`, je VR-Titel unter `stag` in `data.json`; ein
+neuer Export behält es. Der
 Verbindungstest prüft beide Steam-Abrufe an einem Rennspiel der Sammlung und die Liste (statt der
 PCGamingWiki-Vorlage „Input“, die kein Feld für Lenkräder hat).
 
