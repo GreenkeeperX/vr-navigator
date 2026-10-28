@@ -787,6 +787,11 @@ class TestLibrary(unittest.TestCase):
         self.assertEqual(library.where_buy(library.row(k2, d["titles"][k2], at=at, hist={}, data=d))["shop"], "steam")
         d["titles"][k2]["owned"] = {"pc": {"label": "Steam"}}
         self.assertIsNone(library.where_buy(library.row(k2, d["titles"][k2], at=at, hist={}, data=d)))
+        # Trend (0.8.26): Steam-Wertung fällt in den letzten 30 Tagen deutlich: halber Punkt für Meta
+        t["opinion"] = {}
+        t["rev"] = {"n": 500, "pct": 80, "recent": {"up": 30, "down": 70}}
+        b = library.where_buy(library.row(k, t, at=at, hist={}, data=d))
+        self.assertIn({"shop": "meta", "text": "Steam-Wertung fällt (30 % in den letzten 30 Tagen, sonst 80 %)", "w": 0.5, "guess": False}, b["why"])
 
     def test_grade_and_now(self):
         """Preisgüte wie im eShopKompass; Jetzt zeigt nur Angebote mit „kaufen“ oder „gut“."""

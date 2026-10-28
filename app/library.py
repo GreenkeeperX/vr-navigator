@@ -292,6 +292,12 @@ def where_buy(r):
     sp = (rt.get("steam") or {}).get("pct")
     if mp is not None and sp is not None and abs(mp - sp) >= WB_RATE:
         add("meta" if mp > sp else "steam", f"besser bewertet ({mp} gegen {sp} %)" if mp > sp else f"besser bewertet ({sp} gegen {mp} %)")
+    # Trend (0.8.26): fällt oder steigt die Steam-Wertung der letzten 30 Tage deutlich, zählt das halb; er sagt etwas
+    # über die Steam-Fassung jetzt, aber oft auch über das Spiel in beiden Läden
+    tr = (rt.get("steam") or {}).get("trend") or {}
+    if has_m and has_s and tr.get("dir") in ("up", "down"):
+        add("steam" if tr["dir"] == "up" else "meta", f"Steam-Wertung {'steigt' if tr['dir'] == 'up' else 'fällt'} "
+            f"({tr['recent']} % in den letzten 30 Tagen, sonst {tr['all']} %)", 0.5)
     up, mv = (m.get("update") or {}).get("date"), (m.get("meta_ver") or {}).get("since")
     d = _days(up, mv) if up and mv else None
     if d is not None and abs(d) >= WB_STALE_DAYS:

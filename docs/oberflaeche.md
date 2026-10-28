@@ -58,7 +58,9 @@ Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Lege
 Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
 
 1. Kopf (`.hd`): Name, „wo kaufen“ (ab 0.8.15, `.vd.wb`: Laden und Preisurteil dort, „Meta kaufen“
-   grün gefüllt, „Meta gut“ grün umrandet, „Steam warten“ grau umrandet, „Laden egal, …“), dann die Marken.
+   grün gefüllt, „Meta gut“ grün umrandet, „Steam warten“ grau umrandet, „Laden egal, …“), dann die Marken. Die
+   Gründe stehen in der Zeile „Wo“; ab 0.8.26 auch „Steam-Wertung fällt“ oder „steigt“ (Trend, zählt halb). Die
+   Legende nennt die Gewichte.
 2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
    `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
    „+x € über Bestpreis“ (jeder Aufpreis rot, Entscheidung 26.10.2026) und der Bestpreis mit Laden oder gold

@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.25:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.26:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -410,7 +410,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
     Preisabstand von mindestens 40 % und 8 € (2), je 1 für Mehrspieler mit weniger als 20 Spielern auf
     Steam (Spitze; spricht für Meta), 8 Punkte bessere Wertung, eine um ein Jahr jüngere Pflege (letztes
     Steam-Update gegen die Meta-Version), spürbar günstiger (Steam 20 % und 3 €, Meta ab 1 €). Die
-    Recherche („Quest-“ oder „PC-Fassung besser“) zählt halb und steht violett mit „≈“. Wer mindestens
+    Recherche („Quest-“ oder „PC-Fassung besser“) zählt halb und steht violett mit „≈“. Ab 0.8.26 zählt auch der Trend
+    halb, wenn es beide Läden gibt: fällt die Steam-Wertung der letzten 30 Tage deutlich, für Meta, steigt sie, für Steam. Wer mindestens
     einen Punkt vorn liegt, gewinnt, sonst ist der Laden egal. Die Gründe stehen in der Zeile „Wo“, die
     für den anderen Laden grau.
   - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
