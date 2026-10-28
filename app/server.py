@@ -455,12 +455,13 @@ class Handler(BaseHTTPRequestHandler):
                         store.save_data(data)
                 self._send(200, {"changed": n, "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/own":
-                # Widerspruch zu deiner Ordner-Liste (0.8.8): „Liste gilt“ für ein Spiel oder alle
+                # Widerspruch zu deiner Ordner-Liste (0.8.8): „Liste gilt“ für ein Spiel oder alle; ab 0.9.6 mit
+                # take „Quellen gelten“ (libretro und IGDB einig)
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
                     keys = [x["key"] for x in retro.own_list(col)] if body.get("all") is True else [_text(body.get("key"), 300)]
                     for k in keys:
-                        retro.settle_own(col, k)
+                        retro.settle_own(col, k, take=body.get("take") is True)
                     store.save_json(collection.FILE, col)
                 self._send(200, {"retro_own": retro.own_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/near":

@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.5:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.6:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -200,7 +200,9 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   „Action“ gelten als nah; „Party & Minispiele“ widerspricht nie), steht das Spiel unter „Zu erledigen“,
   „Retro: Genre weicht von deiner Liste ab“ (ab 0.8.12; vorher genügte eine Quelle, das traf vor allem Ordner
   nach Reihe oder Lizenz). Was nur eine Quelle anders sieht, steht in den Einzelheiten.
-  „Liste gilt“ (auch für alle auf einmal) blendet den Hinweis aus, bis sich ein Wert ändert. Liest du die
+  „Liste gilt“ (auch für alle auf einmal) blendet den Hinweis aus, bis sich ein Wert ändert. Ab 0.9.6 nimmt
+  „Quellen gelten“ (auch für alle) im Tool das Genre, in dem libretro und IGDB einig sind, statt deinem; deine
+  Ordner-Liste bleibt, wie sie ist, dein Genre steht in den Einzelheiten mit „deins gilt“ zum Zurücknehmen. Liest du die
   Liste später ohne Ordner-Liste ein (etwa als Text), bleiben die Angaben der letzten Ordner-Liste.
 - **Größe** (0.8.8): Die Ordnerwahl schickt je Datei die Größe mit; die Einzelheiten zeigen sie bei „Dateien“.
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner

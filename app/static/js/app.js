@@ -1309,6 +1309,7 @@ function gDetail(g){
     row("Reihe", esc([o.series, o.coll].filter(Boolean).join(", ")), "Reihe und Sammelreihe aus deiner Ordner-Liste") +
     row("Status", esc(o.status || ""), "Aus deiner Ordner-Liste") +
     row("Dateiname", g.fname ? esc(g.fname) : "", "Titel laut Dateiname (No-Intro); es gilt deiner aus der Ordner-Liste") +
+    row("Genre", g.own_taken ? `laut libretro und IGDB statt deinem (${esc(g.own_taken)}) <button class="link" data-act="ownok" data-k="${esc(g.key)}" title="Dein Genre aus der Ordner-Liste gilt wieder">deins gilt</button>` : "", "Unter Einstellungen, Zu erledigen gewählt: die anderen Quellen sind sich einig") +
     row("Genre anders", g.own_diff ? `<span class="gxc">${g.own_diff.map(d => `${esc(d.src)}: ${esc(d.other)}`).join(" · ")}</span>` : "", "Widerspricht deinem Genre; unter Einstellungen, Zu erledigen bestätigst du deins");
   // Nur, was die Zeile nicht schon zeigt (0.6.2): Spieler, Genre, Jahr und Launcher stehen in den Spalten; Mehrspieler ab 0.8.23 hier.
   // Dazu wie im eShopKompass (0.7.1): Wertung aus weiteren Quellen, genaues Erscheinen, Sprachen
@@ -1717,11 +1718,12 @@ function settingsView(){
         <button data-act="nearok" data-k="${esc(x.key)}" title="Dasselbe Spiel; der Titel der Liste gilt fortan">dasselbe</button>
         <button data-act="nearno" data-k="${esc(x.key)}" title="Ein anderes Spiel; dieser Vorschlag kommt nicht wieder">anderes</button></span></div>`).join("")}</div>`;
   // Retro (0.8.8): andere Quellen widersprechen deinem Genre aus der Ordner-Liste
-  const ownList = `<p class="hint">Deine Ordner-Liste gilt zuerst. Hier nennen libretro und IGDB beide ein anderes Genre und sind sich darin einig (ab 0.8.12; was nur eine Quelle anders sieht, steht nur in den Einzelheiten, ihr Genre kommt in der Zeile dazu). „Liste gilt“ blendet den Hinweis aus; ändert sich ein Wert, kommt er wieder. Stimmt die andere Quelle, änderst du deine Liste und liest den Ordner neu ein.</p>
-    <div class="bar"><button data-act="ownok" data-k="" title="Für alle hier: deine Liste gilt">Alle: Liste gilt</button></div>
+  const ownList = `<p class="hint">Deine Ordner-Liste gilt zuerst. Hier nennen libretro und IGDB beide ein anderes Genre und sind sich darin einig (ab 0.8.12; was nur eine Quelle anders sieht, steht nur in den Einzelheiten, ihr Genre kommt in der Zeile dazu). „Liste gilt“ blendet den Hinweis aus. „Quellen gelten“ (ab 0.9.6) nimmt im Tool das Genre von libretro und IGDB statt deinem; deine Liste bleibt, wie sie ist. Ändert sich ein Wert, kommt der Hinweis wieder.</p>
+    <div class="bar"><button data-act="ownok" data-k="" title="Für alle hier: deine Liste gilt">Alle: Liste gilt</button> <button data-act="ownok" data-k="" data-take="1" title="Für alle hier: das Genre, in dem libretro und IGDB einig sind, gilt">Alle: Quellen gelten</button></div>
     <div class="list">${rown.slice(0, 300).map(x => `<div class="item"><span class="nm">${esc(x.name)} <span class="hint">(${esc(x.system)})</span></span>
       <span class="row2"><span class="hint">deins: ${esc(x.diff[0].own)}; ${x.diff.map(d => `${esc(d.src)}: ${esc(d.other)}`).join("; ")}</span>
-        <button data-act="ownok" data-k="${esc(x.key)}" title="Dein Genre gilt; der Hinweis verschwindet">Liste gilt</button></span></div>`).join("")}</div>${rown.length > 300 ? `<p class="hint">… und ${rown.length - 300} weitere</p>` : ""}`;
+        <button data-act="ownok" data-k="${esc(x.key)}" title="Dein Genre gilt; der Hinweis verschwindet">Liste gilt</button>
+        <button data-act="ownok" data-k="${esc(x.key)}" data-take="1" title="Das Genre von libretro und IGDB gilt statt deinem; deine Liste bleibt">Quellen gelten</button></span></div>`).join("")}</div>${rown.length > 300 ? `<p class="hint">… und ${rown.length - 300} weitere</p>` : ""}`;
   // Zahlen, die etwas zu tun bedeuten, violett und fett (0.7.4, wie im eShopKompass „offen“)
   const tn = n => `<b class="warnc">${n}</b>`;
   const sugCard = open ? box("todo", "Zu erledigen", `${tn(open)} offen`, `
@@ -1977,13 +1979,21 @@ function accountsCard(){
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
-      <li><b>Steam:</b> Besitz und Wunschliste mit genauen App-IDs; die Wunschliste lässt sich abschalten, dann zählt am PC nur gg.deals. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
-      <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
-      <li><b>IGDB:</b> Spielinfos für alle Plattformen (Genre, Spieler, Wertung, Spielzeit, Beschreibung). Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (dev.twitch.tv, Anwendung registrieren); derselbe Schlüssel wie im eShopKompass geht. Bis 0.7 nur im Verbindungstest.</li>
-      <li><b>Nexus Mods:</b> Mods für PC-Spiele, etwa VR-Mods. Die Abfrage geht auch ohne Schlüssel; mit dem persönlichen Schlüssel (im Nexus-Konto unter Einstellungen, API Keys) fragt das Tool als dein Konto mit eigenen Grenzen. Bis 0.7.7 nur im Verbindungstest.</li>
-      <li><b>IsThereAnyDeal:</b> Preise jedes offiziellen Ladens (Steam, GOG, Epic, Humble …) für die PC-Wunschliste, in den Einzelheiten unter „Läden“ und in Jetzt, PC zum Bündeln nach Laden. Den Schlüssel gibt es kostenlos: auf isthereanydeal.com anmelden, unter My Apps eine App anlegen, den API-Schlüssel hier einfügen. Keyshops kommen weiter von gg.deals.</li>
-      <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
+      <li><b>Steam:</b> Besitz, Wunschliste und Spielzeit mit genauen App-IDs; der Schlüssel ist kostenlos.</li>
+      <li><b>gg.deals:</b> Händler- und Keyshop-Preise je Steam-App, dazu die geteilte Wunschliste.</li>
+      <li><b>IGDB:</b> Spielinfos für alle Plattformen (Genre, Spieler, Wertung, Spielzeit).</li>
+      <li><b>Nexus Mods:</b> Mods für PC-Spiele, etwa VR-Mods; geht auch ohne Schlüssel.</li>
+      <li><b>IsThereAnyDeal:</b> Preise jedes offiziellen Ladens für die PC-Wunschliste.</li>
+      <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden, wenn das Profil öffentlich ist.</li>
     </ul>
+    <details class="how" ${foldAttr("keyhow", true)}><summary class="hint">Wo es die Schlüssel gibt und was sie tun</summary><ul class="hint">
+      <li><b>Steam:</b> die Wunschliste lässt sich abschalten, dann zählt am PC nur gg.deals. Den Schlüssel gibt es kostenlos unter steamcommunity.com/dev/apikey (als Domain genügt „localhost“, Steam prüft sie nicht; den Schlüssel niemandem geben, widerrufen geht dort jederzeit); im Profil müssen die Spieldetails öffentlich sein. Ohne Schlüssel liest das Tool nur die Wunschliste. Neue Apps prüft es im Store auf VR (40 je Abgleich).</li>
+      <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
+      <li><b>IGDB:</b> Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (dev.twitch.tv, Anwendung registrieren); derselbe Schlüssel wie im eShopKompass geht.</li>
+      <li><b>Nexus Mods:</b> mit dem persönlichen Schlüssel (im Nexus-Konto unter Einstellungen, API Keys) fragt das Tool als dein Konto mit eigenen Grenzen.</li>
+      <li><b>IsThereAnyDeal:</b> in den Einzelheiten unter „Läden“ und in Jetzt, PC zum Bündeln nach Laden. Den Schlüssel gibt es kostenlos: auf isthereanydeal.com anmelden, unter My Apps eine App anlegen, den API-Schlüssel hier einfügen. Keyshops kommen weiter von gg.deals.</li>
+      <li><b>Sharenite:</b> übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
+    </ul></details>
     <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server (settings.json im Datenordner), stehen nicht in der Sicherung und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
 }
 function wishMoves(p){
@@ -2288,9 +2298,10 @@ document.addEventListener("click", async ev => {
   }
   else if(a === "ownok"){
     const k = el.dataset.k;
-    const res = await api("/api/retro/own", k ? {key: k} : {all: true});
+    const take = el.dataset.take === "1";
+    const res = await api("/api/retro/own", Object.assign(k ? {key: k} : {all: true}, take ? {take: true} : {}));
     C = res.collection; S.retro_own = res.retro_own;
-    toast(k ? "Deine Liste gilt" : "Deine Liste gilt für alle");
+    toast(take ? (k ? "Das Genre der Quellen gilt" : "Das Genre der Quellen gilt für alle") : k ? "Deine Liste gilt" : "Deine Liste gilt für alle");
     render();
   }
   else if(a === "steamwrong"){

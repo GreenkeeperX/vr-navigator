@@ -1761,7 +1761,13 @@ class TestSync(unittest.TestCase):
         self.assertEqual(retro.own_list(col)[0]["diff"][0]["src"], "libretro und IGDB")
         party = {"own": {"genre": "Party & Minispiele"}, "lr": {"genre": ["Board"]}, "igdb": {"genres": ["Board game"]}}
         self.assertEqual(retro.own_conflicts(party), [])
-        retro.settle_own(col, "retro:gba:moon rover")
+        # 0.9.6 „Quellen gelten“: das Genre von libretro und IGDB statt deinem, deins steht nur noch in den Einzelheiten
+        retro.settle_own(col, "retro:gba:moon rover", take=True)
+        self.assertEqual(retro.own_list(col), [])
+        m = {r["key"]: r for r in collection.view(col)["games"]}["retro:gba:moon rover"]
+        self.assertEqual((m["own_taken"], m["genres"][0], "Puzzle" in m["genres"], "own_diff" in m), ("Puzzle", "Rennen", False, False))
+        retro.settle_own(col, "retro:gba:moon rover")                       # „deins gilt“ wieder
+        self.assertNotIn("own_taken", {r["key"]: r for r in collection.view(col)["games"]}["retro:gba:moon rover"])
         self.assertEqual(retro.own_list(col), [])
         with self.assertRaises(ValueError):
             retro.settle_own(col, "retro:gba:orbit golf")
