@@ -243,6 +243,12 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
+- VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): Spiel, Wo, Meta, Steam, zum Bestpreis,
+  Wertung (mit Trend), Spieler, Update. Preise mit Rabattmarke (`vrPrice`, `.b.deal` klein) als Link zum Laden,
+  Bestpreis und Shop im Tooltip. „am Bestpreis“ grün (`.g-buy`, ≈ bei übernommenem Bestpreis), sonst rot der
+  Abstand (`.over`). Am Namen kurze Marken (`badges(r, true)`: ohne „ohne Crossbuy“, Liste als „keine Liste“ oder
+  „fehlt: Meta“). Klick auf den Namen (`V.vwOpen`) zeigt die Karte (`wishRow(r, true)`, ohne Namenskopf) als
+  Einzelheiten. Eine Sache, mehrere Orte: Zeilen der VR-Wünsche ändern sich in `vrRow` für Wunschliste und Jetzt.
 
 ## Sammlung, ab 0.8.7
 

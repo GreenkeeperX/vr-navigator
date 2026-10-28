@@ -187,21 +187,29 @@ function render(anchor){
    sie violett daneben. „ohne Crossbuy“ ist eine Eigenschaft, kein Fehler: grau. */
 const CB_FROM = {Hand: "von dir eingetragen", VRDB: "laut VRDB (Angabe im Meta Store)",
   Tabelle: "aus deiner Vergleichstabelle, noch nicht von VRDB bestätigt", Recherche: "aus der Recherche, nicht geprüft"};
-function badges(r){
+function badges(r, compact){
   const out = [];
   if(r.where === "meta" || r.where === "beide") out.push(`<span class="b" title="Im Meta Store gekauft">Meta</span>`);
   if(r.where === "pc" || r.where === "beide") out.push(`<span class="b" title="In Playnite (PC)">${esc(r.pc_label || "PC")}</span>`);
   if(r.crossbuy != null){
     const s = r.crossbuy_src, mark = s === "Tabelle" ? " · Tabelle" : s === "Recherche" ? " ≈" : "", from = CB_FROM[s] ? ` (${CB_FROM[s]})` : "";
+    // In der Tabelle (0.8.22) nur „Crossbuy“; „ohne Crossbuy“ steht in den Einzelheiten
     out.push(r.crossbuy ? `<span class="b go" title="Spricht für Meta: der Kauf gilt auch für die PC-Fassung (Rift)${from}">Crossbuy${mark}</span>`
-      : `<span class="b" title="Der Meta-Kauf gilt nur auf der Quest${from}">ohne Crossbuy${mark}</span>`);
+      : compact ? "" : `<span class="b" title="Der Meta-Kauf gilt nur auf der Quest${from}">ohne Crossbuy${mark}</span>`);
     if(r.crossbuy_other) out.push(`<span class="b warn" title="Die Quellen widersprechen sich; es gilt ${esc(s)}">${esc(r.crossbuy_other)}</span>`);
   }
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
   out.push(wheelBadge(r.wheel));
-  out.push(wishListBadge(r));
+  out.push(compact ? wishListShort(r) : wishListBadge(r));
   return out.filter(Boolean).join(" ");
+}
+// Kurzform für die Tabelle (0.8.22); die Marke mit den Links zum Nachtragen steht in den Einzelheiten
+function wishListShort(r){
+  if(!r.wish || r.where) return "";
+  const miss = r.wish_missing || [];
+  if(!r.wish_src?.length) return `<span class="b warn" title="Steht auf keiner Wunschliste eines Ladens; Links zum Nachtragen in den Einzelheiten">keine Liste</span>`;
+  return miss.length ? `<span class="b warn" title="Fehlt auf deiner Wunschliste dort; Links zum Nachtragen in den Einzelheiten">fehlt: ${miss.map(m => m === "meta" ? "Meta" : "PC").join(", ")}</span>` : "";
 }
 /* Wie im eShopKompass: Steht ein Wunschtitel auf keiner Wunschliste eines Ladens, oder fehlt er
    in einem Laden, der ihn führt, sagt es eine Marke, und „+ Meta“ / „+ gg.deals“ öffnen die Seite,
@@ -398,9 +406,9 @@ function vrWishView(){
     lc("off") && `${lc("off")} im Laden noch gewünscht`, lc("missing") && `${lc("missing")} fehlen auf einer Laden-Wunschliste`, lc("table") && `${lc("table")} nur aus der Tabelle`].filter(Boolean).join(", ")}.
     <button class="link" data-act="golists">ansehen</button></div>` : "";
   return hint + (V.add ? add : "") + head +
-    (!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`
-      : grp("w-open", "Noch nicht im Besitz", open.length, `<div class="list">${open.map(r => wishRow(r)).join("")}</div>`) +
-        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, `<div class="list">${owned.map(r => wishRow(r)).join("")}</div>`, true));
+    (!rows.length ? `<p class="hint">Kein Treffer.</p>` : !ow ? vrTable(open)
+      : grp("w-open", "Noch nicht im Besitz", open.length, open.length ? vrTable(open) : `<p class="hint">Kein Treffer.</p>`) +
+        grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, owned.length ? vrTable(owned) : "", true));
 }
 // Sortierschlüssel: wie nah der günstigere Shop am Bestpreis beider Läden liegt (1 = am Bestpreis)
 function nearBest(r){
@@ -515,11 +523,51 @@ function buyHtml(r){
   const order = b.shop === "steam" ? ["steam", "meta"] : ["meta", "steam"];
   return `<div class="facts wbl">${fact("Wo", order.map(part).filter(Boolean).join(" · "), "Gründe je Laden; der mit mehr Gewicht gewinnt, bei Gleichstand ist es egal")}</div>`;
 }
-function wishRow(r){
-  return `<div class="item wi"><div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}</div>
+function wishRow(r, inTable){
+  const marks = inTable ? [r.crossbuy === false && badges(Object.assign({}, r, {wish: false, wheel: null, where: "", bundle: false, steam_sure: true})), wishListBadge(r)].filter(Boolean).join(" ") : "";
+  return `<div class="item wi${inTable ? " vw" : ""}">${inTable ? (marks ? `<div class="hd">${marks}</div>` : "") : `<div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}</div>`}
     ${shopsHtml(r) || sheetHtml(r)}<div class="side">${buyHtml(r)}${factsHtml(r)}${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
+}
+
+/* Tabelle der VR-Wünsche (0.8.22, Entscheidung 28.10.2026): eine Zeile je Titel wie bei den PC-Wünschen, die Karte
+   von bisher steht als Einzelheiten unter dem Namen. Spalten: Wo (Urteil „wo kaufen“), Preis bei Meta und Steam (Links,
+   Rabatt und Bestpreis des Ladens im Tooltip), zum Bestpreis beider Läden („am Bestpreis“ grün, sonst rot der Betrag),
+   Wertung (die bessere, mit Trend), Steam-Spieler jetzt, letztes Update */
+const VR_COLS = "minmax(160px,2fr) 112px 96px 96px 100px 62px 58px 62px";
+function vrTable(rows){
+  const head = `<div class="gr nph"><span>Spiel</span><span title="Wo kaufen, aus dem Gemessenen; Gründe im Tooltip und in den Einzelheiten">Wo</span><span class="r" title="Preis jetzt im Meta Store">Meta</span><span class="r" title="Preis jetzt bei Steam; günstigere Angebote bei gg.deals in den Einzelheiten">Steam</span><span class="r" title="Abstand des günstigeren Ladens zum Bestpreis beider Läden">zum Bestpreis</span><span class="r" title="Die bessere Wertung von Meta und Steam; Pfeil: Trend der letzten 30 Tage bei Steam">Wertung</span><span class="r" title="Steam-Spieler gerade eben">Spieler</span><span class="r" title="Letztes Steam-Update laut Entwickler">Update</span></div>`;
+  return `<div class="glist box vwl" style="--gcols:${VR_COLS}">${head}${rows.map(vrRow).join("")}</div>`;
+}
+function vrPrice(r, k){
+  const v = r.live[k], b = r.best?.[k];
+  if(!v) return "";
+  const tip = [`${SHOP[k]} jetzt ${eur(v.price)}`, v.discount && `−${v.discount} %${v.kind === "coupon" ? " mit Gutschein" : ""}, Normalpreis ${eur(v.base || v.price)}`,
+    v.until && `Angebot ${until(v.until)}`, b && !b.thin && b.best != null && `${SHOP[k]}-Tief ${eur(b.best)}${b.src ? " ≈" : ""}`, v.stale && `Stand ${ago(v.at)}, Abruf prüfen`].filter(Boolean).join("\n");
+  return `${v.discount ? `<span class="b deal">−${v.discount} %</span> ` : ""}${extLink(linkOf(r, SHOP[k]), v.stale ? `<span class="gxc">${eur(v.price)}</span>` : eur(v.price), tip)}`;
+}
+function vrRow(r){
+  const open = V.vwOpen === r.key, L = r.live, A = r.best_all;
+  const cell = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
+  const now = ["meta", "steam"].filter(k => L[k]).map(k => [L[k].price, k]).sort((a, b) => a[0] - b[0])[0];
+  let gap = "";
+  if(now && A?.best != null){
+    const tip = `Bestpreis beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? ` (${A.src})` : ""}; jetzt am günstigsten ${SHOP[now[1]]} ${eur(now[0])}`;
+    gap = now[0] <= A.best * 1.02 + 0.005 ? `<span class="g-buy" title="${esc(tip)}">${A.src ? "≈ " : ""}am Bestpreis</span>`
+      : `<span class="over" title="${esc(tip + ` (+${A.best > 0 ? Math.round((now[0] - A.best) / A.best * 100) : 0} %)`)}">+${eur(Math.round((now[0] - A.best) * 100) / 100)}</span>`;
+  }
+  const rt = r.rating || {}, m = rt.meta, st = rt.steam;
+  const rtip = [m && `Meta: ${m.pos != null ? m.pos + " % (4 und 5 Sterne, VRDB)" : `≈ ${Math.round(m.stars * 20)} % (${String(m.stars).replace(".", ",")} Sterne)`}`,
+    st && (st.pct != null ? `Steam: ${st.pct} % positiv (${num(st.n)})` : `Steam: erst ${num(st.n)} Rezensionen`), st?.trend && trendTip(st.trend)].filter(Boolean).join("\n");
+  const score = rt.score != null ? gScore(rt.score, rtip) + trendMark(st?.trend) : "";
+  const p = r.measured?.players, u = r.measured?.update;
+  const pl = p && p.now != null ? `<span title="${esc(`Gerade eben (${when(p.at)}); Spitze ${num(p.peak || p.now)} seit ${day(p.since)}`)}">${num(p.now)}</span>` : "";
+  const up = u ? `<span class="${u.care?.state === "stale" ? "hint" : ""}" title="${esc(`${day(u.date)}: ${u.title}${u.care?.state === "stale" ? "\nÜber ein Jahr ohne Update" : ""}`)}">${short(agoDays(u.date))}</span>` : "";
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="vwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${badges(r, true)}</span>` +
+    cell("Wo", buyBadge(r)) + cell("Meta", vrPrice(r, "meta"), "r") + cell("Steam", vrPrice(r, "steam"), "r") + cell("zum Bestpreis", gap, "r") +
+    cell("Wertung", score, "r") + cell("Spieler", pl, "r") + cell("Update", up, "r") + `</div>` +
+    (open ? `<div class="gd vwd" style="--dcols:minmax(0,1fr)">${wishRow(r, true)}</div>` : "");
 }
 
 /* ---------------------------------------------------------------- Sammlung
@@ -1314,9 +1362,8 @@ function nowView(){
   const kb = (v, l, n, cls, tip) => `<button role="tab" aria-selected="${kind === v}" data-act="nowk" data-v="${v}" class="${cls}${kind === v ? " on" : ""}" title="${tip}">${l} <span class="n">${n}</span></button>`;
   const tabs = `<div class="systabs" role="tablist" aria-label="Welche Wünsche">${kb("", "Alle", S.now.length + pcAll.length, "", "VR- und PC-Wünsche")}${kb("pc", "PC", pcAll.length, "fam-pc", "PC-Wünsche von gg.deals nah am bisherigen Tief")}${kb("vr", "VR", S.now.length, "fam-vr", "VR-Wünsche bei Meta und Steam")}</div>`;
   const vr = `<p class="hint">VR: Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Bestpreis beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
-    <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}</div>
-    ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length,
-      `<div class="list">${far.filter(r => match(r)).map(r => wishRow(r)).join("")}</div>`, true) : ""}`;
+    ${rows.length ? vrTable(rows) : `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}
+    ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
   const pcPart = `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
   return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"]}) +
@@ -1818,6 +1865,7 @@ document.addEventListener("click", async ev => {
     if(gd){ const r = gd.getBoundingClientRect(); if(r.bottom > innerHeight) scrollBy(0, Math.min(r.bottom - innerHeight + 12, r.top - 120)); }
   }
   else if(a === "pwopen"){ V.pwOpen = V.pwOpen === el.dataset.s ? null : el.dataset.s; render(); }
+  else if(a === "vwopen"){ V.vwOpen = V.vwOpen === el.dataset.s ? null : el.dataset.s; render(); }
   else if(a === "nowk"){ V.nowKind = v || ""; render(); }
   else if(a === "gdesc"){ if(String(getSelection() || "").trim()) return; V.gDesc = V.gDesc === el.dataset.s ? null : el.dataset.s; render(); }
   else if(a === "gall"){ V.gAll = !!v; V.gShut.clear(); V.gOpen = null; render(); }

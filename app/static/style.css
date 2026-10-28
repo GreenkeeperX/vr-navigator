@@ -203,6 +203,10 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .item .hd .nm{flex:0 1 auto;min-width:0}
 .item.wi{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
 .item.wi>.side:empty{display:none}
+.gd.vwd{padding:6px 0 10px}
+.item.wi.vw{border:0;background:transparent;padding:0}
+.vwl .vd.wb{font-size:11px;white-space:nowrap}
+.vwl .b.deal{font-size:10px;padding:0 4px}
 @media (min-width:900px){
   .item.wi{grid-template-columns:minmax(0,560px) minmax(0,1fr);column-gap:24px;align-items:start}
   .item.wi>.hd,.item.wi>details.more{grid-column:1/-1}
