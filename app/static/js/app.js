@@ -1619,7 +1619,7 @@ function settingsView(){
         <button data-act="merge" data-a="${esc(x.a)}" data-b="${esc(x.b)}" title="Ein Eintrag mit diesem Namen">„${esc(x.a_name)}“</button>
         <button data-act="merge" data-a="${esc(x.b)}" data-b="${esc(x.a)}" title="Ein Eintrag mit diesem Namen">„${esc(x.b_name)}“</button>
         oder <button data-act="notsame" data-a="${esc(x.a)}" data-b="${esc(x.b)}">Verschieden</button></span></div>`).join("")}</div>`;
-  const steamTodo = todo.filter(x => x.kind === "steam"), metaTodo = todo.filter(x => x.kind === "meta");
+  const steamTodo = todo.filter(x => x.kind === "steam"), metaTodo = todo.filter(x => x.kind === "meta"), opTodo = todo.filter(x => x.kind === "opinion").sort((x, y) => (y.row?.added || "").localeCompare(x.row?.added || ""));
   const steamList = `<p class="hint">Diese Steam-IDs stammen nur aus einem Namen, und die Prüfung im Steam-Store hat sie nicht bestätigt.</p>
     <div class="list">${steamTodo.map(x => `<div class="item"><span class="nm">${esc(x.name)} <a href="https://store.steampowered.com/app/${esc(x.steam_appid)}/" target="_blank" rel="noopener noreferrer">Steam ${esc(x.steam_appid)}</a></span>
       <span class="row2"><span class="hint">${esc(x.why)}</span>
@@ -1630,6 +1630,12 @@ function settingsView(){
       <span class="row2"><span class="hint">${esc(x.why)}${x.row?.origin?.length ? `. Herkunft: ${originText(x.row)}` : ""}</span>
         <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
+  // Meinung fehlt (0.9.2): Wünsche ohne Recherche; der Auftrag geht an eine Claude-Routine, die Antwort kommt über Einlesen zurück
+  const opList = `<p class="hint">Für diese VR-Wünsche fehlt noch die Recherche, ob Meta oder Steam die bessere Wahl ist. „Auftrag kopieren“ nimmt bis zu ${S.opinion_batch || 25} davon mit Kennungen und dem verlangten Aufbau; füg ihn in deine Claude-Routine oder einen Chat ein und lies die Antwort unter Einlesen, „Datei oder Text“ ein. Danach verschwinden die Titel von hier.</p>
+    <div class="bar"><button class="primary" data-act="opcopy" title="Die zuletzt gewünschten zuerst; nach dem Einlesen der Antwort kommen die nächsten">Auftrag kopieren${opTodo.length > S.opinion_batch ? ` (${S.opinion_batch} von ${opTodo.length})` : ""}</button></div>
+    <div class="list">${opTodo.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
+      <span class="row2"><span class="hint">${[x.meta_id && "Meta", x.steam_appid && "Steam"].filter(Boolean).join(" und ") || "ohne Kennung"}</span>
+        ${(x.row?.links || []).filter(l => l.label === "Reddit" || l.label === "Google").map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(" ")}</span></div>`).join("")}</div>`;
   // PC-Wunschliste (0.8.24): Steam-ID nur nach der Grundform des Namens, oder mehrere Vorschläge zur Wahl
   const sLink = (id, name) => `<a href="https://store.steampowered.com/app/${esc(id)}/" target="_blank" rel="noopener noreferrer">${esc(name || "Steam " + id)}</a>`;
   const pcIdList = `<p class="hint">Für diese PC-Wünsche fand die Steam-Suche keinen genau gleichen Namen. Ohne Steam-ID gibt es keine Preise, Wertung und Spielinfos. „passt“ oder ein Vorschlag übernimmt die ID; „keins“ verwirft die Vorschläge, sie kommen nicht wieder.</p>
@@ -1658,6 +1664,7 @@ function settingsView(){
     ${sug ? sub("sug", "Derselbe Titel?", `${tn(S.suggestions.length)} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
     ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", tn(steamTodo.length), steamList) : ""}
     ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}
+    ${opTodo.length ? sub("optodo", "Meinung fehlt", tn(opTodo.length), opList) : ""}
     ${pcIds.length ? sub("pcids", "PC-Wunsch: Steam-ID", tn(pcIds.length), pcIdList) : ""}
     ${near.length ? sub("retronear", "Retro: ähnlicher Name", tn(near.length), nearList) : ""}
     ${rown.length ? sub("retroown", "Retro: Genre weicht von deiner Liste ab", tn(rown.length), ownList) : ""}`) : "";
@@ -2064,6 +2071,7 @@ document.addEventListener("click", async ev => {
   if(!el) return;
   const a = el.dataset.act, v = el.dataset.v;
   if(a === "nobm"){ ev.preventDefault(); toast("Bitte in die Lesezeichenleiste ziehen, nicht anklicken"); return; }
+  if(a === "opcopy"){ copyNow(S.opinion_task || ""); toast("Auftrag kopiert. In die Routine einfügen, die Antwort unter Einlesen, „Datei oder Text“"); return; }
   if(a === "bmcopy"){ copyNow(metaBm()); toast("Code kopiert. Jetzt ein Lesezeichen anlegen und den Code als Adresse einfügen"); return; }
   if(a === "thm") themeMenu($("thmMenu").hidden);
   else if(a === "thmset") setTheme(v);

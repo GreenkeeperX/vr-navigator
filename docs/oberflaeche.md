@@ -231,6 +231,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - „Zu erledigen“, Gruppe „PC-Wunsch: Steam-ID“ (0.8.24, `pcwish_ids`): übernommene ID nach der Grundform mit Link zur
   Steam-Seite und „passt“, „falsch“; sonst Vorschläge mit Link und „dieses“, dazu „keins“. In der Wunschliste PC am
   Namen „Steam-ID ≈“ (`.b.warn`, Steam-Name im Tooltip), solange nicht bestätigt.
+- „Zu erledigen“, Gruppe „Meinung fehlt“ (0.9.2, `todo` mit kind `opinion`): VR-Wünsche ohne Recherche, die zuletzt gewünschten oben (in dieser Reihenfolge nimmt sie der Auftrag), je Titel
+  welche Kennungen da sind und Links zu Reddit und Google; oben „Auftrag kopieren“ (`opcopy`, Text aus `opinion_task`).
 - „Zu erledigen“, Gruppe „Retro: ähnlicher Name“ (0.8.4): je Spiel System, ähnlicher Titel der Fassungsliste,
   Knöpfe „dasselbe“ und „anderes“. Sprachen eines 3DS-Spiels über den Produktcode sind nicht violett; der
   Tooltip nennt „laut No-Intro“ und die Fassung.

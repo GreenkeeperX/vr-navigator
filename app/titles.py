@@ -522,7 +522,8 @@ def set_bundle(data, key, items):
 def todo(data):
     """Was das Tool nicht selbst klären konnte, je Titel mit Grund: Steam-IDs, die die Prüfung
     nicht bestätigt hat, und Titel, die QuestStoreDB unter keinem ihrer Namen fand (Meta-Käufe
-    ohne Meta-ID und Titel ganz ohne Kennung)."""
+    ohne Meta-ID und Titel ganz ohne Kennung). Ab 0.9.2 dazu Wünsche ohne recherchierte Meinung
+    (kind "opinion"), für den Auftrag an die Recherche (imports.opinion_task)."""
     out = []
     for k, t in data["titles"].items():
         if t.get("steam_appid") and not t.get("steam_sure") and t.get("steam_doubt"):
@@ -535,6 +536,9 @@ def todo(data):
                 why = "Bundle: " + why + ". Trag die enthaltenen Spiele einzeln ein oder die Meta-ID des Bundles"
             out.append({"key": k, "name": t["name"], "kind": "meta", "why": why,
                         "owned_meta": bool((t.get("owned") or {}).get("meta"))})
+        if t.get("wish") and not t.get("opinion") and not t.get("contains"):
+            out.append({"key": k, "name": t["name"], "kind": "opinion", "meta_id": t.get("meta_id") or "",
+                        "steam_appid": t.get("steam_appid") or "", "why": "noch keine Meinung recherchiert"})
     return sorted(out, key=lambda x: (x["kind"] != "steam", norm(x["name"])))
 
 

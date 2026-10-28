@@ -380,6 +380,34 @@ class TestImports(unittest.TestCase):
         st = lists.stale(d, datetime(2026, 10, 22, tzinfo=timezone.utc))
         self.assertEqual([x["src"] for x in st], ["meta"])
 
+    def test_opinion_todo(self):
+        """Meinung fehlt (0.9.2): Wünsche ohne Recherche in „Zu erledigen“, der Auftrag nennt sie mit Kennungen
+        und dem Aufbau der Antwort; nach dem Einlesen der Antwort sind sie weg."""
+        d = empty()
+        a, _ = titles.upsert(d, "Harbor Heist", meta_id="1234567890123456", steam_appid="3000040")
+        b, _ = titles.upsert(d, "Rally Moth")
+        c, _ = titles.upsert(d, "Night Tram", steam_appid="3000041")
+        d["titles"][a]["wish"] = d["titles"][b]["wish"] = True
+        ops = [x for x in titles.todo(d) if x["kind"] == "opinion"]
+        self.assertEqual([x["key"] for x in ops], [a, b])
+        self.assertEqual((ops[0]["meta_id"], ops[0]["steam_appid"]), ("1234567890123456", "3000040"))
+        task = imports.opinion_task(d, "2026-10-28")
+        self.assertIn('"meta_id": "1234567890123456"', task)
+        self.assertIn('"name": "Rally Moth"', task)
+        self.assertNotIn("Night Tram", task)
+        self.assertIn('"app": "vr-navigator-meinungen", "stand": "2026-10-28"', task)
+        self.assertIn("crossplay", task)
+        d["titles"][a]["added"], d["titles"][b]["added"] = "2026-01-05", "2026-10-27"
+        self.assertIn("Rally Moth", imports.opinion_task(d, limit=1))
+        self.assertNotIn("Harbor Heist", imports.opinion_task(d, limit=1))
+        # Die Antwort im verlangten Aufbau geht durch den Import
+        doc = {"app": "vr-navigator-meinungen", "stand": "2026-10-28", "titles": [
+            {"name": "Harbor Heist", "meta_id": "1234567890123456", "steam_appid": "3000040", "fazit": "Gut.", "fassung": "gleich"},
+            {"name": "Rally Moth", "fazit": "Kurz."}]}
+        imports.import_auto(d, json.dumps(doc), dry=False)
+        self.assertEqual([x for x in titles.todo(d) if x["kind"] == "opinion"], [])
+        self.assertEqual(imports.opinion_task(d), "")
+
     def test_opinion_crossbuy_needs_evidence(self):
         """Crossbuy gilt nur im Meta Store: eine Begründung mit Steam, Crossplay oder der eigenen
         Zuordnung ist kein Beleg und fällt weg; Crossplay steht als eigenes Feld."""

@@ -1,5 +1,15 @@
 # Meinungen-Datei
 
+## Auftrag (ab 0.9.2)
+
+Unter Einstellungen, „Zu erledigen“, stehen in „Meinung fehlt“ die VR-Wünsche ohne Recherche.
+„Auftrag kopieren“ legt einen Text in die Zwischenablage: was zu recherchieren ist (Meta oder Steam,
+Mehrspieler, Pflege, Crossbuy), die Titel mit Meta-ID und Steam-App-ID und der Aufbau der Antwort
+unten; höchstens 25 Titel je Auftrag, die zuletzt gewünschten zuerst, damit ein Lauf gründlich bleibt. Nach dem
+Einlesen kommen die nächsten. Den Text in eine Claude-Routine oder einen Chat mit Websuche einfügen (Entscheidung 28.10.2026: Recherche per Routine,
+nicht über eine Schnittstelle im Tool); die Antwort als Datei oder Text einlesen. Das Tool selbst
+ruft dafür nichts ab.
+
 Recherchierte Meinungen (Reddit, Foren, Tests) kommen als JSON-Datei ins Tool, über
 Einstellungen → Einlesen → „Datei oder Text“. Das Tool erkennt sie an `"app":
 "vr-navigator-meinungen"`, zeigt erst eine Vorschau und ordnet nur Titel zu, die es schon
