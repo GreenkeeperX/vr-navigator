@@ -131,7 +131,7 @@ def _near(r):
 
 
 # Spielinfos eines VR-Titels (0.9.4), ohne Beschreibung, damit der Stand klein bleibt
-INFO = ("genres", "gc", "gx", "mp", "mpc", "players", "pl_src", "hours", "hours_all", "hours_src", "year", "year_src",
+INFO = ("genres", "gc", "gx", "mp", "mpc", "players", "pl_src", "plm", "hours", "hours_all", "hours_src", "year", "year_src",
         "dev", "pub", "ig", "src", "srcs", "iname")
 
 

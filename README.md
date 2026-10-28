@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.4:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.5:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -390,7 +390,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Spielzeit, max. Spieler, Aktiv, Sprache, Launcher oder System, Jahr ganz rechts. Wunschliste PC: Preis und zum Tief
   vorn; Wunschliste VR: Wo, Meta, Steam und zum Bestpreis vorn, dahinter Wertung, Rezensionen, Aktiv, Update; Reiter VR:
   Wertung, Rezensionen, Aktiv, Update, Crossbuy, Besitz, Recherche; Switch: Wertung, Genre, Spielzeit, max. Spieler, Jahr.
-  Mehrspieler ist keine Spalte mehr: die Arten stehen im Tooltip von „max. Spieler“ (ohne Zahl „2+“, laut Steam ohne
+  Mehrspieler ist keine Spalte mehr: die Arten stehen im Tooltip von „max. Spieler“ (ohne Zahl ab 0.9.5 „–“, vorher „2+“, laut Steam ohne
   Mehrspieler „1“), in den Einzelheiten und im Filter Mehrspieler (auch in der Wunschliste PC). „Aktiv“ heißt überall
   die Zahl der Steam-Spieler gerade eben, für PC-Spiele (Wunschliste, Sammlung) wöchentlich gemessen. Der Reiter VR
   zeigt die Wertung der Fassung, die du besitzt (bei beiden die bessere); ist die andere mindestens 8 Punkte besser,
@@ -507,9 +507,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   frei). Ein Klick auf den Namen klappt die Einzelheiten auf: Die Genres der Zeile laufen nach
   unten weiter (Name und Spalten bleiben dabei, wo sie sind), darunter steht nur, was keine Spalte
   zeigt: bei Steam-Spielen die Wertung als Zahl wie im eShopKompass („Steam 97 % · Metacritic 96“,
-  Steams Worte und die Zahl der Rezensionen im Tooltip; 0.7.2), das genaue Erscheinen (Entwickler und Verlag im Tooltip) und die Sprachen („Deutsch
-  und 12 weitere Sprachen“, rot „ohne Deutsch“), bei Retro-Spielen Sprachen, gesuchte Fassung und
-  Dateien; unter Mein Stand die Kurzbeschreibung aus dem Steam-Store auf Deutsch (0.7.1; vier
+  Steams Worte und die Zahl der Rezensionen im Tooltip; 0.7.2), das genaue Erscheinen (Entwickler und Verlag im Tooltip), ab 0.9.5 „Spieler“ je Art mit
+  der höchsten Zahl („Online bis 8 · Koop online bis 4 · Lokal bis 4“, aus IGDB und PCGamingWiki; vorher
+  „Mehrspieler“), bei Retro-Spielen gesuchte Fassung und Dateien. Sprachen stehen ab 0.9.5 nur, wenn Deutsch fehlt,
+  klein unten als „ohne Deutsch“ (die Sprachen im Tooltip), wie in den Nintendo-Reitern; unter Mein Stand die Kurzbeschreibung aus dem Steam-Store auf Deutsch (0.7.1; vier
   Zeilen, ein Klick zeigt alles). „alle aufklappen“ öffnet alle Spiele der Liste, solange es
   höchstens 150 sind (sonst grau, der Tooltip sagt, wie viele es sind; 0.7.4). Die Reiter oben
   zeigen Alle, PC, VR, PlayStation, Nintendo und Weitere (alle übrigen Systeme); ein Klick
@@ -566,8 +567,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Filter und Zufall stehen in der Adresse (`#sammlung?…`, alte Lesezeichen mit `#entdecken?…`
   gelten weiter), eine Mischung lässt sich so als Lesezeichen merken.
   Merkmale stammen aus Playnite: Mehrspieler aus `Features` und Schlagwörtern, die höchste
-  Spielerzahl aus „N Players in Co-Op“ (Splitscreen ohne Zahl: zwei; unbekannt zählt beim
-  Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Launcher, der nur aus der Kennung
+  Spielerzahl aus „N Players in Co-Op“ (ab 0.9.5 ohne geratene Zahl, vorher galt Splitscreen als
+  zwei; unbekannt zählt beim Filter „ab 2“ als zwei), Genres in etwa 20 Gruppen. Ein Launcher, der nur aus der Kennung
   vermutet ist, steht violett. Bei Steam-Spielen gleicht der Abgleich Genres, Mehrspieler-Arten und
   Jahr mit den Steam-Store-Daten ab (80 je Lauf): was Playnite und Steam beide sagen, steht ohne
   Zeichen, was nur eine Quelle sagt, bleibt drin und steht violett, der Tooltip nennt die Quelle

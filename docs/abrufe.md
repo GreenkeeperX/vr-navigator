@@ -223,6 +223,10 @@ Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DA
 wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb` in `collection.json`
 (`none: true` ohne Treffer); ein neuer Playnite-Export und eine neue Retro-Liste behalten es.
 
+Ab 0.9.5 fragt IGDB auch `onlinecoopmax` und `offlinecoopmax` (Koop online und lokal, abgelegt als `coop_on_n`,
+`coop_off_n`). Die knappe Fassung hat dafür `v` 2: Der nächste Abgleich liest alle Spiele neu, die Steam-IDs gebündelt
+in wenigen Anfragen, die Namenssuche wie gewohnt je Lauf begrenzt; bis dahin gelten die alten Einträge.
+
 ## VR-Titel, Spielinfos (ab 0.9.4)
 
 Quelle `vrinfo`, nach `pcinfo`. Für VR-Titel des Tools Genres, Spieler und Erscheinen wie bei der PC-Wunschliste:
@@ -287,13 +291,14 @@ Steam-App der Wunschliste („IsThereAnyDeal, Zuordnung“, „IsThereAnyDeal, P
 
 ## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
 
-Für „VR per Mod“ am PC: nur PC-Spiele, die laut Steam kein VR eingebaut haben. Bekannte Spiele (viele
-Steam-Rezensionen) zuerst.
+Für „VR per Mod“ am PC und ab 0.9.5 für die Spielerzahlen je Art: alle PC-Spiele mit Steam-ID (bis 0.9.4 nur
+die ohne eingebautes VR). Bekannte Spiele (viele Steam-Rezensionen) zuerst. Einträge vor 0.9.5 (`v` 1) liest der
+Abgleich nach und nach neu, 60 je Lauf.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
 | PCGamingWiki, Seite | `https://www.pcgamingwiki.com/api/appid.php?appid=<App-ID>` | je Steam-Spiel, 60 je Lauf (`PCGW_MAX`), nach 90 Tagen neu | Seitenname (Umleitung) |
-| PCGamingWiki, Wikitext | `…/w/api.php?action=parse&page=<Seite>&prop=wikitext&format=json` | je Seite einmal | Vorlage „VR support“: Brillen mit „hackable“ (VR per Mod), „true“ (eingebaut), vorpX |
+| PCGamingWiki, Wikitext | `…/w/api.php?action=parse&page=<Seite>&prop=wikitext&format=json` | je Seite einmal | Vorlage „VR support“: Brillen mit „hackable“ (VR per Mod), „true“ (eingebaut), vorpX; ab 0.9.5 „Network/Multiplayer“: lokal, LAN, online mit Spielerzahl und ob Koop (abgelegt unter `pcgw.mp`, `pl`, `coop`) |
 | Nexus Mods, Spieleliste | `https://api.nexusmods.com/v2/graphql` (POST, `games(count:100, offset)`; Nexus liefert höchstens 80 je Seite, ab 0.8.5 weiter um so viele, wie kamen) | höchstens wöchentlich (`NEXUS_LIST_DAYS`), bis 150 Seiten mit einer Sekunde Pause; abgelegt in `nexus_games.json` | Kürzel, Name und Zahl der Mods je Spiel; Zuordnung lokal über den Namen (auch IGDB-Name, ohne Zusätze wie „Legacy“) |
 | Nexus Mods, Mods | dieselbe Adresse (POST, `mods` nach Kürzel) | je zugeordnetem Spiel, 60 je Lauf (`NEXUS_MAX`), nach 30 Tagen neu | die drei beliebtesten Mods, bis drei Mods mit VR im Namen (ganzes Wort, UEVR, vorpX) |
 
