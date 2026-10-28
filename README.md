@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.22:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.23:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -361,6 +361,15 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
 - **Spaltenreihenfolge** (ab 0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest, rechts das Nachschlagen.
   Sammlung: Spiel, (Sprache bei Retro), Wertung, Genre, Spielzeit, Mehrspieler, Spieler, Jahr, Rezensionen, Launcher;
   Reiter VR: Spiel, Besitz, Meta, Steam, Spieler, Update, Crossbuy, Recherche.
+  Ab 0.8.23 (Entscheidung 28.10.2026) gilt in allen Tabellen eine Reihenfolge: Spiel, Wertung, Rezensionen, Genre,
+  Spielzeit, max. Spieler, Aktiv, Sprache, Launcher oder System, Jahr ganz rechts. Wunschliste PC: Preis und zum Tief
+  vorn; Wunschliste VR: Wo, Meta, Steam und zum Bestpreis vorn, dahinter Wertung, Rezensionen, Aktiv, Update; Reiter VR:
+  Wertung, Rezensionen, Aktiv, Update, Crossbuy, Besitz, Recherche; Switch: Wertung, Genre, Spielzeit, max. Spieler, Jahr.
+  Mehrspieler ist keine Spalte mehr: die Arten stehen im Tooltip von „max. Spieler“ (ohne Zahl „2+“, laut Steam ohne
+  Mehrspieler „1“), in den Einzelheiten und im Filter Mehrspieler (auch in der Wunschliste PC). „Aktiv“ heißt überall
+  die Zahl der Steam-Spieler gerade eben, für PC-Spiele (Wunschliste, Sammlung) wöchentlich gemessen. Der Reiter VR
+  zeigt die Wertung der Fassung, die du besitzt (bei beiden die bessere); ist die andere mindestens 8 Punkte besser,
+  steht sie klein daneben („M 92“). Gleich benannte Spalten sind überall gleich breit.
 - **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern PC und VR (ab 0.8.7 PC zuerst, wie in der
   Sammlung). **PC** spiegelt deine gg.deals-Wunschliste (gepflegt wird sie dort), ab 0.8.7 mit Paketen und DLC
   (Marke „Paket“, „DLC“; Preis über den Link zur Seite bei gg.deals, die API kennt nur Steam-Apps) und ohne die
@@ -384,7 +393,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
   Ab 0.8.22 (Entscheidung 28.10.2026) stehen die VR-Wünsche als Tabelle wie unter PC: Spiel (mit Crossbuy,
   SimRacing und kurz „keine Liste“ oder „fehlt: Meta“), Wo (Urteil „wo kaufen“), Meta, Steam (Preis mit Rabatt,
-  als Link zum Laden), zum Bestpreis (grün „am Bestpreis“, sonst rot der Abstand), Wertung mit Trend, Spieler,
+  als Link zum Laden), zum Bestpreis (grün „am Bestpreis“, sonst rot der Abstand), Wertung mit Trend, Rezensionen, Aktiv (bis 0.8.22 „Spieler“),
   Update. Ein Klick auf den Namen klappt darunter die bisherige Karte als Einzelheiten auf. Jetzt zeigt die
   VR-Angebote in derselben Tabelle.
   Je Titel eine Karte mit festem Aufbau (ab 0.8.22 die Einzelheiten einer Zeile):

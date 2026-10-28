@@ -683,6 +683,12 @@ def view(col, data=None):
                 r["url"] = f"https://store.steampowered.com/app/{g['id']}/"
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
         r["rdesc"] = rev.get("desc") or ""
+        # Aktiv (0.8.23): Steam-Spieler gerade eben; VR-Titel am PC aus der Messung des VR-Titels
+        play = g.get("play") or {}
+        if g.get("src") == PCVR and data is not None:
+            play = (data["titles"].get(g.get("from_vr")) or {}).get("play") or play
+        if isinstance(play.get("now"), int):
+            r["active"] = {"now": play["now"], "at": play.get("at") or ""}
         if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
             # Wertung nur von Steam, sobald genug Rezensionen da sind
             r["score"], r["score_src"] = rev["pct"], "Steam"

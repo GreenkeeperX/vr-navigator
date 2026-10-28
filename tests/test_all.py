@@ -2232,6 +2232,41 @@ class TestSync(unittest.TestCase):
         # ein anderer Name allein reicht ohne alt nicht
         self.assertIsNone(igdb.pick([{"name": "Star Hunters", "alternative_names": [{"name": "Die Sternenjäger"}]}], "Die Sternenjäger"))
 
+    def test_active(self):
+        """Aktiv für PC (0.8.23): Steam-Spieler gerade eben, erst für die PC-Wunschliste, mit dem Rest für die Steam-Spiele
+        der Sammlung; nach ACTIVE_DAYS neu, 404 gilt als gefragt; die Zeilen beider Ansichten bekommen active."""
+        from app import collection, pcwish
+        pcwish.replace([{"slug": "harbor-heist", "name": "Harbor Heist"}], "Datei")
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        pw["items"]["harbor-heist"]["appid"] = "3000101"
+        store.save_json(pcwish.FILE, pw)
+        col = {"games": {"steam:3000301": {"name": "Rally Moth", "system": "PC", "store": "Steam", "id": "3000301"},
+                         "steam:3000302": {"name": "Quiet Lake", "system": "PC", "store": "Steam", "id": "3000302"},
+                         "gog:x": {"name": "Paper Fort", "system": "PC", "store": "GOG", "id": "x"}}}
+        store.save_json(collection.FILE, col)
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            calls.append(url)
+            if "appid=3000302" in url:
+                raise sources.FetchError(url, 404)
+            return '{"response": {"player_count": 17, "result": 1}}'
+        sources.fetch = fake
+        logs = []
+        r = sync._active(logs.append)
+        self.assertTrue(r["ok"])
+        self.assertEqual(len(calls), 3)                             # Wunsch, zwei Steam-Spiele; GOG nicht
+        self.assertIn("Aktive Spieler PC: 1 Wünsche, 2 Spiele der Sammlung, alle aktuell", "\n".join(logs))
+        e = store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["harbor-heist"]
+        self.assertEqual(e["play"]["now"], 17)
+        self.assertEqual(pcwish.view(store.load_data())["rows"][0]["active"]["now"], 17)
+        rows = {x["key"]: x for x in collection.view(store.load_json(collection.FILE, collection.EMPTY))["games"]}
+        self.assertEqual(rows["steam:3000301"]["active"]["now"], 17)
+        self.assertNotIn("active", rows["steam:3000302"])           # 404: keine Zahl, aber gefragt
+        calls.clear()
+        sync._active(logs.append)                                   # alles frisch: kein Abruf
+        self.assertEqual(calls, [])
+
     def test_pcwish_info(self):
         """Spielinfos der PC-Wunschliste (0.8.11): Steam-Details, Rezensionen und IGDB über die Steam-ID, nur für Spiele
         mit Steam-ID; die Zeile bekommt Wertung, Spielzeit, Genre und Spieler nach den Regeln der Sammlung."""

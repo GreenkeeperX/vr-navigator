@@ -341,6 +341,13 @@ Spielerzahl mit 404, hat die App keine (unveröffentlicht, Demo, nie gestartet):
 als Fehler, steht als „Apps ohne Zahl bei Steam“ in der Summenzeile und wird nach 20 Stunden
 wieder gefragt.
 
+## Aktive Spieler PC (Wunschliste PC, Sammlung, ab 0.8.23)
+
+Dieselbe Adresse (`GetNumberOfCurrentPlayers`) für PC-Spiele mit Steam-ID, ohne Schlüssel: je Lauf höchstens 100
+(`ACTIVE_MAX`), zuerst die PC-Wunschliste, mit dem Rest die Steam-Spiele der Sammlung; jedes Spiel nach 7 Tagen
+(`ACTIVE_DAYS`) neu. Abgelegt je Spiel unter `play` (`now`, `at`) in `pcwish.json` und `collection.json`, ohne Spitze.
+404 gilt wie oben als gefragt. VR-Titel am PC nehmen die Messung ihres VR-Titels.
+
 ## Retro-Fassungen (Sammlung)
 
 Nur mit einer Retro-Liste, je System, das darin vorkommt. Ohne Schlüssel, nach VRDB.
