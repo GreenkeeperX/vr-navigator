@@ -637,7 +637,7 @@ def merge_retro(r, g):
             r["gc"] = [mg] + [x for x in (r.get("gc") or []) if x != mg]
         r["own"] = {k: own[k] for k in ("series", "coll", "genre", "sub", "folder", "status", "mb") if own.get(k) not in (None, "")}
         ok = set(g.get("own_ok") or [])
-        diff = [c for c in retro.own_conflicts(g) if retro._conflict_id(c) not in ok]
+        diff = [] if retro.own_conflicts(g) and all(retro._conflict_id(c) in ok for c in retro.own_conflicts(g)) else retro.own_conflicts(g, strict=False)
         if diff:
             r["own_diff"] = [{"own": c[1], "other": c[2], "src": c[3]} for c in diff]
     if g.get("size"):
@@ -670,6 +670,8 @@ def view(col, data=None):
             if (g.get("de") or {}).get("langs"):
                 # 3DS (0.8.4): Sprachen der Fassung laut No-Intro, gefunden über den Produktcode
                 r.update(langs=g["de"]["langs"], lang_guess=False)
+            elif (g.get("de") or {}).get("dat"):
+                r.update(lang_guess=False, lang_dat=True)     # 0.8.12: Datei genau so in der Fassungsliste
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
         if g.get("src") == PCVR:

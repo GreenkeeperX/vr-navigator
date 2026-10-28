@@ -247,6 +247,10 @@ def parse(text):
             stats["systems"][system] = stats["systems"].get(system, 0) + 1
         ext = info["file"].rsplit(".", 1)[-1].casefold()
         g["_ext"][ext] = g["_ext"].get(ext, 0) + 1
+        # 0.8.12: Dateiname ohne Endung, um ihn genau in der Fassungsliste zu finden (Sprachen dann laut No-Intro)
+        stem = info["file"].rsplit(".", 1)[0][:200]
+        if ext != "bin" and stem not in g.setdefault("dumps", []) and len(g["dumps"]) < 8:
+            g["dumps"].append(stem)
         if info.get("size"):
             g["size"] = g.get("size", 0) + info["size"]
         g["regions"] = sorted(set(g["regions"]) | set(info["regions"]))
@@ -470,6 +474,20 @@ def _de_rank(rel):
     return (guess, "(Germany" not in name, "Europe" not in name, len(langs), name)
 
 
+_NAMES = {}     # Namen aller Fassungen einer Liste, nur im Speicher: {id(Index): (Index, Namen)}
+
+
+def _names(idx):
+    hit = _NAMES.get(id(idx))
+    if hit and hit[0] is idx:
+        return hit[1]
+    names = {r[0] for r in idx.get("rel") or []}
+    if len(_NAMES) > 40:
+        _NAMES.clear()
+    _NAMES[id(idx)] = (idx, names)
+    return names
+
+
 def match(g, idx):
     """Gab es das Spiel mit Deutsch? {"st": have (deine Datei hat Deutsch), missing (es gab eine
     Fassung mit Deutsch, deine hat keins; alt: die gesuchte Fassung), none (keine deutsche Fassung
@@ -484,8 +502,12 @@ def match(g, idx):
         langs = [x for x in idx["rel"][si][1].split(",") if x]
         if langs and not idx["rel"][si][2]:
             exact = {"langs": langs, "rel": idx["rel"][si][0][:200]}
+    # 0.8.12: Steht eine deiner Dateien genau so in der Fassungsliste, gelten ihre Sprachen laut No-Intro (dort fehlt die
+    # Angabe nur, wenn die Fassung allein die Sprache ihrer Region hat); sonst bleiben sie aus der Region geschätzt
+    if not exact and g.get("lang_guess") and g.get("dumps") and set(g["dumps"]) & _names(idx):
+        exact = {"dat": True}
     mine = g.get("langs") or []
-    if ("De" in mine and not g.get("lang_guess")) or "De" in (exact["langs"] if exact else mine):
+    if ("De" in mine and (not g.get("lang_guess") or exact.get("dat"))) or "De" in (exact.get("langs") or mine):
         return dict({"st": "have"}, **exact)
     code = _serial_code(g.get("serial"))
     r = (idx.get("code") or {}).get(code) if code else None
@@ -798,20 +820,30 @@ def own_genre(g):
     return OWN_GENRE.get(((g.get("own") or {}).get("genre") or "").casefold())
 
 
-def own_conflicts(g):
-    """Wo eine andere Quelle beim Genre deiner Ordner-Liste widerspricht: [(Feld, deins, anderes, Quelle)]. Nur, wenn
-    keine nahe Genre-Gruppe übereinstimmt. Einen anderen Titel (etwa deinen deutschen) zeigen die Einzelheiten,
-    er ist kein Widerspruch."""
+def own_conflicts(g, strict=True):
+    """Wo andere Quellen beim Genre deiner Ordner-Liste widersprechen: [(Feld, deins, anderes, Quelle)]. Nur, wenn keine
+    nahe Genre-Gruppe übereinstimmt. Einen anderen Titel (etwa deinen deutschen) zeigen die Einzelheiten, er ist kein
+    Widerspruch.
+
+    Ab 0.8.12 (Entscheidung 28.10.2026, nach Durchsicht aller Fälle): Deine Ordner sortieren oft nach Reihe, Lizenz oder
+    Sammlung von Minispielen, die Genres der anderen Quellen kommen in der Zeile ohnehin dazu. Für „Zu erledigen“ (strict)
+    zählt deshalb nur, was libretro und IGDB beide anders sagen und worin sie sich einig sind; „Party & Minispiele“
+    widerspricht nie. Ohne strict jede einzelne Abweichung, für die Einzelheiten."""
     from . import collection
     own = g.get("own") or {}
-    out = []
     mine = _fam([own_genre(g)])
-    if mine:
-        for src, raw in (("libretro", (g.get("lr") or {}).get("genre") or []), ("IGDB", (g.get("igdb") or {}).get("genres") or [])):
-            other = _fam(collection.genres(raw, []))
-            if other and not other & mine:
-                out.append(("genre", own["genre"], ", ".join(raw), src))
-    return out
+    if not mine or "party" in mine:
+        return []
+    other = []
+    for src, raw in (("libretro", (g.get("lr") or {}).get("genre") or []), ("IGDB", (g.get("igdb") or {}).get("genres") or [])):
+        fam = _fam(collection.genres(raw, []))
+        if fam and not fam & mine:
+            other.append((src, raw, fam))
+    if not strict:
+        return [("genre", own["genre"], ", ".join(raw), src) for src, raw, _ in other]
+    if len(other) == 2 and other[0][2] & other[1][2]:
+        return [("genre", own["genre"], "; ".join(f"{src}: {', '.join(raw)}" for src, raw, _ in other), "libretro und IGDB")]
+    return []
 
 
 def _conflict_id(c):

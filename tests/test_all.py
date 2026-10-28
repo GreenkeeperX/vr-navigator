@@ -357,12 +357,23 @@ class TestImports(unittest.TestCase):
         d["imports"] = {"metawish": {"at": "2026-10-22"}}
         f, _ = titles.upsert(d, "Sofa Smash", meta_id="2345678901234567", steam_appid="3000050")
         titles.set_wishes(d, "gg", [a, f])
-        got = [x for x in lists.check(d, {"gg_wish": "x"}) if x["kind"] == "missing"]
-        self.assertEqual([(x["name"], x["srcs"]) for x in got], [("Sofa Smash", ["meta"])])
-        self.assertEqual([l["label"] for l in got[0]["links"]], ["Meta"])
-        self.assertIn("gg.deals/search/?title=Sofa+Smash", lists.add_links(d["titles"][f])[-1]["url"])
-        lists.apply(d, "ok", [f])
+        # 0.8.12: steht er auf einer anderen Laden-Wunschliste, ist das kein Fall für „Zu erledigen“ mehr (die Preise beider
+        # Läden holt das Tool ohnehin); die Karte nennt es weiter mit Link zum Nachtragen
+        self.assertEqual(lists.missing(d["titles"][f], lists.lists_read(d, {"gg_wish": "x"})), ["meta"])
         self.assertFalse([x for x in lists.check(d, {"gg_wish": "x"}) if x["kind"] == "missing"])
+        self.assertIn("gg.deals/search/?title=Sofa+Smash", lists.add_links(d["titles"][f])[-1]["url"])
+        # Gekauft und auf keiner Laden-Wunschliste: der Wunsch fällt von selbst weg; mit Crossbuy bei Meta gekauft gilt
+        # auch die gg.deals-Wunschliste als erledigt
+        g, _ = titles.upsert(d, "Pixel Kart")
+        d["titles"][g].update(wish=True, owned={"pc": {"src": "steam"}})
+        h, _ = titles.upsert(d, "Moon Rover", meta_id="3456789012345678")
+        titles.set_wishes(d, "gg", [a, f, h])
+        d["titles"][h].update(owned={"meta": {"at": "2026-10-01"}}, crossbuy=True)
+        self.assertEqual(lists.auto(d), ["Pixel Kart"])
+        self.assertFalse(d["titles"][g]["wish"])
+        self.assertNotIn("Moon Rover", {x["name"] for x in lists.check(d, {"gg_wish": "x"})})
+        d["titles"][h]["crossbuy"] = False
+        self.assertIn("Moon Rover", {x["name"] for x in lists.check(d, {"gg_wish": "x"})})
         st = lists.stale(d, datetime(2026, 10, 22, tzinfo=timezone.utc))
         self.assertEqual([x["src"] for x in st], ["meta"])
 
@@ -1516,6 +1527,21 @@ class TestSync(unittest.TestCase):
         sync.run(only={"retro"})
         self.assertEqual([c for c in net.calls if "maxusers" in c], [])     # frisch, alle Spiele haben Spielinfos
 
+    def test_lang_by_dat(self):
+        """Sprachen bestätigt (0.8.12), wenn die Datei genau so in der Fassungsliste steht; sonst aus der Region geschätzt."""
+        games, _ = retro.parse("ROMs/GBA/Moon Rover (Europe).gba\nROMs/GBA/Star Hop (Europe) [b].gba\n")
+        self.assertEqual(games["retro:gba:moon rover"]["dumps"], ["Moon Rover (Europe)"])
+        idx = retro.build_index('game (\n\tname "Moon Rover (Europe)"\n)\ngame (\n\tname "Star Hop (Europe)"\n)\n')
+        m, h = retro.match(games["retro:gba:moon rover"], idx), retro.match(games["retro:gba:star hop"], idx)
+        self.assertTrue(m.get("dat"))
+        self.assertFalse(h.get("dat"))
+        col = {"games": {}}
+        retro.apply(col, games, dry=False)
+        retro.mark_languages(col, {"GBA": idx})
+        rows = {r["key"]: r for r in collection.view(col)["games"]}
+        self.assertEqual((rows["retro:gba:moon rover"]["lang_guess"], rows["retro:gba:moon rover"].get("lang_dat")), (False, True))
+        self.assertTrue(rows["retro:gba:star hop"]["lang_guess"])
+
     def test_folder_lists(self):
         """Deine Ordner-Listen (0.8.8): Titel und Genre gelten zuerst, Reihe und Ordner in den Einzelheiten; ein ganz
         anderes Genre bei libretro steht unter „Zu erledigen“; „Liste gilt“ blendet es aus; Größe aus der Ordnerwahl."""
@@ -1553,7 +1579,14 @@ class TestSync(unittest.TestCase):
         self.assertEqual(rows["retro:gba:the legend of pixels"]["name"], "The Legend of Pixels")     # Artikel nach vorn, kein zweiter Name
         self.assertNotIn("fname", rows["retro:gba:the legend of pixels"])
         self.assertNotIn("own_diff", rows["retro:gba:star hop"])                                     # Jump & Run passt zu Action
+        # 0.8.12: libretro allein ist kein Fall für „Zu erledigen“, erst wenn IGDB dasselbe sagt; Party widerspricht nie
+        self.assertEqual(retro.own_list(col), [])
+        col["games"]["retro:gba:moon rover"]["igdb"] = {"id": 7, "genres": ["Racing", "Sport"]}
+        col["games"]["retro:gba:star hop"]["igdb"] = {"id": 8, "genres": ["Puzzle"]}
         self.assertEqual([x["key"] for x in retro.own_list(col)], ["retro:gba:moon rover"])
+        self.assertEqual(retro.own_list(col)[0]["diff"][0]["src"], "libretro und IGDB")
+        party = {"own": {"genre": "Party & Minispiele"}, "lr": {"genre": ["Board"]}, "igdb": {"genres": ["Board game"]}}
+        self.assertEqual(retro.own_conflicts(party), [])
         retro.settle_own(col, "retro:gba:moon rover")
         self.assertEqual(retro.own_list(col), [])
         with self.assertRaises(ValueError):

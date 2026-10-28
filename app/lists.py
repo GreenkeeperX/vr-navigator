@@ -5,8 +5,10 @@ abrufen lässt, ordnet das Tool selbst zu; hier steht nur, was danach nicht zusa
 - table: Wunsch nur aus der alten Vergleichstabelle, auf keiner Wunschliste und nicht von Hand,
 - owned: schon gekauft (Meta oder PC), steht aber noch auf einer Wunschliste,
 - off: im Tool entfernt, steht aber noch auf einer Wunschliste,
-- missing: gewünscht, fehlt aber auf der Wunschliste eines Ladens, der ihn führt (Meta oder
-  PC über Steam bzw. gg.deals); mit Links, ihn dort schnell nachzutragen.
+- missing (bis 0.8.11): gewünscht, fehlt aber auf der Wunschliste eines Ladens, der ihn führt. Ab 0.8.12 kein Fall
+  mehr, weil das Tool die Preise beider Läden ohnehin holt; die Karte nennt es weiter mit Link zum Nachtragen.
+
+Gekauft und auf keiner Laden-Wunschliste löst `auto` im Abgleich selbst (der Wunsch ist erfüllt).
 
 Ohne Netz; die Oberfläche bietet je Gruppe eine Aktion für alle."""
 
@@ -83,17 +85,32 @@ def lists_read(data, settings=None):
         ({"gg"} if s.get("gg_wish") or imp.get("ggwish") else set())
 
 
+def auto(data):
+    """Was sich ohne Rückfrage klären lässt (0.8.12), direkt in data; liefert die Namen. Gekauft und auf keiner
+    Wunschliste eines Ladens, nicht von Hand gewünscht: Der Wunsch ist erfüllt und fällt weg (stammte aus einer
+    Liste, die du nicht mehr pflegst, oder aus der alten Tabelle)."""
+    done = []
+    for t in data["titles"].values():
+        ws = t.get("wish_src") or {}
+        if t.get("wish") and t.get("owned") and not t.get("wish_keep") and not ws:
+            t["wish"] = False
+            t.setdefault("wish_done", titles.now_iso())
+            done.append(t["name"])
+    return done
+
+
 def check(data, settings=None):
     """Abweichungen zwischen den Wunschlisten und dem Tool: [{key, name, kind, why, srcs, links}]."""
     out = []
-    read = lists_read(data, settings)
     steam = (settings or {}).get("steam_wish", True)
     for k, t in data["titles"].items():
         ws = [s for s in (t.get("wish_src") or {}) if s != "hand"]
         off = list(t.get("wish_off") or [])
         owned = bool(t.get("owned"))
         item = {"key": k, "name": t["name"]}
-        if t.get("wish") and owned and not t.get("wish_keep"):
+        # 0.8.12: Bei Meta gekauft mit Crossbuy gilt auch am PC; dann ist die gg.deals- oder Steam-Wunschliste erledigt
+        cb_done = (t.get("owned") or {}).get("meta") and t.get("crossbuy") is True and ws and not set(ws) - {"gg", "steam"}
+        if t.get("wish") and owned and not t.get("wish_keep") and not cb_done:
             where = _owned_text(t)
             why = f"gekauft {where}" + (f", steht noch auf: {', '.join(_src_names(ws))}" if ws else ", steht noch auf deiner Wunschliste im Tool")
             out.append(dict(item, kind="owned", why=why, srcs=ws, links=_links(t, ws)))
@@ -104,13 +121,6 @@ def check(data, settings=None):
         elif not t.get("wish") and off:
             out.append(dict(item, kind="off", why=f"im Tool entfernt, steht noch auf: {', '.join(_src_names(off))}",
                             srcs=off, links=_links(t, off)))
-        elif t.get("wish") and not owned and not t.get("wish_lists_ok") and missing(t, read):
-            miss = missing(t, read)
-            have = _src_names([s for s in t["wish_src"] if s != "hand"]) or ["nur im Tool"]
-            names = {"meta": "Meta", "pc": "Steam oder gg.deals" if steam else "gg.deals"}
-            links = [x for x in add_links(t, steam) if ("meta" if x["label"] == "Meta" else "pc") in miss]
-            out.append(dict(item, kind="missing", why=f"fehlt bei {' und '.join(names[m] for m in miss)}; steht auf: {', '.join(have)}",
-                            srcs=miss, links=links))
     order = {"owned": 0, "off": 1, "missing": 2, "table": 3}
     return sorted(out, key=lambda x: (order[x["kind"]], titles.norm(x["name"])))
 

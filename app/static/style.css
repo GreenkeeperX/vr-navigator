@@ -1,7 +1,7 @@
 :root{
   color-scheme:light dark;
   --bg:#f3f4f1; --card:#fffffc; --ink:#1b2224; --ink-hi:#1b2224; --muted:#61706f; --line:#d9ddd8;
-  --accent:#24383b; --brand:#1c7c8c; --chip:#e8ebe6;
+  --accent:#24383b; --brand:#1c7c8c; --sim:#b85a12; --chip:#e8ebe6;
   /* Jede Farbe eine Bedeutung, siehe docs/oberflaeche.md */
   --deal:#1d5fbf; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
   --go:#0d6b4f; --go-bg:#dcefe4; --stop:#b3261e; --stop-bg:#f8dfdc; --warn:#6b3fb3; --warn-bg:#ece5fa;
@@ -13,7 +13,7 @@
 /* Ansicht: data-theme am html-Element (hell/dunkel), ohne Angabe wie das Gerät */
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]){
   --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
-  --accent:#cdd5d4; --brand:#4fc3d4; --chip:#252d2f;
+  --accent:#cdd5d4; --brand:#4fc3d4; --sim:#f0a050; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
@@ -21,7 +21,7 @@
 }}
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
-  --accent:#cdd5d4; --brand:#4fc3d4; --chip:#252d2f;
+  --accent:#cdd5d4; --brand:#4fc3d4; --sim:#f0a050; --chip:#252d2f;
   --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
@@ -382,3 +382,11 @@ details.menu .opts .chip{font-size:12px}
 .bar .gdl{white-space:nowrap}
 /* Jetzt: Alle, VR, PC (0.8.11) */
 .seg.nowk button{white-space:nowrap}
+/* Preise als Links (0.8.12, wie im eShopKompass): ruhig in der Textfarbe, unterstrichen beim Zeigen */
+a.pl{color:inherit;text-decoration:none}
+a.pl:hover{text-decoration:underline}
+.best-t{color:var(--best);font-weight:600}
+/* SimRacing und Geheimtipp (0.8.12): eigene Farben wie VR; SimRacing orange gefüllt, Geheimtipp grün umrandet */
+.b.simb{background:var(--sim);color:var(--card)}
+.b.gemb{background:transparent;border:1px solid var(--go);color:var(--go)}
+.gr .mut{color:var(--muted)}

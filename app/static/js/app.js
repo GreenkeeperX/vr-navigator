@@ -334,16 +334,16 @@ function pcTable(rows){
   return `<div class="glist box pcw" style="--gcols:${PC_COLS}">${head}${rows.map(pcRow).join("")}</div>`;
 }
 function pcRow(r){
-  const open = V.pwOpen === r.key;
+  const open = V.pwOpen === r.key, atLow = r.over != null && r.over <= 0.02;
   const cell = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
   const hours = !r.hours ? "" : `<span title="${esc(`Laut IGDB${r.hours_all ? `; komplett ${hrs(r.hours_all)}` : ""}`)}">${hrs(r.hours)}</span>`;
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.near ? `<span class="b go" title="Höchstens 5 % über dem bisherigen Tief">nah am Tief</span>` : ""}</span>` +
     cell("Wertung", gSc(r), "r") + cell("Spielzeit", hours, "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
-    `<span class="r" data-l="Jetzt">${r.best != null ? `<b title="${esc(r.best_from)}">${eur(r.best)}</b>` : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">–</span>`}</span>` +
-    `<span class="r${r.retail != null ? "" : " nil"}" data-l="Händler">${r.retail != null ? eur(r.retail) : G_NIL}</span><span class="r${r.keyshops != null ? "" : " nil"}" data-l="Keyshop">${r.keyshops != null ? eur(r.keyshops) : G_NIL}</span>` +
-    `<span class="r${r.low != null ? "" : " nil"}" data-l="Tief" title="${esc([r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", "))}">${r.low != null ? eur(r.low) : G_NIL}</span>` +
-    `<span class="r${r.over == null ? " nil" : ""}" data-l="über Tief">${r.over == null ? G_NIL : r.over <= 0.005 ? `<span class="ok">am Tief</span>` : `+${Math.round(r.over * 100)} %`}</span></div>` + (open ? pcDetail(r) : "");
+    `<span class="r" data-l="Jetzt">${r.best != null ? `${atLow ? `<span class="star" title="Am bisherigen Tief (höchstens 2 % darüber)">★</span>` : ""}<b>${extLink(r.url, eur(r.best), `${r.best_from} bei gg.deals`)}</b>` : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">${extLink(r.kind ? r.url : "", "–")}</span>`}</span>` +
+    `<span class="r${r.retail != null ? "" : " nil"}" data-l="Händler">${r.retail != null ? extLink(r.url, eur(r.retail), "Händler bei gg.deals") : G_NIL}</span><span class="r${r.keyshops != null ? "" : " nil"}" data-l="Keyshop">${r.keyshops != null ? extLink(r.url, eur(r.keyshops), "Keyshops bei gg.deals") : G_NIL}</span>` +
+    `<span class="r${r.low != null ? "" : " nil"}" data-l="Tief" title="${esc([r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", "))}">${r.low != null ? `<span class="mut">${eur(r.low)}</span>` : G_NIL}</span>` +
+    `<span class="r${r.over == null ? " nil" : ""}" data-l="über Tief">${r.over == null ? G_NIL : atLow ? `<span class="best-t">am Tief</span>` : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`}</span></div>` + (open ? pcDetail(r) : "");
 }
 // Einzelheiten eines PC-Wunschs: was die Zeile nicht zeigt, rechts die Beschreibung, darunter Herkunft und Links
 function pcDetail(r){
@@ -422,7 +422,10 @@ function bestLine(v, b, A, shop){
   return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(over)}</span> über Bestpreis</div>
     <div class="bl" title="${esc(tip)}">${eur(A.best)}${ap}${other ? " bei " + SHOP[A.shop] : ""} <span class="hint">(+${rel} %)</span>${own && !other && b.level === "usual" ? " · übliches Angebot" : ""}</div>${cmp}`;
 }
-function shopCell(key, v, b, A, win, extra){
+// Preise sind Links (0.8.12, wie im eShopKompass): in den Laden, der Bestpreis zum Preisverlauf
+const extLink = (url, inner, tip, cls) => url && safeUrl(url) ? `<a class="pl${cls ? " " + cls : ""}" href="${esc(url)}" target="_blank" rel="noopener noreferrer"${tip ? ` title="${esc(tip)}"` : ""}>${inner}</a>` : inner;
+const linkOf = (r, label) => (r.links || []).find(l => l.label === label)?.url || "";
+function shopCell(key, v, b, A, win, extra, url){
   const shop = SHOP[key];
   if(!v) return `<div class="shop none"><div class="sl">${shop}</div><div class="bl">kein Preis</div>${extra || ""}</div>`;
   const sale = v.discount ? ` <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? ` <span class="hint">${until(v.until)}</span>` : ""}` : "";
@@ -432,7 +435,7 @@ function shopCell(key, v, b, A, win, extra){
   const vd = b?.grade === "buy" ? ` <span class="vd buy" title="Höchstens 2 % oder 0,50 € über dem Bestpreis beider Läden">kaufen</span>`
     : b?.grade === "good" ? ` <span class="vd good" title="Höchstens 15 % oder 2 € über dem Bestpreis beider Läden">gut</span>` : "";
   return `<div class="shop${win ? " win" : ""}"><div class="sl">${shop}${vd}${sale}${old}</div>
-    <div><span class="price big">${eur(v.price)}</span>${v.discount && v.base ? ` <s>${eur(v.base)}</s>` : ""}</div>
+    <div>${extLink(url, `<span class="price big">${eur(v.price)}</span>`, `${shop}: zum Spiel im Laden`)}${v.discount && v.base ? ` <s>${eur(v.base)}</s>` : ""}</div>
     ${bestLine(v, b, A, key)}${extra || ""}${win ? `<div class="cheap">${win}</div>` : ""}</div>`;
 }
 function shopsHtml(r){
@@ -445,8 +448,8 @@ function shopsHtml(r){
   // Günstigstes Angebot bei gg.deals (Händler oder Keyshop) unter Steam: als Zeile im Steam-Feld
   const gb = g ? [[g.retail, "Händler"], [g.keyshops, "Keyshop"]].filter(x => x[0] != null).sort((a, b) => a[0] - b[0])[0] : null;
   const deal = gb && (!L.steam || gb[0] < L.steam.price - 0.005)
-    ? `<div class="bl" title="Günstigstes Angebot laut gg.deals, Händler und Keyshops">${gb[1]} ${eur(gb[0])} <span class="hint">(gg.deals)</span></div>` : "";
-  return `<div class="shops">${shopCell("meta", L.meta, B.meta, r.best_all, metaWin)}${shopCell("steam", L.steam, B.steam, r.best_all, pcWin, deal)}</div>`;
+    ? `<div class="bl" title="Günstigstes Angebot laut gg.deals, Händler und Keyshops">${gb[1]} ${extLink(g.url || linkOf(r, "gg.deals"), eur(gb[0]), "Angebote bei gg.deals")} <span class="hint">(gg.deals)</span></div>` : "";
+  return `<div class="shops">${shopCell("meta", L.meta, B.meta, r.best_all, metaWin, "", linkOf(r, "Meta"))}${shopCell("steam", L.steam, B.steam, r.best_all, pcWin, deal, linkOf(r, "Steam"))}</div>`;
 }
 V.more = new Set();
 // Was selten entscheidet, steht in der Klappe; ihre Zeile nennt, was drin ist: „Bestpreise · gg.deals · Tabelle · Links“
@@ -490,7 +493,7 @@ function wishRow(r){
    ersten Öffnen geladen). Filter, Sortierung und Zufall laufen im Browser; der Zustand steht in der
    Adresse (#sammlung?…), so lässt sich eine Mischung als Lesezeichen merken. */
 let C = null, cLoading = false;
-const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, vm: 0, wh: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, vm: 0, wh: 0, vr: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
@@ -603,7 +606,7 @@ function dFilter(d){
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
-    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel)
+    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel) && (!d.vr || (g.vr && !g.vr_guess))
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || (g.pub || "").toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
       || !!g.lib?.note?.toLowerCase().includes(q) || (g.own && [g.own.series, g.own.coll, g.own.genre, g.own.sub, g.fname].some(x => (x || "").toLowerCase().includes(q)))));
 }
@@ -667,7 +670,7 @@ function setMix(k){
 const dLabel = d => [d.how.map(h => (K_HOW.find(x => x[0] === h) || [h, h])[1]).join(" + "), d.mp.map(m => C.mp_label[m] || m).join(" + "),
   d.hr && (d.hr > 0 ? `bis ${d.hr} h` : `ab ${-d.hr} h`), d.usk && `USK bis ${d.usk}`, d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
   d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1],
-  d.cb && "Crossbuy", d.vm && "VR per Mod", d.wh && "Lenkrad", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
+  d.cb && "Crossbuy", d.vm && "VR per Mod", d.vr && "VR", d.wh && "SimRacing", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 /* Zellen. Leer heißt grauer Strich; violett (.gxc): nur eine Quelle oder geschätzt, der Tooltip sagt woher */
 const G_NIL = `<span class="hint">–</span>`;
@@ -735,7 +738,7 @@ function langBadge(g){
   // Switch (0.7.3): Sprachen laut Nintendo Europa, englische Namen
   if(g.eshop) return g.langs.includes("german") ? `<span title="Laut Nintendo Europa: Deutsch und ${g.langs.length - 1} weitere">DE</span>` : `<span class="gno" title="Laut Nintendo Europa ohne Deutsch: ${esc(g.langs.join(", "))}">ohne DE</span>`;
   const l = ["De", "En", "Ja"].find(x => g.langs.includes(x)) || g.langs[0];
-  return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen ${g.de?.langs ? `laut No-Intro (über den Produktcode: ${esc(g.de.rel)})` : "laut Dateiname"}: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
+  return `<span class="${g.lang_guess ? "gxc" : ""}" title="Sprachen ${g.de?.langs ? `laut No-Intro (über den Produktcode: ${esc(g.de.rel)})` : g.lang_dat ? "laut No-Intro (deine Datei steht genau so in der Fassungsliste)" : "laut Dateiname"}: ${esc(g.langs.join(", "))}${g.lang_guess ? " (nur aus der Region geschätzt)" : ""}${g.de?.st === "none" ? "; eine deutsche Fassung ist nicht bekannt" : ""}">${esc(LANG_SHORT[l] || l.toUpperCase())}</span>`;
 }
 const FASS_SHORT = {quest: "Quest besser", pc: "PC besser", gleich: "gleichwertig"};
 const MP_SHORT = {lebendig: "lebendig", ruhig: "ruhig", tot: "tot", keiner: "keiner"};
@@ -916,6 +919,7 @@ function kDetail(g, side){
 const colsFor = (d, rows) => rows.length && rows.every(kOn) ? K_COLS : COLS.filter(c => (d.sys === "VR") === !!c.vr && (!c.only || c.only(d)) && rows.some(g => c.cell(g)));
 /* Marken hinter dem Namen, knapp: Mein Stand, VR, Geheimtipp, Retro (DE fehlt, Homebrew, Hack, nicht mehr
    in der Liste), bei VR-Titeln Wunsch, Bundle und was zu prüfen ist */
+const GEM_MIN = 0.4;
 function gBadges(g){
   const b = [], m = mine(g), st = G_ST.find(x => x[0] === m.s);
   if(st || m.fav) b.push(`<span class="gme">${st ? `<span class="gst ${m.s}" title="Mein Stand: ${st[1]}">${st[2]}</span>` : ""}${m.fav ? `<span class="gfav" title="Favorit">★</span>` : ""}</span>`);
@@ -936,7 +940,9 @@ function gBadges(g){
   else if(vrMod(g)) b.push(`<span class="b gxc" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
   // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (violett)
   b.push(wheelBadge(g.wheel));
-  if(g.gem >= 0.2) b.push(`<span class="b" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: gute Wertung, wenige Rezensionen">Geheimtipp</span>`);
+  // Ab 0.8.12 erst ab 0,4 (vorher 0,2: das traf zu viele Spiele, um noch ein Tipp zu sein); heißt etwa 90 % positiv
+  // bei bis zu 100 Rezensionen oder 95 % bei bis zu 400
+  if(g.gem >= GEM_MIN) b.push(`<span class="b gemb" title="Geheimtipp-Wert ${String(g.gem).replace(".", ",")} von 1: sehr gute Wertung, wenig bekannt (Steam-Rezensionen)">Geheimtipp</span>`);
   if(g.retro){
     if(g.de?.st === "missing") b.push(`<span class="b warn" title="Es gab eine Fassung mit Deutsch: ${esc(g.de.alt)}${g.de.guess ? " (Deutsch nur aus der Region geschätzt)" : ""}; gefunden über ${{code: "den Produktcode", retool: "die Retool-Liste", name: "den gleichen Namen", alias: "den von dir bestätigten ähnlichen Namen"}[g.de.via] || "die Fassungsliste"}">DE fehlt</span>`);
     if(g.flags.includes("homebrew")) b.push(`<span class="b">Homebrew</span>`);
@@ -1043,8 +1049,8 @@ const WHEEL_LIST = "Liste der Rennspiele (SimHub, Simucube-Forum)";
 function wheelBadge(w){
   if(!w) return "";
   const tags = w.tags.length ? `Steam-Schlagwörter: ${w.tags.join(", ")}` : "";
-  return w.src.length ? `<span class="b" title="${esc([`Laut ${w.src.join(" und ")}`, tags].filter(Boolean).join("\n"))}">Lenkrad</span>`
-    : `<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">Lenkrad?</span>`;
+  return w.src.length ? `<span class="b simb" title="${esc([`Laut ${w.src.join(" und ")}`, tags].filter(Boolean).join("\n"))}">SimRacing</span>`
+    : `<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">SimRacing?</span>`;
 }
 function wheelHtml(g){
   const w = g.wheel;
@@ -1178,7 +1184,8 @@ function findView(){
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
       ${vr ? `<label><input type="checkbox" data-dset="cb"${d.cb ? " checked" : ""}> Crossbuy</label>` : ""}
-      ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (violett, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> Lenkrad</label>` : ""}
+      ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (violett, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> SimRacing</label>` : ""}
+      ${inTab.some(g => g.vr && !g.vr_guess) && d.sys === "PC" ? `<label title="Spiele mit VR laut Steam, Store-Prüfung oder als dein VR-Titel"><input type="checkbox" data-dset="vr"${d.vr ? " checked" : ""}> VR</label>` : ""}
       ${inTab.some(vrMod) ? `<label title="VR per Mod laut PCGamingWiki oder Mods mit VR im Namen bei Nexus Mods (violett, nur ein Hinweis)"><input type="checkbox" data-dset="vm"${d.vm ? " checked" : ""}> VR per Mod</label>` : ""}
       ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}</div>
     ${label ? `<div class="chips act">${d.how.map(h => `<button data-act="dhowoff" data-v="${esc(h)}" title="Filter entfernen">${esc((K_HOW.find(x => x[0] === h) || [h, h])[1])} ×</button>`).join("")}${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
@@ -1309,7 +1316,7 @@ function settingsView(){
         <button data-act="nearok" data-k="${esc(x.key)}" title="Dasselbe Spiel; der Titel der Liste gilt fortan">dasselbe</button>
         <button data-act="nearno" data-k="${esc(x.key)}" title="Ein anderes Spiel; dieser Vorschlag kommt nicht wieder">anderes</button></span></div>`).join("")}</div>`;
   // Retro (0.8.8): andere Quellen widersprechen deinem Genre aus der Ordner-Liste
-  const ownList = `<p class="hint">Deine Ordner-Liste gilt zuerst. Hier nennen libretro oder IGDB ein ganz anderes Genre. „Liste gilt“ blendet den Hinweis aus; ändert sich ein Wert, kommt er wieder. Stimmt die andere Quelle, änderst du deine Liste und liest den Ordner neu ein.</p>
+  const ownList = `<p class="hint">Deine Ordner-Liste gilt zuerst. Hier nennen libretro und IGDB beide ein anderes Genre und sind sich darin einig (ab 0.8.12; was nur eine Quelle anders sieht, steht nur in den Einzelheiten, ihr Genre kommt in der Zeile dazu). „Liste gilt“ blendet den Hinweis aus; ändert sich ein Wert, kommt er wieder. Stimmt die andere Quelle, änderst du deine Liste und liest den Ordner neu ein.</p>
     <div class="bar"><button data-act="ownok" data-k="" title="Für alle hier: deine Liste gilt">Alle: Liste gilt</button></div>
     <div class="list">${rown.slice(0, 300).map(x => `<div class="item"><span class="nm">${esc(x.name)} <span class="hint">(${esc(x.system)})</span></span>
       <span class="row2"><span class="hint">deins: ${esc(x.diff[0].own)}; ${x.diff.map(d => `${esc(d.src)}: ${esc(d.other)}`).join("; ")}</span>
@@ -1776,7 +1783,7 @@ document.addEventListener("click", async ev => {
   else if(a === "wsub"){ V.wsub = v === "pc" ? "pc" : "vr"; V.q = ""; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
-    V.d.sys = v; V.d.q = ""; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.wh = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
+    V.d.sys = v; V.d.q = ""; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.wh = 0; V.d.vr = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
     if(V.d.mix && !(v === "VR" ? MIXES.find(x => x[0] === V.d.mix)?.[4] : true)) V.d = Object.assign({}, D0, {sys: v, sort: V.d.sort});
     if(V.d.mix) V.d.seed = newSeed();
     render();

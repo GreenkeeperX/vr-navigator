@@ -183,6 +183,12 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - VR per Mod (0.8.1): Marke „VR per Mod“ (`.b`) nach PCGamingWiki „hackable“; nur Nexus-Mods mit VR im Namen
   oder vorpX: „VR-Mod?“ violett (`.b.gxc`), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
   Spiel im Reiter eins von beiden hat. Einzelheiten: Zeilen „VR per Mod“ und „Nexus Mods“ mit Links.
+- SimRacing (ab 0.8.12, vorher „Lenkrad“): Marke orange gefüllt (`.b.simb`, Token `--sim`), wie VR türkis (`.b.vrb`);
+  „SimRacing?“ violett. Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
+- Geheimtipp (ab 0.8.12): grün umrandet (`.b.gemb`), erst ab Wert 0,4 (`GEM_MIN`).
+- Preise als Links (ab 0.8.12, `extLink`, `a.pl` in Textfarbe): VR-Karte Meta und Steam in den Laden, gg.deals-Zeile zu
+  gg.deals; PC-Wunschliste alle Preise zu gg.deals, ★ gold vor dem Preis am Tief (bis 2 %), „über Tief“ als roter
+  Betrag `+x €` (Prozent im Tooltip), am Tief gold „am Tief“ (`.best-t`).
 - Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das Spiel in einer Liste der Rennspiele steht (SimHub,
   Simucube-Forum; Tooltip nennt beide); nur Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`), `wheelBadge`.
   Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins

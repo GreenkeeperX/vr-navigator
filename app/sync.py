@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, mods, pcwish, prices, probes, retro, sources, store, titles, wheel
+from . import accounts, collection, igdb, lists, mods, pcwish, prices, probes, retro, sources, store, titles, wheel
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -1876,8 +1876,11 @@ def _assign(log, budget, rest):
                 t.setdefault("links", {})["qsdb"] = prices.QSDB + hit["path"]
             titles.add_alias(t, hit.get("name"))
             found.append(t["name"])
+        wish_done = lists.auto(data)
         store.save_data(data)
         left = titles.todo(data)
+    if wish_done:
+        log(f"Wunschliste: gekauft und auf keiner Wunschliste eines Ladens, nicht mehr gewünscht ({len(wish_done)}): {_few(wish_done)}")
     if unsure:
         log(f"Zuordnung, Steam-IDs „≈“: {len(unsure)} ungeprüft, {checked} Apps im Store gefragt"
             + (f"; bestätigt ({len(sure)}): {_few(sure)}" if sure else "")
