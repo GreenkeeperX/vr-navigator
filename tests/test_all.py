@@ -2046,6 +2046,69 @@ class TestSync(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(igdb.pick([{"name": "Portal 2"}], "Portal"), None)
 
+    def test_pcwish_info(self):
+        """Spielinfos der PC-Wunschliste (0.8.11): Steam-Details, Rezensionen und IGDB über die Steam-ID, nur für Spiele
+        mit Steam-ID; die Zeile bekommt Wertung, Spielzeit, Genre und Spieler nach den Regeln der Sammlung."""
+        from app import pcwish
+        pcwish.replace([{"slug": "harbor-heist", "name": "Harbor Heist"}, {"slug": "rally-moth", "name": "Rally Moth"},
+                        {"slug": "harbor-heist-soundtrack", "name": "Harbor Heist Soundtrack", "kind": "dlc"}], "Datei")
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        pw["items"]["harbor-heist"]["appid"] = "3000101"
+        pw["items"]["dlc:harbor-heist-soundtrack"]["appid"] = "3000199"
+        store.save_json(pcwish.FILE, pw)
+        app = {"3000101": {"success": True, "data": {
+            "type": "game", "name": "Harbor Heist", "release_date": {"date": "12 Mar, 2019"},
+            "genres": [{"id": "1", "description": "Action"}], "categories": [{"id": 1}, {"id": 9}],
+            "short_description": "Ein Raubzug im Hafen.", "developers": ["Kite Works"]}}}
+        rev = json.dumps({"success": 1, "query_summary": {"review_score_desc": "Very Positive", "total_positive": 276,
+                                                          "total_negative": 24, "total_reviews": 300}})
+        harbor = {"id": 5, "name": "Harbor Heist", "genres": [{"name": "Shooter"}], "game_modes": [{"name": "Multiplayer"}],
+                  "multiplayer_modes": [{"onlinemax": 4, "onlinecoop": True}], "first_release_date": 1552348800}
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            calls.append(url)
+            if "appdetails" in url:
+                return json.dumps(app)
+            if "appreviews" in url:
+                return rev
+            if "twitch" in url:
+                return json.dumps({"access_token": "tok"})
+            if url.endswith("external_games"):
+                return json.dumps([{"game": 5, "uid": "3000101"}])
+            if url.endswith("game_time_to_beats"):
+                return json.dumps([{"game_id": 5, "normally": 25200, "count": 3}])
+            if url.endswith("games"):
+                return json.dumps([harbor])
+            raise sources.FetchError(url, 404)
+        sources.fetch = fake
+        settings = dict(sync.SETTINGS, igdb_id="a" * 30, igdb_secret="b" * 30)
+        logs = []
+        r = sync._pcwish_info(settings, logs.append)
+        self.assertTrue(r["ok"])
+        self.assertFalse(any("3000199" in u for u in calls))        # DLC bekommt keine Spielinfos
+        self.assertEqual(sum(1 for u in calls if "appdetails" in u), 1)
+        self.assertIn("PC-Wunschliste, Spielinfos: 1 Spiele bei Steam gelesen, IGDB 1 von 1 gefunden", "\n".join(logs))
+        self.assertNotIn("a" * 30, "\n".join(logs))
+        e = store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["harbor-heist"]
+        self.assertEqual((e["steam"]["ok"], e["rev"]["n"], e["igdb"]["id"], e["igdb"]["hours"]["h"]), (True, 300, 5, 7.0))
+        calls.clear()
+        sync._pcwish_info(settings, logs.append)                    # alles frisch: kein Abruf
+        self.assertEqual(calls, [])
+        v = pcwish.view(store.load_data(), {"games": {}})
+        rows = {x["key"]: x for x in v["rows"]}
+        h = rows["harbor-heist"]
+        self.assertEqual((h["score"], h["score_src"], h["reviews"]), (92, "Steam", 300))
+        self.assertEqual((h["hours"], h["players"], h["pl_src"], h["dev"], h["desc"]), (7.0, 4, "IGDB", "Kite Works", "Ein Raubzug im Hafen."))
+        self.assertEqual((h["genres"], h["gc"]), (["Action", "Shooter"], ["Action"]))   # Shooter nur laut IGDB
+        self.assertIn("online", h["mp"])
+        self.assertFalse(h["vr"])
+        self.assertEqual(h["srcs"], ["Steam", "IGDB"])
+        self.assertNotIn("score", rows["rally-moth"])               # ohne Steam-ID keine Spielinfos
+        self.assertEqual(v["info"], 1)
+        self.assertIn("PCWISH_INFO", sync.FAST_LIMITS)
+        self.assertIn("pcinfo", sync.NAMES)
+
     def test_vr_per_mod(self):
         """VR per Mod (0.8.1): PCGamingWiki über die Steam-ID, Nexus-Spieleliste einmal, dann Mods je Spiel."""
         from app import mods

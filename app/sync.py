@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass"}
+         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -85,11 +85,12 @@ WHEEL_MAX = 400             # Steam-Spiele je Lauf für die Schlagwörter (0.8.3
 WHEEL_DAYS = 90
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 30          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2)
+PCWISH_INFO = 60            # Spiele der PC-Wunschliste je Lauf mit Steam-Details und Rezensionen (0.8.11)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
-FAST_LIMITS = ("REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX",
+FAST_LIMITS = ("REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
                "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
@@ -1468,6 +1469,93 @@ def _pcwish(settings, log):
     return src.result()
 
 
+def _pcwish_info(settings, log):
+    """Spielinfos der PC-Wunschliste (0.8.11) über die Steam-ID: Steam-Details (Genres, Mehrspieler, Jahr, Beschreibung)
+    und Rezensionen, höchstens PCWISH_INFO Spiele je Lauf, nach DETAILS_DAYS und REVIEWS_DAYS neu; mit IGDB-Schlüssel
+    dazu IGDB gebündelt über die Steam-IDs (Spieler, Spielzeit, Kritiken), nach IGDB_DAYS neu. Abgelegt je Spiel in
+    pcwish.json unter steam, rev und igdb."""
+    start = time.monotonic()
+    pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+    items = {k: e for k, e in (pw.get("items") or {}).items() if str(e.get("appid") or "").isdigit() and not e.get("kind")}
+    src = _Source("PC-Wunschliste, Spielinfos", log)
+    if not items:
+        log("PC-Wunschliste, Spielinfos: keine Spiele mit Steam-ID")
+        return src.result()
+    old_d, old_r, old_i = (_iso(now() - timedelta(days=d)) for d in (DETAILS_DAYS, REVIEWS_DAYS, IGDB_DAYS))
+    at = lambda e, f: (e.get(f) or {}).get("at") or ""
+    todo = sorted((min(at(e, "steam"), at(e, "rev")), k) for k, e in items.items()
+                  if at(e, "steam") < old_d or at(e, "rev") < old_r
+                  or ((e.get("steam") or {}).get("ok") and (e["steam"].get("v", 1) < prices.DETAILS_V)))
+    got = {}
+    for i, (_, k) in enumerate(todo[:PCWISH_INFO]):
+        progress("PC-Wunschliste, Spielinfos", i, min(len(todo), PCWISH_INFO))
+        e, gid, r = items[k], str(items[k]["appid"]), {}
+        if at(e, "steam") < old_d or (e.get("steam") or {}).get("v", 1) < prices.DETAILS_V:
+            text = src.get(f"{STEAM}/api/appdetails?appids={gid}&l=german&cc=de", shown=f"Steam-Details {gid}")
+            if text is not None:
+                r["steam"] = dict(_checked(prices.steam_details(text, gid)), at=titles.now_iso())
+        if src.stopped:
+            break
+        if at(e, "rev") < old_r:
+            text = _rev_get(src, gid, f"Steam-Rezensionen {gid}")
+            if text is not None:
+                r["rev"] = dict(prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso())
+        if r:
+            got[k] = r
+        if src.stopped:
+            break
+    ig = {}
+    if settings.get("igdb_id") and settings.get("igdb_secret") and not src.stopped:
+        due = {k: str(e["appid"]) for k, e in items.items() if at(e, "igdb") < old_i or (e.get("igdb") or {}).get("v") != igdb.V}
+        if due:
+            isrc = _Source("IGDB", log, pause=IGDB_PAUSE)
+            tok = igdb.token(isrc.get(igdb.TWITCH, shown="Twitch-Anmeldung", data=igdb.token_body(settings["igdb_id"], settings["igdb_secret"])))
+            if tok:
+                isrc.headers = {"Client-ID": settings["igdb_id"], "Authorization": f"Bearer {tok}", "Accept": "application/json"}
+
+                def ask(path, body, shown):
+                    t = isrc.get(igdb.API + path, shown=shown, data=body.encode())
+                    try:
+                        return None if t is None else json.loads(t or "[]")
+                    except ValueError:
+                        return None
+                keys = list(due)
+                for part in igdb.chunks(keys):
+                    ids = [due[k] for k in part]
+                    ext = ask("external_games", igdb.steam_query(ids), "Steam-IDs der PC-Wunschliste")
+                    if ext == []:
+                        ext = ask("external_games", igdb.steam_query(ids, old=True), "Steam-IDs der PC-Wunschliste")
+                    if ext is None:
+                        break
+                    of = {str(x.get("uid")): x.get("game") for x in ext if isinstance(x, dict) and x.get("game")}
+                    found = ask("games", igdb.games_query(sorted(set(of.values()))), "Spiele zu Steam-IDs") if of else []
+                    if found is None:
+                        break
+                    by = {g.get("id"): g for g in found if isinstance(g, dict)}
+                    hours = igdb.times(ask("game_time_to_beats", igdb.times_query(sorted(by)), "Spielzeiten")) if by else {}
+                    stamp = titles.now_iso()
+                    for k in part:
+                        hit = by.get(of.get(due[k]))
+                        c = igdb.compact(hit) if hit else None
+                        if c and hours.get(c["id"]):
+                            c["hours"] = hours[c["id"]]
+                        ig[k] = dict(c, at=stamp, v=igdb.V) if c else {"none": True, "at": stamp, "v": igdb.V}
+            src.n += isrc.n
+    with store.lock:
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        for k, e in (pw.get("items") or {}).items():
+            e.update(got.get(k) or {})
+            if k in ig:
+                e["igdb"] = ig[k]
+        store.save_json(pcwish.FILE, pw)
+    left = max(0, len(todo) - len(got))
+    src.stats = {"read": len(got), "left": left, "igdb": sum(1 for r in ig.values() if r.get("id"))}
+    log(f"PC-Wunschliste, Spielinfos: {len(got)} Spiele bei Steam gelesen"
+        + (f", IGDB {src.stats['igdb']} von {len(ig)} gefunden" if ig else "")
+        + (f", {left} noch offen (je Lauf {PCWISH_INFO}{_runs(left, PCWISH_INFO, ', ')})" if left else ", alle aktuell") + f", {_took(start)}")
+    return src.result()
+
+
 def _pc_no_vr(g):
     return (g.get("system") or "PC") == "PC" and not (g.get("steam") or {}).get("vr")
 
@@ -1889,6 +1977,10 @@ def run(only=None, boot=False, by_hand=False, fast=False):
                                  "requests": 0, "errors": 0}
         if not only or "pcwish" in only:
             do("pcwish", lambda: _pcwish(settings, log))
+        if any(st["rest"].get(x) for x in ("details", "reviews")) and (not only or "pcinfo" in only):
+            log("PC-Wunschliste, Spielinfos: Steam ruht nach einer Sperre, nicht abgefragt")
+        else:
+            do("pcinfo", lambda: _pcwish_info(settings, log))
         if settings["sharenite"]:
             last = ((prev.get("sources") or {}).get("sharenite") or {})
             fresh = last.get("ok") and (last.get("at") or "") > _iso(now() - timedelta(hours=SHARENITE_H))

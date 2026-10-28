@@ -98,12 +98,12 @@ Dateigröße aus der Ordnerwahl; Lenkrad-Marke auch bei VR-Titeln am PC ohne Pla
 gg.deals-Lesezeichen nennt, wenn gg.deals mehr Einträge zählt, als Links da waren. 0.8.9: VR-Titel am PC ohne Playnite-Eintrag
 als eigene Spiele der Sammlung in allen Abrufen (Steam-Details, Rezensionen, IGDB, Mods); IGDB fragt Retro abwechselnd
 mit den übrigen Spielen statt nach allen PC-Spielen. 0.8.10: Mein Stand in den Einzelheiten wieder gleich nach der
-Spalte „Spiel“. Grundsatz (Entscheidung 22.10.2026): so wenig
+Spalte „Spiel“. 0.8.11: PC-Wunschliste mit Spielinfos von Steam und IGDB (Wertung, Spielzeit, Genre,
+Einzelheiten), „Jetzt“ für alle Wünsche mit Schalter Alle, VR, PC. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
-  und „Jetzt“ für alle Wünsche mit Filter VR
+- PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
 
 - Retro: deutsche Titel aus deiner Ordner-Liste für die IGDB-Suche nutzen, wenn der Dateiname nichts findet;
   GameCube, Wii und PlayStation mit Redump-Namen

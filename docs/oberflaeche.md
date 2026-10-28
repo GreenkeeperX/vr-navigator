@@ -137,7 +137,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Reiter: Jetzt, Wunschliste (0.8.2, Unterreiter als `.systabs`, `V.wsub`, ab 0.8.7 PC zuerst und Vorgabe; PC in
   Grün der Familie PC, ohne bestätigte VR-Spiele (`pcIsVr`), Liste im Raster der Sammlung `.glist.pcw`, Name verlinkt
   gg.deals, Marken „Paket“, „DLC“ grau, „VR“ violett nur aus dem Namen, „schon in der Sammlung“ violett,
-  „nah am Tief“ grün), Sammlung, Einstellungen (die Bibliothek ist seit 0.6.0 der Reiter
+  „nah am Tief“ grün; ab 0.8.11 Spalten Wertung, Spielzeit, Genre mit `gSc` und `gGenres` wie in der Sammlung, der
+  Name klappt Einzelheiten auf (`pcRow`, `pcDetail`, `V.pwOpen`), die Links zu gg.deals und Steam stehen dort klein
+  unten), Sammlung, Einstellungen (die Bibliothek ist seit 0.6.0 der Reiter
   VR in der Sammlung; ein gemerkter Reiter „Bibliothek“ öffnet ihn). Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
   weitere Reiter folgen.
@@ -209,6 +211,13 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   oder `label`). Ohne Chromium wird er lokal übersprungen, in GitHub Actions nicht.
 - Jede Adresse `/api/...`, die die Oberfläche ruft, muss es im Server geben (Test).
 - Bildschirmfotos breit und bei 390 px, hell und dunkel, gegen eine bestehende Ansicht halten.
+
+## Jetzt, ab 0.8.11
+
+- Schalter „Alle, VR, PC“ (`.seg.nowk`, `V.nowKind`) rechts in der Werkzeugzeile, mit Zahl je Seite. Bei „Alle“ zwei
+  Klappen „VR“ und „PC“; die PC-Liste ist dieselbe Tabelle wie unter Wunschliste, PC (`pcTable`), nur Wünsche nah am
+  Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter.
+- Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
 
 ## Sammlung, ab 0.8.7
 

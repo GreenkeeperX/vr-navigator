@@ -228,6 +228,17 @@ Schlüssel `pack:<slug>`, `dlc:<slug>`): ohne Steam-Suche und ohne API-Preis, nu
 | Steam-Suche | `store.steampowered.com/api/storesearch/?term=<Name>&l=german&cc=DE` | nur ohne Steam-ID aus Titeln oder Sammlung, 30 je Lauf, je Spiel höchstens alle 7 Tage | App-ID bei genau einem gleichen Namen |
 | gg.deals-Preise | `https://api.gg.deals/v1/prices/by-steam-app-id/?ids=<IDs>&region=de` (mit Schlüssel) | jeder Lauf, Pakete zu 100 IDs | Händler und Keyshop jetzt, bisheriges Tief, Link |
 
+Spielinfos (ab 0.8.11, Quelle `pcinfo`, gleich nach der PC-Wunschliste) nur für Spiele mit Steam-ID, ohne Pakete
+und DLC. Ruhen Steam-Details oder Steam-Rezensionen nach einer Sperre, fragt auch `pcinfo` Steam nicht. Abgelegt je
+Spiel in `pcwish.json` unter `steam`, `rev` und `igdb`; ältere Dateien ohne diese Felder laden wie bisher.
+`PCWISH_INFO` zählt beim beschleunigten Auffüllen mit.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Steam-Details | `store.steampowered.com/api/appdetails?appids=<ID>&l=german&cc=de` | je Spiel nach 90 Tagen (`DETAILS_DAYS`), zusammen mit den Rezensionen höchstens 60 Spiele je Lauf (`PCWISH_INFO`) | Genres, Mehrspieler, Erscheinen, Entwickler, Beschreibung, VR |
+| Steam-Rezensionen | wie bei der Sammlung (`appreviews/<ID>`) | je Spiel nach 30 Tagen (`REVIEWS_DAYS`) | Zahl und Anteil positiv |
+| IGDB | `api.igdb.com/v4/external_games`, `games`, `game_time_to_beats` (nur mit IGDB-Schlüssel) | je Spiel nach 90 Tagen (`IGDB_DAYS`), gebündelt zu 400 Steam-IDs | Genres, Spieler, Spielzeit, Kritiken, Jahr |
+
 ## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
 
 Für „VR per Mod“ am PC: nur PC-Spiele, die laut Steam kein VR eingebaut haben. Bekannte Spiele (viele
