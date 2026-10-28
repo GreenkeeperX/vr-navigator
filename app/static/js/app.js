@@ -287,6 +287,7 @@ function legendHtml(){
     <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis beider Läden; darunter klein der Tiefstpreis des Ladens selbst; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
     <div class="lg">≈ am Bestpreis: übernommen (QuestStoreDB oder gg.deals), solange der eigene Preisverlauf zu kurz ist</div>
     <div class="lg"><span class="vd buy">kaufen</span> höchstens 2 % oder 0,50 € über dem Bestpreis beider Läden · <span class="vd good">gut</span> höchstens 15 % oder 2 € darüber (wie im eShopKompass); „Jetzt“ zeigt Angebote mit diesem Urteil</div>
+    <div class="lg"><span class="vd wb buy">Meta kaufen</span> <span class="vd wb wait">Steam warten</span> wo kaufen: der Laden, für den mehr spricht (Crossbuy zählt 2, ein großer Preisabstand ab 40 % und 8 € zählt 2, je 1: Mehrspieler mit wenig Spielern auf Steam, 8 Punkte bessere Wertung, ein Jahr jüngere Pflege, spürbar günstiger; Recherche halb), dahinter das Preisurteil dort; die Gründe stehen in der Zeile „Wo“</div>
     <div class="lg"><span class="b deal">−20 %</span> Rabatt jetzt</div>
     <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler und Keyshops bei gg.deals)</div>
     <div class="lg"><span class="b go">Crossbuy</span> Meta-Kauf gilt auch am PC; <span class="b">ohne Crossbuy</span> nur auf der Quest</div>
@@ -478,9 +479,31 @@ function sheetHtml(r){
     ${fact("Meta", `<span class="price">${eur(s.meta)}</span>, Tief ${eur(s.meta_low)}`)}${fact("gg.deals", `<span class="price">${eur(s.gg)}</span>`)}
     ${r.gap != null ? fact("Differenz", `<span class="${r.gap >= 1 ? "over" : r.gap <= -1 ? "ok" : ""}">${r.gap > 0 ? "+" : ""}${eur(r.gap)}</span>`) : ""}</div>`;
 }
+/* Wo kaufen (0.8.15): Laden und Preisurteil im Kopf der Karte, die Gründe als Zeile darunter. Gründe für
+   den gewählten Laden normal, die für den anderen grau; was nur aus der Recherche kommt, violett mit „≈“ */
+const WB_SHOP = {meta: "Meta", steam: "Steam", egal: "Laden egal"};
+const WB_GRADE = {buy: "kaufen", good: "gut", wait: "warten"};
+function buyBadge(r){
+  const b = r.buy;
+  if(!b) return "";
+  const tip = `Wo kaufen, aus dem Gemessenen: ${b.why.map(x => (x.shop === "meta" ? "Meta" : "Steam") + ": " + x.text).join("; ") || "nichts unterscheidet die Läden"}`
+    + (b.grade ? `. Preis dort: ${WB_GRADE[b.grade]}` : "");
+  return `<span class="vd wb ${b.grade || "wait"}" title="${esc(tip)}">${WB_SHOP[b.shop]}${b.grade ? (b.shop === "egal" ? ", " : " ") + WB_GRADE[b.grade] : ""}</span>`;
+}
+function buyHtml(r){
+  const b = r.buy;
+  if(!b || !b.why.length) return "";
+  const one = x => x.guess ? `<span class="gxc" title="Aus der Recherche, zählt halb">≈ ${esc(x.text)}</span>` : esc(x.text);
+  const part = k => {
+    const xs = b.why.filter(x => x.shop === k);
+    return xs.length ? `<span class="${b.shop !== "egal" && b.shop !== k ? "mut" : ""}">${k === "meta" ? "Meta" : "Steam"}: ${xs.map(one).join(", ")}</span>` : "";
+  };
+  const order = b.shop === "steam" ? ["steam", "meta"] : ["meta", "steam"];
+  return `<div class="facts wbl">${fact("Wo", order.map(part).filter(Boolean).join(" · "), "Gründe je Laden; der mit mehr Gewicht gewinnt, bei Gleichstand ist es egal")}</div>`;
+}
 function wishRow(r){
-  return `<div class="item wi"><div class="hd"><span class="nm">${esc(r.name)}</span>${badges(r)}</div>
-    ${shopsHtml(r) || sheetHtml(r)}<div class="side">${factsHtml(r)}${opinionHtml(r)}
+  return `<div class="item wi"><div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}</div>
+    ${shopsHtml(r) || sheetHtml(r)}<div class="side">${buyHtml(r)}${factsHtml(r)}${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
 }

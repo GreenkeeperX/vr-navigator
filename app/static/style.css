@@ -222,6 +222,9 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .vd{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;font-weight:600}
 .vd.buy{background:var(--go);color:var(--card)}
 .vd.good{color:var(--go);box-shadow:inset 0 0 0 1.5px var(--go)}
+.vd.wb{margin-left:6px}
+.vd.wb.wait{color:var(--muted);box-shadow:inset 0 0 0 1px var(--muted)}
+.wbl .mut{color:var(--muted)}
 /* Fakten als festes Raster: Spalte mit Namen, Spalte mit Werten, in jeder Karte gleich */
 .facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;align-items:baseline;font-size:13px;color:var(--ink);min-width:0;flex-basis:100%}
 .fact{display:contents}
