@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.8:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.9:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -471,7 +471,9 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Puzzle oder Horror etwa nicht). Die Einzelheiten nennen, ob ein Spiel schon abgeglichen ist;
   Spiele mit VR tragen die türkise Marke „VR“: laut Steam-Details, als VR-Titel im Tool oder laut VR-Prüfung im
   Steam-Store (ab 0.8.7); nennt nur der Name VR, ist die Marke violett. Ab 0.8.7 stehen unter PC auch deine
-  VR-Titel am PC, die Playnite nicht kennt (am PC gekauft oder bei Meta mit Crossbuy). Die Suche gilt je Reiter
+  VR-Titel am PC, die Playnite nicht kennt (am PC gekauft oder bei Meta mit Crossbuy). Ab 0.8.9 sind sie eigene
+  Spiele der Sammlung und bekommen wie alle Steam-Details, Rezensionen, IGDB, PCGamingWiki und Nexus Mods; kennt
+  Playnite einen davon später, fällt der eigene Eintrag weg. Die Suche gilt je Reiter
   und leert sich beim Wechsel. „herunterladen“ gibt die gefilterte Liste mit den gezeigten Spalten und Mein Stand
   als CSV aus, aufgeklappte Spiele mit ihren Einzelheiten; ⧉ am Spaltenkopf „Spiel“ kopiert alle Titel der Liste. PlayStation-Spiele der ersten Generation
   stehen unter PS1 (bis 0.6.0 „PS“). Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),

@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 import os
 import sys
@@ -639,6 +640,28 @@ class TestCollection(unittest.TestCase):
         rows = {r["name"]: r for r in collection.view(col, d)["games"]}
         self.assertEqual(rows["Comet Chase VR"]["wheel"]["src"], ["SimHub"])
         self.assertEqual(len(collection.view(col)["games"]), 4)   # ohne Daten wie bisher
+        # 0.8.9: dieselben VR-Titel als eigene Spiele der Sammlung, damit die Abrufe sie mitnehmen
+        self.assertEqual(collection.sync_pcvr(col, d), (2, 0))
+        g = col["games"]["pcvr:" + b]
+        self.assertEqual((g["src"], g["store"], g["id"], g["from_vr"]), ("pcvr", "Steam", "3300002", b))
+        self.assertEqual(col["games"]["pcvr:" + c]["store"], "Meta (Crossbuy)")
+        g["steam"] = {"ok": True, "genres": ["Rennen"], "mp": [], "year": "2024", "desc": "Rennen im All."}
+        g["rev"] = {"n": 80, "pct": 90}
+        rows = {r["key"]: r for r in collection.view(col, d)["games"]}
+        self.assertEqual(len([r for r in rows.values() if r["name"] == "Comet Chase VR"]), 1)    # keine zweite Zeile
+        r = rows["pcvr:" + b]
+        self.assertEqual((r["from_vr"], r["vr"], r["vr_src"], r["src"], r["genres"], r["score"], r["srcs"][:2]),
+                         (b, True, "VR-Titel im Tool", "steam", ["Rennen"], 90, ["VR-Titel im Tool", "Steam"]))
+        self.assertEqual(r["url"], "https://store.steampowered.com/app/3300002/")
+        self.assertEqual(rows["pcvr:" + c]["vr"], True)
+        # Ein neuer Playnite-Export lässt sie stehen; kennt Playnite den Titel jetzt, fällt der Eintrag beim Abgleich weg
+        collection.replace(col, {"steam:3300001": {"name": "Orbit Golf", "store": "Steam", "id": "3300001", "system": "PC"}})
+        self.assertIn("pcvr:" + b, col["games"])
+        self.assertEqual(col["games"]["pcvr:" + b]["rev"]["n"], 80)
+        col["games"]["steam:3300002"] = {"name": "Comet Chase VR", "store": "Steam", "id": "3300002", "system": "PC"}
+        self.assertEqual(collection.sync_pcvr(col, d), (0, 1))
+        self.assertNotIn("pcvr:" + b, col["games"])
+        self.assertEqual(collection.sync_pcvr(col, d), (0, 0))
 
     def test_replace_keeps_fetched_and_gem(self):
         col = json.loads(json.dumps(collection.EMPTY))
@@ -1360,7 +1383,8 @@ class TestSync(unittest.TestCase):
         # Zweiter Lauf: Fehlschläge warten, gefragte Apps kommen aus dem Speicher
         net.calls.clear()
         sync.run()
-        self.assertFalse(any("all_apps" in u or "appdetails" in u for u in net.calls))
+        # (Steam-Details der Sammlung, ab 0.8.9 auch für VR-Titel am PC, fragen mit „l=german&cc=de“ und sind hier nicht gemeint)
+        self.assertFalse(any("all_apps" in u or "appdetails" in u and "l=german&cc=de" not in u for u in net.calls))
         # Von Hand: Steam-ID falsch, die Suche schlägt sie nicht wieder vor
         ck = by["Comet Chase"][0]
         server.edit_title({"key": ck, "steam_appid": ""})
@@ -1917,6 +1941,35 @@ class TestSync(unittest.TestCase):
         self.assertIn("Steam: kein Preis für 4 App-IDs", text)
         self.assertIn("2 Normalpreise", text)
         self.assertEqual(sync.self_check({"qsdb": {"ok": True, "sale": 12, "pages": 2, "parsed": 2}}, {}, {}), [])
+
+    def test_igdb_order(self):
+        """IGDB-Namen (0.8.9): zuerst VR-Titel am PC, dann abwechselnd Retro und die übrigen; Bekanntes zuletzt."""
+        g = lambda n, **x: dict({"name": n, "mp": [], "players": 0, "genres": []}, **x)
+        store.save_json(collection.FILE, {"games": {
+            "gog:a": g("Alpha Pc", store="GOG"), "gog:b": g("Beta Pc", store="GOG"), "gog:c": g("Gamma Pc", store="GOG"),
+            "retro:gba:a": g("Alpha Retro", system="GBA", src="retro"), "retro:gba:b": g("Beta Retro", system="GBA", src="retro"),
+            "pcvr:t1": g("Comet Chase VR", src="pcvr", store="Meta (Crossbuy)"),
+            "gog:old": g("Old Pc", store="GOG", igdb={"none": True, "at": "2020-01-01", "v": 0})}})
+        asked = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            if "twitch" in url:
+                return json.dumps({"access_token": "tok"})
+            m = re.search(r'search "([^"]+)"|name ~ "([^"]+)"', (data or b"").decode())
+            if m and url.endswith("games"):
+                n = m.group(1) or m.group(2)
+                if not asked or asked[-1] != n:
+                    asked.append(n)
+            return "[]"
+        sources.fetch = fake
+        sync._igdb(dict(sync.SETTINGS, igdb_id="a" * 30, igdb_secret="b" * 30), lambda x: None)
+        firsts = []
+        for n in asked:
+            base = re.sub(r"\W+", " ", n).strip().lower()
+            if not firsts or firsts[-1] != base:
+                firsts.append(base)
+        self.assertEqual([f.split()[0] for f in firsts][:7], ["comet", "alpha", "alpha", "beta", "beta", "gamma", "old"])
+        self.assertEqual(firsts[1:3], ["alpha retro", "alpha pc"])
 
     def test_igdb_sync(self):
         """IGDB im Abgleich (0.8.0): Steam-Spiele gebündelt über die Steam-ID, andere über den Namen, ein

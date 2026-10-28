@@ -1301,6 +1301,16 @@ def _igdb(settings, log):
             return True
         return (r.get("at") or "") < (old_miss if r.get("none") else old)
     todo = sorted(((g.get("igdb") or {}).get("at") or "", k) for k, g in games.items() if due(g))
+    # 0.8.9: Bei gleichem Stand zuerst deine VR-Titel am PC, dann abwechselnd Retro und die übrigen, damit Retro nicht
+    # hinter allen PC-Spielen wartet
+    seen = {}
+
+    def turn(k):
+        g = games[k]
+        grp = 0 if g.get("src") == collection.PCVR else 1 if g.get("src") == retro.SRC else 2
+        seen[grp] = seen.get(grp, -1) + 1
+        return (0, seen[grp]) if grp == 0 else (1, seen[grp] * 2 + (grp == 2))
+    todo = sorted(todo, key=lambda x: (x[0], turn(x[1])))
     if not todo:
         log("IGDB: alle aktuell" if games else "IGDB: keine Sammlung, nichts zu tun")
         return src.result()
@@ -1903,6 +1913,16 @@ def run(only=None, boot=False, by_hand=False, fast=False):
             do("gg", lambda: _gg(targets, upd, settings["gg_key"], log))
         else:
             log("gg.deals: kein Schlüssel eingetragen, nicht abgefragt")
+        # VR-Titel am PC ohne Playnite-Eintrag (0.8.9) als Spiele der Sammlung, damit die Abrufe danach sie mitnehmen
+        try:
+            with store.lock:
+                col = store.load_json(collection.FILE, collection.EMPTY)
+                new, gone = collection.sync_pcvr(col, store.load_data())
+                store.save_json(collection.FILE, col)
+            if new or gone:
+                log(f"Sammlung: VR-Titel am PC ohne Playnite-Eintrag {new} neu" + (f", {gone} entfallen" if gone else ""))
+        except Exception as e:
+            log(f"Sammlung: VR-Titel am PC nicht abgeglichen ({type(e).__name__})")
         if not only or "reviews" in only:
             do("reviews", lambda: _reviews(log))
         if not only or "details" in only:
