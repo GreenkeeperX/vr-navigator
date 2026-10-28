@@ -318,6 +318,7 @@ details.op .ux{color:var(--warn)}
 .chip.gmore{background:none;padding:0 2px}
 .gxc,.gxc *{color:var(--warn)}
 .b.vrb{background:transparent;border:1px solid var(--brand);color:var(--brand)}
+.b.pcb{background:transparent;border:1px solid var(--sys-pc);color:var(--sys-pc)}   /* 0.8.27: Art „PC“ in „Jetzt, Alle“, Farbe des Reiters PC */
 .chip{display:inline-block;font-size:11px;border-radius:999px;padding:0 7px;background:var(--chip);color:var(--muted);white-space:nowrap}
 .chip.gg{background:hsl(var(--gh) var(--gg-s) var(--gg-bl));color:hsl(var(--gh) var(--gg-ts) var(--gg-tl))}
 .gsc{color:hsl(var(--sh) var(--sc-s) var(--sc-l));font-weight:600}
