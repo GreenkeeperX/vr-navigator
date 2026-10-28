@@ -2777,6 +2777,14 @@ class TestUi(unittest.TestCase):
             if g["name"].startswith("Ein sehr langer"):
                 g["de"] = {"st": "missing", "alt": "Ein sehr langer deutscher Retro-Titel mit noch mehr Wörtern (Germany) (Rev 1)", "guess": True, "via": "retool"}
         store.save_json(collection.FILE, col)
+        # PC-Wunschliste (0.8.12): Wertung nur von IGDB gesamt hat score_n, ohne das brach die Liste ab
+        store.save_json("pcwish.json", {"at": now, "via": "Datei", "items": {
+            "harbor-heist": {"name": "Harbor Heist", "slug": "harbor-heist", "appid": "3000101", "since": now,
+                             "gg": {"retail": 14.99, "keyshops": 11.0, "retail_low": 12.0, "keyshops_low": 10.8, "at": now},
+                             "rev": {"n": 20, "pct": 80, "at": now},
+                             "igdb": {"id": 5, "name": "Harbor Heist", "genres": ["Shooter"], "total": 77, "total_n": 40,
+                                      "hours": {"h": 7.0}, "at": now, "v": 1}},
+            "rally-moth": {"name": "Rally Moth mit einem sehr langen Namen für die schmale Ansicht", "slug": "rally-moth", "since": now}}})
         data["imports"]["collection"] = {"at": now, "n": len(col["games"]), "new": 0}
         data["imports"]["retro"] = {"at": now, "n": 4, "new": 0, "files": 5, "gone": 1}
         store.save_data(data)

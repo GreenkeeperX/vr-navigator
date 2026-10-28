@@ -17,7 +17,7 @@ f.addEventListener("load", () => {
   const wait = () => { if(ready()) run(); else if(n++ < 100) setTimeout(wait, 100); else { res.errors.push("Zustand nicht geladen"); done(); } };
   const run = async () => {
     try{
-      const views = w.eval("TABS.map(x => x[0])").map(t => [t, `V.q = ''; V.tab = '${t}'`])
+      const views = w.eval("TABS.map(x => x[0])").map(t => [t, `V.q = ''; V.wsub = 'vr'; V.tab = '${t}'`])
         .concat([["wish:suche", "V.tab = 'wish'; V.q = 'sky'"], ["wish:zu", "V.q = ''; V.folds['w-open'] = true"],
                  ["wish:wertung", "V.folds['w-open'] = false; V.sort = 'rating'; V.lf.cb = true"],
                  ["find:vr", "V.tab = 'find'; V.d = Object.assign({}, D0, {sys: 'VR'})", "V.gOpen = 'vr:' + S.library[0].key; render()"],
@@ -31,7 +31,9 @@ f.addEventListener("load", () => {
                  ["settings:retro", "V.tab = 'settings'; V.folds['imp-retro'] = false; V.txt = {retro: 'ROMs/GB/Moon Rover (Europe).gb'}; V.prev.retro = {kind: 'retro', n: 2, new: 1, files: 3, systems: {GB: 1, SNES: 1}, skipped: {archive: 4, save: 1, extra: 0}, unknown_n: 1, unknown: ['Comet Chase mit einem sehr langen Dateinamen ohne Ende.iso'], gone: ['Star Hop'], gone_n: 1, entries: [{name: 'Moon Rover', system: 'GB', known: false, langs: ['De', 'En'], lang_guess: false, files: 2}, {name: 'Star Hop', system: 'SNES', known: true, langs: ['Ja'], lang_guess: true, files: 1}]}"],
                  ["wish:menu", "V.tab = 'wish'; V.lf.good = false; V.menu = 'lf'; V.legend = true; V.add = true"],
                  ["find:genre", "V.tab = 'find'; V.legend = false; V.menu = 'g'; V.d = Object.assign({}, D0, {g: ['Puzzle'], gop: 'and', mp: ['coop']})"],
-                 ["thema", "", "V.menu = ''; themeMenu(true)"]]);
+                 ["wish:pc", "V.menu = ''; V.tab = 'wish'; V.wsub = 'pc'", "V.pwOpen = 'harbor-heist'; render()"],
+                 ["now:pc", "V.tab = 'now'; V.nowKind = 'pc'"],
+                 ["thema", "V.nowKind = ''", "V.menu = ''; themeMenu(true)"]]);
       // Das Lesezeichen „Meta-Käufe lesen“ muss gültiges JavaScript ergeben
       try{ new w.Function(w.eval("metaHelper(location.origin)")); }catch(e){ res.errors.push("Lesezeichen: " + e); }
       // Prüft erst den Prüfer: Ein absichtlich zu breiter Kasten muss auffallen

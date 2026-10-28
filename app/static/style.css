@@ -340,8 +340,8 @@ details.op .ux{color:var(--warn)}
 .gdesc.full{display:block}
 .gno{color:var(--stop)}
 .gnote{margin:4px 0 8px}
-.gnote>summary{cursor:pointer;display:list-item;list-style-position:inside;margin:0}
-.gnote>p{margin:4px 0 0;max-width:110ch}
+.gnote>summary{cursor:pointer;display:list-item;list-style-position:inside;margin:0;font-size:13px;color:var(--muted)}
+.gnote>p{margin:4px 0 0}
 /* Switch-Spiele wie im eShopKompass (0.7.5): Marken, OpenCritic grau kursiv, USK 16/18, Kopf „Spieler“ */
 .lgt{flex:none;font-size:10px;font-weight:700;border-radius:3px;padding:0 3px;vertical-align:1px;white-space:nowrap}
 .lgt.de{border:1px solid var(--line);color:var(--muted)}
