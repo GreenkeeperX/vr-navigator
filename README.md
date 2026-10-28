@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.21:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.22:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -354,8 +354,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Bestpreis beider Läden liegen, mit den Grenzen des eShopKompass: „kaufen“ bis 2 % oder 0,50 €
   darüber (unter 2 € Bestpreis nur die 2 %), „gut“ bis 15 % oder 2 € darüber. Die übrigen
   Angebote stehen zugeklappt darunter („Reduziert, aber noch weit über dem Bestpreis“). Sortiert
-  nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
-  Wunschliste. Ab 0.8.11 darunter auch die PC-Wünsche, die höchstens 5 % über dem bisherigen Tief bei gg.deals
+  nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Zeile wie in der
+  Wunschliste (bis 0.8.21 als Karte). Ab 0.8.11 darunter auch die PC-Wünsche, die höchstens 5 % über dem bisherigen Tief bei gg.deals
   liegen, als Liste wie unter Wunschliste, PC; die Reiter „Alle, PC, VR“ (ab 0.8.17, vorher ein Schalter, jetzt an
   derselben Stelle wie in Wunschliste und Sammlung) zeigen beide oder nur eine Seite.
 - **Spaltenreihenfolge** (ab 0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest, rechts das Nachschlagen.
@@ -382,7 +382,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Gruppe „Schon im Besitz“, etwa wenn du ein PC-Spiel zusätzlich für die Quest willst.
   „nicht mehr wünschen“ (in der Klappe unter der Karte) nimmt einen Titel von der Liste (mit Rückgängig);
   „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
-  Je Titel eine Karte mit festem Aufbau:
+  Ab 0.8.22 (Entscheidung 28.10.2026) stehen die VR-Wünsche als Tabelle wie unter PC: Spiel (mit Crossbuy,
+  SimRacing und kurz „keine Liste“ oder „fehlt: Meta“), Wo (Urteil „wo kaufen“), Meta, Steam (Preis mit Rabatt,
+  als Link zum Laden), zum Bestpreis (grün „am Bestpreis“, sonst rot der Abstand), Wertung mit Trend, Spieler,
+  Update. Ein Klick auf den Namen klappt darunter die bisherige Karte als Einzelheiten auf. Jetzt zeigt die
+  VR-Angebote in derselben Tabelle.
+  Je Titel eine Karte mit festem Aufbau (ab 0.8.22 die Einzelheiten einer Zeile):
   - **Kopf:** Name, „wo kaufen“, Crossbuy-Marke mit Herkunft (siehe unten), Besitz, Bundle, „Steam-ID ≈“.
   - **Wo kaufen** (ab 0.8.15): für jeden Wunschtitel, den du noch nicht hast, der Laden, für den mehr
     spricht, und dahinter das Preisurteil dort („Meta kaufen“, „Steam warten“, „Laden egal, gut“). Gezählt

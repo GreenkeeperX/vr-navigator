@@ -112,7 +112,8 @@ Wertung und Pflege („ruht“ nach einem Jahr ohne Update), auch für die PC-Wu
 Preisverlauf je PC-Wunsch. 0.8.19: Spaltenreihenfolge, Wichtiges links (Wertung, Genre, Spielzeit, Mehrspieler),
 Nachschlagen rechts. 0.8.20: Marken VR und SimRacing umrandet, Hinweise gestrichelt ohne „?“; Switch-Systemwahl als
 Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. 0.8.21: Trend wöchentlich für alle Spiele ab 50 Rezensionen, nicht erst mit der nächsten
-Rezensionszahl. Grundsatz (Entscheidung 22.10.2026): so wenig
+Rezensionszahl. 0.8.22: VR-Wünsche als Tabelle wie die PC-Wünsche, die Karte als Einzelheiten; Jetzt
+mit zwei gleich gebauten Tabellen. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
