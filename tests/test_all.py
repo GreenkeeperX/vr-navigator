@@ -565,6 +565,28 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(v["Moon Rover"]["de"]["alt"], "Mondfahrer (Germany)")
         self.assertIsNone(v["Comet Chase"]["de"])
 
+    def test_retro_disc_ids(self):
+        """0.8.16: GameCube und Wii über die Spiel-ID („[RMRP01]“, auch nur im Ordnernamen), PlayStation über die
+        Seriennummer; die Fassungsliste von Redump nennt sie im Feld serial."""
+        dat = ('game (\n\tname "Moon Rover (Europe) (En,Fr,De)"\n\tserial "RVL-RMRP-EUR-B0"\n)\n'
+               'game (\n\tname "Moon Rover (USA)"\n\tserial "RVL-RMRE-USA"\n)\n'
+               'game (\n\tname "Comet Chase (Germany)"\n\tserial "DL-DOL-GCCD-NOE"\n)\n'
+               'game (\n\tname "Harbor Heist (Germany)"\n\tserial "SLES-02376"\n)\n'
+               'game (\n\tname "Harbor Heist (Europe)"\n\tserial "SLES-02375"\n)\n')
+        idx = retro.build_index(dat)
+        sy, a = retro.classify("Wii/wbfs/Mondfahrer [RMRE01]/RMRE01.wbfs")
+        self.assertEqual((sy, a["title"], a["serial"], a["regions"]), ("Wii", "Mondfahrer", "ID-RMRE", ["USA"]))
+        g = dict(a, name=a["title"])
+        self.assertEqual(retro.match(g, idx), {"st": "missing", "alt": "Moon Rover (Europe) (En,Fr,De)", "guess": False, "via": "code",
+                                               "langs": ["En"], "rel": "Moon Rover (USA)"})
+        sy, b = retro.classify("GC/Comet Chase [GCCD01].iso")
+        self.assertEqual(retro.match(dict(b, name=b["title"]), idx)["st"], "have")
+        sy, c = retro.classify("PS1/Harbor Heist (Europe) [SLES_023.75].chd")
+        self.assertEqual((sy, c["serial"]), ("PS1", "SLES-02375"))
+        self.assertEqual(retro.match(dict(c, name=c["title"]), idx)["st"], "missing")      # andere Nummer, kein Deutsch
+        self.assertEqual(retro.classify("Wii/RMRD01.wbfs"), (None, "unknown"))
+        self.assertEqual(retro.classify("GC/Spiele/SPIDER.iso")[1]["title"], "SPIDER")
+
     def test_retro_3ds_and_near(self):
         """3DS (0.8.4): Fassung über den Produktcode im Dateinamen, Sprachen dann laut No-Intro; Gruppe über den
         Code auch bei anderem Titel. Ähnliche Namen nur als Vorschlag, bestätigt gilt der Titel der Liste."""
@@ -582,7 +604,9 @@ class TestCollection(unittest.TestCase):
         retro.mark_languages(col, {"3DS": idx})
         self.assertEqual(games["retro:3ds:moon rover 3d"]["de"]["st"], "have")
         self.assertEqual(games["retro:3ds:moon rover 3d"]["de"]["langs"], ["De", "En", "Fr"])
-        self.assertEqual(games["retro:3ds:mondrover"]["de"], {"st": "missing", "alt": "Moon Rover 3D (Europe) (En,Fr,De)", "guess": False, "via": "code"})
+        # 0.8.16: die genau genannte Fassung zählt auch ohne Sprachangabe in der Liste (dann die Sprache ihrer Region)
+        self.assertEqual(games["retro:3ds:mondrover"]["de"], {"st": "missing", "alt": "Moon Rover 3D (Europe) (En,Fr,De)", "guess": False, "via": "code",
+                                                            "langs": ["En"], "rel": "Moon Rover 3D (USA)"})
         self.assertEqual(games["retro:3ds:pixel garden"]["de"], {"st": "unknown", "near": "Pixel Garden Deluxe"})
         self.assertNotIn("near", games["retro:3ds:comet chase"]["de"])
         v = {r["name"]: r for r in collection.view(col)["games"]}
@@ -2126,6 +2150,36 @@ class TestSync(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertEqual(len(calls), 1)
         self.assertEqual(igdb.pick([{"name": "Portal 2"}], "Portal"), None)
+
+    def test_igdb_own_title(self):
+        """0.8.16: Findet IGDB eine Retro-Datei nicht unter ihrem Namen, sucht der Abgleich mit deinem Titel aus der
+        Ordner-Liste und vergleicht ihn mit den anderen Namen bei IGDB. Ältere „kein Treffer“ kommen dafür wieder dran."""
+        from app import igdb
+        k = "name:snes:sternenjaeger"
+        store.save_json(collection.FILE, {"games": {
+            k: {"name": "Sternenjaeger (Germany)", "system": "SNES", "src": retro.SRC, "own": {"title": "Sternenjäger, Die"},
+                "igdb": {"none": True, "at": titles.now_iso(), "v": igdb.V}}}})
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            body = (data or b"").decode()
+            calls.append(body)
+            if "twitch" in url:
+                return json.dumps({"access_token": "tok"})
+            if "Die Sternenjäger" in body:
+                return json.dumps([{"id": 11, "name": "Star Hunters", "alternative_names": [{"name": "Die Sternenjäger"}]}])
+            return "[]"
+        sources.fetch = fake
+        settings = dict(sync.SETTINGS, igdb_id="a" * 30, igdb_secret="b" * 30)
+        sync._igdb(settings, lambda m: None)
+        g = store.load_json(collection.FILE, collection.EMPTY)["games"][k]
+        self.assertEqual(g["igdb"]["id"], 11)
+        # gefunden oder mit dem eigenen Titel schon gesucht: der nächste Lauf fragt nicht noch einmal
+        calls.clear()
+        sync._igdb(settings, lambda m: None)
+        self.assertEqual(calls, [])
+        # ein anderer Name allein reicht ohne alt nicht
+        self.assertIsNone(igdb.pick([{"name": "Star Hunters", "alternative_names": [{"name": "Die Sternenjäger"}]}], "Die Sternenjäger"))
 
     def test_pcwish_info(self):
         """Spielinfos der PC-Wunschliste (0.8.11): Steam-Details, Rezensionen und IGDB über die Steam-ID, nur für Spiele

@@ -20,7 +20,7 @@ FIELDS = ("fields name,first_release_date,genres.name,game_modes.name,aggregated
           "total_rating,total_rating_count,summary,involved_companies.company.name,involved_companies.developer,"
           "involved_companies.publisher,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,"
           "multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.splitscreen,"
-          "multiplayer_modes.lancoop,multiplayer_modes.platform;")
+          "multiplayer_modes.lancoop,multiplayer_modes.platform,alternative_names.name;")
 CRIT_MIN = 3        # Kritiken, ab denen die Kritiker-Wertung zählt
 TOTAL_MIN = 10      # Bewertungen, ab denen die Gesamtwertung zählt
 
@@ -75,26 +75,30 @@ def _words(n):
     return set(titles.norm(search_name(n)).split())
 
 
-def pick(games, name):
+def pick(games, name, alt=False):
     """Der passende Treffer oder None: gleicher Name, sonst einer, dessen Name den gesuchten enthält oder
     umgekehrt („007 - Everything or Nothing“ und „James Bond 007: Everything or Nothing“), sonst einer mit
-    weitgehend gleichen Wörtern. Ein beliebiger erster Treffer zählt nicht (falsches Spiel ist schlimmer als keins)."""
+    weitgehend gleichen Wörtern. Ein beliebiger erster Treffer zählt nicht (falsches Spiel ist schlimmer als keins).
+    alt (0.8.16): auch die anderen Namen bei IGDB vergleichen, etwa den deutschen Titel aus deiner Ordner-Liste."""
     want = titles.norm(search_name(name))
     ws = _words(name)
     best, best_q = None, 0.0
     for g in games or []:
         if not isinstance(g, dict) or not g.get("name"):
             continue
-        have = titles.norm(g["name"])
-        if have == want:
-            return g
-        hs = set(have.split())
-        if min(len(ws), len(hs)) >= 3 and (ws <= hs or hs <= ws):
-            q = 0.9
-        else:
-            q = len(ws & hs) / len(ws | hs) if ws | hs else 0
-        if q > best_q:
-            best, best_q = g, q
+        names = [g["name"]] + ([a.get("name") for a in g.get("alternative_names") or [] if isinstance(a, dict) and a.get("name")]
+                               if alt else [])
+        for n in names:
+            have = titles.norm(search_name(n)) if alt else titles.norm(n)
+            if have == want:
+                return g
+            hs = set(have.split())
+            if min(len(ws), len(hs)) >= 3 and (ws <= hs or hs <= ws):
+                q = 0.9
+            else:
+                q = len(ws & hs) / len(ws | hs) if ws | hs else 0
+            if q > best_q:
+                best, best_q = g, q
     return best if best_q >= 0.6 else None
 
 

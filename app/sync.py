@@ -1284,6 +1284,12 @@ def _details(log):
     return src.result()
 
 
+def _own_title(g):
+    """Retro (0.8.16): dein Titel aus der Ordner-Liste, wenn er vom Namen der Datei abweicht, sonst ""."""
+    t = retro.article_front(str((g.get("own") or {}).get("title") or "")).strip()
+    return t if g.get("src") == retro.SRC and t and titles.norm(t) != titles.norm(g.get("name") or "") else ""
+
+
 def _igdb(settings, log):
     """IGDB (0.8.0): Genre, Spieler, Wertung, Spielzeit, Beschreibung und Firmen je Spiel der Sammlung, für die
     Spalten aller Reiter. Steam-Spiele gebündelt über die Steam-ID, die übrigen über Name und System
@@ -1300,6 +1306,8 @@ def _igdb(settings, log):
             return False
         if not r or r.get("v") != igdb.V:
             return True
+        if r.get("none") and _own_title(g) and not r.get("own"):
+            return True                 # 0.8.16: mit dem Titel aus deiner Ordner-Liste noch nicht gesucht
         return (r.get("at") or "") < (old_miss if r.get("none") else old)
     todo = sorted(((g.get("igdb") or {}).get("at") or "", k) for k, g in games.items() if due(g))
     # 0.8.9: Bei gleichem Stand zuerst deine VR-Titel am PC, dann abwechselnd Retro und die übrigen, damit Retro nicht
@@ -1355,21 +1363,28 @@ def _igdb(settings, log):
     # Ohne Steam-ID, danach Steam-Spiele, die IGDB nicht mit der Steam-ID verknüpft hat: über den Namen
     names = [k for _, k in todo if k not in steam] + unlinked
     left = max(0, len(names) - IGDB_NAMES)
+    tried_own = set()
     for i, k in enumerate(names[:IGDB_NAMES]):
         if src.stopped:
             break
         progress("IGDB, Namen", i, min(len(names), IGDB_NAMES))
         g, hit, res = games[k], None, None
-        for body in igdb.name_queries(g["name"], g.get("system") or "PC"):
-            res = ask("games", body, f"„{g['name'][:40]}“")
-            if res is None:
-                break
-            hit = igdb.pick(res, g["name"])
-            if hit:
+        own = _own_title(g)
+        for name, alt in [(g["name"], False)] + ([(own, True)] if own else []):
+            for body in igdb.name_queries(name, g.get("system") or "PC"):
+                res = ask("games", body, f"„{name[:40]}“")
+                if res is None:
+                    break
+                hit = igdb.pick(res, name, alt)
+                if hit:
+                    break
+            if hit or res is None:
                 break
         if res is None and not hit:
             continue                    # Fehler: nicht als „kein Treffer“ merken
         got[k] = igdb.compact(hit) if hit else None
+        if own:
+            tried_own.add(k)
     ids = sorted({r["id"] for r in got.values() if r and r.get("id")})
     hours = {}
     for part in igdb.chunks(ids):
@@ -1384,7 +1399,8 @@ def _igdb(settings, log):
             if k in col.get("games", {}):
                 if r and hours.get(r["id"]):
                     r["hours"] = hours[r["id"]]
-                col["games"][k]["igdb"] = dict(r, at=stamp, v=igdb.V) if r else {"none": True, "at": stamp, "v": igdb.V}
+                col["games"][k]["igdb"] = dict(r, at=stamp, v=igdb.V) if r else dict({"none": True, "at": stamp, "v": igdb.V},
+                                                                                      **({"own": True} if k in tried_own else {}))
         store.save_json(collection.FILE, col)
     hit = sum(1 for r in got.values() if r)
     src.stats = {"read": len(got), "found": hit, "left": left}
