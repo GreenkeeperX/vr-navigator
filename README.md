@@ -7,9 +7,9 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.14:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.15:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
-VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
+VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
 ## Starten
 
@@ -363,7 +363,16 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   „nicht mehr wünschen“ (in der Klappe unter der Karte) nimmt einen Titel von der Liste (mit Rückgängig);
   „+ Titel“ in der Werkzeugzeile trägt einen von Hand ein.
   Je Titel eine Karte mit festem Aufbau:
-  - **Kopf:** Name, Crossbuy-Marke mit Herkunft (siehe unten), Besitz, Bundle, „Steam-ID ≈“.
+  - **Kopf:** Name, „wo kaufen“, Crossbuy-Marke mit Herkunft (siehe unten), Besitz, Bundle, „Steam-ID ≈“.
+  - **Wo kaufen** (ab 0.8.15): für jeden Wunschtitel, den du noch nicht hast, der Laden, für den mehr
+    spricht, und dahinter das Preisurteil dort („Meta kaufen“, „Steam warten“, „Laden egal, gut“). Gezählt
+    wird nur Gemessenes: nur ein Laden führt ihn (entscheidet), Crossbuy (2 für Meta), ein großer
+    Preisabstand von mindestens 40 % und 8 € (2), je 1 für Mehrspieler mit weniger als 20 Spielern auf
+    Steam (Spitze; spricht für Meta), 8 Punkte bessere Wertung, eine um ein Jahr jüngere Pflege (letztes
+    Steam-Update gegen die Meta-Version), spürbar günstiger (Steam 20 % und 3 €, Meta ab 1 €). Die
+    Recherche („Quest-“ oder „PC-Fassung besser“) zählt halb und steht violett mit „≈“. Wer mindestens
+    einen Punkt vorn liegt, gewinnt, sonst ist der Laden egal. Die Gründe stehen in der Zeile „Wo“, die
+    für den anderen Laden grau.
   - **Preise:** zwei feste Felder, Meta links, Steam rechts; fehlt ein Laden, bleibt sein Feld grau
     mit „kein Preis“. Je Feld Preis, Rabatt und Ende, darunter der Abstand zum **Bestpreis**
     beider Läden, dem niedrigsten Preis von Meta oder Steam der letzten 24 Monate: rot „+3,50 € über

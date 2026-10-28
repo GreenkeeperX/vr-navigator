@@ -13,7 +13,7 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 |---|---|---|---|
 | Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
 | Gold | `--best` | am Bestpreis (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
-| Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
+| Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, auch in „wo kaufen“ (`.vd.wb`; „warten“ grau umrandet), günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
 | Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
 | Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“ (Wunschliste; Sammlung „Steam-ID prüfen“), Wert aus nur einer Quelle in der Sammlung (`.gxc`), Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „Wunsch · Tabelle“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
@@ -57,7 +57,8 @@ Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Lege
 
 Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
 
-1. Kopf (`.hd`): Name, Marken.
+1. Kopf (`.hd`): Name, „wo kaufen“ (ab 0.8.15, `.vd.wb`: Laden und Preisurteil dort, „Meta kaufen“
+   grün gefüllt, „Meta gut“ grün umrandet, „Steam warten“ grau umrandet, „Laden egal, …“), dann die Marken.
 2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
    `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
    „+x € über Bestpreis“ (jeder Aufpreis rot, Entscheidung 26.10.2026) und der Bestpreis mit Laden oder gold
@@ -65,7 +66,8 @@ Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
    anderen Laden, klein darunter der eigene Tiefstpreis („Steam-Tief“). Der günstigere Laden:
    `.shop.win` mit „x € günstiger“.
 3. Fakten (`.facts`): festes Raster mit zwei Spalten, links der kleine graue Name (`.fl`),
-   rechts der Wert (`.fv`): Wertung, Spieler, Update, Meta-Version; nur was es gibt.
+   rechts der Wert (`.fv`): zuerst „Wo“ mit den Gründen je Laden (`.wbl`; der gewählte Laden zuerst,
+   der andere grau, Recherche violett mit „≈“), dann Wertung, Spieler, Update, Meta-Version; nur was es gibt.
 4. Recherche, Notiz.
 5. Klappe (`details.more`, nicht gemerkt, nicht bei „alle aufklappen“); die Zeile nennt den
    Inhalt („Bestpreise · gg.deals · Tabelle · Links · bearbeiten“): Bestpreise je Laden,

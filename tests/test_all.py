@@ -728,6 +728,40 @@ class TestLibrary(unittest.TestCase):
         r = library.row(k, d["titles"][k], at=at, hist=hist, data=d)
         self.assertEqual((r["best"]["steam"]["best"], r["best"]["steam"].get("src")), (9.0, None))
 
+    def test_where_buy(self):
+        """Wo kaufen (0.8.15): Gründe je Laden mit Gewicht, sonst egal; Recherche zählt halb."""
+        d = empty()
+        now = "2026-10-20T10:00:00+00:00"
+        at = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+        k, _ = titles.upsert(d, "Comet Chase", steam_appid="3000030", meta_id="1234567890123456")
+        t = d["titles"][k]
+        t.update(wish=True, live={"meta": {"price": 20.0, "base": 20.0, "at": now}, "steam": {"price": 20.0, "base": 20.0, "at": now}})
+        b = library.where_buy(library.row(k, t, at=at, hist={}, data=d))
+        self.assertEqual((b["shop"], b["why"]), ("egal", []))
+        # Crossbuy (2) gegen großen Preisabstand bei Steam (2): wieder egal
+        t["live"]["steam"]["price"] = 10.0
+        t.update(vrdb={"crossbuy": True})
+        b = library.where_buy(library.row(k, t, at=at, hist={}, data=d))
+        self.assertEqual(b["shop"], "egal")
+        self.assertIn("10 € günstiger (50 %)", [x["text"] for x in b["why"]])
+        # dazu Mehrspieler mit kaum Spielern auf Steam: Meta
+        t.update(play={"now": 3, "peak": 7, "at": now}, vrdb={"crossbuy": True, "modes": "Single User, Multiplayer"})
+        b = library.where_buy(library.row(k, t, at=at, hist={}, data=d))
+        self.assertEqual(b["shop"], "meta")
+        self.assertEqual(b["why"][0]["shop"], "meta")
+        # ohne Crossbuy, und die Recherche sagt PC-Fassung besser (zählt halb): Steam
+        t["opinion"] = {"fassung": "pc"}
+        t["vrdb"]["crossbuy"] = False
+        b = library.where_buy(library.row(k, t, at=at, hist={}, data=d))
+        self.assertEqual(b["shop"], "steam")
+        self.assertTrue(any(x["guess"] and x["w"] == 0.5 for x in b["why"]))
+        # nur bei einem Laden; Besitz: kein Urteil
+        k2, _ = titles.upsert(d, "Orbit Golf", steam_appid="3000040")
+        d["titles"][k2].update(wish=True, live={"steam": {"price": 9.0, "base": 9.0, "at": now}})
+        self.assertEqual(library.where_buy(library.row(k2, d["titles"][k2], at=at, hist={}, data=d))["shop"], "steam")
+        d["titles"][k2]["owned"] = {"pc": {"label": "Steam"}}
+        self.assertIsNone(library.where_buy(library.row(k2, d["titles"][k2], at=at, hist={}, data=d)))
+
     def test_grade_and_now(self):
         """Preisgüte wie im eShopKompass; Jetzt zeigt nur Angebote mit „kaufen“ oder „gut“."""
         g = library.grade

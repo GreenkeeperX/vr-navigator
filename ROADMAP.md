@@ -15,8 +15,6 @@ Plan (22.10.2026): erstes Recherche-Paket (etwa 20 Wunschtitel), dann das Urteil
 
 - Crossbuy aus der VRDB-Liste, Updates je Shop (Steam-Patchmeldungen, VRDB-Versions-Tracker)
 - Spielerzahl auf Steam mit eigenem Verlauf, Bewertungen je Shop
-- Urteil je Titel mit Gründen: erst Nachteile je Shop, dann der Abstand (Startwert für „groß“:
-  mindestens 40 % und 8 €, einstellbar)
 - Gutscheine mit Shop, Prozent oder Betrag und Ablaufdatum
 - VRDB-Link aus der QuestStoreDB-Seite, Bundles mit den enthaltenen Spielen verknüpfen
 
@@ -105,7 +103,8 @@ und Geheimtipp farbig, Geheimtipp erst ab 0,4, Filter VR im Reiter PC; Retro-Gen
 und IGDB sich einig sind, Sprachen bestätigt bei genau gleicher Datei in der Fassungsliste; „Zu erledigen“ klärt
 Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam-Namen ohne Leerzeichen gleich. 0.8.14: Sammlung
 schneller: der Server hält sie berechnet, bis sich eine ihrer Dateien ändert, die Seite lädt sie im Hintergrund vor,
-Genre-Blasen in einem Messdurchgang. Grundsatz (Entscheidung 22.10.2026): so wenig
+Genre-Blasen in einem Messdurchgang. 0.8.15: Urteil „wo kaufen“ aus Gemessenem (Crossbuy,
+Preisabstand, Spieler, Wertung, Pflege; Recherche halb) im Kopf der Karte, Gründe in der Zeile „Wo“. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
@@ -114,9 +113,6 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 - Retro: deutsche Titel aus deiner Ordner-Liste für die IGDB-Suche nutzen, wenn der Dateiname nichts findet;
   GameCube, Wii und PlayStation mit Redump-Namen
 
-- Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
-  Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als
-  Ergänzung
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
 - weitere Marken je Spiel neben Mein Stand („nie wieder vorschlagen“), Sharenite als Nachschub

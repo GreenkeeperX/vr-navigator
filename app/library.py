@@ -1,4 +1,5 @@
 """Ansichten: Bibliothek, Wunschliste und „Jetzt“ als Zeilen für die Oberfläche."""
+import re
 from datetime import datetime, timedelta, timezone
 
 from . import lists, prices, store, titles, wheel
@@ -234,6 +235,87 @@ def rating(t):
     return {"meta": meta, "steam": steam, "score": score}
 
 
+# Wo kaufen (0.8.15): erst was die Läden unterscheidet, dann der Preis. Jeder Grund zählt für einen
+# Laden (Gewicht w); wer mindestens einen Punkt vorn liegt, gewinnt, sonst „egal“. Was nur aus der
+# Recherche kommt, zählt halb und steht als unsicher da (≈). Grenzen siehe ROADMAP („groß“: 40 % und 8 €)
+WB_BIG_PCT, WB_BIG_EUR = 40, 8.0       # großer Preisabstand
+WB_MID_PCT, WB_MID_EUR = 20, 3.0       # spürbarer Preisabstand
+WB_META_EUR = 1.0                      # Meta günstiger ab so viel
+WB_RATE = 8                            # Punkte Abstand der Wertungen
+WB_MP_LOW = 20                         # Steam-Spieler (Spitze) darunter: auf Steam wenig los
+WB_STALE_DAYS = 365                    # eine Fassung so viel länger ohne Update
+_MP = re.compile(r"(?i)multiplayer|co-op|pvp|massively")
+
+
+def _days(a, b):
+    try:
+        return (datetime.fromisoformat(a[:10]) - datetime.fromisoformat(b[:10])).days
+    except (TypeError, ValueError):
+        return None
+
+
+def _eur(x):
+    x = round(x, 2)
+    return (f"{x:.0f}" if x == int(x) else f"{x:.2f}".replace(".", ",")) + " €"
+
+
+def where_buy(r):
+    """Urteil „wo kaufen“ für einen Wunschtitel, den du noch nicht hast: {"shop": meta, steam oder egal,
+    "grade": Preisurteil dort, "why": [{"shop", "text", "w", "guess"}]}; None ohne beide Läden."""
+    if r["where"] or not r["wish"]:
+        return None
+    L, m = r["live"], r["measured"]
+    has_m, has_s = bool(r["meta_id"] or L.get("meta")), bool(r["steam_appid"] or L.get("steam"))
+    why = []
+
+    def add(shop, text, w=1, guess=False):
+        why.append({"shop": shop, "text": text, "w": w / 2 if guess else w, "guess": guess})
+    if has_m != has_s:
+        add("meta" if has_m else "steam", "bei Steam nicht gefunden" if has_m else "bei Meta nicht gefunden", 9)
+    if r["crossbuy"] is True:
+        add("meta", "Crossbuy: ein Kauf für Quest und PC", 2, r["crossbuy_src"] == "Recherche")
+    pl = m.get("players") or {}
+    peak = pl.get("peak") if pl.get("peak") is not None else pl.get("now")
+    if _MP.search(m.get("modes") or "") and has_s and peak is not None and peak < WB_MP_LOW:
+        add("meta", f"Mehrspieler, auf Steam wenig los (Spitze {peak})")
+    rt = r["rating"]
+    mp = ((rt.get("meta") or {}).get("pos") if (rt.get("meta") or {}).get("pos") is not None
+          else round(rt["meta"]["stars"] * 20) if rt.get("meta") else None)
+    sp = (rt.get("steam") or {}).get("pct")
+    if mp is not None and sp is not None and abs(mp - sp) >= WB_RATE:
+        add("meta" if mp > sp else "steam", f"besser bewertet ({mp} gegen {sp} %)" if mp > sp else f"besser bewertet ({sp} gegen {mp} %)")
+    up, mv = (m.get("update") or {}).get("date"), (m.get("meta_ver") or {}).get("since")
+    d = _days(up, mv) if up and mv else None
+    if d is not None and abs(d) >= WB_STALE_DAYS:
+        add("steam" if d > 0 else "meta", "Steam-Fassung jünger gepflegt" if d > 0 else "Meta-Fassung jünger gepflegt")
+    op = r["opinion"] or {}
+    if op.get("fassung") == "quest":
+        add("meta", "Recherche: Quest-Fassung besser", 1, True)
+    elif op.get("fassung") == "pc" and r["crossbuy"] is not True:
+        add("steam", "Recherche: PC-Fassung besser", 1, True)
+    pm, ps = (L.get("meta") or {}).get("price"), (L.get("steam") or {}).get("price")
+    if pm is not None and ps is not None and pm > 0:
+        diff = pm - ps
+        if diff > 0 and 100 * diff / pm >= WB_BIG_PCT and diff >= WB_BIG_EUR:
+            add("steam", f"{_eur(diff)} günstiger ({round(100 * diff / pm)} %)", 2)
+        elif diff > 0 and 100 * diff / pm >= WB_MID_PCT and diff >= WB_MID_EUR:
+            add("steam", f"{_eur(diff)} günstiger ({round(100 * diff / pm)} %)")
+        elif diff <= -WB_META_EUR:
+            add("meta", f"{_eur(-diff)} günstiger")
+    if not why and not (has_m and has_s):
+        return None
+    pts = {s: sum(x["w"] for x in why if x["shop"] == s) for s in ("meta", "steam")}
+    shop = "meta" if pts["meta"] - pts["steam"] >= 1 else "steam" if pts["steam"] - pts["meta"] >= 1 else "egal"
+    B = r["best"]
+    if shop == "egal":
+        gs = [(B.get(s) or {}).get("grade") or "" for s in ("meta", "steam")]
+        pg = "buy" if "buy" in gs else "good" if "good" in gs else "wait" if "wait" in gs else ""
+    else:
+        pg = (B.get(shop) or {}).get("grade") or ""
+    why.sort(key=lambda x: (x["shop"] != shop, -x["w"]))
+    return {"shop": shop, "grade": pg, "why": why}
+
+
 def _sale(r):
     """Höchster Rabatt eines Wunschtitels gerade jetzt (Meta oder Steam), sonst 0."""
     return max((r["live"].get("meta") or {}).get("discount") or 0,
@@ -253,6 +335,8 @@ def view(data, at=None, hist=None, settings=None):
     # Die Wunschliste führt auch Titel, die du inzwischen besitzt; die Oberfläche blendet sie
     # aus, solange du sie nicht ausdrücklich zeigen lässt (owned_wish zählt sie)
     wish = [r for r in rows if r["wish"]]
+    for r in wish:
+        r["buy"] = where_buy(r)
     read = lists.lists_read(data, settings)
     for r in wish:
         t = data["titles"][r["key"]]
