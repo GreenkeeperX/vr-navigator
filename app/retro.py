@@ -67,6 +67,11 @@ REGION_LANG = {
 # Kurze Regionen der 3DS-Dateien (E, U, J, W und Kombinationen wie JUE)
 _SHORT_REGION = {"E": "Europe", "U": "USA", "J": "Japan", "W": "World", "K": "Korea", "C": "China", "T": "Taiwan",
                  "G": "Germany", "F": "France", "S": "Spain", "I": "Italy", "A": "Australia"}
+# GameCube und Wii (0.8.16): der vierte Buchstabe der Spiel-ID („RMCP01“) ist die Region
+_ID_REGION = {"E": "USA", "P": "Europe", "D": "Germany", "F": "France", "S": "Spain", "I": "Italy", "J": "Japan",
+              "K": "Korea", "U": "Australia", "H": "Netherlands", "X": "Europe", "Y": "Europe", "Z": "Europe"}
+_GAME_ID = re.compile(r"[GRSDP][A-Z0-9]{2}[A-Z][A-Z0-9]{2}")
+_PS_SERIAL = re.compile(r"S[LC][EUPJKA][SMD][-_ ]?\d{3}\.?\d{2}", re.I)
 _LANG = re.compile(r"^[A-Z][a-z](?:-[A-Z][a-z]+)?$")
 _ARTICLE = re.compile(r"^(.+?), (The|A|An|Der|Die|Das|Le|La|Les|Il|El)(\s+-\s+.*|:.*)?$")
 _TID = re.compile(r"^[0-9A-F]{16}\s+", re.I)
@@ -106,6 +111,12 @@ def article_front(title):
     return f"{m.group(2)} {m.group(1)}{m.group(3) or ''}" if m else title
 
 
+def _ps_serial(t):
+    """PlayStation-Seriennummer einheitlich: „SLES_023.76“ und „SLES 02376“ werden „SLES-02376“."""
+    d = re.sub(r"\D", "", t)
+    return t[:4].upper() + "-" + d
+
+
 def parse_name(fname):
     """Titel, Regionen, Sprachen (und ob sie nur aus der Region geschätzt sind), Merkmale und
     Kennung aus einem Dateinamen nach No-Intro oder Redump. Auch 3DS-Dateien wie
@@ -128,6 +139,11 @@ def parse_name(fname):
             regions = [_SHORT_REGION[c] for c in t]
         elif re.fullmatch(r"(?:CTR|KTR|NTR|TWL|AGB|DMG|CGB)-[A-Z0-9]-[A-Z0-9]{3,4}", t):
             serial = t
+        elif _GAME_ID.fullmatch(t) and t[3] in _ID_REGION:
+            serial = "ID-" + t[:4]      # GameCube, Wii: „[RMCP01]“
+            regions = regions or [_ID_REGION[t[3]]]
+        elif _PS_SERIAL.fullmatch(t):
+            serial = _ps_serial(t)
         elif re.search(r"\b(?:Unl|Aftermarket|Homebrew|Pirate)\b", t, re.I):
             flags.append("homebrew")
         elif re.search(r"\b(?:Hack|T[+-]Ger|T[+-]Eng)\b", t):
@@ -163,6 +179,14 @@ def classify(line):
     if not system or (ext not in EXT_SYSTEM and ext not in EXT_FOLDER):
         return None, "unknown"
     info = parse_name(fname)
+    # GameCube und Wii (0.8.16): Heißt die Datei nur nach der Spiel-ID („RMCP01.wbfs“ im Ordner „Titel [RMCP01]“),
+    # kommt der Titel aus dem Ordner
+    # (ohne Klammern nur mit einer Ziffer am Ende, sonst wäre etwa „SPIDER.iso“ eine ID)
+    if _GAME_ID.fullmatch(info["title"]) and info["title"][3] in _ID_REGION and re.search(r"\d", info["title"][4:]) and dirs:
+        info = dict(parse_name(dirs[-1] + ".x"), **({} if "[" in dirs[-1] else
+                                                   {"serial": "ID-" + info["title"][:4], "regions": [_ID_REGION[info["title"][3]]]}))
+        if not info["title"] or _system_of_folder(dirs[-1]):
+            return None, "unknown"
     if not info["title"]:
         return None, "unknown"
     low = "/".join(dirs).casefold()
@@ -377,18 +401,19 @@ def extra_urls(system):
 def _serial_code(serial):
     """Produktcode ohne Region: „AMRD“ und „AMRE“ sind dasselbe Spiel (letzter Buchstabe = Region).
     Redump-Codes wie „SLES-01234“ sind je Region verschieden und zählen nicht."""
-    s = str(serial or "").strip().upper()
-    m = re.fullmatch(r"(?:CTR|KTR|NTR|TWL)-[A-Z]-([A-Z0-9]{4})", s)     # 3DS und DSi: „CTR-P-AMKP“ (0.8.4)
-    if m:
-        s = m.group(1)
+    s = _serial_full(serial) or str(serial or "").strip().upper()      # DS und GBA: nur „AMRE“
     return s[:3] if re.fullmatch(r"[A-Z0-9]{4}", s) else ""
 
 
 def _serial_full(serial):
-    """Produktcode mit Region („AMKP“): genau eine Fassung, deren Sprachen die No-Intro-Liste nennt."""
+    """Produktcode mit Region („AMKP“): genau eine Fassung, deren Sprachen die Fassungsliste nennt. 3DS und DSi
+    „CTR-P-AMKP“ (0.8.4); ab 0.8.16 GameCube „DL-DOL-GW7P-EUR“, Wii „RVL-RJ2P-EUR-B0“ und die Spiel-ID aus dem
+    Dateinamen („ID-RJ2P“), PlayStation „SLES-02376“ (dort ganz, die Nummer gilt nur für eine Region)."""
     s = str(serial or "").strip().upper()
-    m = re.fullmatch(r"(?:CTR|KTR|NTR|TWL)-[A-Z]-([A-Z0-9]{4})", s)
-    return m.group(1) if m else ""
+    m = re.fullmatch(r"(?:CTR|KTR|NTR|TWL)-[A-Z]-([A-Z0-9]{4})|(?:DL-DOL|RVL)-([A-Z0-9]{4})-[A-Z]{3}(?:-[A-Z0-9]+)?|ID-([A-Z0-9]{4})", s)
+    if m:
+        return next(x for x in m.groups() if x)
+    return s if re.fullmatch(r"S[LC][EUPJKA][SMD]-\d{5}", s) else ""
 
 
 def build_index(dat_text, retool_text=""):
@@ -500,7 +525,8 @@ def match(g, idx):
     si = (idx.get("ser") or {}).get(_serial_full(g.get("serial")))
     if si is not None and si < len(idx.get("rel") or []):
         langs = [x for x in idx["rel"][si][1].split(",") if x]
-        if langs and not idx["rel"][si][2]:
+        # 0.8.16: auch ohne Sprachangabe in der Liste, denn No-Intro und Redump nennen sie nur, wenn sie von der Region abweicht
+        if langs:
             exact = {"langs": langs, "rel": idx["rel"][si][0][:200]}
     # 0.8.12: Steht eine deiner Dateien genau so in der Fassungsliste, gelten ihre Sprachen laut No-Intro (dort fehlt die
     # Angabe nur, wenn die Fassung allein die Sprache ihrer Region hat); sonst bleiben sie aus der Region geschätzt

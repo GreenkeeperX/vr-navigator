@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.15:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.16:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -168,6 +168,17 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   „anderes“: der Vorschlag kommt nicht wieder. Hacks und Homebrew bekommen keinen Vorschlag. Ab 0.8.6
   müssen die Zahlen gleich sein („Teil 2“ ist ein anderes Spiel; „IV“ zählt wie „4“), und Titel, die sich
   nur in Leerzeichen unterscheiden („Moonrover“, „Moon Rover“), gelten ohne Rückfrage als gleich.
+- **GameCube, Wii, PlayStation** (0.8.16): Fassungslisten von Redump. Steht im Dateinamen die Spiel-ID
+  („… [RMRP01].rvz“, oder die Datei heißt nur so und liegt im Ordner „Titel [RMRP01]“, wie ihn Wii-Werkzeuge
+  anlegen) oder bei PlayStation die Seriennummer („[SLES-02376]“, auch „SLES_023.76“), findet das Tool genau
+  diese Fassung, ihre Sprachen und über die ID die Fassungen anderer Regionen auch bei anderem Titel. Der vierte
+  Buchstabe der ID ist die Region (D Deutschland, P Europa, E USA, J Japan).
+- **Genau genannte Fassung** (ab 0.8.16): Nennt ein Produktcode oder eine Spiel-ID genau eine Fassung, gelten
+  deren Sprachen auch ohne Angabe in der Liste (dann die Sprache ihrer Region), wie bei genau gleichem Dateinamen.
+- **IGDB mit deinem Titel** (0.8.16): Findet IGDB ein Retro-Spiel nicht unter dem Namen der Datei, sucht der
+  Abgleich mit dem Titel aus deiner Ordner-Liste und vergleicht ihn auch mit den anderen Namen bei IGDB (dort
+  stehen deutsche Titel meist als weiterer Name). Spiele, die vorher ohne Treffer blieben, kommen dafür einmal
+  wieder dran.
 - **DSiWare** (0.8.6): Beim DS liest das Tool auch die Liste der Download-Titel aus dem DSi-Shop. Spiele
   aus dem DSi-Ordner finden so ihre Fassungen statt eines ähnlichen Namens.
 - **Spielinfos** (0.8.8): Beim Abgleich holt das Tool je System die Listen der libretro-database mit Genre,

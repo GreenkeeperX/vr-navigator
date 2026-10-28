@@ -104,14 +104,12 @@ und IGDB sich einig sind, Sprachen bestätigt bei genau gleicher Datei in der Fa
 Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam-Namen ohne Leerzeichen gleich. 0.8.14: Sammlung
 schneller: der Server hält sie berechnet, bis sich eine ihrer Dateien ändert, die Seite lädt sie im Hintergrund vor,
 Genre-Blasen in einem Messdurchgang. 0.8.15: Urteil „wo kaufen“ aus Gemessenem (Crossbuy,
-Preisabstand, Spieler, Wertung, Pflege; Recherche halb) im Kopf der Karte, Gründe in der Zeile „Wo“. Grundsatz (Entscheidung 22.10.2026): so wenig
+Preisabstand, Spieler, Wertung, Pflege; Recherche halb) im Kopf der Karte, Gründe in der Zeile „Wo“. 0.8.16: Retro-IGDB-Suche mit deinem Titel aus der
+Ordner-Liste; GameCube, Wii und PlayStation über Spiel-ID und Seriennummer. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
-
-- Retro: deutsche Titel aus deiner Ordner-Liste für die IGDB-Suche nutzen, wenn der Dateiname nichts findet;
-  GameCube, Wii und PlayStation mit Redump-Namen
 
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden
