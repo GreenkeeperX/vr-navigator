@@ -404,3 +404,4 @@ a.pl:hover{text-decoration:underline}
 .b.simq{background:transparent;border:1px dashed var(--sim);color:var(--sim)}
 .b.vrq{background:transparent;border:1px dashed var(--brand);color:var(--brand)}
 .gr .mut{color:var(--muted)}
+.gr .valt{font-size:11px;margin-left:3px;white-space:nowrap}

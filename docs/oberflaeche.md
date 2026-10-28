@@ -199,6 +199,20 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Spaltenreihenfolge der Sammlung (ab 0.8.19, `COL_ORDER`): Wertung, Genre, Spielzeit, Mehrspieler, Spieler, dann Jahr,
   Rezensionen, Launcher; Sprache (Retro) vor der Wertung. Reiter VR: Besitz, Meta, Steam, Spieler, Update, Crossbuy,
   Recherche. Die CSV folgt der gezeigten Reihenfolge.
+- Spalten ab 0.8.23 (Entscheidung 28.10.2026), eine Reihenfolge für alle Tabellen (`COL_ORDER`, `PC_COLS`, `VR_COLS`,
+  `K_COLS`): Spiel, Wertung, Rezensionen, Genre, Spielzeit, max. Spieler, Aktiv, Sprache, Launcher oder System (Kopf
+  „System“, wenn der Reiter keine PC-Spiele hat), Jahr ganz rechts. Preise und Wo stehen in den Wunschlisten vor diesem
+  Block; Reiter VR: Wertung, Rezensionen, Aktiv, Update, Crossbuy, Besitz, Recherche. Breiten überall gleich: Spiel
+  `minmax(180px,1.5fr)`, Wertung 70, Rezensionen 98, Spielzeit 66, max. Spieler 96, Aktiv 56, Update 62, Jahr 44 px;
+  den Rest nimmt Genre, sonst Recherche oder Wo.
+- „max. Spieler“ (`gMaxPl`, Switch `kMaxCell`): die Zahl; ohne Zahl grau „2+“ bei bekanntem Mehrspieler, grau „1“, wenn
+  Steam keinen nennt. Die Arten im Tooltip, in den Einzelheiten die Zeile „Mehrspieler“ (Switch: „Spieler“ je Art).
+  Filter Mehrspieler in Sammlung und Wunschliste PC (`V.pcMp`).
+- „Aktiv“ (`gActive`): Steam-Spieler gerade eben, überall dieser Name (auch die Zeile in der VR-Karte). Rezensionen
+  (`gRev`): Steam-Zahl, ab einer Million kurz („1,9 Mio.“), Meta-Bewertungen im Tooltip.
+- Reiter VR, Wertung (`vrOwnScore`, `vrScoreCell`): die der Fassung im Besitz, bei beiden die bessere; ist die andere
+  mindestens 8 Punkte besser, klein grau kursiv daneben „M 92“ oder „S 85“ (`.valt`). Eine Sache, mehrere Orte: Filter
+  und Sortieren nach Wertung im Reiter VR nutzen denselben Wert.
 - Trend und Pflege (ab 0.8.18): Pfeil hinter der Steam-Wertung (`trendMark`, `.tr.up` grün ↗, `.tr.down` rot ↘, nur ab
   8 Punkten Abstand, gleichbleibend ohne Zeichen), Zahlen im Tooltip; in Fakten und Einzelheiten die Zeile „Trend“
   (`trendText`). Pflege: „ruht“ als graue, umrandete Marke (`.b.care`) am Namen in der Wunschliste PC, sonst „(ruht)“

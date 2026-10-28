@@ -183,6 +183,8 @@ def view(data, col=None):
         r["trend"] = trend.trend(e.get("rev"))
         r["care"] = trend.care((e.get("news") or {}).get("date"))
         r["drop"] = drop(e.get("ph"), best[0])
+        if isinstance((e.get("play") or {}).get("now"), int):
+            r["active"] = {"now": e["play"]["now"], "at": e["play"].get("at") or ""}   # Aktiv (0.8.23)
         if best[0] is not None and low is not None:
             r["over"] = round((best[0] - low) / low, 3) if low > 0 else 0.0
             r["near"] = best[0] <= low * (1 + NEAR) + 0.005

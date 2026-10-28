@@ -43,7 +43,7 @@ LOG_LINES = 200
 JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr als 50 %
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
-         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "retro": "Retro-Fassungen",
+         "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "active": "Aktive Spieler PC", "retro": "Retro-Fassungen",
          "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
@@ -68,6 +68,8 @@ VRDB_DAYS = 14
 PLAYERS_MAX = 80            # Spielerzahlen je Lauf (Steam, ohne Schlüssel)
 PLAYERS_H = 20              # so alt darf eine Spielerzahl werden
 PEAK_DAYS = 30              # Spitze über so viele Tage
+ACTIVE_MAX = 100            # PC (0.8.23): aktive Steam-Spieler je Lauf, erst PC-Wunschliste, dann Sammlung
+ACTIVE_DAYS = 7             # so alt darf die Zahl aktiver Spieler eines PC-Spiels werden
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 TREND_DAYS = 7              # Steam-Trend (Stimmen der letzten 30 Tage) so oft neu (0.8.21)
 TREND_MAX = 60              # Trend-Abrufe je Lauf, je für Titel und PC-Wunschliste
@@ -92,7 +94,7 @@ IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
-FAST_LIMITS = ("TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
+FAST_LIMITS = ("ACTIVE_MAX", "TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
                "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
@@ -969,7 +971,7 @@ def _trend_fill(src, keys, gid_of, label):
     return out
 
 
-def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, want=None, order=None):
+def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, want=None, order=None, src=None):
     """Abruf je Steam-Spiel der Sammlung (Entdecken): zuerst die ohne Wert, dann die ältesten;
     höchstens limit je Lauf, nach days Tagen neu. Ergebnis je Spiel unter field in
     collection.json. Liefert (Quelle, gelesen {Schlüssel: Wert}, noch offen)."""
@@ -981,9 +983,10 @@ def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, 
                   and (((g.get(field) or {}).get("at") or "") < old or (stale and stale(g.get(field)))))
     if order:
         todo.sort(key=lambda x: (x[0], order(col["games"][x[1]])))
-    src = _Source(label, log)
+    quiet, src = src is not None, src or _Source(label, log)
     if not todo:
-        log(f"{label}: alle aktuell" if col.get("games") else f"{label}: keine Sammlung, nichts zu tun")
+        if not quiet:
+            log(f"{label}: alle aktuell" if col.get("games") else f"{label}: keine Sammlung, nichts zu tun")
         return src, None, 0
     got = {}
     batch = todo[:limit]
@@ -1312,6 +1315,54 @@ def _players(log):
         + (f" ({none} Apps ohne Zahl bei Steam)" if none else "")
         + f", {sum(1 for r in got.values() if (r.get('news') or {}).get('date'))} Update-Daten"
         + (f", {left} noch offen{_runs(left, PLAYERS_MAX)}" if left else "") + f", {_took(start)}")
+    return src.result()
+
+
+def _active(log):
+    """Aktive Steam-Spieler für PC-Spiele (0.8.23): gerade eben laut GetNumberOfCurrentPlayers, je Spiel unter play
+    ({"now", "at"}), nach ACTIVE_DAYS Tagen neu. Erst die PC-Wunschliste (pcwish.json), mit dem Rest des Kontingents
+    die Steam-Spiele der Sammlung (collection.json). Die VR-Titel misst _players öfter und mit Spitze."""
+    start, old = time.monotonic(), _iso(now() - timedelta(days=ACTIVE_DAYS))
+    url = lambda gid: f"{STEAM_API}/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={gid}"
+    # 404: Steam kennt für diese App keine Zahl (unveröffentlicht, Demo); gilt als gefragt
+    get = lambda src, gid, shown: src.get(url(gid), shown=shown, absent=(404,))
+    pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+    todo = sorted(((e.get("play") or {}).get("at") or "", k) for k, e in (pw.get("items") or {}).items()
+                  if str(e.get("appid") or "").isdigit() and not e.get("kind") and ((e.get("play") or {}).get("at") or "") < old)
+    src, got = _Source("Aktive Spieler PC", log), {}
+    for i, (_, k) in enumerate(todo[:ACTIVE_MAX]):
+        progress("Aktive Spieler PC", i, min(ACTIVE_MAX, len(todo)))
+        gid = str(pw["items"][k]["appid"])
+        text = get(src, gid, f"Spieler {gid}")
+        if text is not None:
+            got[k] = {"now": prices.steam_players(text), "at": titles.now_iso()}
+        if src.stopped:
+            break
+    if got:
+        with store.lock:
+            pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+            for k, r in got.items():
+                if k in (pw.get("items") or {}):
+                    pw["items"][k]["play"] = r
+            store.save_json(pcwish.FILE, pw)
+    wleft = len(todo) - len(got)
+    cgot, cleft = {}, 0
+    rest = ACTIVE_MAX - len(got)
+    if rest > 0 and not src.stopped:
+        _, cgot, cleft = _per_game(log, "Aktive Spieler PC", "play", ACTIVE_DAYS, rest, url,
+                                   lambda text, gid: {"now": prices.steam_players(text)}, get=get, src=src)
+        cgot = cgot or {}
+    else:
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        cleft = sum(1 for g in (col.get("games") or {}).values() if g.get("store") == "Steam" and str(g.get("id") or "").isdigit()
+                    and ((g.get("play") or {}).get("at") or "") < old)
+    left = wleft + cleft
+    src.stats = {"read": len(got) + len(cgot), "left": left}
+    if not todo and not cgot and not left:
+        log("Aktive Spieler PC: alle aktuell")
+    else:
+        log(f"Aktive Spieler PC: {len(got)} Wünsche, {len(cgot)} Spiele der Sammlung"
+            + (f", {left} noch offen{_runs(left, ACTIVE_MAX)}" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
 
@@ -2120,6 +2171,8 @@ def run(only=None, boot=False, by_hand=False, fast=False):
             do("wheel", lambda: _wheel(log))
         if not only or "players" in only:
             do("players", lambda: _players(log))
+        if not only or "active" in only:
+            do("active", lambda: _active(log))
         if not only or "vrdb" in only:
             do("vrdb", lambda: _vrdb(log))
         if not only or "retro" in only:
