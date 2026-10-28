@@ -263,7 +263,13 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter. Ab 0.8.27 bei „Alle“ eine Tabelle
   (`allTable`, `allVrRow`, `allPcRow`, Spalten `ALL_COLS`): Spiel, Art (`.b.pcb` PC grün umrandet, VR türkis), Wo,
   Preis, zum Tief, Wertung, Rezensionen, Aktiv; sortiert nach Nähe, Rabatt (`_saleOf`) oder Wertung. Darunter
-  zugeklappt „VR: reduziert, aber noch weit über dem Bestpreis“.
+  zugeklappt „VR: reduziert, aber noch weit über dem Bestpreis“. Ab 0.9.0 im Reiter PC das Menü „Laden“ (`select
+  data-shop`, `V.nowShop`, Zählung `shopCounts`): je Laden die PC-Wünsche nah am Tief der Händler; nach Wahl dieselbe
+  Tabelle (`pcTable`) mit dem Preis dort (`atShop` ersetzt `best`, `url`, `over`), Hinweis darüber nennt den Laden.
+- Läden einzeln (0.9.0, `pcShopsHtml`): in den Einzelheiten der PC-Wünsche die Zeile „Läden“, bis sechs Läden nach
+  Preis, Name und Preis als Link, grün (`.g-buy`) höchstens 5 % über dem Tief der Händler, Rabatt als `.b.deal`,
+  Normalpreis, Tief dort und Ende im Tooltip, „+n weitere“ grau mit Liste im Tooltip. Eine Sache, mehrere Orte: das
+  Urteil „nah am Tief“ je Laden kommt aus `itad.shop_rows` (Server) und gilt für Einzelheiten und das Menü „Laden“.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
 - VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): Spiel, Wo, Meta, Steam, zum Bestpreis,

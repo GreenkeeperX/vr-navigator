@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, wheel
+from . import accounts, collection, igdb, itad, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, wheel
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -44,7 +44,8 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "active": "Aktive Spieler PC", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass"}
+         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass",
+         "itad": "IsThereAnyDeal"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
 STEAM = "https://store.steampowered.com"
@@ -90,6 +91,7 @@ WHEEL_DAYS = 90
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 60          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2, ab 0.8.24 60 statt 30)
 PCWISH_INFO = 60            # Spiele der PC-Wunschliste je Lauf mit Steam-Details und Rezensionen (0.8.11)
+ITAD_PAUSE = 1.0            # IsThereAnyDeal erlaubt 1000 Abrufe je 5 Minuten; ein Lauf braucht nur wenige
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
@@ -99,8 +101,8 @@ FAST_LIMITS = ("ACTIVE_MAX", "TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
-            "igdb_id": "", "igdb_secret": "", "nexus_key": ""}
-SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret", "nexus_key")      # bleiben auf dem Server, nie im Protokoll
+            "igdb_id": "", "igdb_secret": "", "nexus_key": "", "itad_key": ""}
+SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret", "nexus_key", "itad_key")      # bleiben auf dem Server, nie im Protokoll
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
@@ -169,6 +171,12 @@ def save_settings(body):
         if v and not re.fullmatch(r"[A-Za-z0-9+/=_-]{20,400}", v):
             raise ValueError("Nexus Mods: den persönlichen API-Schlüssel aus dem Nexus-Konto einfügen (Buchstaben, Ziffern, + / = -)")
         s["nexus_key"] = v
+    # IsThereAnyDeal (0.9.0): API-Schlüssel einer eigenen App (isthereanydeal.com, My Apps)
+    if "itad_key" in body:
+        v = str(body["itad_key"] or "").strip()
+        if v and not re.fullmatch(r"[A-Za-z0-9_-]{20,100}", v):
+            raise ValueError("IsThereAnyDeal: den API-Schlüssel deiner App einfügen (isthereanydeal.com, My Apps)")
+        s["itad_key"] = v
     if "auto" in body:
         s["auto"] = bool(body["auto"])
     if "hours" in body:
@@ -1616,6 +1624,70 @@ def _pcwish(settings, log):
     return src.result()
 
 
+def _itad(settings, log):
+    """Preise je Laden für die PC-Wunschliste (0.9.0): ITAD-Kennung je Steam-ID (einmal, nicht gefundene nach
+    MISS_DAYS neu), dann die Preise aller offiziellen Läden in Deutschland, je CHUNK Spiele ein Abruf. Abgelegt je
+    Spiel in pcwish.json unter itad."""
+    start = time.monotonic()
+    pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+    items = pw.get("items") or {}
+    src = _Source("IsThereAnyDeal", log, headers=itad.headers(settings["itad_key"]), pause=ITAD_PAUSE)
+    old = _iso(now() - timedelta(days=MISS_DAYS))
+    ask = sorted({str(e["appid"]) for e in items.values() if e.get("appid") and not e.get("itad_id")
+                  and (e.get("itad_tried") or "") < old})
+    ids, tried = {}, {}
+    for i in range(0, len(ask), itad.CHUNK):
+        text = src.get(itad.lookup_url(), shown="Zuordnung zu Steam-IDs", data=itad.lookup_body(ask[i:i + itad.CHUNK]))
+        if text is None:
+            break
+        try:
+            got = itad.lookup(text)
+        except ValueError as e:
+            log(str(e))
+            break
+        stamp = titles.now_iso()
+        for a in ask[i:i + itad.CHUNK]:
+            tried[a] = stamp
+            if got.get(a):
+                ids[a] = got[a]
+    known = {}
+    for e in items.values():
+        g = e.get("itad_id") or ids.get(str(e.get("appid") or ""))
+        if g:
+            known.setdefault(g, []).append(e)
+    got, gl = {}, list(known)
+    for i in range(0, len(gl), itad.CHUNK):
+        if src.stopped:
+            break
+        text = src.get(itad.prices_url(), shown="Preise je Laden", data=json.dumps(gl[i:i + itad.CHUNK]).encode())
+        if text is None:
+            continue
+        try:
+            got.update(itad.prices(text))
+        except ValueError as e:
+            log(str(e))
+            break
+    stamp = titles.now_iso()
+    with store.lock:
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        for e in (pw.get("items") or {}).values():
+            a = str(e.get("appid") or "")
+            if a in tried and not e.get("itad_id"):
+                e["itad_tried"] = tried[a]
+                if ids.get(a):
+                    e["itad_id"] = ids[a]
+                    e.pop("itad_tried", None)
+            g = e.get("itad_id")
+            if g in got:
+                e["itad"] = dict(got[g], at=stamp)
+        store.save_json(pcwish.FILE, pw)
+    shops = sum(len(v["shops"]) for v in got.values())
+    log(f"IsThereAnyDeal: {len(ids)} Spiele neu zugeordnet ({len(ask)} gefragt), Preise für {len(got)} Spiele"
+        f" aus {shops} Angeboten der Läden, {_took(start)}")
+    src.stats = {"priced": len(got), "shops": shops}
+    return src.result()
+
+
 def _pcwish_info(settings, log):
     """Spielinfos der PC-Wunschliste (0.8.11) über die Steam-ID: Steam-Details (Genres, Mehrspieler, Jahr, Beschreibung)
     und Rezensionen, höchstens PCWISH_INFO Spiele je Lauf, nach DETAILS_DAYS und REVIEWS_DAYS neu; mit IGDB-Schlüssel
@@ -2144,6 +2216,8 @@ def run(only=None, boot=False, by_hand=False, fast=False):
                                  "requests": 0, "errors": 0}
         if not only or "pcwish" in only:
             do("pcwish", lambda: _pcwish(settings, log))
+        if settings["itad_key"] and (not only or "itad" in only):
+            do("itad", lambda: _itad(settings, log))
         if any(st["rest"].get(x) for x in ("details", "reviews")) and (not only or "pcinfo" in only):
             log("PC-Wunschliste, Spielinfos: Steam ruht nach einer Sperre, nicht abgefragt")
         else:
@@ -2277,12 +2351,12 @@ def diagnose():
     lines = [f"VR-Navigator {sources.VERSION}, Test vom {now().strftime('%d.%m.%Y %H:%M')} UTC"]
     hosts = set()
 
-    def probe(name, url, info, headers=None, shown=None):
+    def probe(name, url, info, headers=None, shown=None, data=None):
         host = urllib.parse.urlsplit(url).hostname
         if host in hosts:
             sleep(PAUSE)
         hosts.add(host)
-        r = sources.request(url, headers=headers)
+        r = sources.request(url, headers=headers, data=data)
         if r["error"]:
             lines.append(f"{name}: keine Verbindung ({r['error']})")
             return None
@@ -2411,6 +2485,26 @@ def diagnose():
                     f"Keyshops {eur(p['keyshops'])} (Tief {eur(p['keyshops_low'])})")
         q = urllib.parse.urlencode({"ids": appid, "region": "de"})
         probe("gg.deals, Preise", f"{GG_API}?{q}&key={urllib.parse.quote(key)}", gg_info, shown=f"{GG_API}?{q}")
+    # IsThereAnyDeal (0.9.0): Zuordnung der Steam-ID, dann die Preise je Laden
+    if not settings["itad_key"]:
+        lines.append("IsThereAnyDeal: kein Schlüssel eingetragen, nicht angefragt")
+    else:
+        ih, gid = itad.headers(settings["itad_key"]), {}
+
+        def itad_look(text):
+            got = itad.lookup(text)
+            gid["id"] = got.get(str(appid)) or ""
+            return f"App {appid}: " + ("ITAD-Kennung gefunden" if gid["id"] else "keine ITAD-Kennung")
+
+        def itad_info(text):
+            p = itad.prices(text).get(gid["id"])
+            if not p:
+                return f"für App {appid} keine Preise. Anfang: {' '.join(text[:200].split())}"
+            top = ", ".join(f"{s['s']} {s['p']} €" + (f" (−{s['c']} %)" if s["c"] else "") for s in p["shops"][:4])
+            return (f"App {appid}: {len(p['shops'])} Läden" + (f", günstigste: {top}" if top else "")
+                    + (f", Tief {p['low']} €" if p["low"] is not None else ""))
+        if probe("IsThereAnyDeal, Zuordnung", itad.lookup_url(), itad_look, ih, data=itad.lookup_body([appid])) and gid.get("id"):
+            probe("IsThereAnyDeal, Preise", itad.prices_url(), itad_info, ih, data=json.dumps([gid["id"]]).encode())
     # Konten, soweit eingerichtet
     kind, val = accounts.steam_id_input(settings["steam_id"])
     if kind == "id":
@@ -2448,7 +2542,7 @@ def diagnose():
     else:
         lines.append("Retro-Fassungen: keine Retro-Liste, nicht angefragt")
     probes.run(probe, lines, col, settings, sleep)
-    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"], settings["nexus_key"]):
+    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"], settings["nexus_key"], settings["itad_key"]):
         if secret:
             lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]
     return lines

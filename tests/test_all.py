@@ -1087,6 +1087,18 @@ class TestServer(unittest.TestCase):
         finally:
             sync.diagnose = old
 
+    def test_itad_key(self):
+        """IsThereAnyDeal-Schlüssel (0.9.0): bleibt auf dem Server."""
+        fake = "ErfundenItad0123456789abcdef"
+        sync.save_settings({"itad_key": fake})
+        try:
+            code, raw = self.call("/api/state")
+            self.assertNotIn(fake.encode(), raw)
+            self.assertTrue(json.loads(raw)["settings"]["itad_set"])
+            self.assertNotIn(fake.encode(), self.call("/api/abgleich")[1])
+        finally:
+            sync.save_settings({"itad_key": ""})
+
     def test_nexus_key(self):
         """Nexus-Schlüssel (0.7.7): bleibt auf dem Server, die Oberfläche sieht nur, dass er da ist."""
         fake = "ErfundenNexus0123456789--AbCdEfGh+/=="
@@ -1344,8 +1356,10 @@ class FakeNet:
     def __init__(self, answers):
         self.answers, self.calls = answers, []
 
-    def __call__(self, url, timeout=25, ua=None, headers=None):
+    def __call__(self, url, timeout=25, ua=None, headers=None, data=None):
         self.calls.append(url)
+        self.bodies = getattr(self, "bodies", []) + [data]
+        self.heads = getattr(self, "heads", []) + [headers]
         for part, ans in self.answers.items():
             if part in url:
                 if isinstance(ans, int):
@@ -2549,6 +2563,52 @@ class TestSync(unittest.TestCase):
         self.assertEqual((added, sorted(gone)), ([], ["Harbor Heist", "Night Tram"]))
         self.assertEqual(store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["rally-moth"]["appid"], "3100002")
         sync.save_settings({"gg_key": ""})
+
+    def test_itad(self):
+        """IsThereAnyDeal (0.9.0): ITAD-Kennung je Steam-ID, dann Preise je Laden; nah am Tief gemessen am Tief der
+        Händler, der Schlüssel nur in der Kopfzeile."""
+        from app import itad, pcwish
+        fake = "ErfundenItad0123456789abcdef"
+        sync.save_settings({"itad_key": fake, "gg_key": ""})
+        pcwish.replace([{"slug": "harbor-heist", "name": "Harbor Heist"}, {"slug": "rally-moth", "name": "Rally Moth"}], "Lesezeichen")
+        with store.lock:
+            pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+            pw["items"]["harbor-heist"].update(appid="3100001", gg={"retail": 20.0, "retail_low": 10.0, "keyshops": 6.0, "keyshops_low": 5.0})
+            pw["items"]["rally-moth"]["appid"] = "3100002"
+            store.save_json(pcwish.FILE, pw)
+        eur = lambda v: {"amount": v, "amountInt": int(v * 100), "currency": "EUR"}
+        prices = [{"id": "uuid-harbor", "historyLow": {"all": eur(9.99), "y1": eur(10.49), "m3": eur(14.99)}, "deals": [
+            {"shop": {"id": 61, "name": "Steam"}, "price": eur(20.0), "regular": eur(40.0), "cut": 50, "storeLow": eur(10.0),
+             "url": "https://itad.link/abc/", "expiry": "2026-11-03T18:00:00+01:00"},
+            {"shop": {"id": 35, "name": "GOG"}, "price": eur(10.29), "regular": eur(40.0), "cut": 74, "storeLow": eur(9.99),
+             "url": "https://itad.link/def/", "expiry": None},
+            {"shop": {"id": 99, "name": "Fremd"}, "price": {"amount": 5, "currency": "USD"}, "regular": None, "cut": 0}]}]
+        net = FakeNet({"lookup/id/shop/61": json.dumps({"app/3100001": "uuid-harbor", "app/3100002": None}),
+                       "games/prices/v3": json.dumps(prices)})
+        sources.fetch = net
+        logs = []
+        self.assertTrue(sync._itad(sync.load_settings(), logs.append)["ok"])
+        self.assertIn("IsThereAnyDeal: 1 Spiele neu zugeordnet (2 gefragt), Preise für 1 Spiele aus 2 Angeboten", "\n".join(logs))
+        self.assertTrue(all(fake not in u for u in net.calls))
+        self.assertEqual(net.heads[0]["ITAD-API-Key"], fake)
+        self.assertEqual(json.loads(net.bodies[0]), ["app/3100001", "app/3100002"])
+        self.assertEqual(json.loads(net.bodies[1]), ["uuid-harbor"])
+        v = {r["slug"]: r for r in pcwish.view(store.load_data())["rows"]}
+        sh = v["harbor-heist"]["shops"]
+        self.assertEqual([(s["s"], s["p"], s["c"], s["near"]) for s in sh], [("GOG", 10.29, 74, True), ("Steam", 20.0, 50, False)])
+        self.assertEqual(v["harbor-heist"]["shops_low"], 9.99)        # Tief der Händler, nicht der Keyshop
+        self.assertNotIn("shops", v["rally-moth"])
+        e = store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["rally-moth"]
+        self.assertTrue(e["itad_tried"] and not e.get("itad_id"))
+        # Zweiter Lauf: keine neue Zuordnung (erst nach MISS_DAYS), nur Preise
+        net.calls.clear()
+        sync._itad(sync.load_settings(), logs.append)
+        self.assertEqual([u for u in net.calls if "lookup" in u], [])
+        with self.assertRaises(ValueError):
+            itad.prices(json.dumps({"error": "x"}))
+        with self.assertRaises(ValueError):
+            sync.save_settings({"itad_key": "kein Schlüssel!"})
+        sync.save_settings({"itad_key": ""})
 
     def test_diagnose(self):
         self.seed()

@@ -7,7 +7,7 @@ pcwish.json im Datenordner; eine neue Liste behält Steam-ID und Preise je Spiel
 import re
 from datetime import date, timedelta
 
-from . import collection, store, titles, trend
+from . import collection, itad, store, titles, trend
 
 FILE = "pcwish.json"
 EMPTY = {"items": {}, "at": "", "via": ""}
@@ -193,13 +193,13 @@ def settle_id(pw, key, appid):
         if appid not in offered:
             raise ValueError("diese Steam-ID stand nicht zur Wahl")
         if e.get("appid") != appid:
-            for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph"):
+            for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried"):
                 e.pop(f, None)
         e["appid"] = appid
     else:
         e["no_ids"] = sorted(set(e.get("no_ids") or []) | set(offered))
         e.pop("appid", None)
-        for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph"):
+        for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried"):
             e.pop(f, None)
     for f in ("id_near", "id_name", "cand"):
         e.pop(f, None)
@@ -281,6 +281,12 @@ def view(data, col=None):
             r["id_near"] = e.get("id_name") or True       # 0.8.24: Steam-ID nur nach der Grundform des Namens
         r["care"] = trend.care((e.get("news") or {}).get("date"))
         r["drop"] = drop(e.get("ph"), best[0])
+        # 0.9.0: Läden einzeln von IsThereAnyDeal; nah am Tief wie oben, gemessen am Tief der offiziellen Läden
+        # (Händler bei gg.deals oder IsThereAnyDeal), nicht am Keyshop
+        it = e.get("itad") or {}
+        if it.get("shops"):
+            lo = min((x for x in (gg.get("retail_low"), it.get("low")) if x is not None), default=None)
+            r["shops"], r["shops_at"], r["shops_low"] = itad.shop_rows(it, lo, NEAR), it.get("at") or "", lo
         if isinstance((e.get("play") or {}).get("now"), int):
             r["active"] = {"now": e["play"]["now"], "at": e["play"].get("at") or ""}   # Aktiv (0.8.23)
         if best[0] is not None and low is not None:

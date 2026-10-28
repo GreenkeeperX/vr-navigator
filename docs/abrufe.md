@@ -248,6 +248,22 @@ Spiel in `pcwish.json` unter `steam`, `rev` und `igdb`; ältere Dateien ohne die
 | Neuigkeiten (0.8.18) | wie bei Steam-Spieler und Updates (`GetNewsForApp`) | je Spiel nach 7 Tagen (`NEWS_DAYS`) | letztes Update für die Pflege, abgelegt unter `news` |
 | IGDB | `api.igdb.com/v4/external_games`, `games`, `game_time_to_beats` (nur mit IGDB-Schlüssel) | je Spiel nach 90 Tagen (`IGDB_DAYS`), gebündelt zu 400 Steam-IDs | Genres, Spieler, Spielzeit, Kritiken, Jahr |
 
+### Läden einzeln: IsThereAnyDeal (ab 0.9.0)
+
+Nur mit Schlüssel (`itad_key`, eine eigene App auf isthereanydeal.com unter My Apps), gleich nach der PC-Wunschliste,
+Quelle `itad`. Der Schlüssel geht als Kopfzeile `ITAD-API-Key` mit, nie in der Adresse. IsThereAnyDeal erlaubt
+1000 Abrufe je 5 Minuten; ein Lauf braucht wenige, mit einer Sekunde Pause (`ITAD_PAUSE`). 429 und 403 beenden die
+Quelle wie überall.
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Zuordnung | `https://api.isthereanydeal.com/lookup/id/shop/61/v1` (POST, Liste `app/<Steam-ID>`) | je Spiel mit Steam-ID einmal, ohne Treffer nach 7 Tagen neu (`MISS_DAYS`), 200 je Abruf | ITAD-Kennung, abgelegt unter `itad_id` (ohne Treffer `itad_tried`) |
+| Preise je Laden | `https://api.isthereanydeal.com/games/prices/v3?country=DE&deals=false` (POST, Liste der Kennungen) | jeder Lauf, 200 Spiele je Abruf | je offiziellem Laden Preis, Normalpreis, Rabatt, Tief dort, Link, Angebotsende; Tief über alle Läden und der letzten zwölf Monate; abgelegt unter `itad` |
+
+Keyshops führt die Antwort nach der Doku nicht; sie kommen weiter von gg.deals. Eine andere Steam-ID (aus
+„Zu erledigen“) löscht `itad`, `itad_id` und `itad_tried`. Der Verbindungstest fragt Zuordnung und Preise an einer
+Steam-App der Wunschliste („IsThereAnyDeal, Zuordnung“, „IsThereAnyDeal, Preise“).
+
 ## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
 
 Für „VR per Mod“ am PC: nur PC-Spiele, die laut Steam kein VR eingebaut haben. Bekannte Spiele (viele
@@ -395,7 +411,7 @@ besten Fassung, gilt das der nächsten. Beta, Proto und Ähnliches zählen nicht
   nicht.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
-- `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB).
+- `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB, Nexus Mods, ab 0.9.0 IsThereAnyDeal).
 - `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
   geholt, wenn sie fehlt oder älter als sieben Tage ist.
 - `retro_meta.json` (0.8.8): je System Tag des letzten Abrufs der Spielinfos, Fassung (`v`) und Zahl der Einträge.
