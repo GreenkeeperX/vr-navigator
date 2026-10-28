@@ -473,6 +473,8 @@ def parse_ggpage(payload, stats=None):
     out, seen = [], {}
     st = stats if stats is not None else {}
     st.update(raw=0, dups=0, other={})
+    # Ab Lesezeichen 8 (0.8.8): die Zahl, die gg.deals über der Liste nennt („We found 120 results“)
+    st["shown"] = obj.get("shown") if isinstance(obj.get("shown"), int) and 0 < obj["shown"] < 100000 else None
     for it in (obj.get("items") if isinstance(obj.get("items"), list) else [])[:6000]:
         if not isinstance(it, dict):
             continue
@@ -530,8 +532,13 @@ def import_ggpage(data, payload, dry=True):
     other = [f"{len(v)} {GG_KINDS.get(k, k)} ({', '.join(v[:5])}{' …' if len(v) > 5 else ''})" for k, v in st["other"].items()]
     if other:
         res["note"] += f" Nicht übernommen: {'; '.join(other)}."
+    # Nennt gg.deals mehr, als Links auf den Seiten standen, sagt die Vorschau es (Karten ohne Link zum Spiel)
+    read = len(every) + sum(len(v) for v in st["other"].values())
+    if st["shown"] and st["shown"] > read:
+        res["note"] += (f" gg.deals nennt {st['shown']} Einträge, gelesen wurden {read}: {st['shown'] - read} Karten hatten keinen "
+                        "Link zu einer Spielseite (etwa Einträge, die gg.deals nicht mehr führt).")
     res["gg"] = {"raw": st["raw"], "games": len(items), "dups": st["dups"], "other": {k: len(v) for k, v in st["other"].items()},
-                 "kinds": res["pc_kinds"]}
+                 "kinds": res["pc_kinds"], "shown": st["shown"], "read": read}
     return res
 
 

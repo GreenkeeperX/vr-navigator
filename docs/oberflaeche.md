@@ -218,3 +218,20 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Werkzeugzeile: „herunterladen“ (Link, `gdl`) als CSV; Spaltenkopf „Spiel“ mit ⧉ (`.gcopy`) für alle Titel.
 - Suche (`V.q`, `V.d.q`) leert sich beim Wechsel von Reiter, Unterreiter und System.
 - Knöpfe in `.bar.slim` mit fester Höhe 30 px.
+
+## Retro, ab 0.8.8
+
+- Name: dein Titel aus der Ordner-Liste (Artikel nach vorn); der Titel laut Dateiname steht in den Einzelheiten
+  als „Dateiname“. Dein Genre steht als erste Genre-Marke und gilt als bestätigt.
+- Einzelheiten: „Dein Ordner“ (Genre › Untergruppe, dazu der Ordner, wenn er anders heißt), „Reihe“ (mit
+  Sammelreihe), „Status“, „Dateien“ mit Größe (`mb()`: KB, MB, GB; sonst MB laut deiner Liste), „Genre anders“
+  violett (`.gxc`), wenn libretro oder IGDB widersprechen. Herkunft: „deine Ordner-Liste“, „libretro-database
+  (dort „…“)“.
+- Spalten: Spieler mit Tooltip „Laut libretro-database“, violett nur, wenn IGDB etwas weiß und keine Zahl nennt;
+  Jahr mit „Laut libretro-database“; Erscheinen mit nur Monat als „im Juli 2003“ (`relDay`). Beschreibung von
+  libretro: Tooltip „nur auf Englisch“.
+- „Zu erledigen“, Gruppe „Retro: Genre weicht von deiner Liste ab“: je Spiel deins und das der anderen Quelle,
+  Knopf „Liste gilt“, oben „Alle: Liste gilt“.
+- Vorschau der Retro-Liste: Zeile zu deinen Ordner-Listen (passende Zeilen, nur in der Liste, nicht in der Liste)
+  und die Größe zusammen.
+- VR-Titel am PC ohne Playnite-Eintrag (`pcvr:`) tragen die Marke „Lenkrad“ wie die übrigen.

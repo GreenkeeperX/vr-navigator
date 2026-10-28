@@ -12,7 +12,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, collection, imports, library, lists, prices, retro, server, sources, store, sync, titles  # noqa: E402
+from app import accounts, collection, imports, library, lists, prices, retro, server, sources, store, sync, titles, wheel  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -269,7 +269,8 @@ class TestImports(unittest.TestCase):
             {"kind": "bundle", "slug": "12345", "name": "Very Positive (1k)"}]})
         res = imports.import_auto(d, payload, dry=True)
         self.assertEqual([e["name"] for e in res["entries"]], ["Orbit Golf"])
-        self.assertEqual(res["gg"], {"raw": 5, "games": 1, "dups": 1, "other": {"bundle": 1}, "kinds": {"pack": 1, "dlc": 1}})
+        self.assertEqual(res["gg"], {"raw": 5, "games": 1, "dups": 1, "other": {"bundle": 1}, "kinds": {"pack": 1, "dlc": 1},
+                                     "shown": None, "read": 4})
         self.assertIn("Nicht übernommen: 1 Bundles (Very Positive (1k))", res["note"])
         imports.import_auto(d, payload, dry=False)
         from app import pcwish
@@ -279,6 +280,14 @@ class TestImports(unittest.TestCase):
         self.assertEqual(rows["pack:sky-bundle"]["url"], "https://gg.deals/pack/sky-bundle/")
         self.assertEqual(rows["dlc:orbit-golf-holes"]["kind"], "dlc")
         self.assertTrue(rows["orbit-golf"]["vr"])
+        # Lesezeichen 8 (0.8.8): nennt gg.deals mehr Einträge, als Links da waren, steht es in der Vorschau
+        obj = json.loads(payload)
+        obj.update(hv=8, shown=6)
+        res = imports.import_auto(d, json.dumps(obj), dry=True)
+        self.assertEqual((res["gg"]["shown"], res["gg"]["read"]), (6, 4))
+        self.assertIn("gg.deals nennt 6 Einträge, gelesen wurden 4: 2 Karten", res["note"])
+        obj["shown"] = "viele"
+        self.assertIsNone(imports.import_auto(d, json.dumps(obj), dry=True)["gg"]["shown"])
 
     def test_opinions(self):
         """Meinungen-Datei: erkannt, nur bekannte Titel, Crossbuy nur ohne eigenen Wert."""
@@ -625,6 +634,10 @@ class TestCollection(unittest.TestCase):
         self.assertEqual((rows["Comet Chase VR"]["store"], rows["Comet Chase VR"]["key"]), ("Steam", "pcvr:" + b))
         self.assertEqual(rows["Star Hop"]["store"], "Meta (Crossbuy)")
         self.assertNotIn("Moon Rover", rows)                    # Meta ohne Crossbuy läuft nicht am PC
+        # 0.8.8: Lenkrad auch bei VR-Titeln, die Playnite nicht kennt (Liste der Rennspiele über die Steam-ID)
+        store.save_json(wheel.LIST_FILE, {"simhub": {"apps": ["3300002"], "names": []}})
+        rows = {r["name"]: r for r in collection.view(col, d)["games"]}
+        self.assertEqual(rows["Comet Chase VR"]["wheel"]["src"], ["SimHub"])
         self.assertEqual(len(collection.view(col)["games"]), 4)   # ohne Daten wie bisher
 
     def test_replace_keeps_fetched_and_gem(self):
@@ -1401,7 +1414,9 @@ class TestSync(unittest.TestCase):
                        "Game%20Boy%20Advance%20%28No-Intro%29.json": RETRO_RETOOL})
         sources.fetch = net
         sync.run(only={"retro"})
-        self.assertEqual(len(net.calls), 3)                     # GBA: Liste und Retool; VB: Liste fehlt (404), Retool nicht gefragt
+        dats = [c for c in net.calls if "/no-intro/" in c or "retool" in c]
+        self.assertEqual(len(dats), 3)                          # GBA: Liste und Retool; VB: Liste fehlt (404), Retool nicht gefragt
+        self.assertEqual(len(net.calls) - len(dats), 10)        # 0.8.8: je System fünf Listen mit Spielinfos (hier alle 404)
         g = store.load_json(collection.FILE, {})["games"]
         self.assertEqual((g["retro:gba:moon rover"]["de"]["st"], g["retro:gba:star hop"]["de"]["via"]), ("missing", "retool"))
         self.assertTrue(store.load_json(retro.CACHE, {})["GBA"]["retool"])
@@ -1409,8 +1424,128 @@ class TestSync(unittest.TestCase):
         self.assertEqual((res["read"], res["missing"]), (1, 2))
         net.calls.clear()
         sync.run(only={"retro"})
-        self.assertEqual([c for c in net.calls if "Advance" in c], [])   # GBA frisch: nicht neu gelesen
+        self.assertEqual([c for c in net.calls if "Advance" in c], [])   # GBA frisch: nicht neu gelesen, Spielinfos auch nicht
+        self.assertEqual(store.load_json(collection.FILE, {})["games"]["retro:gba:moon rover"]["lr"], {})
         self.assertEqual(store.load_json(collection.FILE, {})["games"]["retro:gba:moon rover"]["de"]["st"], "missing")
+
+    def test_retro_meta(self):
+        """Spielinfos aus der libretro-database (0.8.8): je System alle Listen, zusammengeführt je Fassung, die eigene
+        Region zuerst; in der Sammlung Genre, Spieler, Erscheinen, Entwickler und Beschreibung mit Herkunft."""
+        genre = 'clrmamepro (\n\tname "Nintendo - Game Boy Advance"\n)\n\ngame (\n\tcomment "Moon Rover (USA)"\n\tgenre "Platform"\n' \
+                '\trom ( crc 00000001 )\n)\n\ngame (\n\tcomment "Moon Rover (Europe) (En,De)"\n\tgenre "Beat\'em Up"\n\trom ( crc 00000002 )\n)\n' \
+                '\ngame (\n\tcomment "Moon Rover (Beta)"\n\tgenre "Racing"\n)\n'
+        users = 'game (\n\tcomment "Moon Rover (Europe) (En,De)"\n\tusers 2\n\trom ( crc 00000002 )\n)\n'
+        year = 'game (\n\tcomment "Moon Rover (Europe) (En,De)"\n\treleaseyear "2003"\n)\n'
+        month = 'game (\n\tcomment "Moon Rover (Europe) (En,De)"\n\treleasemonth "7"\n)\n'
+        dev = 'game (\n\tcomment "Moon Rover: Return (Europe)"\n\tdeveloper "Kite Works"\n)\n'
+        # PS1 (Entwickler-Liste mit allem): Name statt comment, Beschreibung, Spuren im rom-Block
+        ps1 = ('game (\n\tname "Harbor Heist (Europe)"\n\tdescription "A heist in the harbor."\n\tdeveloper "Paper Moon"\n'
+               '\tpublisher "Paper Moon"\n\treleaseyear "1999"\n\treleasemonth "11"\n\treleaseday "8"\n\tusers "1"\n'
+               '\tgenre "Action, Adventure"\n\trom (\n\t\tserial "SLES-00001"\n\t\tname "Harbor Heist (Europe).cue"\n\t)\n)\n')
+        e = {}
+        for t in (genre, users, year, month, dev):
+            retro.parse_meta(t, e)
+        self.assertNotIn("moon rover beta", e)                 # Beta zählt nicht
+        self.assertEqual(e["moon rover europe en de"], {"n": "Moon Rover (Europe) (En,De)", "genre": "Beat'em Up", "users": "2",
+                                                        "year": "2003", "month": "7"})
+        idx = retro.meta_index(e)
+        g = {"name": "Moon Rover", "system": "GBA", "regions": ["Europe"]}
+        self.assertEqual(retro.meta_for(g, idx), {"n": "Moon Rover (Europe) (En,De)", "genre": ["Beat'em Up"], "users": 2, "rel": "2003-07"})
+        self.assertEqual(retro.meta_for(dict(g, regions=["USA"]), idx)["genre"], ["Platform"])   # eigene Region zuerst
+        self.assertEqual(retro.meta_for({"name": "Moon Rover - Return", "regions": []}, idx)["dev"], "Kite Works")
+        self.assertEqual(retro.meta_for({"name": "Comet Chase", "regions": []}, idx), {})
+        self.assertEqual(retro.meta_for({"name": "Moonrover", "regions": []}, idx)["n"], "Moon Rover (Europe) (En,De)")
+        p = retro.meta_for({"name": "Harbor Heist", "regions": ["Europe"]}, retro.meta_index(retro.parse_meta(ps1)))
+        self.assertEqual((p["rel"], p["users"], p["genre"], p["desc"], p["pub"]), ("1999-11-08", 1, ["Action", "Adventure"],
+                                                                                 "A heist in the harbor.", "Paper Moon"))
+        self.assertEqual([f for f, _ in retro.meta_urls("GBA")], list(retro.META_FIELDS))
+        self.assertEqual(len(retro.meta_urls("DS")), 10)        # mit der DSiWare-Liste
+        self.assertEqual(retro.meta_urls("Saturn"), [])
+        # Sammlung: libretro allein bestätigt das Genre (niemand widerspricht), Spieler und Jahr mit Herkunft
+        col = {"games": {}}
+        retro.apply(col, retro.parse("GBA/Moon Rover (Europe) (En,De).gba\n")[0], dry=False)
+        self.assertEqual(retro.mark_meta(col, {"GBA": idx}), (1, 1))
+        r = collection.view(col)["games"][0]
+        self.assertEqual((r["genres"], r["gc"], r["players"], r["pl_src"], r["year"], r["year_src"], r["rel"]),
+                         (["Action"], ["Action"], 2, "libretro", "2003", "libretro", "2003-07"))
+        self.assertEqual((r["srcs"], r["lname"]), (["Retro-Liste", "libretro"], "Moon Rover (Europe) (En,De)"))
+        # mit IGDB: Genre bestätigt, wenn beide es nennen; IGDB-Spielerzahl gilt, gleiche Zahl ist bestätigt
+        g = next(iter(col["games"].values()))
+        g["igdb"] = {"id": 1, "genres": ["Platform"], "on": 0, "off": 2}
+        r = collection.view(col)["games"][0]
+        self.assertEqual((r["genres"], r["gc"], r["players"], r["pl_src"], r.get("pl_ok")),
+                         (["Plattformer", "Action"], ["Plattformer"], 2, "IGDB", True))
+        # Im Lauf: Listen je System; ein neues Spiel ohne Spielinfos lässt das System neu lesen
+        store.DATA_DIR = tempfile.mkdtemp()
+        for v in col["games"].values():
+            v.pop("lr"), v.pop("igdb")
+        store.save_json(collection.FILE, col)
+        net = FakeNet({"metadat/genre/Nintendo%20-%20Game%20Boy%20Advance.dat": genre,
+                       "metadat/maxusers/Nintendo%20-%20Game%20Boy%20Advance.dat": users,
+                       "/no-intro/": 404, "retool": 404})
+        sources.fetch = net
+        sync.run(only={"retro"})
+        g = store.load_json(collection.FILE, {})["games"]["retro:gba:moon rover"]
+        self.assertEqual((g["lr"]["genre"], g["lr"]["users"]), (["Beat'em Up"], 2))
+        self.assertEqual(store.load_json(retro.META_FILE, {})["GBA"]["n"], 2)
+        net.calls.clear()
+        sync.run(only={"retro"})
+        self.assertEqual([c for c in net.calls if "maxusers" in c], [])     # frisch, alle Spiele haben Spielinfos
+
+    def test_folder_lists(self):
+        """Deine Ordner-Listen (0.8.8): Titel und Genre gelten zuerst, Reihe und Ordner in den Einzelheiten; ein ganz
+        anderes Genre bei libretro steht unter „Zu erledigen“; „Liste gilt“ blendet es aus; Größe aus der Ordnerwahl."""
+        lst = ("\ufeffDatei;Titel;Reihe;Sammelreihe;Genre;Untergruppe;Ordner\n"
+               "Moon Rover (Europe) (En,De).gba;Mondfahrer;Mond;Weltraum;Puzzle;Knobelspiele;Puzzle\\Knobelspiele\n"
+               "Legend of Pixels, The (USA).gba;Legend of Pixels, The;;;Jump & Run;;Jump & Run\n"
+               "Star Hop (USA).gba;Star Hop;;;Action & Arcade;;Action & Arcade\n"
+               "Comet Chase (USA).gba;Comet Chase;;;Sport;;Sport\n")
+        path = "ROMs/Nintendo - Game Boy Advance/gba_zip/_Sortierung/gba_ordner.csv"
+        self.assertTrue(retro.is_folder_list(path))
+        self.assertFalse(retro.is_folder_list("ROMs/liste.csv"))
+        rows = retro.parse_folder_list(path, lst)
+        self.assertEqual([(k, s) for k, s, _ in rows][:2], [("retro:gba:moon rover", "GBA"), ("retro:gba:the legend of pixels", "GBA")])
+        self.assertEqual(rows[0][2], {"title": "Mondfahrer", "series": "Mond", "coll": "Weltraum", "genre": "Puzzle",
+                                      "sub": "Knobelspiele", "folder": "Puzzle\\Knobelspiele", "file": "Moon Rover (Europe) (En,De).gba"})
+        text = ("ROMs/gba/Puzzle/Moon Rover (Europe) (En,De).gba\t4194304\nROMs/gba/Jump/Legend of Pixels, The (USA).gba\t8388608\n"
+                "ROMs/gba/Star Hop (USA).gba\nROMs/gba/Extra/Orbit Golf (USA).gba\t1000\n")
+        games, st = retro.parse(text)
+        self.assertEqual((st["files"], games["retro:gba:moon rover"]["size"]), (4, 4194304))
+        self.assertNotIn("size", games["retro:gba:star hop"])
+        own = retro.apply_folder_lists(games, [(path, lst)])
+        self.assertEqual((own["systems"], own["rows"], own["matched"], own["extra"], own["missing"]),
+                         (["GBA"], 4, 3, ["Comet Chase"], ["Orbit Golf"]))
+        col = {"games": {}}
+        retro.apply(col, games, dry=False, own_systems=own["systems"])
+        idx = retro.meta_index(retro.parse_meta(
+            'game (\n\tcomment "Moon Rover (Europe) (En,De)"\n\tgenre "Racing"\n)\n'
+            'game (\n\tcomment "Star Hop (USA)"\n\tgenre "Platform"\n)\n'))
+        retro.mark_meta(col, {"GBA": idx})
+        rows = {r["key"]: r for r in collection.view(col)["games"]}
+        m = rows["retro:gba:moon rover"]
+        self.assertEqual((m["name"], m["fname"], m["genres"][0], m["gc"][0]), ("Mondfahrer", "Moon Rover", "Puzzle", "Puzzle"))
+        self.assertEqual(m["own"], {"series": "Mond", "coll": "Weltraum", "genre": "Puzzle", "sub": "Knobelspiele", "folder": "Puzzle\\Knobelspiele"})
+        self.assertEqual((m["own_diff"], m["size"], m["srcs"][0]), ([{"own": "Puzzle", "other": "Racing", "src": "libretro"}], 4194304, "Ordner-Liste"))
+        self.assertEqual(rows["retro:gba:the legend of pixels"]["name"], "The Legend of Pixels")     # Artikel nach vorn, kein zweiter Name
+        self.assertNotIn("fname", rows["retro:gba:the legend of pixels"])
+        self.assertNotIn("own_diff", rows["retro:gba:star hop"])                                     # Jump & Run passt zu Action
+        self.assertEqual([x["key"] for x in retro.own_list(col)], ["retro:gba:moon rover"])
+        retro.settle_own(col, "retro:gba:moon rover")
+        self.assertEqual(retro.own_list(col), [])
+        with self.assertRaises(ValueError):
+            retro.settle_own(col, "retro:gba:orbit golf")
+        # Neue Liste ohne Ordner-Liste und ohne Größen: beides bleibt; mit einer neuen Ordner-Liste gilt die neue
+        games, _ = retro.parse("ROMs/gba/Moon Rover (Europe) (En,De).gba\n")
+        retro.apply(col, games, dry=False)
+        g = col["games"]["retro:gba:moon rover"]
+        self.assertEqual((g["own"]["title"], g["size"], bool(g["own_ok"]), "lr" in g), ("Mondfahrer", 4194304, True, True))
+        games, _ = retro.parse("ROMs/gba/Moon Rover (Europe) (En,De).gba\n")
+        retro.apply(col, games, dry=False, own_systems=["GBA"])
+        self.assertNotIn("own", col["games"]["retro:gba:moon rover"])
+        # Über den Server: Ordner-Listen mit dem Import, nur Dateien „…_ordner.csv“
+        store.DATA_DIR = tempfile.mkdtemp()
+        res = server.import_retro(empty(), text, True, server._lists({"lists": [{"path": path, "text": lst}, {"path": "x.csv", "text": lst}]}))
+        self.assertEqual((res["own"]["matched"], res["own"]["extra_n"], res["size"]), (3, 1, 4194304 + 8388608 + 1000))
 
     def test_details(self):
         """Steam-Details gleichen Playnite ab: was beide sagen, ist bestätigt, der Rest bleibt mit ≈."""

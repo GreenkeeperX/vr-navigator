@@ -71,6 +71,7 @@ PEAK_DAYS = 30              # Spitze über so viele Tage
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Entscheidung 22.10.2026
+META_DAYS = 30              # Spielinfos der libretro-database (0.8.8) je System höchstens monatlich
 RETRO_DAYS = 7              # Fassungslisten (No-Intro, Redump, Retool) je System höchstens wöchentlich
 IGDB_DAYS = 90              # IGDB je Spiel so oft neu (0.8.0)
 IGDB_MISS_DAYS = 30         # ohne Treffer erst nach so vielen Tagen neu suchen
@@ -1050,9 +1051,35 @@ def _retro(log):
         fetched.append(sy)
     if fetched:
         store.save_json(retro.CACHE, cache)
+    # Spielinfos (0.8.8): je System alle Listen der libretro-database, wenn ein Spiel noch keine hat oder nach META_DAYS
+    meta = store.load_json(retro.META_FILE, {})
+    old_meta = _iso(now() - timedelta(days=META_DAYS))
+    found, metas = {}, []
+    for sy in systems:
+        if src.stopped or not retro.meta_urls(sy):
+            continue
+        m = meta.get(sy) or {}
+        fresh = (m.get("at") or "") >= old_meta and m.get("v") == retro.META_V
+        if fresh and all("lr" in g for g in (col.get("games") or {}).values() if g.get("src") == retro.SRC and g.get("system") == sy):
+            continue
+        entries = {}
+        for f, u in retro.meta_urls(sy):
+            text = src.get(u, shown=f"Spielinfos {sy} ({f})", absent=(404,))
+            if text:
+                retro.parse_meta(text, entries)
+            elif src.stopped:
+                break
+        if src.stopped:
+            break
+        found[sy] = retro.meta_index(entries)
+        meta[sy] = {"at": titles.now_iso(), "v": retro.META_V, "n": len(entries)}
+        metas.append(sy)
+    if metas:
+        store.save_json(retro.META_FILE, meta)
     with store.lock:
         col = store.load_json(collection.FILE, collection.EMPTY)
         count = retro.mark_languages(col, {sy: c["idx"] for sy, c in cache.items() if sy in systems and c.get("idx")})
+        got = retro.mark_meta(col, found) if found else (0, 0)
         store.save_json(collection.FILE, col)
     near = sum(1 for g in (col.get("games") or {}).values() if (g.get("de") or {}).get("near"))
     src.stats = {"read": len(fetched), "missing": count.get("missing", 0), "near": near}
@@ -1060,7 +1087,9 @@ def _retro(log):
         + f"; Deutsch vorhanden {count.get('have', 0)}, deutsche Fassung fehlt {count.get('missing', 0)}, "
         f"keine deutsche Fassung bekannt {count.get('none', 0)}, nicht in der Liste {count.get('unknown', 0)}"
         + (f" (davon {near} mit ähnlichem Namen zum Bestätigen)" if near else "")
-        + (f"; ohne Fassungsliste: {', '.join(without)}" if without else "") + f", {_took(start)}")
+        + (f"; ohne Fassungsliste: {', '.join(without)}" if without else "")
+        + (f"; Spielinfos (libretro) neu für {', '.join(metas)}: {got[0]} von {got[1]} Spielen gefunden" if metas else "")
+        + f", {_took(start)}")
     return src.result()
 
 

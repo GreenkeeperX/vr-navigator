@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.7:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.8:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -83,7 +83,8 @@ lesen“ im eShopKompass:
    liest es alle Seiten bis zur höchsten Seitenzahl der Seitenleiste (höchstens 30, mit kurzer
    Pause dazwischen). Es nimmt auch Pakete, Bundles und DLC mit; übernommen werden nur Spiele,
    der Rest steht mit Zahl und Namen im Ergebnis. Unbekannte Namen daraus sucht der Abgleich bei
-   Steam nach, 40 je Lauf.
+   Steam nach, 40 je Lauf. Ab 0.8.8 merkt es sich die Zahl, die gg.deals über der Liste nennt („We found …
+   results“); stehen dort mehr Einträge, als Links zu Spielseiten da waren, sagt die Vorschau, wie viele fehlen.
 3. Im Kasten oben rechts „Im VR-Navigator übernehmen“: Das Tool öffnet sich und übernimmt Käufe
    oder Wunschliste ohne weitere Rückfrage. Seitentext und Links stehen dabei nur in der Adresse
    hinter #, gehen also an keinen Server außer deinem eigenen Browser-Tab; das Tool entfernt sie
@@ -132,7 +133,8 @@ still nichts zu übernehmen:
 ### Retro-Sammlung (ROM-Liste)
 
 Unter Einstellungen, „Retro-Sammlung“, wählst du deinen ROM-Ordner. Der Browser gibt dem Tool nur
-Datei- und Ordnernamen, er lädt keine Spiele hoch; Pfade speichert das Tool nicht. Statt der
+Datei- und Ordnernamen (ab 0.8.8 mit Größe und dem Inhalt deiner Ordner-Listen `…_ordner.csv`), er lädt
+keine Spiele hoch; Pfade speichert das Tool nicht. Statt der
 Ordnerwahl geht eine Liste per Befehl (Linux `find`, Windows PowerShell, beide in der Karte zum
 Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vorschau.
 
@@ -166,6 +168,25 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
   nur in Leerzeichen unterscheiden („Moonrover“, „Moon Rover“), gelten ohne Rückfrage als gleich.
 - **DSiWare** (0.8.6): Beim DS liest das Tool auch die Liste der Download-Titel aus dem DSi-Shop. Spiele
   aus dem DSi-Ordner finden so ihre Fassungen statt eines ähnlichen Namens.
+- **Spielinfos** (0.8.8): Beim Abgleich holt das Tool je System die Listen der libretro-database mit Genre,
+  Spielerzahl, Erscheinen (Jahr, oft Monat) und Entwickler, bei PS1 und PS2 auch Verlag und eine englische
+  Beschreibung. Zugeordnet wird über den Titel, Fassungen der eigenen Region zuerst. Die Listen sind groß; das
+  Tool behält nur, was zu deinen Spielen passt, und fragt je System höchstens monatlich neu, früher nur, wenn ein
+  Spiel noch keine Spielinfos hat. Nennt sonst keine Quelle ein Genre, gilt das von libretro als bestätigt; IGDB
+  bestätigt oder ergänzt es, bei der Spielerzahl gilt IGDB zuerst. Für DS, DSiWare und 3DS hat libretro kaum
+  Einträge, GameCube, Wii und Pokémon Mini gar keine; dort helfen nur IGDB und deine Ordner-Listen.
+- **Deine Ordner-Listen** (0.8.8): Liegt im gewählten Ordner eine Datei `<system>_ordner.csv` (auch unter
+  `…_zip/_Sortierung/`) mit den Spalten `Datei;Titel;Reihe;Sammelreihe;Genre;Untergruppe;Ordner` (dazu
+  optional `Status` und `MB`), liest die Ordnerwahl sie mit. Sie ist die erste Quelle (Entscheidung
+  28.10.2026): Dein Titel ist der Name in der Sammlung, dein Genre steht vorn und gilt als bestätigt
+  („Jump & Run“ wird zur Genre-Gruppe Plattformer, „Brett- & Kartenspiele“ zu Karten und Brett …). Reihe,
+  Untergruppe, Ordner und der Titel laut Dateiname stehen in den Einzelheiten; die Suche findet auch die Reihe.
+  Die Vorschau nennt, wie viele Zeilen zu einer Datei passen, was nur in der Liste steht und welche Dateien
+  in der Liste fehlen. Nennen libretro oder IGDB ein ganz anderes Genre (keine nahe Gruppe, „Jump & Run“ und
+  „Action“ gelten als nah), steht das Spiel unter „Zu erledigen“, „Retro: Genre weicht von deiner Liste ab“.
+  „Liste gilt“ (auch für alle auf einmal) blendet den Hinweis aus, bis sich ein Wert ändert. Liest du die
+  Liste später ohne Ordner-Liste ein (etwa als Text), bleiben die Angaben der letzten Ordner-Liste.
+- **Größe** (0.8.8): Die Ordnerwahl schickt je Datei die Größe mit; die Einzelheiten zeigen sie bei „Dateien“.
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
   „ROM-Hacks“ ergibt „Hack“.
 - **Neu einlesen:** Neue Spiele kommen dazu. Fehlt ein Spiel eines Systems, das in der neuen
