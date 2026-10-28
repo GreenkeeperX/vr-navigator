@@ -1160,7 +1160,8 @@ function findView(){
     <button class="link gdl" data-act="gdl" title="Die Liste mit den gezeigten Spalten als Datei (CSV); aufgeklappte Spiele mit ihren Einzelheiten">herunterladen</button></div>`;
   const gcols = `minmax(180px,1.5fr) ${cols.map(c => c.w).join(" ")}`;
   // Einzelheiten: Mein Stand steht in jedem Reiter an derselben Stelle (0.8.7), unabhängig von den Spalten
-  const dcols = "minmax(180px,1.5fr) minmax(320px,1fr)";
+  // Mein Stand gleich nach der Spalte „Spiel“, wie in der Switch-Ansicht bis 0.8.6 (0.8.10: 3 zu 5 statt 1,5 zu 1)
+  const dcols = "minmax(180px,3fr) minmax(320px,5fr)";
   const glist = (list, head) => `<div class="glist${head ? " box" : ""}" style="--gcols:${gcols};--dcols:${dcols}">${head || ""}${list}</div>`;
   const pickCard = pick.length || d.mix === "surprise" || d.mix === "wild" ? `<div class="card gpick"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? glist(pick.map(g => gRow(g, cols, true)).join("")) : `<p class="hint">Nichts passt zu den Filtern.</p>`}

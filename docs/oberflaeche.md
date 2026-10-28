@@ -214,7 +214,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 
 - Marke „VR“ in PC-Zeilen türkis (`.vrb`), Tooltip nennt die Quelle (`vr_src`); nur aus dem Namen violett (`.gxc`).
   Zeilen `pcvr:` sind VR-Titel des Tools am PC, die Playnite nicht kennt; ihre Einzelheiten sagen das.
-- Einzelheiten: Mein Stand immer bei 1,5fr / 1fr (`--dcols` fest), gleich in jedem Reiter.
+- Einzelheiten: Mein Stand immer gleich nach der Spalte „Spiel“, bei 3fr / 5fr (`--dcols` fest, ab 0.8.10; vorher
+  1,5fr / 1fr, das stand zu weit rechts), gleich in jedem Reiter, wie in der Switch-Ansicht bis 0.8.6.
 - Werkzeugzeile: „herunterladen“ (Link, `gdl`) als CSV; Spaltenkopf „Spiel“ mit ⧉ (`.gcopy`) für alle Titel.
 - Suche (`V.q`, `V.d.q`) leert sich beim Wechsel von Reiter, Unterreiter und System.
 - Knöpfe in `.bar.slim` mit fester Höhe 30 px.
