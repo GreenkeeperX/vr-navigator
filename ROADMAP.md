@@ -99,7 +99,8 @@ gg.deals-Lesezeichen nennt, wenn gg.deals mehr Einträge zählt, als Links da wa
 als eigene Spiele der Sammlung in allen Abrufen (Steam-Details, Rezensionen, IGDB, Mods); IGDB fragt Retro abwechselnd
 mit den übrigen Spielen statt nach allen PC-Spielen. 0.8.10: Mein Stand in den Einzelheiten wieder gleich nach der
 Spalte „Spiel“. 0.8.11: PC-Wunschliste mit Spielinfos von Steam und IGDB (Wertung, Spielzeit, Genre,
-Einzelheiten), „Jetzt“ für alle Wünsche mit Schalter Alle, VR, PC. Grundsatz (Entscheidung 22.10.2026): so wenig
+Einzelheiten), „Jetzt“ für alle Wünsche mit Schalter Alle, VR, PC. 0.8.12: Wunschliste PC und Jetzt brachen bei einer
+Wertung nur von IGDB ab (fehlende Zahl der Bewertungen); Hinweisklappe dezenter und über die volle Breite. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

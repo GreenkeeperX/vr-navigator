@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.11:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.12:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 

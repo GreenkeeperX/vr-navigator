@@ -217,6 +217,7 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Schalter „Alle, VR, PC“ (`.seg.nowk`, `V.nowKind`) rechts in der Werkzeugzeile, mit Zahl je Seite. Bei „Alle“ zwei
   Klappen „VR“ und „PC“; die PC-Liste ist dieselbe Tabelle wie unter Wunschliste, PC (`pcTable`), nur Wünsche nah am
   Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter.
+- Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
 
 ## Sammlung, ab 0.8.7

@@ -228,7 +228,7 @@ function match(r){
    Wertung je Laden auf einer Skala (Steam: Anteil positiver Rezensionen ab 50; Meta: Anteil 4 und 5
    Sterne laut VRDB, sonst Sterne × 20 mit „≈“), der bessere ab 5 Punkten Abstand grün;
    Steam-Spieler jetzt (Spitze aus eigenen Messungen), letztes Steam-Update, Meta-Version. */
-const num = n => n.toLocaleString("de-DE");
+const num = n => (n ?? 0).toLocaleString("de-DE");
 const RATE_GAP = 5;
 const fact = (label, body, tip) => `<span class="fact"${tip ? ` title="${esc(tip)}"` : ""}><span class="fl">${label}</span><span class="fv">${body}</span></span>`;
 function agoDays(d){
@@ -319,7 +319,7 @@ function pcWishView(pw){
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel suchen" aria-label="Titel suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span><span class="tools">${sel}</span></div>`;
   const src = {Server: "über den Teilen-Link", Lesezeichen: "per Lesezeichen", Datei: "aus einer Datei"}[pw.via] || "";
   const games = all.filter(r => !r.kind).length, info = all.filter(r => r.srcs?.length).length;
-  const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === all.length ? `Alle ${num(all.length)} Einträge deiner gg.deals-Wunschliste ohne VR.` : `${num(rows.length)} von ${num(all.length)} Einträgen.`}</summary>
+  const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === all.length ? `${num(all.length)} Einträge ohne VR` : `${num(rows.length)} von ${num(all.length)} Einträgen`}</summary>
     <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach genau gleichem Namen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.
     Spielinfos wie in der Sammlung (Wertung, Spielzeit, Genre, Mehrspieler, Beschreibung) kommen von Steam und IGDB über die Steam-ID: ${info < games ? `${num(info)} von ${num(games)} Spielen haben sie schon, der Abgleich holt je Lauf weitere` : "alle Spiele haben sie"}${S.settings?.igdb_set ? "" : "; ohne IGDB-Schlüssel nur von Steam, ohne Spielzeit"}. Klick auf den Namen zeigt Einzelheiten.
     ${pw.kinds?.pack || pw.kinds?.dlc ? `Dazu ${[pw.kinds.pack && `${num(pw.kinds.pack)} Pakete`, pw.kinds.dlc && `${num(pw.kinds.dlc)} DLC`].filter(Boolean).join(" und ")}; für sie hat die gg.deals-API keinen Preis je Steam-App, der Link führt zur Seite bei gg.deals.` : ""}
