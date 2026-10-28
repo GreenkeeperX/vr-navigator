@@ -220,7 +220,7 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   oder „(gepflegt)“ hinter „Update“; in der Spalte Update des Reiters VR grau. Eine Sache, mehrere Orte: VR-Karte
   (Fakten), Reiter VR der Sammlung (Spalten Steam, Update), Wunschliste PC (Wertung, Name, Einzelheiten), Jetzt PC.
 - Preissturz (ab 0.8.18): grüne Marke „Preissturz“ (`.b.go`, `dropMark`) am Namen in der Wunschliste PC und unter
-  Jetzt, Prozent und üblicher Preis im Tooltip, in den Einzelheiten die Zeile „Preissturz“.
+  Jetzt, ab 0.8.25 auch an VR-Wünschen (`badges`, Laden im Tooltip, nur ohne Besitz), Prozent und üblicher Preis im Tooltip, in den Einzelheiten die Zeile „Preissturz“.
 - Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das Spiel in einer Liste der Rennspiele steht (SimHub,
   Simucube-Forum; Tooltip nennt beide); nur Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`), `wheelBadge`.
   Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins

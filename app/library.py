@@ -2,7 +2,7 @@
 import re
 from datetime import datetime, timedelta, timezone
 
-from . import lists, prices, store, titles, trend, wheel
+from . import lists, pcwish, prices, store, titles, trend, wheel
 
 STALE_H = 48        # ältere Live-Preise markiert die Oberfläche als veraltet
 
@@ -155,6 +155,11 @@ def row(key, t, at=None, hist=None, data=None):
         if (b is None or b.get("thin")) and now_p is not None and isinstance(low, (int, float)) and low > 0:
             best[shop] = _guess(now_p, low, at or "", src)
     best_all = _best_all(best, {"meta": meta_now, "steam": steam_now})
+    # Preissturz (0.8.25) wie bei den PC-Wünschen: aus dem eigenen Preisverlauf je Laden (history.json, mit dem Verlauf
+    # von QuestStoreDB), der deutlichere der beiden
+    drops = [dict(d, shop=shop) for shop, ident, now_p in (("meta", t.get("meta_id"), meta_now), ("steam", t.get("steam_appid"), steam_now))
+             if ident and (d := pcwish.drop((hist.get(shop) or {}).get(str(ident)), now_p, today))]
+    drop = max(drops, key=lambda d: d["pct"], default=None)
     return {
         "key": key, "name": t["name"], "meta_id": t.get("meta_id") or "",
         "steam_appid": t.get("steam_appid") or "", "steam_sure": bool(t.get("steam_sure")),
@@ -171,7 +176,7 @@ def row(key, t, at=None, hist=None, data=None):
         # Aufpreis von Meta jetzt gegenüber dem günstigsten PC-Angebot jetzt
         "gap_now": round(meta_now - pc["price"], 2) if meta_now is not None and pc else None,
         "links": titles.search_links(t), "added": t.get("added") or "",
-        "rating": rating(t), "measured": measured(t),
+        "rating": rating(t), "measured": measured(t), "drop": drop,
     }
 
 

@@ -201,6 +201,7 @@ function badges(r, compact){
   if(r.steam_appid && !r.steam_sure) out.push(`<span class="b warn" title="${esc(r.steam_doubt ? "Steam-ID passt wohl nicht: " + r.steam_doubt + " (siehe Einstellungen, Zu erledigen)" : "Steam-ID nur nach dem Namen zugeordnet, das Tool prüft sie beim nächsten Abgleich")}">Steam-ID ≈</span>`);
   if(r.bundle) out.push(`<span class="b" title="Paket aus mehreren Spielen">Bundle</span>`);
   out.push(wheelBadge(r.wheel));
+  if(!r.where) out.push(dropMark(r.drop));     // 0.8.25: Preissturz auch für VR-Wünsche
   out.push(compact ? wishListShort(r) : wishListBadge(r));
   return out.filter(Boolean).join(" ");
 }
@@ -794,7 +795,7 @@ const trendMark = t => !t || t.dir === "flat" ? "" : `<span class="tr ${t.dir}" 
 const trendText = t => !t ? "" : `<span title="${esc(trendTip(t))}">${t.dir === "up" ? "steigend" : t.dir === "down" ? "fallend" : "gleichbleibend"}${trendMark(t) ? " " + trendMark(t) : ""} <span class="hint">(${t.recent} % gegen ${t.all} %)</span></span>`;
 const CARE = {fresh: "gepflegt", ok: "", stale: "ruht"};
 const careMark = c => c?.state === "stale" ? `<span class="b care" title="${esc(`Letztes Update laut Steam-Neuigkeiten am ${day(c.date)}, über ein Jahr her`)}">ruht</span>` : "";
-const dropMark = d => !d ? "" : `<span class="b go" title="${esc(`${d.pct} % unter dem üblichen Preis von ${eur(d.usual)} (Median der letzten ${d.days} Tage, eigener Preisverlauf aus gg.deals)`)}">Preissturz</span>`;
+const dropMark = d => !d ? "" : `<span class="b go" title="${esc(`${d.shop ? `${SHOP[d.shop]}: ` : ""}${d.pct} % unter dem üblichen Preis von ${eur(d.usual)} (Median der letzten ${d.days} Tage, eigener Preisverlauf${d.shop ? "" : " aus gg.deals"})`)}">Preissturz</span>`;
 /* Genres als Blasen, Farbton nach Verwandtschaft (wie im eShopKompass): Action und Kampf rot, Tempo
    orange bis gelbgrün, Plattformer gelb, ruhiges Leben grün, Erkunden türkis bis cyan, Denken blau bis
    indigo, Gesellig rosa bis magenta, Sonstiges grau. Violett bleibt frei, es heißt „prüfen“ */
