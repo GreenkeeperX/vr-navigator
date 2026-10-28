@@ -304,17 +304,17 @@ function wishView(){
   const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${V.wsub === v}" data-act="wsub" data-v="${v}" class="${cls}${V.wsub === v ? " on" : ""}" title="${esc(tip)}">${l} <span class="n">${c}</span></button>`;
   // PC vor VR wie in der Sammlung (0.8.7); VR-Spiele der gg.deals-Liste stehen nur unter VR
   const pcN = pw.rows.filter(r => !pcIsVr(r)).length;
-  const tabs = `<div class="systabs" role="tablist" aria-label="Wunschliste">${tab("pc", "PC", pcN, "fam-pc", "Deine Wunschliste bei gg.deals ohne die VR-Spiele, mit Preisen von Händlern und Keyshops")}${tab("vr", "VR", S.counts.wish, "", "Deine VR-Wünsche bei Meta und am PC, mit Preisen beider Läden")}</div>`;
+  const tabs = `<div class="systabs" role="tablist" aria-label="Wunschliste">${tab("pc", "PC", pcN, "fam-pc", "Deine Wunschliste bei gg.deals ohne die VR-Spiele, mit Preisen von Händlern und Keyshops")}${tab("vr", "VR", S.counts.wish, "fam-vr", "Deine VR-Wünsche bei Meta und am PC, mit Preisen beider Läden")}</div>`;
   return tabs + (V.wsub === "pc" ? pcWishView(pw) : vrWishView());
 }
 const pcIsVr = r => r.vr && !r.vr_guess;
 const PC_KIND = {pack: ["Paket", "Paket aus mehreren Spielen oder Edition mit Zusätzen; Preis auf der Seite bei gg.deals"], dlc: ["DLC", "Erweiterung; Preis auf der Seite bei gg.deals"]};
-const PC_SORTS = [["near", "Nah am Tief"], ["best", "Preis"], ["score", "Wertung"], ["hours", "Spielzeit"], ["name", "Name"], ["new", "Neu"]];
+const PC_SORTS = [["near", "Nah am Tief"], ["best", "Preis"], ["score", "Wertung"], ["hours", "Spielzeit"], ["year", "Jahr"], ["name", "Name"], ["new", "Neu"]];
 function pcWishView(pw){
   const q = V.q.trim().toLowerCase();
   const all = pw.rows.filter(r => !pcIsVr(r)), nVr = pw.rows.length - all.length;
   let rows = all.filter(r => !q || r.name.toLowerCase().includes(q) || (r.dev || "").toLowerCase().includes(q));
-  const key = {near: r => r.over ?? 1e9, best: r => r.best ?? 1e9, score: r => -(r.score ?? -1), hours: r => r.hours ?? 1e9, new: r => -Date.parse(r.since || 0) || 0}[V.pcSort];
+  const key = {near: r => r.over ?? 1e9, best: r => r.best ?? 1e9, score: r => -(r.score ?? -1), hours: r => r.hours ?? 1e9, year: r => -(parseInt(r.year, 10) || -1e4), new: r => -Date.parse(r.since || 0) || 0}[V.pcSort];
   if(key) rows = rows.slice().sort((a, b) => key(a) - key(b));
   const sel = `<label class="kind">Sortieren <select data-sort="pc">${PC_SORTS.map(([v, l]) => `<option value="${v}"${V.pcSort === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel suchen" aria-label="Titel suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span><span class="tools">${sel}</span></div>`;
@@ -327,24 +327,33 @@ function pcWishView(pw){
     ${nVr ? `${num(nVr)} VR-Spiele der Liste stehen unter <button class="link" data-act="wsub" data-v="vr">VR</button>.` : ""} Violett „VR“: nur der Name nennt VR, der Abgleich prüft das bei Steam.</p></details>`;
   return bar + note + (rows.length ? pcTable(rows) : `<p class="hint">Kein Treffer.</p>`);
 }
-/* Tabelle der PC-Wünsche (0.8.11 mit Spielinfos), auch unter „Jetzt“. Wertung, Spielzeit und Genre wie in der
-   Sammlung (gSc, gGenres); der Name klappt Einzelheiten auf, die Links zu gg.deals und Steam stehen dort */
-const PC_COLS = "minmax(160px,2fr) 62px 66px minmax(0,1.2fr) 74px 74px 74px 74px 68px";
+/* Tabelle der PC-Wünsche (0.8.11 mit Spielinfos), auch unter „Jetzt“. Ab 0.8.17 wie im eShopKompass: vorn der Preis jetzt
+   (Link zu gg.deals, Händler, Keyshop und Tief im Tooltip) und der Abstand zum Tief („am Tief“ grün, sonst rot), dahinter die
+   Spielinfos wie in der Sammlung (gSc, gGenres, gYear); der Name klappt Einzelheiten auf */
+const PC_COLS = "minmax(160px,2fr) 76px 76px 62px minmax(0,1.2fr) 66px 52px 44px";
 function pcTable(rows){
-  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Günstigster Preis jetzt: Händler oder Keyshop">Jetzt</span><span class="r" title="Offizielle Händler laut gg.deals">Händler</span><span class="r" title="Keyshops laut gg.deals">Keyshop</span><span class="r" title="Bisheriges Tief, Händler oder Keyshop">Tief</span><span class="r" title="Wie weit der Preis jetzt über dem bisherigen Tief liegt">über Tief</span></div>`;
+  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt bei gg.deals, Händler oder Keyshop; Einzelheiten im Tooltip">Preis</span><span class="r" title="Abstand zum bisherigen Tief laut gg.deals">zum Tief</span><span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span class="r" title="Höchste Spielerzahl laut IGDB, sonst Steam (violett)">Spieler</span><span class="r" title="Erscheinungsjahr">Jahr</span></div>`;
   return `<div class="glist box pcw" style="--gcols:${PC_COLS}">${head}${rows.map(pcRow).join("")}</div>`;
+}
+function pcPriceTip(r){
+  return [`Günstigster Preis: ${r.best_from || "gg.deals"}`, r.retail != null && `Händler ${eur(r.retail)}`, r.keyshops != null && `Keyshop ${eur(r.keyshops)}`,
+    (r.retail_low != null || r.keyshops_low != null) && `Tief: ${[r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", ")}`,
+    r.price_at && `Stand ${when(r.price_at)}`, "Klick öffnet die Angebote bei gg.deals"].filter(Boolean).join("\n");
 }
 function pcRow(r){
   const open = V.pwOpen === r.key, atLow = r.over != null && r.over <= 0.02;
   const cell = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
   const hours = !r.hours ? "" : `<span title="${esc(`Laut IGDB${r.hours_all ? `; komplett ${hrs(r.hours_all)}` : ""}`)}">${hrs(r.hours)}</span>`;
-  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.near ? `<span class="b go" title="Höchstens 5 % über dem bisherigen Tief">nah am Tief</span>` : ""}</span>` +
-    cell("Wertung", gSc(r), "r") + cell("Spielzeit", hours, "r") +
+  const price = r.best != null ? `${atLow ? `<span class="star" title="Am bisherigen Tief (höchstens 2 % darüber)">★</span>` : ""}${extLink(r.url, `<b>${eur(r.best)}</b>`, pcPriceTip(r))}`
+    : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">${extLink(r.kind ? r.url : "", "–")}</span>`;
+  const low = r.over == null ? "" : atLow ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
+    : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`;
+  const pl = !r.players ? "" : `<span class="${r.pl_src === "IGDB" ? "" : "gxc"}" title="${r.pl_src === "IGDB" ? "Laut IGDB" : "Nur eine Quelle"}">bis ${r.players}</span>`;
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}</span>` +
+    `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
+    cell("Wertung", gSc(r), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
-    `<span class="r" data-l="Jetzt">${r.best != null ? `${atLow ? `<span class="star" title="Am bisherigen Tief (höchstens 2 % darüber)">★</span>` : ""}<b>${extLink(r.url, eur(r.best), `${r.best_from} bei gg.deals`)}</b>` : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">${extLink(r.kind ? r.url : "", "–")}</span>`}</span>` +
-    `<span class="r${r.retail != null ? "" : " nil"}" data-l="Händler">${r.retail != null ? extLink(r.url, eur(r.retail), "Händler bei gg.deals") : G_NIL}</span><span class="r${r.keyshops != null ? "" : " nil"}" data-l="Keyshop">${r.keyshops != null ? extLink(r.url, eur(r.keyshops), "Keyshops bei gg.deals") : G_NIL}</span>` +
-    `<span class="r${r.low != null ? "" : " nil"}" data-l="Tief" title="${esc([r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", "))}">${r.low != null ? `<span class="mut">${eur(r.low)}</span>` : G_NIL}</span>` +
-    `<span class="r${r.over == null ? " nil" : ""}" data-l="über Tief">${r.over == null ? G_NIL : atLow ? `<span class="best-t">am Tief</span>` : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`}</span></div>` + (open ? pcDetail(r) : "");
+    cell("Spielzeit", hours, "r") + cell("Spieler", pl, "r") + cell("Jahr", gYear(Object.assign({mp: [], genres: []}, r)), "r") + `</div>` + (open ? pcDetail(r) : "");
 }
 // Einzelheiten eines PC-Wunschs: was die Zeile nicht zeigt, rechts die Beschreibung, darunter Herkunft und Links
 function pcDetail(r){
@@ -357,6 +366,7 @@ function pcDetail(r){
     row("Entwickler", esc(r.dev || "")) +
     row("Steam", r.reviews != null ? esc(steamTip) : "", "Steam-Rezensionen; eine Wertung gibt es ab 50") +
     row("IGDB Kritik", r.icrit != null ? gScore(r.icrit, "Kritiker-Wertung laut IGDB", "") : "") +
+    row("Jetzt", [r.retail != null && `Händler ${eur(r.retail)}`, r.keyshops != null && `Keyshop ${eur(r.keyshops)}`].filter(Boolean).join(" · "), "Preise jetzt laut gg.deals") +
     row("Tief", [r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(" · "), "Bisheriges Tief laut gg.deals");
   const dtip = r.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm">${r.desc ? `<p class="gdesc${V.gDesc === r.key ? " full" : ""}" data-act="gdesc" data-s="${esc(r.key)}" title="${dtip}${V.gDesc === r.key ? "" : ". Klick zeigt alles"}">${esc(r.desc)}</p>` : `<span class="hint">${r.kind ? "Pakete und DLC bekommen keine Spielinfos." : r.appid ? "Noch keine Spielinfos; der Abgleich holt sie." : "Ohne Steam-ID gibt es keine Spielinfos."}</span>`}</div>`;
@@ -960,7 +970,7 @@ function gBadges(g){
     : `<span class="b vrb" title="${esc(g.from_vr ? `Dein VR-Titel (${g.store}); Playnite kennt ihn nicht` : `VR laut ${g.vr_src || "Steam"}`)}">VR</span>`);
   // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (violett)
   else if(g.vrmod?.length) b.push(`<span class="b" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
-  else if(vrMod(g)) b.push(`<span class="b gxc" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
+  else if(vrMod(g)) b.push(`<span class="b vrq" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
   // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (violett)
   b.push(wheelBadge(g.wheel));
   // Ab 0.8.12 erst ab 0,4 (vorher 0,2: das traf zu viele Spiele, um noch ein Tipp zu sein); heißt etwa 90 % positiv
@@ -1073,7 +1083,7 @@ function wheelBadge(w){
   if(!w) return "";
   const tags = w.tags.length ? `Steam-Schlagwörter: ${w.tags.join(", ")}` : "";
   return w.src.length ? `<span class="b simb" title="${esc([`Laut ${w.src.join(" und ")}`, tags].filter(Boolean).join("\n"))}">SimRacing</span>`
-    : `<span class="b gxc" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">SimRacing?</span>`;
+    : `<span class="b simq" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">SimRacing?</span>`;
 }
 function wheelHtml(g){
   const w = g.wheel;
@@ -1276,15 +1286,16 @@ function nowView(){
   let rows = S.now.filter(r => match(r) && lfOk(r, ["cb", "best", "good"]));
   const k = {best: nearBest, rating: byRating}[sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
-  const kb = (v, l, n, tip) => `<button data-act="nowk" data-v="${v}" class="${kind === v ? "on" : ""}" title="${tip}">${l} <span class="n">${n}</span></button>`;
-  const seg = `<div class="seg nowk" role="group" aria-label="Welche Wünsche">${kb("", "Alle", S.now.length + pcAll.length, "VR- und PC-Wünsche")}${kb("vr", "VR", S.now.length, "VR-Wünsche bei Meta und Steam")}${kb("pc", "PC", pcAll.length, "PC-Wünsche von gg.deals nah am bisherigen Tief")}</div>`;
+  // Reiter wie in Wunschliste und Sammlung (0.8.17, statt des Schalters): Alle, PC, VR an derselben Stelle
+  const kb = (v, l, n, cls, tip) => `<button role="tab" aria-selected="${kind === v}" data-act="nowk" data-v="${v}" class="${cls}${kind === v ? " on" : ""}" title="${tip}">${l} <span class="n">${n}</span></button>`;
+  const tabs = `<div class="systabs" role="tablist" aria-label="Welche Wünsche">${kb("", "Alle", S.now.length + pcAll.length, "", "VR- und PC-Wünsche")}${kb("pc", "PC", pcAll.length, "fam-pc", "PC-Wünsche von gg.deals nah am bisherigen Tief")}${kb("vr", "VR", S.now.length, "fam-vr", "VR-Wünsche bei Meta und Steam")}</div>`;
   const vr = `<p class="hint">VR: Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Bestpreis beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
     <div class="list">${rows.map(r => wishRow(r)).join("") || `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}</div>
     ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length,
       `<div class="list">${far.filter(r => match(r)).map(r => wishRow(r)).join("")}</div>`, true) : ""}`;
   const pcPart = `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
-  return listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"], extra: seg}) +
+  return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"]}) +
     (kind === "pc" ? pcPart : kind === "vr" ? vr : (kind === "" && pcAll.length ? grp("now-vr", "VR", rows.length, vr) + grp("now-pc", "PC", pc.length, pcPart) : vr));
 }
 

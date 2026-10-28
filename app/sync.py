@@ -1892,11 +1892,11 @@ def _assign(log, budget, rest):
                 t.setdefault("links", {})["qsdb"] = prices.QSDB + hit["path"]
             titles.add_alias(t, hit.get("name"))
             found.append(t["name"])
-        wish_done = lists.auto(data)
+        wish_back = lists.undo_auto(data)
         store.save_data(data)
         left = titles.todo(data)
-    if wish_done:
-        log(f"Wunschliste: gekauft und auf keiner Wunschliste eines Ladens, nicht mehr gewünscht ({len(wish_done)}): {_few(wish_done)}")
+    if wish_back:
+        log(f"Wunschliste: wieder gewünscht, steht unter „Gekauft, noch auf der Wunschliste“ ({len(wish_back)}): {_few(wish_back)}")
     if unsure:
         log(f"Zuordnung, Steam-IDs „≈“: {len(unsure)} ungeprüft, {checked} Apps im Store gefragt"
             + (f"; bestätigt ({len(sure)}): {_few(sure)}" if sure else "")

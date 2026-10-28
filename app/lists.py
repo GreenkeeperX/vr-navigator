@@ -85,18 +85,16 @@ def lists_read(data, settings=None):
         ({"gg"} if s.get("gg_wish") or imp.get("ggwish") else set())
 
 
-def auto(data):
-    """Was sich ohne Rückfrage klären lässt (0.8.12), direkt in data; liefert die Namen. Gekauft und auf keiner
-    Wunschliste eines Ladens, nicht von Hand gewünscht: Der Wunsch ist erfüllt und fällt weg (stammte aus einer
-    Liste, die du nicht mehr pflegst, oder aus der alten Tabelle)."""
-    done = []
+def undo_auto(data):
+    """0.8.17 (Entscheidung 28.10.2026): Gekauftes fällt nicht mehr von selbst weg, du willst es vielleicht noch für die
+    andere Plattform. Was 0.8.13 bis 0.8.16 so abgeräumt haben (erkennbar an wish_done), ist wieder gewünscht und steht
+    unter „Gekauft, noch auf der Wunschliste“; liefert die Namen."""
+    back = []
     for t in data["titles"].values():
-        ws = t.get("wish_src") or {}
-        if t.get("wish") and t.get("owned") and not t.get("wish_keep") and not ws:
-            t["wish"] = False
-            t.setdefault("wish_done", titles.now_iso())
-            done.append(t["name"])
-    return done
+        if t.pop("wish_done", None) and not t.get("wish"):
+            t["wish"] = True
+            back.append(t["name"])
+    return back
 
 
 def check(data, settings=None):
@@ -108,11 +106,12 @@ def check(data, settings=None):
         off = list(t.get("wish_off") or [])
         owned = bool(t.get("owned"))
         item = {"key": k, "name": t["name"]}
-        # 0.8.12: Bei Meta gekauft mit Crossbuy gilt auch am PC; dann ist die gg.deals- oder Steam-Wunschliste erledigt
-        cb_done = (t.get("owned") or {}).get("meta") and t.get("crossbuy") is True and ws and not set(ws) - {"gg", "steam"}
-        if t.get("wish") and owned and not t.get("wish_keep") and not cb_done:
+        # 0.8.17: auch bei Crossbuy nur ein Hinweis, die Fassung bei Steam kann trotzdem die bessere sein
+        cb = (t.get("owned") or {}).get("meta") and t.get("crossbuy") is True
+        if t.get("wish") and owned and not t.get("wish_keep"):
             where = _owned_text(t)
-            why = f"gekauft {where}" + (f", steht noch auf: {', '.join(_src_names(ws))}" if ws else ", steht noch auf deiner Wunschliste im Tool")
+            why = f"gekauft {where}" + (" (Crossbuy, gilt auch am PC)" if cb else "") + \
+                (f", steht noch auf: {', '.join(_src_names(ws))}" if ws else ", steht noch auf deiner Wunschliste im Tool")
             out.append(dict(item, kind="owned", why=why, srcs=ws, links=_links(t, ws)))
         elif t.get("wish") and not t.get("wish_src") and not owned:
             why = "nur aus der alten Tabelle" if t.get("sheet") is not None else \
