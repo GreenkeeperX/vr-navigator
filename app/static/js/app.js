@@ -148,7 +148,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -357,6 +357,29 @@ function pcPriceTip(r){
     (r.retail_low != null || r.keyshops_low != null) && `Tief: ${[r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", ")}`,
     r.price_at && `Stand ${when(r.price_at)}`, "Klick öffnet die Angebote bei gg.deals"].filter(Boolean).join("\n");
 }
+// Läden einzeln (0.9.0, IsThereAnyDeal): je Laden Preis als Link, Rabatt, grün nah am Tief; Tief und Ende im Tooltip
+const SHOPS_SHOWN = 6;
+function pcShopsHtml(r){
+  const sh = r.shops || [];
+  if(!sh.length) return "";
+  const one = s => extLink(s.u, `<span class="${s.near ? "g-buy" : ""}">${esc(s.s)} ${eur(s.p)}</span>`,
+    [s.r != null && s.r !== s.p && `normal ${eur(s.r)}`, s.lo != null && `Tief dort ${eur(s.lo)}`, s.x && `Angebot bis ${day(s.x)}`].filter(Boolean).join("\n")) +
+    (s.c ? ` <span class="b deal">−${s.c} %</span>` : "");
+  const more = sh.length - SHOPS_SHOWN;
+  return sh.slice(0, SHOPS_SHOWN).map(one).join(" · ") + (more > 0 ? ` <span class="hint" title="${esc(sh.slice(SHOPS_SHOWN).map(s => `${s.s} ${eur(s.p)}`).join("\n"))}">+${more} weitere</span>` : "");
+}
+// Jetzt, Reiter PC nach Laden (0.9.0): Wünsche, die bei diesem Laden nah am Tief sind, mit dem Preis dort
+function shopCounts(rows){
+  const n = {};
+  for(const r of rows) for(const s of r.shops || []) if(s.near) n[s.s] = (n[s.s] || 0) + 1;
+  return Object.entries(n).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+function atShop(r, name){
+  const s = (r.shops || []).find(x => x.s === name && x.near);
+  if(!s) return null;
+  const lo = r.shops_low;
+  return Object.assign({}, r, {best: s.p, best_from: name, url: s.u || r.url, low: lo, over: lo ? Math.round((s.p - lo) / lo * 1000) / 1000 : 0});
+}
 // Preis und Abstand zum Tief einer PC-Zeile, auch für „Jetzt, Alle“ (0.8.27)
 function pcPriceHtml(r){
   const atLow = r.over != null && r.over <= 0.02;
@@ -395,7 +418,8 @@ function pcDetail(r){
     row("Preissturz", r.drop ? `${eur(r.best)} statt üblich ${eur(r.drop.usual)} (−${r.drop.pct} %)` : "", "Median der Preise der letzten Tage aus dem eigenen Verlauf") +
     row("IGDB Kritik", r.icrit != null ? gScore(r.icrit, "Kritiker-Wertung laut IGDB", "") : "") +
     row("Jetzt", [r.retail != null && `Händler ${eur(r.retail)}`, r.keyshops != null && `Keyshop ${eur(r.keyshops)}`].filter(Boolean).join(" · "), "Preise jetzt laut gg.deals") +
-    row("Tief", [r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(" · "), "Bisheriges Tief laut gg.deals");
+    row("Tief", [r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(" · "), "Bisheriges Tief laut gg.deals") +
+    row("Läden", pcShopsHtml(r), r.shops_at ? `Offizielle Läden laut IsThereAnyDeal, Stand ${when(r.shops_at)}; grün: höchstens 5 % über dem Tief der Händler` : "");
   const dtip = r.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm">${r.desc ? `<p class="gdesc${V.gDesc === r.key ? " full" : ""}" data-act="gdesc" data-s="${esc(r.key)}" title="${dtip}${V.gDesc === r.key ? "" : ". Klick zeigt alles"}">${esc(r.desc)}</p>` : `<span class="hint">${r.kind ? "Pakete und DLC bekommen keine Spielinfos." : r.appid ? "Noch keine Spielinfos; der Abgleich holt sie." : "Ohne Steam-ID gibt es keine Spielinfos."}</span>`}</div>`;
   const links = [r.url && `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">bei gg.deals</a>`, r.appid && `<a href="https://store.steampowered.com/app/${esc(r.appid)}/" target="_blank" rel="noopener noreferrer">bei Steam</a>`].filter(Boolean);
@@ -1468,16 +1492,22 @@ function nowView(){
   const allPart = `<p class="hint">PC- und VR-Wünsche nah am Tief: VR höchstens 15 % oder 2 € über dem Bestpreis beider Läden, PC höchstens 5 % über dem bisherigen Tief bei gg.deals. Letzter Abruf: ${when(last) || "–"}.</p>
     ${rows.length || pc.length ? allTable(rows, pc, sort) : `<p class="hint">${S.now.length + pcAll.length ? "Kein Treffer." : "Gerade ist kein Wunsch nah am Tief."}</p>`}
     ${far.length ? grp("now-far", `VR: reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
-  const pcPart = `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
+  // 0.9.0: nach Laden bündeln; zählt alle PC-Wünsche (ohne Besitz und VR), auch die, die bei gg.deals nicht am Tief sind
+  const pcFree = (S.pcwish?.rows || []).filter(r => !pcIsVr(r) && !r.owned), shops = shopCounts(pcFree);
+  const shop = shops.some(([n]) => n === V.nowShop) ? V.nowShop : "";
+  const pcShop = shop ? pcFree.map(r => atShop(r, shop)).filter(r => r && (!q || r.name.toLowerCase().includes(q))).sort((a, b) => a.over - b.over) : [];
+  const shopSel = kind === "pc" && shops.length ? `<label class="kind">Laden <select data-shop aria-label="Nach Laden"><option value="">alle</option>${shops.map(([n, c]) => `<option value="${esc(n)}"${shop === n ? " selected" : ""}>${esc(n)} (${c})</option>`).join("")}</select></label>` : "";
+  const pcPart = shop ? `<p class="hint">PC bei ${esc(shop)}: Wünsche, die dort höchstens 5 % über dem Tief der Händler liegen, mit dem Preis bei ${esc(shop)} (Läden laut IsThereAnyDeal). So lassen sich mehrere Spiele in einem Laden kaufen.</p>` + (pcShop.length ? pcTable(pcShop) : `<p class="hint">Kein Treffer.</p>`)
+    : `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
-  return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"]}) +
+  return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"], extra: shopSel}) +
     (kind === "pc" ? pcPart : kind === "vr" ? vr : allPart);
 }
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["itad", "IsThereAnyDeal (Läden einzeln, PC-Wunschliste)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){
@@ -1786,7 +1816,7 @@ function retroPreview(p){
 /* Konten: bei jedem Abgleich automatisch gelesen */
 function accountsCard(){
   const se = S.settings || {};
-  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.igdb_set && "IGDB", se.nexus_set && "Nexus Mods", se.sharenite && "Sharenite"].filter(Boolean);
+  const on = [se.steam_id && "Steam", (se.gg_wish_set || se.gg_key_set) && "gg.deals", se.igdb_set && "IGDB", se.nexus_set && "Nexus Mods", se.itad_set && "IsThereAnyDeal", se.sharenite && "Sharenite"].filter(Boolean);
   return sub("konten", "Konten und Schlüssel", on.length ? on.join(", ") : "keins eingerichtet", `<form data-form="accounts" class="form acc" style="margin-top:8px">
       <label for="a-sid">SteamID oder Profil-Link</label><input type="text" id="a-sid" name="steam_id" value="${esc(se.steam_id || "")}" placeholder="https://steamcommunity.com/profiles/7656…">
       <label for="a-skey">Steam-Schlüssel</label><input type="password" id="a-skey" name="steam_key" autocomplete="off" placeholder="${se.steam_key_set ? "gespeichert, leer lassen zum Behalten" : "für den Besitz; Wunschliste geht auch ohne"}">
@@ -1801,6 +1831,8 @@ function accountsCard(){
       ${se.igdb_set ? `<span class="clr"><label><input type="checkbox" name="igdb_clear"> IGDB-Schlüssel löschen</label></span>` : ""}
       <label for="a-nx">Nexus-Mods-Schlüssel</label><input type="password" id="a-nx" name="nexus_key" autocomplete="off" placeholder="${se.nexus_set ? "gespeichert, leer lassen zum Behalten" : "persönlicher API-Schlüssel (nexusmods.com, Einstellungen, API Keys)"}">
       ${se.nexus_set ? `<span class="clr"><label><input type="checkbox" name="nexus_clear"> Nexus-Schlüssel löschen</label></span>` : ""}
+      <label for="a-it">IsThereAnyDeal-Schlüssel</label><input type="password" id="a-it" name="itad_key" autocomplete="off" placeholder="${se.itad_set ? "gespeichert, leer lassen zum Behalten" : "API-Schlüssel deiner App (isthereanydeal.com, My Apps)"}">
+      ${se.itad_set ? `<span class="clr"><label><input type="checkbox" name="itad_clear"> IsThereAnyDeal-Schlüssel löschen</label></span>` : ""}
       <label for="a-sn">Sharenite-Profil</label><input type="text" id="a-sn" name="sharenite" value="${esc(se.sharenite || "")}" placeholder="https://www.sharenite.link/profiles/…/games">
       <span class="full"><button class="primary">Speichern</button> <span class="err" id="a-err"></span></span></form>
     <ul class="hint">
@@ -1808,6 +1840,7 @@ function accountsCard(){
       <li><b>gg.deals:</b> der Schlüssel holt Händlerpreise je Steam-App; die geteilte Wunschliste bringt Titel, die das Tool kennt oder als VR-App bei Steam findet.</li>
       <li><b>IGDB:</b> Spielinfos für alle Plattformen (Genre, Spieler, Wertung, Spielzeit, Beschreibung). Client-ID und Secret einer kostenlosen Twitch-Entwickler-App (dev.twitch.tv, Anwendung registrieren); derselbe Schlüssel wie im eShopKompass geht. Bis 0.7 nur im Verbindungstest.</li>
       <li><b>Nexus Mods:</b> Mods für PC-Spiele, etwa VR-Mods. Die Abfrage geht auch ohne Schlüssel; mit dem persönlichen Schlüssel (im Nexus-Konto unter Einstellungen, API Keys) fragt das Tool als dein Konto mit eigenen Grenzen. Bis 0.7.7 nur im Verbindungstest.</li>
+      <li><b>IsThereAnyDeal:</b> Preise jedes offiziellen Ladens (Steam, GOG, Epic, Humble …) für die PC-Wunschliste, in den Einzelheiten unter „Läden“ und in Jetzt, PC zum Bündeln nach Laden. Den Schlüssel gibt es kostenlos: auf isthereanydeal.com anmelden, unter My Apps eine App anlegen, den API-Schlüssel hier einfügen. Keyshops kommen weiter von gg.deals.</li>
       <li><b>Sharenite:</b> deine Playnite-Bibliothek aller Läden (Steam, GOG, Epic …), wenn das Profil öffentlich ist. Übernommen werden Spiele mit VR-Schlagwort, höchstens alle 20 Stunden.</li>
     </ul>
     <p class="hint">Steht ein Titel auf keiner Wunschliste mehr, die ihn geführt hat, fällt er von deiner; das steht im Protokoll. Schlüssel und Wunschlisten-Link bleiben auf deinem Server (settings.json im Datenordner), stehen nicht in der Sicherung und gehen nie an den Browser zurück.</p>`, on.length > 0, "konten");
@@ -2150,6 +2183,7 @@ document.addEventListener("change", async ev => {
   const t = ev.target, dt = t.dataset;
   // Sortieren, Filter-Häkchen, Genre und Mehrspieler in Entdecken; ein offenes Menü bleibt offen
   if(dt.sort){ V[{wish: "sort", now: "nowSort", pc: "pcSort"}[dt.sort]] = t.value; render(); return; }
+  if("shop" in dt){ V.nowShop = t.value; render(); return; }
   if(dt.lf){ V.lf[dt.lf] = t.checked; V.menu = "lf"; render(); return; }
   if(dt.pmp){ V.pcMp = t.checked ? V.pcMp.concat(dt.pmp) : V.pcMp.filter(y => y !== dt.pmp); V.menu = "pmp"; render(); return; }
   if(dt.dg || dt.dmp || dt.dhow){
@@ -2224,6 +2258,8 @@ document.addEventListener("submit", async ev => {
     if(f.igdb_clear?.checked) body.igdb_id = body.igdb_secret = "";
     if(f.nexus_key.value.trim()) body.nexus_key = f.nexus_key.value.trim();
     if(f.nexus_clear?.checked) body.nexus_key = "";
+    if(f.itad_key.value.trim()) body.itad_key = f.itad_key.value.trim();
+    if(f.itad_clear?.checked) body.itad_key = "";
     if(await act("/api/settings", body, $("a-err"))) toast("Gespeichert, gilt ab dem nächsten Abgleich");
   }
   if(kind === "edit"){
