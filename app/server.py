@@ -177,7 +177,7 @@ def state():
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
                 marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
                 pcwish_ids=pcwish.id_todo(store.load_json(pcwish.FILE, pcwish.EMPTY)),
-                retro_near=near, retro_own=own, opinion_task=imports.opinion_task(data), opinion_batch=imports.OPINION_BATCH,
+                retro_near=near, retro_own=own, mp_label=collection.MP_LABEL, opinion_task=imports.opinion_task(data), opinion_batch=imports.OPINION_BATCH,
                 sync=sync.status(), settings=settings_view())
 
 

@@ -3,10 +3,12 @@
   --bg:#f3f4f1; --card:#fffffc; --ink:#1b2224; --ink-hi:#1b2224; --muted:#61706f; --line:#d9ddd8;
   --accent:#24383b; --brand:#1c7c8c; --sim:#b85a12; --chip:#e8ebe6;
   /* Jede Farbe eine Bedeutung, siehe docs/oberflaeche.md */
-  --deal:#1d5fbf; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
+  --deal:#2f6690; --deal-bg:#e1ebfa; --best:#8a6200; --best-bg:#fbefd5;
   --go:#0d6b4f; --go-bg:#dcefe4; --stop:#b3261e; --stop-bg:#f8dfdc; --warn:#6b3fb3; --warn-bg:#ece5fa;
   /* Nur für die Reiter je System in der Sammlung: Nintendo, PlayStation, PC */
   --sys-nin:#e60012; --sys-ps:#0060c0; --sys-pc:#4a7a00;
+  /* Wo kaufen (0.9.4): Marken je Laden, nur Rahmen und Schrift */
+  --wo-meta:#0866ff; --wo-steam:#2a475e; --wo-key:#a3247a;
   /* Sammlung (wie im eShopKompass): offene Zeile, Genre-Blasen und Wertung als Farbton */
   --open:#f8f6f0; --gg-s:52%; --gg-bl:90%; --gg-ts:40%; --gg-tl:28%; --sc-s:70%; --sc-l:34%;
 }
@@ -14,17 +16,19 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]){
   --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
   --accent:#cdd5d4; --brand:#4fc3d4; --sim:#f0a050; --chip:#252d2f;
-  --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
+  --deal:#8cc0e8; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --wo-meta:#6ea8ff; --wo-steam:#c7d5e0; --wo-key:#e98bc9;
   --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }}
 :root[data-theme=dark]{color-scheme:dark;
   --bg:#121617; --card:#1a2022; --ink:#cdd5d4; --ink-hi:#e5ebea; --muted:#94a3a1; --line:#2c3537;
   --accent:#cdd5d4; --brand:#4fc3d4; --sim:#f0a050; --chip:#252d2f;
-  --deal:#8db8ff; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
+  --deal:#8cc0e8; --deal-bg:#1c2b44; --best:#f2c14e; --best-bg:#3a2e12;
   --go:#5fd0a5; --go-bg:#183328; --stop:#ff8a80; --stop-bg:#3b1c19; --warn:#c3abff; --warn-bg:#2b2342;
   --sys-nin:#ff3d48; --sys-ps:#6aa8ff; --sys-pc:#8fd61a;
+  --wo-meta:#6ea8ff; --wo-steam:#c7d5e0; --wo-key:#e98bc9;
   --open:var(--bg); --gg-s:28%; --gg-bl:21%; --gg-ts:45%; --gg-tl:80%; --sc-s:60%; --sc-l:66%;
 }
 :root[data-theme=light]{color-scheme:light}
@@ -85,7 +89,7 @@ nav .cnt{font-size:11px;margin-left:4px;color:var(--muted)}
 .item .row2{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:13px;color:var(--muted)}
 .item .note{flex-basis:100%;min-width:0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);border-left:3px solid var(--line);padding-left:8px}
 .b{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;font-weight:600;background:var(--chip);color:var(--muted)}
-.b.deal{background:var(--deal-bg);color:var(--deal)}
+.b.deal{background:none;color:var(--deal);padding:0 1px;font-weight:500}   /* 0.9.4: wie im eShopKompass, ohne Fläche */
 .b.best{background:var(--best-bg);color:var(--best)}
 .star{color:var(--best)}
 .b.go{background:var(--go-bg);color:var(--go)}
@@ -425,4 +429,18 @@ dialog.vl h2{margin:0;font-size:18px;flex:1;min-width:0;overflow-wrap:anywhere}
 .vl th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .vl table td:first-child,.vl table th:first-child{text-align:left}
 .vl td small{display:block;color:var(--muted);font-size:11px}
-.item .hd .vlb{margin-left:auto;font-size:12.5px}
+.item .pr{display:flex;flex-direction:column;gap:4px;min-width:0}
+.item .vlr .vlb{font-size:12.5px}
+
+/* Wo kaufen (0.9.4): Marke ohne Fläche in der Farbe des Ladens; Klick öffnet den Preisverlauf */
+.wo{font:inherit;font-size:11.5px;font-weight:600;line-height:1.45;background:none;border:1px solid currentColor;border-radius:5px;padding:0 6px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.wo:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
+span.wo{cursor:default}
+.wo-meta{color:var(--wo-meta)}
+.wo-steam{color:var(--wo-steam)}
+.wo-key{color:var(--wo-key)}
+.wo-any{color:var(--muted);border-style:dashed}
+/* Trend (0.9.4): der Pfeil steht hinter der Wertung, ohne sie zu verschieben */
+@media (min-width:761px){.gr .tr{position:absolute;margin-left:2px}}
+/* 0.9.4: der Name geht vor den Marken dahinter; erst ab drei Vierteln der Spalte wird er gekürzt, die Marken zuerst */
+@media (min-width:761px){.gr .t>.g-n.link,.gr .t>a.g-n{flex:0 0 auto;max-width:75%}}

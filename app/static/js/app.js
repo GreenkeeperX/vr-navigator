@@ -148,7 +148,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal", pcinfo: "PC-Wunschliste, Spielinfos", vrinfo: "VR-Titel, Spielinfos"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -271,7 +271,7 @@ function factsHtml(r){
 V.lf = {cb: false, sale: false, best: false, good: false};
 const LF = [["cb", "Crossbuy", r => r.crossbuy === true],
   ["sale", "Im Angebot", r => (r.live.meta?.discount || 0) + (r.live.steam?.discount || 0) > 0],
-  ["best", "Am Bestpreis", r => ["meta", "steam"].some(s => (r.best?.[s]?.all_level ?? r.best?.[s]?.level) === "best")],
+  ["best", "Am Tief", r => ["meta", "steam"].some(s => (r.best?.[s]?.all_level ?? r.best?.[s]?.level) === "best")],
   ["good", "Gut bewertet", r => (r.rating?.score || 0) >= 85]];
 const lfOk = (r, keys) => LF.every(([k, , f]) => !keys.includes(k) || !V.lf[k] || f(r));
 // Sortierschlüssel, kleiner zuerst
@@ -293,11 +293,11 @@ function listBar(o){
 // Legende: einmal für alle Listen, statt Erklärtext über jeder Liste (Regeln: docs/oberflaeche.md)
 function legendHtml(){
   return `<div class="card legend"><h2>Farben und Zeichen <button class="link" data-act="legend">schließen</button></h2>
-    <div class="lg"><span class="over">+7 €</span> über dem Bestpreis der letzten 24 Monate</div>
-    <div class="lg"><span class="star">★</span> <span class="best-t">Bestpreis</span>: höchstens 2 % über dem niedrigsten Preis beider Läden; darunter klein der Tiefstpreis des Ladens selbst; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
-    <div class="lg">≈ am Bestpreis: übernommen (QuestStoreDB oder gg.deals), solange der eigene Preisverlauf zu kurz ist</div>
-    <div class="lg"><span class="vd buy">kaufen</span> höchstens 2 % oder 0,50 € über dem Bestpreis beider Läden · <span class="vd good">gut</span> höchstens 15 % oder 2 € darüber (wie im eShopKompass); „Jetzt“ zeigt Angebote mit diesem Urteil</div>
-    <div class="lg"><span class="vd wb buy">Meta kaufen</span> <span class="vd wb wait">Steam warten</span> wo kaufen: der Laden, für den mehr spricht (Crossbuy zählt 2, ein großer Preisabstand ab 40 % und 8 € zählt 2, je 1: Mehrspieler mit wenig Spielern auf Steam, 8 Punkte bessere Wertung, ein Jahr jüngere Pflege, spürbar günstiger; Recherche und der Trend der Steam-Wertung halb), dahinter das Preisurteil dort; die Gründe stehen in der Zeile „Wo“</div>
+    <div class="lg"><span class="over">+7 €</span> über dem Tief der letzten 24 Monate</div>
+    <div class="lg"><span class="star">★</span> <span class="best-t">am Tief</span>: höchstens 2 % über dem niedrigsten Preis beider Läden; darunter klein der Tiefstpreis des Ladens selbst; „übliches Angebot“: so tief wie in mindestens zwei Angeboten</div>
+    <div class="lg">≈ am Tief: übernommen (QuestStoreDB oder gg.deals), solange der eigene Preisverlauf zu kurz ist</div>
+    <div class="lg"><span class="vd buy">kaufen</span> höchstens 2 % oder 0,50 € über dem Tief beider Läden · <span class="vd good">gut</span> höchstens 15 % oder 2 € darüber (wie im eShopKompass); „Jetzt“ zeigt Angebote mit diesem Urteil</div>
+    <div class="lg"><span class="wo wo-meta">Meta</span> <span class="wo wo-steam">Steam</span> <span class="wo wo-any">egal</span> <span class="wo wo-key">Keyshop</span> wo kaufen, ein Klick öffnet den Preisverlauf. VR: der Laden, für den mehr spricht (Crossbuy zählt 2, ein großer Preisabstand ab 40 % und 8 € zählt 2, je 1: Mehrspieler mit wenig Spielern auf Steam, 8 Punkte bessere Wertung, ein Jahr jüngere Pflege, spürbar günstiger; Recherche und der Trend der Steam-Wertung halb); Preisurteil und Gründe im Tooltip und in der Zeile „Wo“. PC: wo der günstigste Preis ist</div>
     <div class="lg"><span class="b deal">−20 %</span> Rabatt jetzt</div>
     <div class="lg"><span class="shopmark">grüner Rahmen</span> der günstigere Laden, mit Betrag (ab 1 €; Steam-Seite zählt auch Händler und Keyshops bei gg.deals)</div>
     <div class="lg"><span class="b go">Crossbuy</span> Meta-Kauf gilt auch am PC; <span class="b">ohne Crossbuy</span> nur auf der Quest</div>
@@ -324,14 +324,14 @@ function pcWishView(pw){
   const q = V.q.trim().toLowerCase();
   const all = pw.rows.filter(r => !pcIsVr(r)), nVr = pw.rows.length - all.length;
   // Mehrspieler-Filter (0.8.23) wie in der Sammlung: mehrere gewählt, alle müssen passen
-  const mpIn = Object.keys(C?.mp_label || {}).filter(k => all.some(r => (r.mp || []).includes(k)));
+  const mpIn = Object.keys(MPL()).filter(k => all.some(r => (r.mp || []).includes(k)));
   V.pcMp = V.pcMp.filter(k => mpIn.includes(k));
   let rows = all.filter(r => (!q || r.name.toLowerCase().includes(q) || (r.dev || "").toLowerCase().includes(q)) && V.pcMp.every(k => (r.mp || []).includes(k)));
   const key = {near: r => r.over ?? 1e9, best: r => r.best ?? 1e9, score: r => -(r.score ?? -1), reviews: r => -(r.reviews ?? -1), active: r => -(r.active?.now ?? -1), hours: r => r.hours ?? 1e9, year: r => -(parseInt(r.year, 10) || -1e4), new: r => -Date.parse(r.since || 0) || 0}[V.pcSort];
   if(key) rows = rows.slice().sort((a, b) => key(a) - key(b));
   const mpMenu = mpIn.length ? `<details class="menu" ${menuAttr("pmp")}><summary>Mehrspieler${V.pcMp.length ? ` <span class="cnt">${V.pcMp.length}</span>` : ""}</summary><div class="pop">
     <p class="hint">Mehrere gewählt: alle müssen passen.</p>
-    ${mpIn.map(k => `<label><input type="checkbox" data-pmp="${esc(k)}"${V.pcMp.includes(k) ? " checked" : ""}> ${esc(C.mp_label[k])} <span class="n">${all.filter(r => (r.mp || []).includes(k)).length}</span></label>`).join("")}</div></details>` : "";
+    ${mpIn.map(k => `<label><input type="checkbox" data-pmp="${esc(k)}"${V.pcMp.includes(k) ? " checked" : ""}> ${esc(MPL()[k])} <span class="n">${all.filter(r => (r.mp || []).includes(k)).length}</span></label>`).join("")}</div></details>` : "";
   const sel = `<label class="kind">Sortieren <select data-sort="pc">${PC_SORTS.map(([v, l]) => `<option value="${v}"${V.pcSort === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel suchen" aria-label="Titel suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span><span class="tools">${mpMenu}${sel}</span></div>`;
   const src = {Server: "über den Teilen-Link", Lesezeichen: "per Lesezeichen", Datei: "aus einer Datei"}[pw.via] || "";
@@ -347,9 +347,14 @@ function pcWishView(pw){
    (Link zu gg.deals, Händler, Keyshop und Tief im Tooltip) und der Abstand zum Tief („am Tief“ grün, sonst rot), dahinter die
    Spielinfos wie in der Sammlung (gSc, gGenres, gYear); der Name klappt Einzelheiten auf */
 /* Breiten (0.8.23): Spiel wie in der Sammlung, gleich benannte Spalten überall gleich breit, Genre nimmt den Rest */
-const PC_COLS = "minmax(180px,1.5fr) 96px 100px 70px 98px minmax(0,1fr) 66px 96px 56px 44px";
+/* Spalten (0.9.4, Entscheidung 28.10.2026): max. Spieler als zweite Spalte wie überall, dann Preis, überm Tief und Wo wie
+   unter „Jetzt, Alle“, danach die Spielinfos wie in der Sammlung */
+const PC_COLS = "minmax(180px,1.5fr) 88px 96px 90px 110px 70px 98px minmax(0,1fr) 66px 56px 44px";
+const H_PL = `<span class="r" title="Höchste Spielerzahl laut IGDB, sonst Playnite (violett); Mehrspieler-Arten im Tooltip">max. Spieler</span>`;
+const H_LOW = `<span class="r" title="Abstand zum Tief: VR das Tief beider Läden (Meta und Steam, 24 Monate), PC das bisherige Tief bei gg.deals">überm Tief</span>`;
+const H_WO = `<span title="VR: wo kaufen, aus dem Gemessenen; PC: wo der günstigste Preis ist. Klick öffnet den Preisverlauf">Wo</span>`;
 function pcTable(rows){
-  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt bei gg.deals, Händler oder Keyshop; Einzelheiten im Tooltip">Preis</span><span class="r" title="Abstand zum bisherigen Tief laut gg.deals">zum Tief</span><span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span class="r" title="Zahl der Steam-Rezensionen">Rezensionen</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span class="r" title="Höchste Spielerzahl laut IGDB, sonst Steam (violett); Mehrspieler-Arten im Tooltip">max. Spieler</span><span class="r" title="Steam-Spieler, wöchentlich gemessen">Aktiv</span><span class="r" title="Erscheinungsjahr">Jahr</span></div>`;
+  const head = `<div class="gr nph"><span>Spiel</span>${H_PL}<span class="r" title="Günstigster Preis jetzt bei gg.deals, Händler oder Keyshop; Einzelheiten im Tooltip">Preis</span>${H_LOW}${H_WO}<span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span class="r" title="Zahl der Steam-Rezensionen">Rezensionen</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span class="r" title="Steam-Spieler, wöchentlich gemessen">Aktiv</span><span class="r" title="Erscheinungsjahr">Jahr</span></div>`;
   return `<div class="glist box pcw" style="--gcols:${PC_COLS}">${head}${rows.map(pcRow).join("")}</div>`;
 }
 function pcPriceTip(r){
@@ -398,10 +403,10 @@ function pcRow(r){
   const price = pcPriceHtml(r), low = pcLowHtml(r);
   const g = Object.assign({mp: [], genres: []}, r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.id_near ? `<span class="b warn" title="${esc(`Steam-ID nur nach der Grundform des Namens${typeof r.id_near === "string" ? `: ${r.id_near}` : ""}; bestätigen unter Einstellungen, Zu erledigen`)}">Steam-ID ≈</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
-    `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
+    cell("max. Spieler", gMaxPl(g), "r") + `<span class="r" data-l="Preis">${price}</span>` + cell("überm Tief", low, "r") + cell("Wo", pcWo(r)) +
     cell("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") + cell("Rezensionen", gRev(g), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
-    cell("Spielzeit", hours, "r") + cell("max. Spieler", gMaxPl(g), "r") + cell("Aktiv", gActive(g), "r") + cell("Jahr", gYear(g), "r") + `</div>` + (open ? pcDetail(r) : "");
+    cell("Spielzeit", hours, "r") + cell("Aktiv", gActive(g), "r") + cell("Jahr", gYear(g), "r") + `</div>` + (open ? pcDetail(r) : "");
 }
 // Einzelheiten eines PC-Wunschs: was die Zeile nicht zeigt, rechts die Beschreibung, darunter Herkunft und Links
 function pcDetail(r){
@@ -419,16 +424,17 @@ function pcDetail(r){
     row("IGDB Kritik", r.icrit != null ? gScore(r.icrit, "Kritiker-Wertung laut IGDB", "") : "") +
     row("Jetzt", [r.retail != null && `Händler ${eur(r.retail)}`, r.keyshops != null && `Keyshop ${eur(r.keyshops)}`].filter(Boolean).join(" · "), "Preise jetzt laut gg.deals") +
     row("Tief", [r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(" · "), "Bisheriges Tief laut gg.deals") +
-    row("Läden", pcShopsHtml(r), r.shops_at ? `Offizielle Läden laut IsThereAnyDeal, Stand ${when(r.shops_at)}; grün: höchstens 5 % über dem Tief der Händler` : "");
+    row("Läden", pcShopsHtml(r), r.shops_at ? `Offizielle Läden laut IsThereAnyDeal, Stand ${when(r.shops_at)}; grün: höchstens 5 % über dem Tief der Händler` : "") +
+    // 0.9.4: Preisverlauf unter den Preisen, nicht in der Fußzeile
+    row("", r.kind ? "" : `<button class="link" data-act="verlauf" data-pc="${esc(r.key)}" title="Kurve je Laden, Tief, Angebote der letzten 24 Monate">Preisverlauf</button>`);
   const dtip = r.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm">${r.desc ? `<p class="gdesc${V.gDesc === r.key ? " full" : ""}" data-act="gdesc" data-s="${esc(r.key)}" title="${dtip}${V.gDesc === r.key ? "" : ". Klick zeigt alles"}">${esc(r.desc)}</p>` : `<span class="hint">${r.kind ? "Pakete und DLC bekommen keine Spielinfos." : r.appid ? "Noch keine Spielinfos; der Abgleich holt sie." : "Ohne Steam-ID gibt es keine Spielinfos."}</span>`}</div>`;
   const links = [r.url && `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">bei gg.deals</a>`, r.appid && `<a href="https://store.steampowered.com/app/${esc(r.appid)}/" target="_blank" rel="noopener noreferrer">bei Steam</a>`].filter(Boolean);
-  const vl = !r.kind && `<button class="link" data-act="verlauf" data-pc="${esc(r.key)}" title="Kurve je Laden, Tief, Angebote der letzten 24 Monate">Preisverlauf</button>`;
-  const small = [r.since && `auf der Liste seit ${day(r.since)}`, r.srcs?.length && `Spielinfos von ${srcList(r)}`, r.price_at && `Preis von ${when(r.price_at)}`, vl, ...links].filter(Boolean).join(" · ");
+  const small = [r.since && `auf der Liste seit ${day(r.since)}`, r.srcs?.length && `Spielinfos von ${srcList(r)}`, r.price_at && `Preis von ${when(r.price_at)}`, ...links].filter(Boolean).join(" · ");
   return `<div class="gd" style="--dcols:minmax(180px,3fr) minmax(320px,5fr)"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
 function vrWishView(){
-  const sorts = [["name", "Name"], ["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"], ["added", "Neu"]];
+  const sorts = [["name", "Name"], ["best", "Nah am Tief"], ["sale", "Rabatt"], ["rating", "Wertung"], ["added", "Neu"]];
   let rows = S.wishlist.filter(r => match(r) && lfOk(r, ["cb", "sale", "best", "good"]));
   const k = {best: nearBest, sale: r => -Math.max(r.live.meta?.discount || 0, r.live.steam?.discount || 0), rating: byRating, added: byAdded}[V.sort];
   if(k) rows = rows.slice().sort((a, b) => k(a) - k(b));
@@ -451,7 +457,7 @@ function vrWishView(){
       : grp("w-open", "Noch nicht im Besitz", open.length, open.length ? vrTable(open) : `<p class="hint">Kein Treffer.</p>`) +
         grp("w-owned", `Schon im Besitz <span class="hint" title="Titel auf der Wunschliste, die du schon bei Meta oder am PC besitzt">(bei Meta oder am PC)</span>`, owned.length, owned.length ? vrTable(owned) : "", true));
 }
-// Sortierschlüssel: wie nah der günstigere Shop am Bestpreis beider Läden liegt (1 = am Bestpreis)
+// Sortierschlüssel: wie nah der günstigere Shop am Tief beider Läden liegt (1 = am Tief)
 function nearBest(r){
   const low = r.best_all?.best;
   const q = ["meta", "steam"].map(s => r.best?.[s] && r.live[s] ? r.live[s].price / (low || r.best[s].best) : null).filter(x => x != null);
@@ -459,8 +465,8 @@ function nearBest(r){
 }
 
 /* Preise: zwei feste Felder, Meta links, Steam rechts (fehlt ein Laden, bleibt sein Feld grau).
-   Je Feld Preis, Rabatt und darunter der Abstand zum Bestpreis beider Läden (Entscheidung
-   22.10.2026): rot „+7 € über Bestpreis“ (jeder Aufpreis) oder gold „★ Bestpreis“;
+   Je Feld Preis, Rabatt und darunter der Abstand zum Tief beider Läden (Entscheidung
+   22.10.2026): rot „+7 € überm Tief“ (jeder Aufpreis) oder gold „★ Bestpreis“;
    klein darunter der Tiefstpreis des Ladens selbst zum Vergleich. „≈“, wenn ein Bestpreis aus einer
    fremden Quelle stammt, solange der eigene Verlauf zu kurz ist. Der günstigere Laden bekommt einen
    grünen Rahmen und den Betrag (ab 1 €). */
@@ -470,20 +476,20 @@ function bestFrom(b){
 }
 function bestLine(v, b, A, shop){
   const own = b && !b.thin && b.best != null;
-  if(!own && !A) return `<div class="bl hint" title="Der eigene Verlauf hat noch keine Preisänderung">Bestpreis noch offen</div>`;
+  if(!own && !A) return `<div class="bl hint" title="Der eigene Verlauf hat noch keine Preisänderung">Tief noch offen</div>`;
   A = A || {best: b.best, shop, src: b.src, at: b.best_at};
   const ap = A.src ? " ≈" : "", other = A.shop !== shop;
-  const tip = `Jetzt ${eur(v.price)}, Bestpreis beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? " (" + A.src + ")" : ""}` +
+  const tip = `Jetzt ${eur(v.price)}, Tief beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? " (" + A.src + ")" : ""}` +
     (own ? `; ${SHOP[shop]} selbst: ${eur(b.best)} (${bestFrom(b)})${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}` : `; ${SHOP[shop]} selbst: noch offen`) +
     `, Normalpreis ${eur(v.base || v.price)}`;
   // Vergleich: der Tiefstpreis des Ladens selbst, wenn der Bestpreis aus dem anderen Laden kommt
   const cmp = !other ? "" : own ? `<div class="bl hint">${eur(Math.min(b.best, v.price))}${b.src ? " ≈" : ""} ${SHOP[shop]}-Tief${v.price <= b.best * 1.02 + 0.005 ? " (jetzt)" : ""}</div>`
     : `<div class="bl hint">${SHOP[shop]}-Tief noch offen</div>`;
-  if(v.price <= A.best * 1.02 + 0.005) return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> Bestpreis${ap}</div>${cmp}`;
-  // Jeder Aufpreis über dem Bestpreis ist rot (Entscheidung 26.10.2026); die Stufen „kaufen“ und
+  if(v.price <= A.best * 1.02 + 0.005) return `<div class="bl at" title="${esc(tip)}"><span class="star">★</span> am Tief${ap}</div>${cmp}`;
+  // Jeder Aufpreis über dem Tief ist rot (Entscheidung 26.10.2026); die Stufen „kaufen“ und
   // „gut“ entscheiden nur, was unter „Jetzt“ oben steht
   const over = v.price - A.best, rel = A.best > 0 ? Math.round(over / A.best * 100) : 0;
-  return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(over)}</span> über Bestpreis</div>
+  return `<div class="bl" title="${esc(tip)}"><span class="over">+${eur(over)}</span> überm Tief</div>
     <div class="bl" title="${esc(tip)}">${eur(A.best)}${ap}${other ? " bei " + SHOP[A.shop] : ""} <span class="hint">(+${rel} %)</span>${own && !other && b.level === "usual" ? " · übliches Angebot" : ""}</div>${cmp}`;
 }
 // Preise sind Links (0.8.12, wie im eShopKompass): in den Laden, der Bestpreis zum Preisverlauf
@@ -494,10 +500,10 @@ function shopCell(key, v, b, A, win, extra, url){
   if(!v) return `<div class="shop none"><div class="sl">${shop}</div><div class="bl">kein Preis</div>${extra || ""}</div>`;
   const sale = v.discount ? ` <span class="b deal">−${v.discount} %${v.kind === "coupon" ? " Gutschein" : ""}</span>${v.until ? ` <span class="hint">${until(v.until)}</span>` : ""}` : "";
   const old = v.stale ? ` <span class="b warn" title="Älter als zwei Tage: Abruf prüfen">Stand ${ago(v.at)}</span>` : "";
-  // Urteil wie im eShopKompass (0.6.0): grün „kaufen“ (bis 2 % oder 0,50 € über dem Bestpreis beider Läden),
+  // Urteil wie im eShopKompass (0.6.0): grün „kaufen“ (bis 2 % oder 0,50 € über dem Tief beider Läden),
   // grün umrandet „gut“ (bis 15 % oder 2 €); „warten“ ohne Marke
-  const vd = b?.grade === "buy" ? ` <span class="vd buy" title="Höchstens 2 % oder 0,50 € über dem Bestpreis beider Läden">kaufen</span>`
-    : b?.grade === "good" ? ` <span class="vd good" title="Höchstens 15 % oder 2 € über dem Bestpreis beider Läden">gut</span>` : "";
+  const vd = b?.grade === "buy" ? ` <span class="vd buy" title="Höchstens 2 % oder 0,50 € über dem Tief beider Läden">kaufen</span>`
+    : b?.grade === "good" ? ` <span class="vd good" title="Höchstens 15 % oder 2 € über dem Tief beider Läden">gut</span>` : "";
   return `<div class="shop${win ? " win" : ""}"><div class="sl">${shop}${vd}${sale}${old}</div>
     <div>${extLink(url, `<span class="price big">${eur(v.price)}</span>`, `${shop}: zum Spiel im Laden`)}${v.discount && v.base ? ` <s>${eur(v.base)}</s>` : ""}</div>
     ${bestLine(v, b, A, key)}${extra || ""}${win ? `<div class="cheap">${win}</div>` : ""}</div>`;
@@ -516,12 +522,12 @@ function shopsHtml(r){
   return `<div class="shops">${shopCell("meta", L.meta, B.meta, r.best_all, metaWin, "", linkOf(r, "Meta"))}${shopCell("steam", L.steam, B.steam, r.best_all, pcWin, deal, linkOf(r, "Steam"))}</div>`;
 }
 V.more = new Set();
-// Was selten entscheidet, steht in der Klappe; ihre Zeile nennt, was drin ist: „Bestpreise · gg.deals · Tabelle · Links“
+// Was selten entscheidet, steht in der Klappe; ihre Zeile nennt, was drin ist: „Tiefstpreise · gg.deals · Tabelle · Links“
 function moreHtml(r, extra){
   const g = r.live.gg, s = r.sheet, B = r.best || {}, out = [], has = [];
   for(const [k, shop] of [["meta", "Meta"], ["steam", "Steam"]]){
     const b = B[k];
-    if(b && !b.thin && b.best != null) has.push("Bestpreise"), out.push(`<div class="small">${shop}: Bestpreis ${eur(b.best)}${b.src ? ` ≈ (${esc(b.src)}${b.best_at ? ", " + day(b.best_at) : ""})` : ` am ${day(b.best_at)}${b.full ? " (24 Monate)" : ` (Verlauf seit ${day(b.since)})`}`}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}</div>`);
+    if(b && !b.thin && b.best != null) has.push("Tiefstpreise"), out.push(`<div class="small">${shop}: Tief ${eur(b.best)}${b.src ? ` ≈ (${esc(b.src)}${b.best_at ? ", " + day(b.best_at) : ""})` : ` am ${day(b.best_at)}${b.full ? " (24 Monate)" : ` (Verlauf seit ${day(b.since)})`}`}${b.usual != null ? `, übliches Angebot ${eur(b.usual)}` : ""}</div>`);
   }
   if(g && (g.retail != null || g.keyshops != null)) has.push("gg.deals"), out.push(`<div class="small">gg.deals: ${[
     g.retail != null && "Händler " + eur(g.retail), g.keyshops != null && "Keyshop " + eur(g.keyshops),
@@ -546,12 +552,25 @@ function sheetHtml(r){
    den gewählten Laden normal, die für den anderen grau; was nur aus der Recherche kommt, violett mit „≈“ */
 const WB_SHOP = {meta: "Meta", steam: "Steam", egal: "Laden egal"};
 const WB_GRADE = {buy: "kaufen", good: "gut", wait: "warten"};
+/* Wo kaufen (0.9.4): dezente Marke ohne Fläche in der Farbe des Ladens (Meta, Steam, Keyshop, sonst ein anderer Laden);
+   ein Klick öffnet den Preisverlauf wie „normal“ im eShopKompass. Das Preisurteil steht im Tooltip und in „überm Tief“ */
+const WO_CLS = {meta: "wo-meta", steam: "wo-steam", egal: "wo-any"};
+const woChip = (label, cls, attr, tip) => attr ? `<button class="wo ${cls}" data-act="verlauf" ${attr} title="${esc(tip + "\nKlick öffnet den Preisverlauf")}">${esc(label)}</button>`
+  : `<span class="wo ${cls}" title="${esc(tip)}">${esc(label)}</span>`;
 function buyBadge(r){
   const b = r.buy;
   if(!b) return "";
   const tip = `Wo kaufen, aus dem Gemessenen: ${b.why.map(x => (x.shop === "meta" ? "Meta" : "Steam") + ": " + x.text).join("; ") || "nichts unterscheidet die Läden"}`
     + (b.grade ? `. Preis dort: ${WB_GRADE[b.grade]}` : "");
-  return `<span class="vd wb ${b.grade || "wait"}" title="${esc(tip)}">${WB_SHOP[b.shop]}${b.grade ? (b.shop === "egal" ? ", " : " ") + WB_GRADE[b.grade] : ""}</span>`;
+  return woChip(b.shop === "egal" ? "egal" : WB_SHOP[b.shop], WO_CLS[b.shop], `data-vr="${esc(r.key)}"`, tip);
+}
+// PC (0.9.4): wo der günstigste Preis ist; bei Händlern der Laden laut IsThereAnyDeal, wenn er den Preis hat
+function pcWo(r){
+  if(!r.best_from) return "";
+  const s0 = (r.shops || [])[0], key = r.best_from === "Keyshop";
+  const name = key ? "Keyshop" : r.best_from !== "Händler" ? r.best_from : s0 && Math.abs(s0.p - r.best) < 0.01 ? s0.s : "Händler";
+  const tip = key ? "Am günstigsten im Keyshop, laut gg.deals" : name === "Händler" ? "Am günstigsten bei einem Händler, laut gg.deals" : `Am günstigsten bei ${name}`;
+  return woChip(name, key ? "wo-key" : /^steam$/i.test(name) ? "wo-steam" : "", r.kind ? "" : `data-pc="${esc(r.key)}"`, tip);
 }
 function buyHtml(r){
   const b = r.buy;
@@ -566,22 +585,28 @@ function buyHtml(r){
 }
 function wishRow(r, inTable){
   const marks = inTable ? [r.crossbuy === false && badges(Object.assign({}, r, {wish: false, wheel: null, where: "", bundle: false, steam_sure: true})), wishListBadge(r)].filter(Boolean).join(" ") : "";
-  const vl = `<button class="link vlb" data-act="verlauf" data-vr="${esc(r.key)}" title="Kurve je Laden, Bestpreis, Angebote der letzten 24 Monate">Preisverlauf</button>`;
-  return `<div class="item wi${inTable ? " vw" : ""}">${inTable ? `<div class="hd">${marks}${vl}</div>` : `<div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}${vl}</div>`}
-    ${shopsHtml(r) || sheetHtml(r)}<div class="side">${buyHtml(r)}${factsHtml(r)}${opinionHtml(r)}
+  const vl = `<button class="link vlb" data-act="verlauf" data-vr="${esc(r.key)}" title="Kurve je Laden, Tief, Angebote der letzten 24 Monate">Preisverlauf</button>`;
+  // 0.9.4: Preisverlauf unter den Preisen, nicht ganz rechts
+  const prices = shopsHtml(r) || sheetHtml(r);
+  return `<div class="item wi${inTable ? " vw" : ""}">${inTable ? (marks ? `<div class="hd">${marks}</div>` : "") : `<div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}</div>`}
+    <div class="pr">${prices}<div class="vlr">${vl}</div></div><div class="side">${buyHtml(r)}${factsHtml(r)}${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
 }
 
 /* Tabelle der VR-Wünsche (0.8.22, Entscheidung 28.10.2026): eine Zeile je Titel wie bei den PC-Wünschen, die Karte
    von bisher steht als Einzelheiten unter dem Namen. Spalten: Wo (Urteil „wo kaufen“), Preis bei Meta und Steam (Links,
-   Rabatt und Bestpreis des Ladens im Tooltip), zum Bestpreis beider Läden („am Bestpreis“ grün, sonst rot der Betrag),
+   Rabatt und Bestpreis des Ladens im Tooltip), zum Tief beider Läden („am Tief“ grün, sonst rot der Betrag),
    Wertung (die bessere, mit Trend), Steam-Spieler jetzt, letztes Update */
-const VR_COLS = "minmax(180px,1.5fr) minmax(112px,.6fr) 96px 96px 100px 70px 98px 56px 62px";   // 0.8.23: Wo nimmt den Rest
+// 0.9.4: max. Spieler als zweite Spalte, dann die Preise beider Läden, überm Tief und Wo wie unter „Jetzt, Alle“, Genre aus den Spielinfos
+const VR_COLS = "minmax(180px,1.5fr) 88px 96px 96px 90px 80px 70px 98px minmax(0,1fr) 56px 62px";
 function vrTable(rows){
-  const head = `<div class="gr nph"><span>Spiel</span><span title="Wo kaufen, aus dem Gemessenen; Gründe im Tooltip und in den Einzelheiten">Wo</span><span class="r" title="Preis jetzt im Meta Store">Meta</span><span class="r" title="Preis jetzt bei Steam; günstigere Angebote bei gg.deals in den Einzelheiten">Steam</span><span class="r" title="Abstand des günstigeren Ladens zum Bestpreis beider Läden">zum Bestpreis</span><span class="r" title="Die bessere Wertung von Meta und Steam; Pfeil: Trend der letzten 30 Tage bei Steam">Wertung</span><span class="r" title="Zahl der Steam-Rezensionen; Meta-Bewertungen im Tooltip">Rezensionen</span><span class="r" title="Steam-Spieler gerade eben">Aktiv</span><span class="r" title="Letztes Steam-Update laut Entwickler">Update</span></div>`;
+  const head = `<div class="gr nph"><span>Spiel</span>${H_PL}<span class="r" title="Preis jetzt im Meta Store">Meta</span><span class="r" title="Preis jetzt bei Steam; günstigere Angebote bei gg.deals in den Einzelheiten">Steam</span>${H_LOW}${H_WO}<span class="r" title="Die bessere Wertung von Meta und Steam; Pfeil: Trend der letzten 30 Tage bei Steam">Wertung</span><span class="r" title="Zahl der Steam-Rezensionen; Meta-Bewertungen im Tooltip">Rezensionen</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Steam-Spieler gerade eben">Aktiv</span><span class="r" title="Letztes Steam-Update laut Entwickler">Update</span></div>`;
   return `<div class="glist box vwl" style="--gcols:${VR_COLS}">${head}${rows.map(vrRow).join("")}</div>`;
 }
+// Spielinfos eines VR-Titels (0.9.4) als Zeile der Sammlung, für max. Spieler und Genre
+const vrG = r => Object.assign({mp: [], mpc: [], genres: [], gc: [], players: 0, srcs: []}, r.info, {key: r.key, name: r.name});
+const vrGenre = (r, open) => { const g = vrG(r); return `<span class="c-gen${g.genres.length ? "" : " nil"}" data-l="Genre">${g.genres.length ? gGenres(g, open) : G_NIL}</span>`; };
 function vrPrice(r, k){
   const v = r.live[k], b = r.best?.[k];
   if(!v) return "";
@@ -595,8 +620,8 @@ function vrCells(r){
   const now = ["meta", "steam"].filter(k => L[k]).map(k => [L[k].price, k]).sort((a, b) => a[0] - b[0])[0];
   let gap = "";
   if(now && A?.best != null){
-    const tip = `Bestpreis beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? ` (${A.src})` : ""}; jetzt am günstigsten ${SHOP[now[1]]} ${eur(now[0])}`;
-    gap = now[0] <= A.best * 1.02 + 0.005 ? `<span class="g-buy" title="${esc(tip)}">${A.src ? "≈ " : ""}am Bestpreis</span>`
+    const tip = `Tief beider Läden ${eur(A.best)} bei ${SHOP[A.shop]}${A.src ? ` (${A.src})` : ""}; jetzt am günstigsten ${SHOP[now[1]]} ${eur(now[0])}`;
+    gap = now[0] <= A.best * 1.02 + 0.005 ? `<span class="g-buy" title="${esc(tip)}">${A.src ? "≈ " : ""}am Tief</span>`
       : `<span class="over" title="${esc(tip + ` (+${A.best > 0 ? Math.round((now[0] - A.best) / A.best * 100) : 0} %)`)}">+${eur(Math.round((now[0] - A.best) * 100) / 100)}</span>`;
   }
   const rt = r.rating || {}, m = rt.meta, st = rt.steam;
@@ -612,36 +637,38 @@ const cellOf = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data
 function vrRow(r){
   const open = V.vwOpen === r.key, cell = cellOf, {gap, score, pl, up, rev} = vrCells(r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="vwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${badges(r, true)}</span>` +
-    cell("Wo", buyBadge(r)) + cell("Meta", vrPrice(r, "meta"), "r") + cell("Steam", vrPrice(r, "steam"), "r") + cell("zum Bestpreis", gap, "r") +
-    cell("Wertung", score, "r") + cell("Rezensionen", rev, "r") + cell("Aktiv", pl, "r") + cell("Update", up, "r") + `</div>` +
+    cell("max. Spieler", gMaxPl(vrG(r)), "r") + cell("Meta", vrPrice(r, "meta"), "r") + cell("Steam", vrPrice(r, "steam"), "r") + cell("überm Tief", gap, "r") + cell("Wo", buyBadge(r)) +
+    cell("Wertung", score, "r") + cell("Rezensionen", rev, "r") + vrGenre(r, open) + cell("Aktiv", pl, "r") + cell("Update", up, "r") + `</div>` +
     (open ? `<div class="gd vwd" style="--dcols:minmax(0,1fr)">${wishRow(r, true)}</div>` : "");
 }
 /* „Jetzt“, Reiter Alle (0.8.27): VR- und PC-Wünsche in einer Tabelle, sortiert wie gewählt. Gemeinsame Spalten: Art, Wo
-   (VR: wo kaufen; PC: Händler oder Keyshop), Preis (der günstigste jetzt), zum Tief (VR: Bestpreis beider Läden; PC: Tief
+   (VR: wo kaufen; PC: Händler oder Keyshop), Preis (der günstigste jetzt), zum Tief (VR: Tief beider Läden; PC: Tief
    bei gg.deals), Wertung, Rezensionen, Aktiv. Ein Klick auf den Namen zeigt die Einzelheiten wie in den Reitern */
-const ALL_COLS = "minmax(180px,1.5fr) 44px minmax(112px,.6fr) 110px 100px 70px 98px 56px";
+// 0.9.4 (Entscheidung 28.10.2026): Spiel, max. Spieler, Art, Preis, überm Tief, Wo, Wertung, Rezensionen, Genre, Aktiv
+const ALL_COLS = "minmax(180px,1.5fr) 88px 44px 100px 90px 110px 70px 98px minmax(0,1fr) 56px";
 function allTable(vr, pc, sort){
   const items = vr.map(r => ({vr: true, r, near: nearBest(r), sale: _saleOf(r), score: r.rating?.score ?? null}))
     .concat(pc.map(r => ({vr: false, r, near: 1 + (r.over ?? 1e9), sale: 0, score: r.score ?? null})));
   const key = {best: x => x.near, sale: x => -x.sale, rating: x => -(x.score ?? -1)}[sort] || (x => x.near);
   items.sort((a, b) => key(a) - key(b) || a.r.name.localeCompare(b.r.name));
-  const head = `<div class="gr nph"><span>Spiel</span><span>Art</span><span title="VR: wo kaufen; PC: Händler oder Keyshop">Wo</span><span class="r" title="Günstigster Preis jetzt">Preis</span><span class="r" title="VR: Abstand zum Bestpreis beider Läden; PC: zum bisherigen Tief bei gg.deals">zum Tief</span><span class="r">Wertung</span><span class="r">Rezensionen</span><span class="r" title="Steam-Spieler gerade eben">Aktiv</span></div>`;
+  const head = `<div class="gr nph"><span>Spiel</span>${H_PL}<span>Art</span><span class="r" title="Günstigster Preis jetzt">Preis</span>${H_LOW}${H_WO}<span class="r">Wertung</span><span class="r">Rezensionen</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Steam-Spieler gerade eben">Aktiv</span></div>`;
   return `<div class="glist box vwl" style="--gcols:${ALL_COLS}">${head}${items.map(x => x.vr ? allVrRow(x.r) : allPcRow(x.r)).join("")}</div>`;
 }
 const _saleOf = r => Math.max(r.live?.meta?.discount || 0, r.live?.steam?.discount || 0);
 function allVrRow(r){
   const open = V.vwOpen === r.key, {now, gap, score, pl, rev} = vrCells(r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="vwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${badges(r, true)}</span>` +
-    cellOf("Art", `<span class="b vrb" title="VR-Wunsch, Meta oder Steam">VR</span>`) + cellOf("Wo", buyBadge(r)) + cellOf("Preis", now ? vrPrice(r, now[1]) : "", "r") +
-    cellOf("zum Tief", gap, "r") + cellOf("Wertung", score, "r") + cellOf("Rezensionen", rev, "r") + cellOf("Aktiv", pl, "r") + `</div>` +
+    cellOf("max. Spieler", gMaxPl(vrG(r)), "r") + cellOf("Art", `<span class="b vrb" title="VR-Wunsch, Meta oder Steam">VR</span>`) + cellOf("Preis", now ? vrPrice(r, now[1]) : "", "r") +
+    cellOf("überm Tief", gap, "r") + cellOf("Wo", buyBadge(r)) + cellOf("Wertung", score, "r") + cellOf("Rezensionen", rev, "r") + vrGenre(r, open) + cellOf("Aktiv", pl, "r") + `</div>` +
     (open ? `<div class="gd vwd" style="--dcols:minmax(0,1fr)">${wishRow(r, true)}</div>` : "");
 }
 function allPcRow(r){
   const open = V.pwOpen === r.key, g = Object.assign({mp: [], genres: []}, r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${dropMark(r.drop)}${careMark(r.care)}</span>` +
-    cellOf("Art", `<span class="b pcb" title="PC-Wunsch von gg.deals">PC</span>`) + cellOf("Wo", r.best_from ? `<span class="hint">${esc(r.best_from)}</span>` : "") +
-    `<span class="r" data-l="Preis">${pcPriceHtml(r)}</span>` + cellOf("zum Tief", pcLowHtml(r), "r") +
-    cellOf("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") + cellOf("Rezensionen", gRev(g), "r") + cellOf("Aktiv", gActive(g), "r") + `</div>` +
+    cellOf("max. Spieler", gMaxPl(g), "r") + cellOf("Art", `<span class="b pcb" title="PC-Wunsch von gg.deals">PC</span>`) +
+    `<span class="r" data-l="Preis">${pcPriceHtml(r)}</span>` + cellOf("überm Tief", pcLowHtml(r), "r") + cellOf("Wo", pcWo(r)) +
+    cellOf("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") + cellOf("Rezensionen", gRev(g), "r") +
+    `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(g, open) : G_NIL}</span>` + cellOf("Aktiv", gActive(g), "r") + `</div>` +
     (open ? pcDetail(r) : "");
 }
 
@@ -687,6 +714,8 @@ const G_STF = [["", "egal"], ["open", "nicht durchgespielt"], ["backlog", "Backl
 // Switch-Spiele aus dem eShopKompass (0.7.3): Mein Stand von dort, hier nur lesend
 const mine = g => g.eshop ? g.mine || {} : (S.marks || {})[g.key] || {};
 const ESH = "Laut eShopKompass";
+// Namen der Mehrspieler-Arten: aus der Sammlung, sonst aus dem Stand (0.9.4, für Wunschliste und Jetzt)
+const MPL = () => C?.mp_label || S.mp_label || {};
 // Gespielt (0.9.3): Spielzeit und zuletzt gespielt laut Steam-Konto, nur Spiele aus Steam
 const G_PL = [["", "egal"], ["never", "nie gespielt"], ["long", "über ein Jahr nicht"], ["played", "schon gespielt"]];
 function plOk(g, k){
@@ -899,7 +928,7 @@ function gGenres(g, all){
 }
 function gMp(g){
   const ms = g.mp.filter(m => m !== "multi" || g.mp.length === 1);
-  return ms.map(m => `<span${one(g, g.mpc, m) ? ` class="gxc" title="Nur eine Quelle (${esc(srcList(g))})"` : ""}>${esc(C?.mp_label?.[m] || m)}</span>`).join(", ");
+  return ms.map(m => `<span${one(g, g.mpc, m) ? ` class="gxc" title="Nur eine Quelle (${esc(srcList(g))})"` : ""}>${esc(MPL()[m] || m)}</span>`).join(", ");
 }
 function gYear(g){
   if(!g.year) return "";
@@ -935,7 +964,7 @@ function gActive(g){
 }
 // max. Spieler (0.8.23): die Zahl wie bisher, die Arten (bis 0.8.22 Spalte Mehrspieler) im Tooltip
 function gMaxPl(g){
-  const kinds = g.mp.filter(m => m !== "multi").map(m => C?.mp_label?.[m] || m).join(", ");
+  const kinds = g.mp.filter(m => m !== "multi").map(m => MPL()[m] || m).join(", ");
   // Ohne Zahl: Mehrspieler bekannt heißt mindestens zwei (wie im Filter), laut Steam ohne Mehrspieler eins; grau
   if(!g.players) return g.mp.length ? `<span class="hint" title="${esc(`Mehrspieler, Zahl unbekannt${kinds ? `: ${kinds}` : ""}`)}">2+</span>`
     : g.src === "steam" ? `<span class="hint" title="Laut Steam ohne Mehrspieler">1</span>` : "";
@@ -987,7 +1016,7 @@ const COLS = [
     cell: g => { const o = g.lib.opinion; if(!o) return ""; const t = [o.fassung && FASS_SHORT[o.fassung], o.mehrspieler && "MP " + MP_SHORT[o.mehrspieler]].filter(Boolean).join(" · ");
       return `<span class="ux" title="Recherche aus Foren und Tests, nicht geprüft${o.stand ? ", " + esc(o.stand) : ""}">${esc(t || "Meinungen")}</span>`; },
     sort: g => g.lib.opinion?.fassung || null},
-  {k: "pl", l: "max. Spieler", w: "96px", cls: "r", tip: "Höchste Spielerzahl laut IGDB, sonst libretro oder Playnite (violett); Mehrspieler-Arten im Tooltip und in den Einzelheiten", d0: -1,
+  {k: "pl", l: "max. Spieler", w: "88px", cls: "r", tip: "Höchste Spielerzahl laut IGDB, sonst libretro oder Playnite (violett); Mehrspieler-Arten im Tooltip und in den Einzelheiten", d0: -1,
     cell: gMaxPl, sort: g => g.players || null},
   {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "PC: Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv). Konsolen und Retro: IGDB-Kritiken, sonst IGDB gesamt (grau und kursiv). Switch: Metacritic, sonst OpenCritic", d0: -1,
     cell: gSc, sort: g => g.score},
@@ -998,10 +1027,11 @@ const COLS = [
   {k: "year", l: "Jahr", w: "44px", cls: "r", d0: -1, cell: gYear, sort: g => g.year || null},
   {k: "store", l: "Launcher", w: "92px", tip: "PC: Launcher laut Playnite (violett: nur vermutet); Konsolen: das System", cell: gSrc, sort: g => g.system !== "PC" ? g.system : g.store || null},
 ];
-/* Reihenfolge (0.8.23, Entscheidung 28.10.2026): Wertung, Rezensionen, Genre, Spielzeit, max. Spieler, Aktiv, dann Sprache,
+/* 0.9.4 (Entscheidung 28.10.2026): max. Spieler als zweite Spalte nach dem Spiel, in allen Tabellen.
+   Reihenfolge (0.8.23, Entscheidung 28.10.2026): Wertung, Rezensionen, Genre, Spielzeit, max. Spieler, Aktiv, dann Sprache,
    Launcher oder System und ganz rechts das Jahr. Mehrspieler steht nur noch im Tooltip von „max. Spieler“, in den
    Einzelheiten und im Filter. Reiter VR: Wertung, Rezensionen, Aktiv, Update, Crossbuy, Besitz, Recherche */
-const COL_ORDER = ["vsc", "sc", "rev", "genre", "hours", "pl", "play", "upd", "cb", "own", "op", "lang", "store", "year"];
+const COL_ORDER = ["pl", "vsc", "sc", "rev", "genre", "hours", "play", "upd", "cb", "own", "op", "lang", "store", "year"];
 COLS.sort((a, b) => COL_ORDER.indexOf(a.k) - COL_ORDER.indexOf(b.k));
 /* Switch-Spiele (0.7.5, Entscheidung 27.10.2026): Spalten, Marken und Einzelheiten 1:1 wie „Spiele“ im
    eShopKompass, aus der Zeile, die er unter kv mitgibt (ab eShopKompass 1.7.17). Violett heißt wie dort:
@@ -1484,15 +1514,15 @@ function findView(){
 }
 
 /* ---------------------------------------------------------------- Jetzt */
-/* Wunschtitel im Angebot, die nah am Bestpreis beider Läden liegen („kaufen“: bis 2 % oder 0,50 €
+/* Wunschtitel im Angebot, die nah am Tief beider Läden liegen („kaufen“: bis 2 % oder 0,50 €
    darüber, „gut“: bis 15 % oder 2 €); die übrigen Angebote auf Wunsch darunter */
 function nowView(){
-  const last = S.sync?.done, far = S.now_far || [];
+  const last = S.sync?.done;
   // 0.8.11: auch die PC-Wünsche nah am bisherigen Tief bei gg.deals; ab 0.8.20 steht PC über VR wie in den Reitern
   const q = V.q.trim().toLowerCase();
   const pcAll = (S.pcwish?.rows || []).filter(r => r.near && !pcIsVr(r) && !r.owned);
   const pc = pcAll.filter(r => !q || r.name.toLowerCase().includes(q)).sort((a, b) => (a.over ?? 1e9) - (b.over ?? 1e9));
-  if(!last && !S.now.length && !far.length && !pcAll.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
+  if(!last && !S.now.length && !pcAll.length) return `<p class="hint">Noch kein Abruf gelaufen. Oben über „Aktualisieren“ startest du den ersten; danach läuft er nach Zeitplan.</p>`;
   const sort = V.nowSort || "best", kind = V.nowKind || "";
   let rows = S.now.filter(r => match(r) && lfOk(r, ["cb", "best", "good"]));
   const k = {best: nearBest, rating: byRating}[sort];
@@ -1500,13 +1530,13 @@ function nowView(){
   // Reiter wie in Wunschliste und Sammlung (0.8.17, statt des Schalters): Alle, PC, VR an derselben Stelle
   const kb = (v, l, n, cls, tip) => `<button role="tab" aria-selected="${kind === v}" data-act="nowk" data-v="${v}" class="${cls}${kind === v ? " on" : ""}" title="${tip}">${l} <span class="n">${n}</span></button>`;
   const tabs = `<div class="systabs" role="tablist" aria-label="Welche Wünsche">${kb("", "Alle", S.now.length + pcAll.length, "", "VR- und PC-Wünsche")}${kb("pc", "PC", pcAll.length, "fam-pc", "PC-Wünsche von gg.deals nah am bisherigen Tief")}${kb("vr", "VR", S.now.length, "fam-vr", "VR-Wünsche bei Meta und Steam")}</div>`;
-  const vr = `<p class="hint">VR: Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Bestpreis beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
-    ${rows.length ? vrTable(rows) : `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}
-    ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
-  // 0.8.27: „Alle“ als eine Liste; die weit über dem Bestpreis reduzierten VR-Wünsche bleiben zugeklappt darunter
-  const allPart = `<p class="hint">PC- und VR-Wünsche nah am Tief: VR höchstens 15 % oder 2 € über dem Bestpreis beider Läden, PC höchstens 5 % über dem bisherigen Tief bei gg.deals. Letzter Abruf: ${when(last) || "–"}.</p>
+  const vr = `<p class="hint">VR: Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Tief beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
+    ${rows.length ? vrTable(rows) : `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Tief reduziert."}</p>`}
+`;
+  // 0.8.27: „Alle“ als eine Liste. Ab 0.9.4 ohne die Gruppe der VR-Wünsche weit über dem Tief (keine Kaufempfehlung, Entscheidung 28.10.2026)
+  const allPart = `<p class="hint">PC- und VR-Wünsche nah am Tief: VR höchstens 15 % oder 2 € über dem Tief beider Läden, PC höchstens 5 % über dem bisherigen Tief bei gg.deals. Letzter Abruf: ${when(last) || "–"}.</p>
     ${rows.length || pc.length ? allTable(rows, pc, sort) : `<p class="hint">${S.now.length + pcAll.length ? "Kein Treffer." : "Gerade ist kein Wunsch nah am Tief."}</p>`}
-    ${far.length ? grp("now-far", `VR: reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
+`;
   // 0.9.0: nach Laden bündeln; zählt alle PC-Wünsche (ohne Besitz und VR), auch die, die bei gg.deals nicht am Tief sind
   const pcFree = (S.pcwish?.rows || []).filter(r => !pcIsVr(r) && !r.owned), shops = shopCounts(pcFree);
   const shop = shops.some(([n]) => n === V.nowShop) ? V.nowShop : "";
@@ -1515,7 +1545,7 @@ function nowView(){
   const pcPart = shop ? `<p class="hint">PC bei ${esc(shop)}: Wünsche, die dort höchstens 5 % über dem Tief der Händler liegen, mit dem Preis bei ${esc(shop)} (Läden laut IsThereAnyDeal). So lassen sich mehrere Spiele in einem Laden kaufen.</p>` + (pcShop.length ? pcTable(pcShop) : `<p class="hint">Kein Treffer.</p>`)
     : `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
-  return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"], extra: shopSel}) +
+  return tabs + listBar({sorts: [["best", "Nah am Tief"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"], extra: shopSel}) +
     (kind === "pc" ? pcPart : kind === "vr" ? vr : allPart);
 }
 
@@ -1561,7 +1591,7 @@ function vlSvg(v){
   const shown = v.series.filter(s => !V.vl.hide.has(s.name));
   const t0 = +new Date(v.since), t1 = Math.max(+new Date(v.today), t0 + 864e5);
   const refs = [];
-  if(v.best != null) refs.push({y: v.best, label: "Bestpreis", col: "var(--best)"});
+  if(v.best != null) refs.push({y: v.best, label: "Tief", col: "var(--best)"});
   if(v.typical != null && v.typical > v.best + 0.005) refs.push({y: v.typical, label: "typisch", col: "var(--muted)"});
   const top = Math.max(1, ...shown.map(s => Math.max(s.regular || 0, ...s.points.map(p => p[1]))), ...refs.map(r => r.y)) * 1.08;
   const x = t => L + (W - L - R) * (t - t0) / (t1 - t0), y = e => T + (H - T - B) * (1 - e / top);
@@ -1588,7 +1618,7 @@ function vlSvg(v){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["itad", "IsThereAnyDeal (Läden einzeln, PC-Wunschliste)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["vrinfo", "VR-Titel, Spielinfos (Steam, IGDB)"], ["itad", "IsThereAnyDeal (Läden einzeln, PC-Wunschliste)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){

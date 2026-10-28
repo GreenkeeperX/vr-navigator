@@ -223,6 +223,20 @@ Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DA
 wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb` in `collection.json`
 (`none: true` ohne Treffer); ein neuer Playnite-Export und eine neue Retro-Liste behalten es.
 
+## VR-Titel, Spielinfos (ab 0.9.4)
+
+Quelle `vrinfo`, nach `pcinfo`. Für VR-Titel des Tools Genres, Spieler und Erscheinen wie bei der PC-Wunschliste:
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Steam-Details | `store.steampowered.com/api/appdetails?appids=<ID>&l=german&cc=de` | nur mit Steam-ID, je Titel nach 90 Tagen (`DETAILS_DAYS`), höchstens 60 je Lauf (`VRINFO_MAX`); ruht wie bei `pcinfo` nach einer Sperre | Genres, Mehrspieler, Erscheinen, Entwickler |
+| IGDB | wie bei der PC-Wunschliste, gebündelt nach Steam-ID (nur mit IGDB-Schlüssel) | je Titel nach 90 Tagen (`IGDB_DAYS`) | Genres, Spieler, Spielzeit, Jahr |
+| IGDB-Namenssuche | `api.igdb.com/v4/games` | Titel ohne Steam-ID, höchstens 40 je Lauf (`VRINFO_NAMES`) | wie oben |
+
+Abgelegt je Titel in `data.json` unter `sdet` und `igdb`, jeweils mit der Steam-ID (`app`), für die sie gelten;
+ändert sich die Steam-ID, gelten sie nicht mehr und werden neu geholt. Ältere Dateien ohne diese Felder laden wie
+bisher. `VRINFO_MAX` und `VRINFO_NAMES` zählen beim beschleunigten Auffüllen mit.
+
 ## PC-Wunschliste (ab 0.8.2)
 
 Die ganze gg.deals-Wunschliste (über den Teilen-Link, das Lesezeichen oder eine Datei) liegt in

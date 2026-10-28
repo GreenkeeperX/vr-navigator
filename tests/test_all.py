@@ -2927,6 +2927,53 @@ def sharenite_html(games, total=None, vr_tags=()):
 
 
 class TestAccounts(unittest.TestCase):
+    def test_vr_info(self):
+        """VR-Titel, Spielinfos (0.9.4): Steam-Details und IGDB je VR-Titel mit der Steam-ID, für die sie gelten;
+        ändert sich die ID, zählen sie nicht mehr. Alte Titel ohne sdet und igdb geben leere Infos."""
+        from app import library
+        data = store.load_data()
+        data["titles"]["rally-moth"] = {"name": "Rally Moth", "steam_appid": 3000201}
+        data["titles"]["night-tram"] = {"name": "Night Tram"}
+        store.save_data(data)
+        app = {"3000201": {"success": True, "data": {
+            "type": "game", "name": "Rally Moth", "release_date": {"date": "2 May, 2024"},
+            "genres": [{"id": "9", "description": "Racing"}], "categories": [{"id": 1}, {"id": 2}]}}}
+        moth = {"id": 7, "name": "Rally Moth", "genres": [{"name": "Racing"}], "game_modes": [{"name": "Multiplayer"}],
+                "multiplayer_modes": [{"onlinemax": 8}], "first_release_date": 1714608000}
+        calls = []
+
+        def fake(url, timeout=25, ua=None, headers=None, data=None):
+            calls.append((url, data))
+            if "appdetails" in url:
+                return json.dumps(app)
+            if "twitch" in url:
+                return json.dumps({"access_token": "tok"})
+            if url.endswith("external_games"):
+                return json.dumps([{"game": 7, "uid": "3000201"}])
+            if url.endswith("game_time_to_beats"):
+                return json.dumps([])
+            if url.endswith("games"):
+                return json.dumps([moth] if b"where id" in (data or b"") else [])
+            raise sources.FetchError(url, 404)
+        sources.fetch = fake
+        settings = dict(sync.SETTINGS, igdb_id="a" * 30, igdb_secret="b" * 30)
+        logs = []
+        self.assertTrue(sync._vr_info(settings, logs.append)["ok"])
+        self.assertIn("VR-Titel, Spielinfos: 1 bei Steam gelesen", "\n".join(logs))
+        self.assertNotIn("b" * 30, "\n".join(logs))
+        t = store.load_data()["titles"]
+        self.assertEqual((t["rally-moth"]["sdet"]["app"], t["rally-moth"]["igdb"]["id"], t["rally-moth"]["igdb"]["app"]),
+                         ("3000201", 7, "3000201"))
+        self.assertTrue(t["night-tram"]["igdb"]["none"])             # Namenssuche ohne Treffer
+        inf = library.info(t["rally-moth"])
+        self.assertEqual((inf["players"], inf["genres"][0]), (8, "Rennen"))
+        calls.clear()
+        sync._vr_info(settings, logs.append)                       # alles frisch: kein Abruf bei Steam
+        self.assertFalse(any("appdetails" in u for u, _ in calls))
+        t["rally-moth"]["steam_appid"] = 3000202                    # andere Steam-ID: Infos gelten nicht mehr
+        self.assertNotIn("players", library.info(t["rally-moth"]))
+        self.assertEqual(library.info({"name": "Comet Chase"}).get("genres", []), [])
+
     def test_steam_play(self):
         """Spielzeit (0.9.3): Minuten und zuletzt gespielt aus GetOwnedGames, in der Zeile des VR-Titels und
         im Spiel der Sammlung; nie gespielt heißt 0 Minuten, ohne Angabe fehlt die App."""
@@ -3131,7 +3178,12 @@ class TestUi(unittest.TestCase):
         self.assertNotIn('class="b go">−', js)
         self.assertIn('class="b deal">−', js)
         self.assertIn('class="star"', js)
-        self.assertNotIn("--meta", self.read("style.css"))
+        # Ladenfarben (0.9.4, Entscheidung 28.10.2026) nur für die Marke „Wo“
+        css = self.read("style.css")
+        self.assertNotIn("--meta", css)
+        uses = re.findall(r"([^{}]*)\{[^}]*var\(--wo-(?:meta|steam|key)\)", css)
+        self.assertEqual(len(uses), 3)
+        self.assertTrue(all(u.strip().startswith(".wo-") for u in uses))
 
     def test_mobile_selftest(self):
         """Alle Reiter bei 390 px in Chromium: nichts scrollt seitlich, kein Skriptfehler, jedes

@@ -44,7 +44,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "active": "Aktive Spieler PC", "retro": "Retro-Fassungen",
-         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass",
+         "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "vrinfo": "VR-Titel, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass",
          "itad": "IsThereAnyDeal"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
@@ -90,6 +90,8 @@ WHEEL_MAX = 400             # Steam-Spiele je Lauf für die Schlagwörter (0.8.3
 WHEEL_DAYS = 90
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 60          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2, ab 0.8.24 60 statt 30)
+VRINFO_MAX = 60             # VR-Titel je Lauf mit Steam-Details (0.9.4)
+VRINFO_NAMES = 40           # VR-Titel ohne Steam-ID je Lauf mit IGDB-Namenssuche (0.9.4)
 PCWISH_INFO = 60            # Spiele der PC-Wunschliste je Lauf mit Steam-Details und Rezensionen (0.8.11)
 ITAD_PAUSE = 1.0            # IsThereAnyDeal erlaubt 1000 Abrufe je 5 Minuten; ein Lauf braucht nur wenige
 ITAD_HIST = 40              # Spiele je Lauf, deren Verlauf je Laden einmal rückwirkend kommt (0.9.1)
@@ -98,7 +100,7 @@ IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
 FAST_LIMITS = ("ACTIVE_MAX", "TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
-               "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH", "ITAD_HIST")
+               "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH", "ITAD_HIST", "VRINFO_MAX", "VRINFO_NAMES")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
@@ -1817,6 +1819,111 @@ def _pcwish_info(settings, log):
     return src.result()
 
 
+def _vr_info(settings, log):
+    """Spielinfos der VR-Titel (0.9.4) wie bei der PC-Wunschliste: Steam-Details über die Steam-ID (Genres,
+    Mehrspieler, Jahr, Beschreibung), höchstens VRINFO_MAX je Lauf, nach DETAILS_DAYS neu; mit IGDB-Schlüssel IGDB
+    gebündelt über die Steam-IDs, Titel ohne Steam-ID über den Namen (höchstens VRINFO_NAMES je Lauf). Abgelegt je
+    Titel in data.json unter sdet und igdb; die Zeile rechnet sie wie die Sammlung zusammen (library.info)."""
+    start = time.monotonic()
+    data = store.load_data()
+    src = _Source("VR-Titel, Spielinfos", log)
+    old_d, old_i, old_m = (_iso(now() - timedelta(days=d)) for d in (DETAILS_DAYS, IGDB_DAYS, IGDB_MISS_DAYS))
+    at = lambda t, f: (t.get(f) or {}).get("at") or ""
+    sid = lambda t: str(t.get("steam_appid") or "")
+    # Gilt nur für die Steam-ID, zu der sie gelesen wurden (app); eine geänderte ID liest neu
+    moved = lambda t, f: (t.get(f) or {}).get("app", sid(t)) != sid(t)
+    todo = sorted((at(t, "sdet"), k) for k, t in data["titles"].items() if sid(t).isdigit() and not t.get("contains")
+                  and (at(t, "sdet") < old_d or moved(t, "sdet") or ((t.get("sdet") or {}).get("ok") and t["sdet"].get("v", 1) < prices.DETAILS_V)))
+    got = {}
+    for i, (_, k) in enumerate(todo[:VRINFO_MAX]):
+        progress("VR-Titel, Spielinfos", i, min(len(todo), VRINFO_MAX))
+        gid = sid(data["titles"][k])
+        text = src.get(f"{STEAM}/api/appdetails?appids={gid}&l=german&cc=de", shown=f"Steam-Details {gid}")
+        if text is not None:
+            got[k] = dict(_checked(prices.steam_details(text, gid)), at=titles.now_iso(), app=gid)
+        if src.stopped:
+            break
+    ig, names_left = {}, 0
+    if settings.get("igdb_id") and settings.get("igdb_secret") and not src.stopped:
+        def due(t):
+            r = t.get("igdb") or {}
+            return (r.get("v") != igdb.V or moved(t, "igdb") or at(t, "igdb") < (old_m if r.get("none") else old_i)) and not t.get("contains")
+        by_id = {k: sid(t) for k, t in data["titles"].items() if sid(t).isdigit() and due(t)}
+        by_name = sorted((at(t, "igdb"), k) for k, t in data["titles"].items() if not sid(t).isdigit() and due(t))
+        if by_id or by_name:
+            isrc = _Source("IGDB", log, pause=IGDB_PAUSE)
+            tok = igdb.token(isrc.get(igdb.TWITCH, shown="Twitch-Anmeldung", data=igdb.token_body(settings["igdb_id"], settings["igdb_secret"])))
+            if tok:
+                isrc.headers = {"Client-ID": settings["igdb_id"], "Authorization": f"Bearer {tok}", "Accept": "application/json"}
+
+                def ask(path, body, shown):
+                    t = isrc.get(igdb.API + path, shown=shown, data=body.encode())
+                    try:
+                        return None if t is None else json.loads(t or "[]")
+                    except ValueError:
+                        return None
+                stamp, found_all = titles.now_iso(), {}
+                for part in igdb.chunks(list(by_id)):
+                    ids = [by_id[k] for k in part]
+                    ext = ask("external_games", igdb.steam_query(ids), "Steam-IDs der VR-Titel")
+                    if ext == []:
+                        ext = ask("external_games", igdb.steam_query(ids, old=True), "Steam-IDs der VR-Titel")
+                    if ext is None:
+                        break
+                    of = {str(x.get("uid")): x.get("game") for x in ext if isinstance(x, dict) and x.get("game")}
+                    found = ask("games", igdb.games_query(sorted(set(of.values()))), "Spiele zu Steam-IDs") if of else []
+                    if found is None:
+                        break
+                    by = {g.get("id"): g for g in found if isinstance(g, dict)}
+                    for k in part:
+                        found_all[k] = by.get(of.get(by_id[k]))
+                names = [k for _, k in by_name]
+                names_left = max(0, len(names) - VRINFO_NAMES)
+                for i, k in enumerate(names[:VRINFO_NAMES]):
+                    if isrc.stopped:
+                        break
+                    progress("IGDB, VR-Titel", i, min(len(names), VRINFO_NAMES))
+                    name, hit, res = data["titles"][k]["name"], None, None
+                    for body in igdb.name_queries(name, "VR"):
+                        res = ask("games", body, f"„{name[:40]}“")
+                        if res is None:
+                            break
+                        hit = igdb.pick(res, name)
+                        if hit:
+                            break
+                    if res is None and not hit:
+                        continue
+                    found_all[k] = hit
+                hit_ids = sorted({g["id"] for g in found_all.values() if g and g.get("id")})
+                hours = {}
+                for part in igdb.chunks(hit_ids):
+                    hours.update(igdb.times(ask("game_time_to_beats", igdb.times_query(part), "Spielzeiten")) or {})
+                for k, hit in found_all.items():
+                    c = igdb.compact(hit) if hit else None
+                    if c and hours.get(c["id"]):
+                        c["hours"] = hours[c["id"]]
+                    ig[k] = dict(c, at=stamp, v=igdb.V) if c else {"none": True, "at": stamp, "v": igdb.V}
+                    ig[k]["app"] = sid(data["titles"][k])
+            src.n += isrc.n
+    with store.lock:
+        data = store.load_data()
+        for k, r in got.items():
+            if k in data["titles"]:
+                data["titles"][k]["sdet"] = r
+        for k, r in ig.items():
+            if k in data["titles"]:
+                data["titles"][k]["igdb"] = r
+        store.save_data(data)
+    left = max(0, len(todo) - len(got))
+    src.stats = {"read": len(got), "left": left + names_left, "igdb": sum(1 for r in ig.values() if r.get("id"))}
+    log(f"VR-Titel, Spielinfos: {len(got)} bei Steam gelesen"
+        + (f", IGDB {src.stats['igdb']} von {len(ig)} gefunden" if ig else "")
+        + (f", {left} noch offen bei Steam (je Lauf {VRINFO_MAX}{_runs(left, VRINFO_MAX, ', ')})" if left else "")
+        + (f", {names_left} Namen noch offen bei IGDB" if names_left else "")
+        + ("" if left or names_left else ", alle aktuell") + f", {_took(start)}")
+    return src.result()
+
+
 def _pc_no_vr(g):
     return (g.get("system") or "PC") == "PC" and not (g.get("steam") or {}).get("vr")
 
@@ -2247,6 +2354,7 @@ def run(only=None, boot=False, by_hand=False, fast=False):
             log("PC-Wunschliste, Spielinfos: Steam ruht nach einer Sperre, nicht abgefragt")
         else:
             do("pcinfo", lambda: _pcwish_info(settings, log))
+            do("vrinfo", lambda: _vr_info(settings, log))
         if settings["sharenite"]:
             last = ((prev.get("sources") or {}).get("sharenite") or {})
             fresh = last.get("ok") and (last.get("at") or "") > _iso(now() - timedelta(hours=SHARENITE_H))
