@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.18:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.19:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -358,6 +358,9 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Wunschliste. Ab 0.8.11 darunter auch die PC-Wünsche, die höchstens 5 % über dem bisherigen Tief bei gg.deals
   liegen, als Liste wie unter Wunschliste, PC; die Reiter „Alle, PC, VR“ (ab 0.8.17, vorher ein Schalter, jetzt an
   derselben Stelle wie in Wunschliste und Sammlung) zeigen beide oder nur eine Seite.
+- **Spaltenreihenfolge** (ab 0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest, rechts das Nachschlagen.
+  Sammlung: Spiel, (Sprache bei Retro), Wertung, Genre, Spielzeit, Mehrspieler, Spieler, Jahr, Rezensionen, Launcher;
+  Reiter VR: Spiel, Besitz, Meta, Steam, Spieler, Update, Crossbuy, Recherche.
 - **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern PC und VR (ab 0.8.7 PC zuerst, wie in der
   Sammlung). **PC** spiegelt deine gg.deals-Wunschliste (gepflegt wird sie dort), ab 0.8.7 mit Paketen und DLC
   (Marke „Paket“, „DLC“; Preis über den Link zur Seite bei gg.deals, die API kennt nur Steam-Apps) und ohne die
@@ -365,7 +368,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   oder Keyshop, als Link zu gg.deals) und wie weit er über dem bisherigen Tief liegt: grün „am Tief“ (bis 2 %),
   sonst rot der Betrag. Ab 0.8.17 wie im eShopKompass: Händler, Keyshop und das Tief stehen im Tooltip des
   Preises und in den Einzelheiten statt in eigenen Spalten; dazu die Spalten Spieler und Jahr. Reihenfolge:
-  Spiel, Preis, zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr. „Nah am Tief“ (Jetzt) heißt höchstens 5 % darüber.
+  Spiel, Preis, zum Tief, Wertung, Genre, Spielzeit, Mehrspieler (mit Spielerzahl, ab 0.8.19), Jahr. „Nah am Tief“ (Jetzt) heißt höchstens 5 % darüber.
   Ab 0.8.18 merkt sich das Tool den Preisverlauf je Spiel; liegt der Preis jetzt deutlich unter dem üblichen (mindestens
   25 % und 3 € unter dem Median der letzten 90 Tage), steht grün „Preissturz“ am Namen. Das gilt für Händler und
   Keyshop gleich, denn Keyshops sind oft günstiger als ein Steam-Sale. Dazu Trend und Pflege wie unten. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der

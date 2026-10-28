@@ -192,7 +192,11 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   gg.deals; PC-Wunschliste der Preis zu gg.deals (Händler, Keyshop, Tief und Stand im Tooltip, `pcPriceTip`), ★ gold
   vor dem Preis am Tief (bis 2 %), Spalte „zum Tief“ als roter Betrag `+x €` ohne Fettdruck (`.over`, Prozent im Tooltip),
   am Tief grün „am Tief“ (`.g-buy`, ab 0.8.17 wie „am Bestpreis“ im eShopKompass). Spalten ab 0.8.17: Spiel, Preis,
-  zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr (`PC_COLS`).
+  zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr (`PC_COLS`); ab 0.8.19 statt Spieler „Mehrspieler“ mit der Zahl
+  dahinter („coop, online bis 4“).
+- Spaltenreihenfolge der Sammlung (ab 0.8.19, `COL_ORDER`): Wertung, Genre, Spielzeit, Mehrspieler, Spieler, dann Jahr,
+  Rezensionen, Launcher; Sprache (Retro) vor der Wertung. Reiter VR: Besitz, Meta, Steam, Spieler, Update, Crossbuy,
+  Recherche. Die CSV folgt der gezeigten Reihenfolge.
 - Trend und Pflege (ab 0.8.18): Pfeil hinter der Steam-Wertung (`trendMark`, `.tr.up` grün ↗, `.tr.down` rot ↘, nur ab
   8 Punkten Abstand, gleichbleibend ohne Zeichen), Zahlen im Tooltip; in Fakten und Einzelheiten die Zeile „Trend“
   (`trendText`). Pflege: „ruht“ als graue, umrandete Marke (`.b.care`) am Namen in der Wunschliste PC, sonst „(ruht)“

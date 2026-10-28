@@ -109,13 +109,13 @@ Ordner-Liste; GameCube, Wii und PlayStation über Spiel-ID und Seriennummer. 0.8
 wie im eShopKompass (Preis mit Tooltip, „am Tief“ grün, Spalten Spieler und Jahr); Gekauftes fällt nicht mehr von selbst
 von der Wunschliste; Jetzt mit Reitern. 0.8.18: Trend (Steam-Rezensionen der letzten 30 Tage gegen alle) als Pfeil an der
 Wertung und Pflege („ruht“ nach einem Jahr ohne Update), auch für die PC-Wunschliste; „Preissturz“ aus dem eigenen
-Preisverlauf je PC-Wunsch. Grundsatz (Entscheidung 22.10.2026): so wenig
+Preisverlauf je PC-Wunsch. 0.8.19: Spaltenreihenfolge, Wichtiges links (Wertung, Genre, Spielzeit, Mehrspieler),
+Nachschlagen rechts. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
 - Trend in das Urteil „wo kaufen“ einbeziehen, wenn er sich bewährt; Preisverlauf auch für die VR-Wünsche
-- Spaltenreihenfolge in Wunschliste und Sammlung: Wichtiges links, Unwichtiges rechts
 - Meinungen per Claude-Routine (später, Entscheidung 28.10.2026)
 
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
