@@ -121,8 +121,8 @@ Namen in `aliases`, von Hand verworfene Steam-Apps in `steam_wrong`. Die Liste �
 rechnet `titles.todo` jedes Mal aus `data.json` aus. Eine Sperre in diesem Schritt lässt die
 Quelle wie sonst 24 Stunden ruhen.
 
-Ab 0.8.12 ohne Netz im selben Schritt: `lists.auto` nimmt gekaufte Titel, die auf keiner Wunschliste eines
-Ladens stehen und nicht von Hand gewünscht sind, von der Wunschliste (`wish_done` mit Zeitpunkt). Der
+Von 0.8.13 bis 0.8.16 nahm `lists.auto` gekaufte Titel ohne Laden-Wunschliste von der Wunschliste (`wish_done`); ab
+0.8.17 holt `lists.undo_auto` sie im selben Schritt zurück und löscht `wish_done` (Entscheidung 28.10.2026). Der
 Steam-Name passt auch ohne Leerzeichen oder wenn alle Wörter des kürzeren Namens (mindestens drei, gleiche
 Zahlen) in derselben Reihenfolge im längeren stehen. Retro: Die Dateinamen ohne Endung liegen je Spiel in
 `dumps` (höchstens 8); steht einer genau so in der Fassungsliste, trägt `de` den Wert `dat` und die Sprachen

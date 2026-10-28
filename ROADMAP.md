@@ -105,11 +105,17 @@ Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam
 schneller: der Server hält sie berechnet, bis sich eine ihrer Dateien ändert, die Seite lädt sie im Hintergrund vor,
 Genre-Blasen in einem Messdurchgang. 0.8.15: Urteil „wo kaufen“ aus Gemessenem (Crossbuy,
 Preisabstand, Spieler, Wertung, Pflege; Recherche halb) im Kopf der Karte, Gründe in der Zeile „Wo“. 0.8.16: Retro-IGDB-Suche mit deinem Titel aus der
-Ordner-Liste; GameCube, Wii und PlayStation über Spiel-ID und Seriennummer. Grundsatz (Entscheidung 22.10.2026): so wenig
+Ordner-Liste; GameCube, Wii und PlayStation über Spiel-ID und Seriennummer. 0.8.17: Hinweis-Marken in der Farbe ihrer Marke; Wunschliste PC
+wie im eShopKompass (Preis mit Tooltip, „am Tief“ grün, Spalten Spieler und Jahr); Gekauftes fällt nicht mehr von selbst
+von der Wunschliste; Jetzt mit Reitern. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
+- Steam-Trend (kürzliche gegen alle Rezensionen) und Pflege, schlicht dargestellt (Entscheidung 28.10.2026)
+- „Preissturz“ statt Steam-Sale: eigener Preisverlauf je PC-Wunsch, Preis deutlich unter dem üblichen
+- Spaltenreihenfolge in Wunschliste und Sammlung: Wichtiges links, Unwichtiges rechts
+- Meinungen per Claude-Routine (später, Entscheidung 28.10.2026)
 
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
   Mischung „Liegt brach“, Gespieltes ausblenden

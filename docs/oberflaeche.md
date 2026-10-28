@@ -183,14 +183,16 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Quelle Genres, gilt IGDB als bestätigt. Tooltips nennen die Quellen (`g.srcs`). Die Einzelheiten
   wiederholen die Wertung der Zeile nicht, nur weitere (Metacritic, IGDB neben Steam).
 - VR per Mod (0.8.1): Marke „VR per Mod“ (`.b`) nach PCGamingWiki „hackable“; nur Nexus-Mods mit VR im Namen
-  oder vorpX: „VR-Mod?“ violett (`.b.gxc`), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
+  oder vorpX: „VR-Mod?“ (`.b.vrq`, ab 0.8.17 türkis gestrichelt in der Farbe der VR-Marke), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
   Spiel im Reiter eins von beiden hat. Einzelheiten: Zeilen „VR per Mod“ und „Nexus Mods“ mit Links.
 - SimRacing (ab 0.8.12, vorher „Lenkrad“): Marke orange gefüllt (`.b.simb`, Token `--sim`), wie VR türkis (`.b.vrb`);
-  „SimRacing?“ violett. Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
+  „SimRacing?“ orange gestrichelt (`.b.simq`, ab 0.8.17; Hinweise mit „?“ tragen die Farbe ihrer Marke, nur umrandet). Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
 - Geheimtipp (ab 0.8.12): grün umrandet (`.b.gemb`), erst ab Wert 0,4 (`GEM_MIN`).
 - Preise als Links (ab 0.8.12, `extLink`, `a.pl` in Textfarbe): VR-Karte Meta und Steam in den Laden, gg.deals-Zeile zu
-  gg.deals; PC-Wunschliste alle Preise zu gg.deals, ★ gold vor dem Preis am Tief (bis 2 %), „über Tief“ als roter
-  Betrag `+x €` (Prozent im Tooltip), am Tief gold „am Tief“ (`.best-t`).
+  gg.deals; PC-Wunschliste der Preis zu gg.deals (Händler, Keyshop, Tief und Stand im Tooltip, `pcPriceTip`), ★ gold
+  vor dem Preis am Tief (bis 2 %), Spalte „zum Tief“ als roter Betrag `+x €` ohne Fettdruck (`.over`, Prozent im Tooltip),
+  am Tief grün „am Tief“ (`.g-buy`, ab 0.8.17 wie „am Bestpreis“ im eShopKompass). Spalten ab 0.8.17: Spiel, Preis,
+  zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr (`PC_COLS`).
 - Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das Spiel in einer Liste der Rennspiele steht (SimHub,
   Simucube-Forum; Tooltip nennt beide); nur Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`), `wheelBadge`.
   Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
@@ -222,7 +224,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 
 ## Jetzt, ab 0.8.11
 
-- Schalter „Alle, VR, PC“ (`.seg.nowk`, `V.nowKind`) rechts in der Werkzeugzeile, mit Zahl je Seite. Bei „Alle“ zwei
+- Reiter „Alle, PC, VR“ (`.systabs`, `V.nowKind`, ab 0.8.17 statt des Schalters) über der Werkzeugzeile, an derselben
+  Stelle wie in Wunschliste und Sammlung, mit Zahl je Seite; PC grün, VR türkis wie dort. Bei „Alle“ zwei
   Klappen „VR“ und „PC“; die PC-Liste ist dieselbe Tabelle wie unter Wunschliste, PC (`pcTable`), nur Wünsche nah am
   Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).

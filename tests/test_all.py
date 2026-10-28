@@ -363,18 +363,20 @@ class TestImports(unittest.TestCase):
         self.assertEqual(lists.missing(d["titles"][f], lists.lists_read(d, {"gg_wish": "x"})), ["meta"])
         self.assertFalse([x for x in lists.check(d, {"gg_wish": "x"}) if x["kind"] == "missing"])
         self.assertIn("gg.deals/search/?title=Sofa+Smash", lists.add_links(d["titles"][f])[-1]["url"])
-        # Gekauft und auf keiner Laden-Wunschliste: der Wunsch fällt von selbst weg; mit Crossbuy bei Meta gekauft gilt
-        # auch die gg.deals-Wunschliste als erledigt
+        # 0.8.17: Gekauftes fällt nicht mehr von selbst weg; was 0.8.13 so abgeräumt hat (wish_done), ist wieder gewünscht.
+        # Mit Crossbuy bei Meta gekauft bleibt es ein Fall, mit Hinweis
         g, _ = titles.upsert(d, "Pixel Kart")
-        d["titles"][g].update(wish=True, owned={"pc": {"src": "steam"}})
+        d["titles"][g].update(wish=False, wish_done="2026-10-28T03:00:00+00:00", owned={"pc": {"src": "steam"}})
         h, _ = titles.upsert(d, "Moon Rover", meta_id="3456789012345678")
         titles.set_wishes(d, "gg", [a, f, h])
         d["titles"][h].update(owned={"meta": {"at": "2026-10-01"}}, crossbuy=True)
-        self.assertEqual(lists.auto(d), ["Pixel Kart"])
-        self.assertFalse(d["titles"][g]["wish"])
-        self.assertNotIn("Moon Rover", {x["name"] for x in lists.check(d, {"gg_wish": "x"})})
-        d["titles"][h]["crossbuy"] = False
-        self.assertIn("Moon Rover", {x["name"] for x in lists.check(d, {"gg_wish": "x"})})
+        self.assertEqual(lists.undo_auto(d), ["Pixel Kart"])
+        self.assertTrue(d["titles"][g]["wish"])
+        self.assertNotIn("wish_done", d["titles"][g])
+        self.assertEqual(lists.undo_auto(d), [])
+        got = {x["name"]: x for x in lists.check(d, {"gg_wish": "x"})}
+        self.assertEqual((got["Pixel Kart"]["kind"], got["Moon Rover"]["kind"]), ("owned", "owned"))
+        self.assertIn("Crossbuy", got["Moon Rover"]["why"])
         st = lists.stale(d, datetime(2026, 10, 22, tzinfo=timezone.utc))
         self.assertEqual([x["src"] for x in st], ["meta"])
 

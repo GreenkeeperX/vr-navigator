@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.16:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.17:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -261,10 +261,10 @@ zusammenpasst, steht unter „Zu erledigen“, je Gruppe mit einer Aktion für a
 
 - **Gekauft, noch auf der Wunschliste:** du besitzt ihn (Meta-Käufe, Steam-Konto, Sharenite,
   Playnite). Links führen zur Liste im Laden, wo er noch steht; „von der Wunschliste“ nimmt ihn
-  im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst. Ab 0.8.12 klärt der Abgleich
-  selbst: Steht ein gekaufter Titel auf keiner Wunschliste eines Ladens (und nicht von Hand), ist der
-  Wunsch erfüllt und fällt weg (Protokoll „Wunschliste: gekauft …“); bei Meta mit Crossbuy gekauft gilt
-  auch ein Eintrag auf der gg.deals- oder Steam-Wunschliste als erledigt.
+  im Tool weg, „behalten“, wenn du die Fassung im anderen Laden willst. Das entscheidest immer du
+  (Entscheidung 28.10.2026): Von 0.8.13 bis 0.8.16 nahm der Abgleich gekaufte Titel ohne Laden-Wunschliste
+  selbst weg; ab 0.8.17 sind sie wieder gewünscht und stehen hier (Protokoll „Wunschliste: wieder gewünscht …“).
+  Bei Meta mit Crossbuy gekauft nennt der Grund „Crossbuy, gilt auch am PC“.
 - **Im Tool entfernt, im Laden noch gewünscht:** der Hinweis geht, sobald der Laden ihn nicht
   mehr führt; „wieder wünschen“ holt ihn zurück.
 - **Fehlt auf einer Laden-Wunschliste** (bis 0.8.11; ab 0.8.12 nur noch als Marke an der Karte, weil das
@@ -356,13 +356,16 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Angebote stehen zugeklappt darunter („Reduziert, aber noch weit über dem Bestpreis“). Sortiert
   nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
   Wunschliste. Ab 0.8.11 darunter auch die PC-Wünsche, die höchstens 5 % über dem bisherigen Tief bei gg.deals
-  liegen, als Liste wie unter Wunschliste, PC; der Schalter „Alle, VR, PC“ zeigt beide oder nur eine Seite.
+  liegen, als Liste wie unter Wunschliste, PC; die Reiter „Alle, PC, VR“ (ab 0.8.17, vorher ein Schalter, jetzt an
+  derselben Stelle wie in Wunschliste und Sammlung) zeigen beide oder nur eine Seite.
 - **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern PC und VR (ab 0.8.7 PC zuerst, wie in der
   Sammlung). **PC** spiegelt deine gg.deals-Wunschliste (gepflegt wird sie dort), ab 0.8.7 mit Paketen und DLC
   (Marke „Paket“, „DLC“; Preis über den Link zur Seite bei gg.deals, die API kennt nur Steam-Apps) und ohne die
   VR-Spiele, die unter VR stehen. Nennt nur der Name VR („… VR“), steht ein violettes „VR“ als Hinweis. Je Spiel der günstigste Preis jetzt (Händler
-  oder Keyshop), beide Preise einzeln, das bisherige Tief und wie weit der Preis darüber liegt; „nah am
-  Tief“ heißt höchstens 5 % darüber. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der
+  oder Keyshop, als Link zu gg.deals) und wie weit er über dem bisherigen Tief liegt: grün „am Tief“ (bis 2 %),
+  sonst rot der Betrag. Ab 0.8.17 wie im eShopKompass: Händler, Keyshop und das Tief stehen im Tooltip des
+  Preises und in den Einzelheiten statt in eigenen Spalten; dazu die Spalten Spieler und Jahr. Reihenfolge:
+  Spiel, Preis, zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr. „Nah am Tief“ (Jetzt) heißt höchstens 5 % darüber. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der
   Steam-Suche nach genau gleichem Namen (30 je Abgleich); ohne gg.deals-Schlüssel gibt es keine Preise.
   Ab 0.8.11 mit Spielinfos wie in der Sammlung: Spalten Wertung (Steam-Rezensionen ab 50, sonst IGDB grau und
   kursiv), Spielzeit (IGDB) und Genre (Steam und IGDB, violett nur eine Quelle); ein Klick auf den Namen zeigt
@@ -459,8 +462,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   (violett). Genres und Mehrspieler aus allen Quellen; was nur eine nennt, während eine andere etwas
   anderes sagt, ist violett. Ohne Steam-Beschreibung steht die englische von IGDB da. **VR per Mod**
   (0.8.1): Sagt PCGamingWiki bei einer Brille „hackable“, trägt das PC-Spiel die Marke „VR per Mod“;
-  hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht violett „VR-Mod?“ (ein
-  Hinweis). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
+  hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht „VR-Mod?“ (ein Hinweis, ab 0.8.17
+  türkis gestrichelt wie die VR-Marke, vorher violett). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
   Nexus-Seite, die beliebtesten Mods und die VR-Mods. **Lenkrad** (0.8.3, Sim-Racing): Steht ein
   PC-Spiel oder ein VR-Titel (ab 0.8.5, auch auf der Wunschliste) in einer Liste der Rennspiele, trägt es
   die Marke „Lenkrad“: die Liste „Supported Games“ von SimHub (ab 0.8.5, über die Steam-ID) oder die
@@ -469,7 +472,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Rennen, „Racing“ oder „Driving“, und eine Simulation, „Automobile Sim“ oder „Simulation“), steht
   violett „Lenkrad?“ (ein Hinweis). Die Kompatibilitätsliste zu Simagic selbst liegt hinter einer
   Bot-Prüfung und wird deshalb nicht abgerufen. Filter „Lenkrad“, Zeile „Sim-Racing“ in den Einzelheiten.
-  Ab 0.8.12 heißt die Marke „SimRacing“ (orange wie VR türkis, „SimRacing?“ bleibt violett), dazu im Reiter PC
+  Ab 0.8.12 heißt die Marke „SimRacing“ (orange wie VR türkis; „SimRacing?“ ab 0.8.17 orange gestrichelt), dazu im Reiter PC
   ein Filter „VR“ neben „SimRacing“ und „VR per Mod“.
   Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,
