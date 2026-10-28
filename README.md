@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.5:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.6:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -161,7 +161,11 @@ Kopieren) oder eine CSV mit den Spalten `System` und `Titel`. Erst kommt die Vor
 - **Ähnlicher Name** (0.8.4): Steht ein Spiel nicht unter seinem Namen in der Fassungsliste, dort aber ein
   ähnlicher Titel (gleiche Wörter zu 60 %, oder einer steckt ganz im anderen), steht es unter „Zu
   erledigen“, „Retro: ähnlicher Name“. „dasselbe“: der Titel der Liste gilt fortan für dieses Spiel;
-  „anderes“: der Vorschlag kommt nicht wieder. Hacks und Homebrew bekommen keinen Vorschlag.
+  „anderes“: der Vorschlag kommt nicht wieder. Hacks und Homebrew bekommen keinen Vorschlag. Ab 0.8.6
+  müssen die Zahlen gleich sein („Teil 2“ ist ein anderes Spiel; „IV“ zählt wie „4“), und Titel, die sich
+  nur in Leerzeichen unterscheiden („Moonrover“, „Moon Rover“), gelten ohne Rückfrage als gleich.
+- **DSiWare** (0.8.6): Beim DS liest das Tool auch die Liste der Download-Titel aus dem DSi-Shop. Spiele
+  aus dem DSi-Ordner finden so ihre Fassungen statt eines ähnlichen Namens.
 - **Merkmale:** `_Extras/Homebrew`, `(Unl)` oder `(Aftermarket)` ergeben „Homebrew“, ein Ordner
   „ROM-Hacks“ ergibt „Hack“.
 - **Neu einlesen:** Neue Spiele kommen dazu. Fehlt ein Spiel eines Systems, das in der neuen
@@ -268,6 +272,12 @@ noch nicht besitzt:
 
 Oben steht, wie alt die Preise sind und wann der nächste Abgleich kommt; während eines Laufs
 der Schritt mit Fortschritt. „Aktualisieren“ startet einen Lauf sofort.
+
+**Beschleunigt auffüllen** (0.8.6, nur von Hand): ein Lauf, in dem jede lange Warteschlange (Steam-Details
+und -Rezensionen, Steam-Wertungen, IGDB, PCGamingWiki, Nexus Mods, Steam-Schlagwörter, Spielerzahlen,
+VRDB) fünfmal so viele Spiele schafft wie sonst. Gedacht für das erste Auffüllen einer großen Sammlung.
+Die Pausen zwischen zwei Abrufen und der Abbruch bei 403 und 429 bleiben, darum dauert so ein Lauf
+etwa eine Stunde. Der Zeitplan läuft danach normal weiter.
 
 Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
 

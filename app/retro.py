@@ -16,7 +16,7 @@ from . import collection, titles
 
 SRC = "retro"
 CACHE = "retro_dat.json"     # Fassungen je System (aus No-Intro, Redump, Retool), im Datenordner
-INDEX_V = 2                 # 2 (0.8.4): Produktcodes je Fassung, Titel für ähnliche Namen
+INDEX_V = 3                 # 2 (0.8.4): Produktcodes je Fassung, Titel für ähnliche Namen; 3 (0.8.6): DSiWare, Titel ohne Leerzeichen
 MAX_LINES = 100000
 
 # Endungen, die das System allein bestimmen
@@ -334,8 +334,9 @@ DATS = {
     "PS1": ("redump", "Sony - PlayStation"), "PS2": ("redump", "Sony - PlayStation 2"), "PSP": ("redump", "Sony - PlayStation Portable"),
     "3DS": ("no-intro", "Nintendo - Nintendo 3DS"),
 }
-# Weitere Listen desselben Systems (0.8.4): beim 3DS die Download-Titel aus dem eShop
-EXTRA_DATS = {"3DS": ["Nintendo - Nintendo 3DS (Digital)"]}
+# Weitere Listen desselben Systems (0.8.4): beim 3DS die Download-Titel aus dem eShop, beim DS ab 0.8.6 die
+# Liste „Nintendo DSi“ (in der libretro-database die DSiWare-Titel aus dem DSi-Shop; No-Intro nennt sie „DSi (Digital)“)
+EXTRA_DATS = {"3DS": ["Nintendo - Nintendo 3DS (Digital)"], "DS": ["Nintendo - Nintendo DSi"]}
 _SKIP_REL = re.compile(r"\((?:Beta|Proto|Demo|Sample|Kiosk|Pirate|Debug)[^)]*\)", re.I)
 
 
@@ -377,7 +378,8 @@ def build_index(dat_text, retool_text=""):
     einer Gruppe, wenn sie denselben Titel, denselben Produktcode oder dieselbe Retool-Gruppe
     haben. Ergebnis: {"rel": [[Name, Sprachen, geschätzt]], "grp": {Titel: Gruppe},
     "mem": {Gruppe: [Fassungen]}, "via": {Gruppe: „code“/„retool“/„name“}, "code": {Produktcode: Gruppe},
-    "ser": {Produktcode mit Region: Fassung}, "tn": {Titel: Titel wie geschrieben}}."""
+    "ser": {Produktcode mit Region: Fassung}, "tn": {Titel: Titel wie geschrieben},
+    "sq": {Titel ohne Leerzeichen: Gruppe} (0.8.6: „Moonrover“ ist „Moon Rover“)}."""
     rels, parent = [], {}
 
     def find(x):
@@ -404,15 +406,16 @@ def build_index(dat_text, retool_text=""):
                 term = str(t.get("searchTerm") or "")
                 if term and "(" not in term and not t.get("filters"):
                     retool[titles.norm(article_front(term))] = "g:" + str(g.get("group") or term)
-    for m in re.finditer(r'rom \( name "([^"]+)"([^)]*)', str(dat_text or "")):
-        fname = m.group(1)
-        if _SKIP_REL.search(fname):
+    # Je Spiel der Name aus „game ( name …“ (0.8.6): In der DSi-Liste heißen viele Dateien nur „00000000“, und
+    # Discs mit mehreren Spuren zählen so als eine Fassung
+    for m in re.finditer(r'(?ms)^game \(\s*name "([^"]+)"(.*?)^\)', str(dat_text or "")):
+        name = m.group(1)
+        if _SKIP_REL.search(name):
             continue
-        info = parse_name(fname)
+        info = parse_name(name)
         if not info["title"]:
             continue
         sm = re.search(r'serial "([^"]*)"', m.group(2))
-        name = re.sub(r"\.[A-Za-z0-9]{1,6}$", "", fname)
         i = len(rels)
         rels.append([name, ",".join(info["langs"]), 1 if info["lang_guess"] else 0])
         t = "t:" + titles.norm(info["title"])
@@ -437,7 +440,14 @@ def build_index(dat_text, retool_text=""):
         elif x.startswith("r:"):
             mem.setdefault(r, []).append(int(x[2:]))
     via = {r: ("code" if "code" in w else "retool" if "retool" in w else "name") for r, w in joined.items() if r in mem}
-    return {"rel": rels, "grp": grp, "mem": mem, "via": via, "code": codes, "ser": ser, "tn": tn}
+    sq = {}
+    for t, r in grp.items():
+        sq.setdefault(_squash(t), r)
+    return {"rel": rels, "grp": grp, "mem": mem, "via": via, "code": codes, "ser": ser, "tn": tn, "sq": sq}
+
+
+def _squash(n):
+    return n.replace(" ", "")
 
 
 def _de_rank(rel):
@@ -465,7 +475,8 @@ def match(g, idx):
         return dict({"st": "have"}, **exact)
     code = _serial_code(g.get("serial"))
     r = (idx.get("code") or {}).get(code) if code else None
-    r = r or (idx.get("grp") or {}).get(g.get("alias") or titles.norm(g.get("name") or ""))
+    mine_t = g.get("alias") or titles.norm(g.get("name") or "")
+    r = r or (idx.get("grp") or {}).get(mine_t) or (idx.get("sq") or {}).get(_squash(mine_t))
     members = (idx.get("mem") or {}).get(r) if r else None
     if not members:
         out = {"st": "unknown"}
@@ -484,8 +495,15 @@ def match(g, idx):
 _WORD = re.compile(r"[a-z0-9]+")
 
 
+_ROMAN = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9", "x": "10"}
+
+
 def _words(n):
-    return set(_WORD.findall(n)) - {"the", "a", "an", "of", "der", "die", "das", "and", "und", "3d"}
+    return {_ROMAN.get(w, w) for w in _WORD.findall(n)} - {"the", "a", "an", "of", "der", "die", "das", "and", "und", "3d"}
+
+
+def _numbers(words):
+    return {w for w in words if w.isdigit()}
 
 
 _INV = {}       # Wörter je Titel einer Fassungsliste, nur im Speicher: {id(Index): (Index, Wörter)}
@@ -507,7 +525,8 @@ def _inverted(idx):
 
 def similar(name, idx):
     """Ähnlichster Titel der Fassungsliste, wenn es keinen gleichen gibt: gleiche Wörter zu mindestens 60 %
-    (Jaccard) oder ein Titel steckt mit mindestens zwei Wörtern ganz im anderen. Nur ein Vorschlag zum
+    (Jaccard) oder ein Titel steckt mit mindestens zwei Wörtern ganz im anderen. Zahlen müssen gleich sein
+    (0.8.6: „Teil 2“ ist ein anderes Spiel als „Teil“; römische Zahlen zählen als Zahl). Nur ein Vorschlag zum
     Bestätigen in „Zu erledigen“, nie von allein."""
     tn = idx.get("tn") or {}
     if not tn:
@@ -518,8 +537,11 @@ def similar(name, idx):
         return None
     cands = {k for w in mine for k in inv.get(w, ())[:400]}
     best, score = None, 0.0
+    nums = _numbers(mine)
     for k in cands:
         other = _words(k)
+        if _numbers(other) != nums:
+            continue
         j = len(mine & other) / len(mine | other)
         inside = min(len(mine), len(other)) >= 2 and (mine <= other or other <= mine)
         sc = max(j, 0.7 if inside else 0.0)

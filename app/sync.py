@@ -85,6 +85,11 @@ WHEEL_DAYS = 90
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 30          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
+# Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
+# Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
+FAST = 5
+FAST_LIMITS = ("REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX",
+               "PLAYERS_MAX", "VRDB_MAX")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
@@ -1533,16 +1538,17 @@ def _wheel(log):
     old_list = _iso(now() - timedelta(days=WHEEL_LIST_DAYS))
     wl = store.load_json(wheel.LIST_FILE, {})
     changed = False
-    if (wl.get("at") or "") < old_list:
+    force = wl.get("v") != wheel.V      # neuer Leser (0.8.6): gespeicherte Listen neu lesen statt 30 Tage warten
+    if force or (wl.get("at") or "") < old_list:
         names = wheel.game_list(src.get(wheel.LIST, shown=wheel.LIST_NAME) or "")
         if len(names) >= 20:            # weniger heißt: die Seite sah anders aus, alte Liste behalten
-            wl.update(at=titles.now_iso(), names=names)
+            wl.update(at=titles.now_iso(), names=names, v=wheel.V)
             changed = True
         elif not src.stopped:
             log(f"{label}: {wheel.LIST_NAME} nicht lesbar ({len(names)} Namen), "
                 + (f"die vom {wl['at'][:10]} gilt weiter" if wl.get("names") else "ohne diese Bestätigung"))
     sh = wl.get("simhub") or {}
-    if (sh.get("at") or "") < old_list and not src.stopped:
+    if (force or (sh.get("at") or "") < old_list) and not src.stopped:
         r = wheel.simhub(src.get(wheel.SIMHUB, shown=wheel.SIMHUB_NAME) or "")
         if len(r["apps"]) >= 20 or len(r["names"]) >= 20:
             wl["simhub"] = dict(r, at=titles.now_iso())
@@ -1758,12 +1764,15 @@ def _assign(log, budget, rest):
     log(f"Zuordnung: fertig nach {_took(start)}" + (f", {len(left)} Fälle unter „Zu erledigen“" if left else ", nichts offen"))
 
 
-def run(only=None, boot=False, by_hand=False):
-    """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. Läuft schon einer,
-    kommt False zurück."""
+def run(only=None, boot=False, by_hand=False, fast=False):
+    """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. fast: Grenzen je Lauf mal FAST
+    (nur von Hand). Läuft schon einer, kommt False zurück."""
     if not _running.acquire(blocking=False):
         return False
+    limits = {k: globals()[k] for k in FAST_LIMITS}
     try:
+        if fast:
+            globals().update({k: v * FAST for k, v in limits.items()})
         prev = store.load_json("sync.json", {})
         st = {"started": _iso(now()), "log": [], "sources": dict(prev.get("sources") or {}),
               "rest": {k: v for k, v in (prev.get("rest") or {}).items() if v > _iso(now())}}
@@ -1779,7 +1788,8 @@ def run(only=None, boot=False, by_hand=False):
         settings = load_settings()
         log(f"VR-Navigator {sources.VERSION}, Abgleich "
             + ("von Hand" if by_hand else "nach dem Start" if boot else "nach Zeitplan")
-            + (", nur " + ", ".join(NAMES[x] for x in NAMES if x in only) if only else ""))
+            + (", nur " + ", ".join(NAMES[x] for x in NAMES if x in only) if only else "")
+            + (f", beschleunigt (je Quelle bis zu {FAST}-mal so viele Abrufe, Pausen wie sonst)" if fast else ""))
         _old_misses["ignore"] = prev.get("search_v") != SEARCH_V
         if _old_misses["ignore"] and prev:
             log("Suche geändert: Titel ohne Treffer werden diesmal neu gesucht")
@@ -1917,15 +1927,16 @@ def run(only=None, boot=False, by_hand=False):
         store.save_json("sync.json", st)
         return True
     finally:
+        globals().update(limits)
         STATE.update(step="", done=0, total=0)
         _running.release()
 
 
-def start(only=None):
+def start(only=None, fast=False):
     """Lauf im Hintergrund starten. False, wenn schon einer läuft."""
     if _running.locked():
         return False
-    threading.Thread(target=run, args=(only,), kwargs={"by_hand": True}, daemon=True).start()
+    threading.Thread(target=run, args=(only,), kwargs={"by_hand": True, "fast": bool(fast)}, daemon=True).start()
     return True
 
 

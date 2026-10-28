@@ -1231,6 +1231,7 @@ function settingsView(){
     <p class="hint">Liest deine Konten, ordnet alle Titel zu und holt Preise und Messwerte. Ein Lauf dauert einige Minuten, weil zwischen zwei Abrufen einer Quelle Pausen liegen; nach einer Sperre ruht eine Quelle 24 Stunden.</p>
     ${sub("quellen", "Quellen", srcInfo, `<div class="scroll"><table class="mini-t"><tbody>${rows}</tbody></table></div>`, !bad)}
     <div class="bar slim" style="margin-top:10px"><button class="primary" data-act="sync" ${sy.running ? "disabled" : ""}>${sy.running ? "Läuft …" : "Aktualisieren"}</button>
+      <button data-act="sync" data-v="fast" ${sy.running ? "disabled" : ""} title="Ein Lauf mit 5-mal so vielen Abrufen je Quelle, für das erste Auffüllen einer großen Sammlung. Die Pausen bleiben, darum dauert er etwa eine Stunde.">Beschleunigt auffüllen</button>
       <button data-act="diag" ${V.diagRunning ? "disabled" : ""} title="Fragt jede Quelle einmal an und zeigt, was zurückkommt; dauert bis zu einer Minute und speichert nichts">${V.diagRunning ? "Test läuft …" : "Verbindung testen"}</button></div>
     ${V.diag ? sub("diagbox", "Verbindungstest", `${esc(V.diagAt || "")} · <button class="link" data-act="copy" data-v="diag">Ergebnis kopieren</button>`, `<pre class="log" id="diag">${esc(V.diag.join("\n"))}</pre>`) : ""}
     ${sub("logbox", "Protokoll", logInfo + (sy.started ? ` · <button class="link" data-act="copy" data-v="log">kopieren</button>` : ""), `<pre class="log" id="log"></pre>`, sy.ok !== false && !sy.running, "logfold")}
@@ -1691,7 +1692,7 @@ document.addEventListener("click", async ev => {
     const res = await act("/api/title/delete", {key: el.dataset.k});
     if(res){ $("edit").close(); toast(`„${name}“ gelöscht`, undoTo(res)); }
   }
-  else if(a === "sync"){ if(await act("/api/sync", {})) watchSync(); }
+  else if(a === "sync"){ if(await act("/api/sync", el.dataset.v === "fast" ? {fast: true} : {})) watchSync(); }
   else if(a === "diag"){
     V.diagRunning = true; render();
     // 0.8.0: der Test läuft auf dem Server weiter, die Seite fragt alle zwei Sekunden nach (kein 504 mehr)

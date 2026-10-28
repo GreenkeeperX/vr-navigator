@@ -87,7 +87,9 @@ Simagic-Liste liegt hinter einer Bot-Prüfung. 0.8.4 Retro: 3DS mit Fassungslist
 Sprachen genau der eigenen Fassung über den Produktcode im Dateinamen; ähnliche Namen ohne Treffer zum
 Bestätigen in „Zu erledigen“. 0.8.5 nach dem Verbindungstest: Lenkrad auch für VR-Titel, SimHub als zweite
 Liste (Steam-ID im Bildnamen), strengere Schlagwort-Regel, Simucube nur der erste Beitrag; Nexus-Spieleliste
-in Seiten zu 80. Grundsatz (Entscheidung 22.10.2026): so wenig
+in Seiten zu 80. 0.8.6: „Beschleunigt auffüllen“ (ein Lauf von Hand mit fünffachen Grenzen, Pausen
+bleiben); Retro: DSiWare-Liste beim DS, Titel ohne Leerzeichen gleich, ähnliche Namen nur bei gleichen
+Zahlen; die Simucube-Liste wird nach einem neuen Leser gleich neu gelesen. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

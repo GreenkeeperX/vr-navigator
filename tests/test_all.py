@@ -565,6 +565,26 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(col2["games"]["retro:3ds:pixel"]["de"], {"st": "unknown"})
         # Liste der Download-Titel beim 3DS
         self.assertIn("Nintendo%203DS%20%28Digital%29.dat", retro.extra_urls("3DS")[0])
+        self.assertIn("Nintendo%20DSi.dat", retro.extra_urls("DS")[0])
+
+    def test_retro_dsiware_and_names(self):
+        """0.8.6: DSiWare-Liste mit Dateinamen „00000000“ (der Name des Spiels gilt), Titel ohne Leerzeichen gleich,
+        ähnliche Namen nur bei gleichen Zahlen (römisch wie arabisch)."""
+        dat = ('game (\n\tname "Moon Rover (Europe) (En,Fr,De)"\n\tserial "KMRP"\n'
+               '\trom ( name "00000000" size 1 crc 00000001 serial "KMRP" )\n)\n'
+               'game (\n\tname "Mega Comet Zero (USA, Europe)"\n\trom ( name "Mega Comet Zero (USA, Europe).nds" size 1 )\n)\n'
+               'game (\n\tname "Mega Comet Zero 2 (Europe)"\n\trom ( name "Mega Comet Zero 2 (Europe).nds" size 1 )\n)\n'
+               'game (\n\tname "Pixel Garden (Europe)"\n\trom ( name "Pixel Garden (Europe).nds" size 1 )\n)\n'
+               'game (\n\tname "Star Hop IV - Heimweg (Europe) (De)"\n\trom ( name "Star Hop IV - Heimweg (Europe) (De).nds" size 1 )\n)\n')
+        idx = retro.build_index(dat)
+        self.assertEqual(len(idx["rel"]), 5)
+        self.assertNotIn("00000000", idx["grp"])
+        g = lambda n: {"name": n, "langs": ["En"], "lang_guess": False}
+        self.assertEqual(retro.match(g("Moon Rover"), idx)["st"], "missing")
+        self.assertEqual(retro.match(g("MegaComet Zero"), idx)["st"], "none")                 # ohne Leerzeichen gleich
+        self.assertEqual(retro.match(g("Pixel Garden 2"), idx), {"st": "unknown"})            # andere Zahl, kein Vorschlag
+        self.assertEqual(retro.match(g("Mega Comet Zero 3"), idx), {"st": "unknown"})
+        self.assertEqual(retro.match(g("Star Hop 4 Heimweg"), idx)["near"], "Star Hop IV - Heimweg")
         self.assertEqual(retro.extra_urls("GBA"), [])
 
     def test_replace_keeps_fetched_and_gem(self):
@@ -1920,6 +1940,26 @@ class TestSync(unittest.TestCase):
         calls.clear()
         sync._wheel(logs.append)
         self.assertEqual(calls, [])
+        # Liste mit altem Leser (0.8.6): beide Listen gleich neu, nicht erst nach 30 Tagen
+        wl = store.load_json(wheel.LIST_FILE, {})
+        wl.pop("v")
+        store.save_json(wheel.LIST_FILE, wl)
+        sync._wheel(logs.append)
+        self.assertEqual(sum(wheel.LIST in u or wheel.SIMHUB in u for u in calls), 2)
+        self.assertEqual(store.load_json(wheel.LIST_FILE, {})["v"], wheel.V)
+
+    def test_fast_run(self):
+        """Beschleunigt auffüllen (0.8.6): Grenzen je Lauf mal FAST nur in diesem Lauf, danach wie vorher."""
+        seen, old = [], sync._details
+        sync._details = lambda log: seen.append((sync.DETAILS_MAX, sync.IGDB_NAMES)) or {"ok": True, "at": "x"}
+        try:
+            self.assertTrue(sync.run(only={"details"}, by_hand=True, fast=True))
+            self.assertIn("beschleunigt", store.load_json("sync.json", {})["log"][0])
+            self.assertTrue(sync.run(only={"details"}, by_hand=True))
+        finally:
+            sync._details = old
+        self.assertEqual(seen[0], (120 * sync.FAST, 120 * sync.FAST))
+        self.assertEqual(seen[1], (120, 120))
 
     def test_pc_wishlist(self):
         """PC-Wunschliste (0.8.2): ganze gg.deals-Liste, Steam-ID aus der Sammlung oder der Steam-Suche, Preise über
