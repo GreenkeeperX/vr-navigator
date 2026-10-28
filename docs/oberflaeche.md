@@ -169,7 +169,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   links (`clip-path`); wird gleich danach neu gezeichnet, läuft es mit negativer Verzögerung weiter
   (`V.famAt`), statt abzubrechen.
 - Switch-Spiele (0.7.5, Entscheidung 27.10.2026): ein Reiter „Switch 2“ für beide, Filter „System“
-  (alle, Switch 2, nur Switch, `d.sw`; nur in diesem Reiter). Stehen im Reiter nur Spiele mit `kv`,
+  (alle, Switch 2, nur Switch, `d.sw`; nur in diesem Reiter; ab 0.8.20 ein Menü am Ende der Filterzeile, damit die übrigen
+  Filter beim Wechsel der Reiter an ihrem Platz bleiben). Stehen im Reiter nur Spiele mit `kv`,
   gelten auch dessen Filter: Spielweise (`K_HOW`, statt Mehrspieler), Spielzeit, USK (0.7.6). Mit der Zeile aus dem eShopKompass (`kv`) gelten dessen
   Spalten (`K_COLS`, Kopf „Spieler“ über Konsole, Lokal, Online), Marken (`.lgt`: Switch 2, S2-Upgrade,
   fehlende Spielmodi, GameShare blau, ohne Deutsch rot, „aus: Paket“) und Einzelheiten (`kDetail`);
@@ -183,10 +184,11 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Quelle Genres, gilt IGDB als bestätigt. Tooltips nennen die Quellen (`g.srcs`). Die Einzelheiten
   wiederholen die Wertung der Zeile nicht, nur weitere (Metacritic, IGDB neben Steam).
 - VR per Mod (0.8.1): Marke „VR per Mod“ (`.b`) nach PCGamingWiki „hackable“; nur Nexus-Mods mit VR im Namen
-  oder vorpX: „VR-Mod?“ (`.b.vrq`, ab 0.8.17 türkis gestrichelt in der Farbe der VR-Marke), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
+  oder vorpX: „VR-Mod“ (`.b.vrq`, türkis gestrichelt in der Farbe der VR-Marke, ab 0.8.20 ohne „?“), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
   Spiel im Reiter eins von beiden hat. Einzelheiten: Zeilen „VR per Mod“ und „Nexus Mods“ mit Links.
 - SimRacing (ab 0.8.12, vorher „Lenkrad“): Marke orange gefüllt (`.b.simb`, Token `--sim`), wie VR türkis (`.b.vrb`);
-  „SimRacing?“ orange gestrichelt (`.b.simq`, ab 0.8.17; Hinweise mit „?“ tragen die Farbe ihrer Marke, nur umrandet). Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
+  „SimRacing“ orange gestrichelt (`.b.simq`). Ab 0.8.20: bestätigte Marken VR, VR per Mod und SimRacing (`.b.vrb`, `.b.simb`)
+  durchgehend umrandet in ihrer Farbe wie „Geheimtipp“, Hinweise gestrichelt ohne „?“; ein „VR“ nur nach dem Namen ebenfalls türkis gestrichelt. Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
 - Geheimtipp (ab 0.8.12): grün umrandet (`.b.gemb`), erst ab Wert 0,4 (`GEM_MIN`).
 - Preise als Links (ab 0.8.12, `extLink`, `a.pl` in Textfarbe): VR-Karte Meta und Steam in den Laden, gg.deals-Zeile zu
   gg.deals; PC-Wunschliste der Preis zu gg.deals (Händler, Keyshop, Tief und Stand im Tooltip, `pcPriceTip`), ★ gold

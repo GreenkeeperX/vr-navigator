@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.19:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.20:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -473,8 +473,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   (violett). Genres und Mehrspieler aus allen Quellen; was nur eine nennt, während eine andere etwas
   anderes sagt, ist violett. Ohne Steam-Beschreibung steht die englische von IGDB da. **VR per Mod**
   (0.8.1): Sagt PCGamingWiki bei einer Brille „hackable“, trägt das PC-Spiel die Marke „VR per Mod“;
-  hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht „VR-Mod?“ (ein Hinweis, ab 0.8.17
-  türkis gestrichelt wie die VR-Marke, vorher violett). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
+  hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht „VR-Mod“ (ein Hinweis, türkis
+  gestrichelt; bis 0.8.19 mit „?“). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
   Nexus-Seite, die beliebtesten Mods und die VR-Mods. **Lenkrad** (0.8.3, Sim-Racing): Steht ein
   PC-Spiel oder ein VR-Titel (ab 0.8.5, auch auf der Wunschliste) in einer Liste der Rennspiele, trägt es
   die Marke „Lenkrad“: die Liste „Supported Games“ von SimHub (ab 0.8.5, über die Steam-ID) oder die
@@ -483,7 +483,7 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Rennen, „Racing“ oder „Driving“, und eine Simulation, „Automobile Sim“ oder „Simulation“), steht
   violett „Lenkrad?“ (ein Hinweis). Die Kompatibilitätsliste zu Simagic selbst liegt hinter einer
   Bot-Prüfung und wird deshalb nicht abgerufen. Filter „Lenkrad“, Zeile „Sim-Racing“ in den Einzelheiten.
-  Ab 0.8.12 heißt die Marke „SimRacing“ (orange wie VR türkis; „SimRacing?“ ab 0.8.17 orange gestrichelt), dazu im Reiter PC
+  Ab 0.8.12 heißt die Marke „SimRacing“ (ab 0.8.20 wie „VR“ und „Geheimtipp“ nur umrandet in ihrer Farbe; aus Steam-Schlagwörtern allein gestrichelt, ohne „?“), dazu im Reiter PC
   ein Filter „VR“ neben „SimRacing“ und „VR per Mod“.
   Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,

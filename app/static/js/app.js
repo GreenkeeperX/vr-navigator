@@ -350,7 +350,7 @@ function pcRow(r){
   const low = r.over == null ? "" : atLow ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
     : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`;
   const pl = !r.players ? "" : `<span class="${r.pl_src === "IGDB" ? "" : "gxc"}" title="${r.pl_src === "IGDB" ? "Laut IGDB" : "Nur eine Quelle"}">bis ${r.players}</span>`;
-  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
     `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
     cell("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
@@ -985,13 +985,13 @@ function gBadges(g){
     return b.join("");
   }
   if(kOn(g)) return b.join("") + kBadges(g);
-  // VR am PC (0.8.7): Steam, VR-Titel im Tool oder VR-Prüfung im Store; nennt nur der Name VR, ist es ein Hinweis (violett)
-  if(g.vr) b.push(g.vr_guess ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR, Steam und das Tool sagen nichts dazu">VR</span>`
+  // VR am PC (0.8.7): Steam, VR-Titel im Tool oder VR-Prüfung im Store; nennt nur der Name VR, ist es ein Hinweis (ab 0.8.20 türkis gestrichelt)
+  if(g.vr) b.push(g.vr_guess ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR, Steam und das Tool sagen nichts dazu">VR</span>`
     : `<span class="b vrb" title="${esc(g.from_vr ? `Dein VR-Titel (${g.store}); Playnite kennt ihn nicht` : `VR laut ${g.vr_src || "Steam"}`)}">VR</span>`);
-  // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (violett)
-  else if(g.vrmod?.length) b.push(`<span class="b" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
-  else if(vrMod(g)) b.push(`<span class="b vrq" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
-  // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (violett)
+  // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (gestrichelt)
+  else if(g.vrmod?.length) b.push(`<span class="b vrb" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
+  else if(vrMod(g)) b.push(`<span class="b vrq" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod</span>`);
+  // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (gestrichelt)
   b.push(wheelBadge(g.wheel));
   // Ab 0.8.12 erst ab 0,4 (vorher 0,2: das traf zu viele Spiele, um noch ein Tipp zu sein); heißt etwa 90 % positiv
   // bei bis zu 100 Rezensionen oder 95 % bei bis zu 400
@@ -1092,10 +1092,10 @@ function gDetail(g){
   const src = [g.from_vr ? `dein VR-Titel im Tool (${esc(g.store)}), Playnite kennt ihn nicht${g.src === "steam" ? "; Steam-Details" : ""}` : g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
     g.own && "deine Ordner-Liste", g.lname && `libretro-database (dort „${esc(g.lname)}“)`,
     g.ig ? `IGDB${g.iname ? ` (dort „${esc(g.iname)}“)` : ""}` : ""].filter(Boolean).join(", ");
-  const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
+  const small = [g.added && `hinzugefügt am ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
-// Sim-Racing (0.8.3, Listen ab 0.8.5): bestätigt in einer Liste der Rennspiele; nur Steam-Schlagwörter: violett
+// Sim-Racing (0.8.3, Listen ab 0.8.5): bestätigt in einer Liste der Rennspiele; nur Steam-Schlagwörter: gestrichelt; ab 0.8.20 beide umrandet, ohne „?“
 const WHEEL_SRC = {"SimHub": ["https://www.simhubdash.com/supported-games/", "SimHub unterstützt das Spiel (Liste der Rennspiele)"],
   "Simucube-Forum": ["https://community.granitedevices.com/t/5645", "Rennsimulationen für Direktantriebe mit Force Feedback; was dort läuft, läuft auch mit Simagic"]};
 const WHEEL_LIST = "Liste der Rennspiele (SimHub, Simucube-Forum)";
@@ -1103,7 +1103,7 @@ function wheelBadge(w){
   if(!w) return "";
   const tags = w.tags.length ? `Steam-Schlagwörter: ${w.tags.join(", ")}` : "";
   return w.src.length ? `<span class="b simb" title="${esc([`Laut ${w.src.join(" und ")}`, tags].filter(Boolean).join("\n"))}">SimRacing</span>`
-    : `<span class="b simq" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">SimRacing?</span>`;
+    : `<span class="b simq" title="${esc(`Nur ein Hinweis, nicht geprüft\n${tags}`)}">SimRacing</span>`;
 }
 function wheelHtml(g){
   const w = g.wheel;
@@ -1241,7 +1241,11 @@ function findView(){
   const how = kv ? `<details class="menu" ${menuAttr("how")}><summary>Spielweise${d.how.length ? ` <span class="cnt">${d.how.length}</span>` : ""}</summary><div class="pop">
     <p class="hint">Mehrere gewählt: alle müssen passen.</p>
     ${K_HOW.map(([k, l, tip]) => `<label title="${esc(tip)}"><input type="checkbox" data-dhow="${k}"${d.how.includes(k) ? " checked" : ""}> ${esc(l)} <span class="n">${hn[k]}</span></label>`).join("")}</div></details>` : "";
-  const filters = `<div class="dfilter">${sw ? `<label>System <select data-dset="sw">${opt([["", "alle"], ["s2", "Switch 2"], ["s1", "nur Switch"]], d.sw)}</select></label>` : ""}${kv ? how : kinds}${genres}
+  // 0.8.20: als Menü am Ende der Zeile, damit die übrigen Filter beim Wechsel der Reiter an ihrem Platz bleiben
+  const SW = [["", "alle"], ["s2", "Switch 2"], ["s1", "nur Switch"]];
+  const swMenu = sw ? `<details class="menu" ${menuAttr("sw")}><summary>${d.sw ? esc(SW.find(x => x[0] === d.sw)[1]) : "System"}</summary><div class="pop">
+    ${SW.map(([k, l]) => `<label><input type="radio" name="dsw" data-dset="sw" value="${k}"${(d.sw || "") === k ? " checked" : ""}> ${l}</label>`).join("")}</div></details>` : "";
+  const filters = `<div class="dfilter">${kv ? how : kinds}${genres}
       ${inTab.some(g => g.players) ? `<label>Spieler <select data-dset="min">${opt([[0, "egal"], [2, "ab 2"], [3, "ab 3"], [4, "ab 4"], [8, "ab 8"]], d.min)}</select></label>` : ""}
       ${stores.length > 1 ? `<label>${vr ? "Besitz" : "Launcher"} <select data-dset="st">${opt([["", "alle"]].concat(stores.map(x => [x, x])), d.st)}</select></label>` : ""}
       ${inTab.some(g => g.score != null) ? `<label>Wertung <select data-dset="sc">${opt(kv ? [[0, "egal"], [70, "ab 70"], [80, "ab 80"], [90, "ab 90"]] : [[0, "egal"], [60, "ab 60 %"], [70, "ab 70 %"], [80, "ab 80 %"], [90, "ab 90 %"]], d.sc)}</select></label>` : ""}
@@ -1250,10 +1254,10 @@ function findView(){
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
       ${vr ? `<label><input type="checkbox" data-dset="cb"${d.cb ? " checked" : ""}> Crossbuy</label>` : ""}
-      ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (violett, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> SimRacing</label>` : ""}
+      ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (gestrichelt, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> SimRacing</label>` : ""}
       ${inTab.some(g => g.vr && !g.vr_guess) && d.sys === "PC" ? `<label title="Spiele mit VR laut Steam, Store-Prüfung oder als dein VR-Titel"><input type="checkbox" data-dset="vr"${d.vr ? " checked" : ""}> VR</label>` : ""}
-      ${inTab.some(vrMod) ? `<label title="VR per Mod laut PCGamingWiki oder Mods mit VR im Namen bei Nexus Mods (violett, nur ein Hinweis)"><input type="checkbox" data-dset="vm"${d.vm ? " checked" : ""}> VR per Mod</label>` : ""}
-      ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}</div>
+      ${inTab.some(vrMod) ? `<label title="VR per Mod laut PCGamingWiki oder Mods mit VR im Namen bei Nexus Mods (gestrichelt, nur ein Hinweis)"><input type="checkbox" data-dset="vm"${d.vm ? " checked" : ""}> VR per Mod</label>` : ""}
+      ${inTab.some(g => g.added) && !vr ? `<label><input type="checkbox" data-dset="old"${d.old ? " checked" : ""}> über zwei Jahre in der Sammlung</label>` : ""}${swMenu}</div>
     ${label ? `<div class="chips act">${d.how.map(h => `<button data-act="dhowoff" data-v="${esc(h)}" title="Filter entfernen">${esc((K_HOW.find(x => x[0] === h) || [h, h])[1])} ×</button>`).join("")}${d.mp.map(m => `<button data-act="dmpoff" data-v="${esc(m)}" title="Filter entfernen">${esc(C.mp_label[m] || m)} ×</button>`).join("")}${d.g.map(g => `<button data-act="dgoff" data-v="${esc(g)}" title="Filter entfernen">${esc(g)} ×</button>`).join("")}<button class="link" data-act="dreset">alle Filter zurücksetzen</button></div>` : ""}`;
   const colSort = !!V.sorts.find;
   const canAll = rows.length <= G_ALL;
@@ -1297,7 +1301,7 @@ function findView(){
    darüber, „gut“: bis 15 % oder 2 €); die übrigen Angebote auf Wunsch darunter */
 function nowView(){
   const last = S.sync?.done, far = S.now_far || [];
-  // 0.8.11: auch die PC-Wünsche nah am bisherigen Tief bei gg.deals; Filter Alle, VR, PC
+  // 0.8.11: auch die PC-Wünsche nah am bisherigen Tief bei gg.deals; ab 0.8.20 steht PC über VR wie in den Reitern
   const q = V.q.trim().toLowerCase();
   const pcAll = (S.pcwish?.rows || []).filter(r => r.near && !pcIsVr(r) && !r.owned);
   const pc = pcAll.filter(r => !q || r.name.toLowerCase().includes(q)).sort((a, b) => (a.over ?? 1e9) - (b.over ?? 1e9));
@@ -1316,7 +1320,7 @@ function nowView(){
   const pcPart = `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
   return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"]}) +
-    (kind === "pc" ? pcPart : kind === "vr" ? vr : (kind === "" && pcAll.length ? grp("now-vr", "VR", rows.length, vr) + grp("now-pc", "PC", pc.length, pcPart) : vr));
+    (kind === "pc" ? pcPart : kind === "vr" ? vr : (kind === "" && pcAll.length ? grp("now-pc", "PC", pc.length, pcPart) + grp("now-vr", "VR", rows.length, vr) : vr));
 }
 
 /* ---------------------------------------------------------------- Abrufe */
