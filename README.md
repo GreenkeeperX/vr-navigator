@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.13:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.14:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -538,6 +538,11 @@ nicht ins Repository. Schlüssel, Konten und der Preisverlauf (`history.json`) s
   erreicht den eShopKompass über den Containernamen; der eShopKompass nimmt Namen ohne Punkt an.
   `ESHOP_LINK` (optional) ist die Adresse des eShopKompass für Links im Browser. Ohne `ESHOP_URL`
   fragt der VR-Navigator nichts an.
+- Die Sammlung rechnet der Server gleich nach dem Start einmal und hält sie bereit, bis sich
+  `collection.json`, `data.json` oder die Liste der Rennsimulationen ändert (ab 0.8.14); die Seite lädt
+  sie kurz nach dem Öffnen im Hintergrund vor. Der Wechsel in den Reiter wartet dann nicht mehr.
+- Ein Abgleich dauert länger, solange die Warteschlangen (Steam-Details, PCGamingWiki, IGDB) noch gefüllt
+  werden; das Protokoll nennt die verbleibenden Läufe. Danach liest jeder Lauf nur noch, was veraltet ist.
 - Daten liegen in `data.json` im Datenordner. Eine kaputte Datei bleibt als
   `data.json.kaputt-<Zeit>` liegen und wird im Protokoll des Containers gemeldet.
 
