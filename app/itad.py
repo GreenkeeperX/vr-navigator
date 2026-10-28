@@ -83,3 +83,35 @@ def shop_rows(it, low, near):
         r["near"] = low is not None and s["p"] <= low * (1 + near) + 0.005
         rows.append(r)
     return rows
+
+
+def history_url(gid, since):
+    """Verlauf eines Spiels je Laden seit since (ISO-Tag), Preise in Deutschland."""
+    return f"{API}/games/history/v2?id={gid}&country=DE&since={since}T00:00:00Z"
+
+
+def history(text):
+    """Antwort auf history_url: {Laden: [[Tag, Preis]]}, je Tag der letzte Wert, nur Änderungen, nur Euro."""
+    d = json.loads(text)
+    if not isinstance(d, list):
+        raise ValueError("IsThereAnyDeal: Antwort des Verlaufs ist keine Liste")
+    rows = []
+    for x in d:
+        if not isinstance(x, dict):
+            continue
+        p = _amount((x.get("deal") or {}).get("price"))
+        cur = ((x.get("deal") or {}).get("price") or {}).get("currency")
+        day = str(x.get("timestamp") or "")[:10]
+        if p is None or cur not in (None, "EUR") or len(day) != 10:
+            continue
+        rows.append((str(x.get("timestamp")), str((x.get("shop") or {}).get("name") or "?")[:40], day, p))
+    out = {}
+    for _, shop, day, p in sorted(rows):
+        r = out.setdefault(shop, [])
+        if r and r[-1][0] == day:
+            r[-1][1] = p
+        else:
+            r.append([day, p])
+    for shop, r in out.items():
+        out[shop] = [x for i, x in enumerate(r) if i == 0 or x[1] != r[i - 1][1]]
+    return out

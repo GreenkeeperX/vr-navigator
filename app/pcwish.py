@@ -193,13 +193,13 @@ def settle_id(pw, key, appid):
         if appid not in offered:
             raise ValueError("diese Steam-ID stand nicht zur Wahl")
         if e.get("appid") != appid:
-            for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried"):
+            for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried", "sh", "sh_at"):
                 e.pop(f, None)
         e["appid"] = appid
     else:
         e["no_ids"] = sorted(set(e.get("no_ids") or []) | set(offered))
         e.pop("appid", None)
-        for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried"):
+        for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph", "itad", "itad_id", "itad_tried", "sh", "sh_at"):
             e.pop(f, None)
     for f in ("id_near", "id_name", "cand"):
         e.pop(f, None)

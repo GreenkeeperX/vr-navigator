@@ -2583,12 +2583,22 @@ class TestSync(unittest.TestCase):
             {"shop": {"id": 35, "name": "GOG"}, "price": eur(10.29), "regular": eur(40.0), "cut": 74, "storeLow": eur(9.99),
              "url": "https://itad.link/def/", "expiry": None},
             {"shop": {"id": 99, "name": "Fremd"}, "price": {"amount": 5, "currency": "USD"}, "regular": None, "cut": 0}]}]
+        hist = [{"timestamp": "2026-03-01T10:00:00+01:00", "shop": {"id": 35, "name": "GOG"}, "deal": {"price": eur(40.0), "regular": eur(40.0), "cut": 0}},
+                {"timestamp": "2026-06-20T19:00:00+02:00", "shop": {"id": 35, "name": "GOG"}, "deal": {"price": eur(9.99), "regular": eur(40.0), "cut": 75}},
+                {"timestamp": "2026-07-04T19:00:00+02:00", "shop": {"id": 35, "name": "GOG"}, "deal": {"price": eur(40.0), "regular": eur(40.0), "cut": 0}},
+                {"timestamp": "2026-07-04T20:00:00+02:00", "shop": {"id": 35, "name": "GOG"}, "deal": {"price": eur(40.0), "regular": eur(40.0), "cut": 0}}]
         net = FakeNet({"lookup/id/shop/61": json.dumps({"app/3100001": "uuid-harbor", "app/3100002": None}),
-                       "games/prices/v3": json.dumps(prices)})
+                       "games/prices/v3": json.dumps(prices), "games/history/v2?id=uuid-harbor": json.dumps(hist)})
         sources.fetch = net
         logs = []
         self.assertTrue(sync._itad(sync.load_settings(), logs.append)["ok"])
-        self.assertIn("IsThereAnyDeal: 1 Spiele neu zugeordnet (2 gefragt), Preise für 1 Spiele aus 2 Angeboten", "\n".join(logs))
+        self.assertIn("IsThereAnyDeal: 1 Spiele neu zugeordnet (2 gefragt), Preise für 1 Spiele aus 2 Angeboten der Läden, "
+                      "Verlauf je Laden für 1 Spiele nachgeholt", "\n".join(logs))
+        # 0.9.1: Verlauf je Laden rückwirkend, je Tag der letzte Wert, nur Änderungen; danach eigene Aufzeichnung
+        sh = store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]["harbor-heist"]["sh"]
+        self.assertEqual(sh["GOG"][:3], [["2026-03-01", 40.0], ["2026-06-20", 9.99], ["2026-07-04", 40.0]])
+        self.assertEqual(sh["GOG"][-1][1], 10.29)
+        self.assertEqual(sh["Steam"][-1][1], 20.0)
         self.assertTrue(all(fake not in u for u in net.calls))
         self.assertEqual(net.heads[0]["ITAD-API-Key"], fake)
         self.assertEqual(json.loads(net.bodies[0]), ["app/3100001", "app/3100002"])
@@ -2603,12 +2613,39 @@ class TestSync(unittest.TestCase):
         # Zweiter Lauf: keine neue Zuordnung (erst nach MISS_DAYS), nur Preise
         net.calls.clear()
         sync._itad(sync.load_settings(), logs.append)
-        self.assertEqual([u for u in net.calls if "lookup" in u], [])
+        self.assertEqual([u for u in net.calls if "lookup" in u or "history" in u], [])     # Verlauf nur einmal
         with self.assertRaises(ValueError):
             itad.prices(json.dumps({"error": "x"}))
         with self.assertRaises(ValueError):
             sync.save_settings({"itad_key": "kein Schlüssel!"})
         sync.save_settings({"itad_key": ""})
+
+    def test_verlauf(self):
+        """Preisverlauf (0.9.1): Normalpreis, Angebote, Dauer, typischer Angebotspreis; VR aus history.json, PC aus ph und sh."""
+        from app import verlauf
+        pts = [["2026-01-01", 30.0], ["2026-02-01", 15.0], ["2026-02-11", 30.0], ["2026-05-01", 12.0], ["2026-05-08", 30.0],
+               ["2026-08-01", 9.0]]
+        s = verlauf.series("Steam", pts, "2026-08-10")
+        self.assertEqual((s["regular"], s["low"], s["low_at"], s["sale_count"], s["typical_days"]), (30.0, 9.0, "2026-08-01", 3, 10))
+        self.assertEqual(s["typical"], 9.0)                       # Median 12, das letzte Angebot war tiefer
+        self.assertEqual(s["sales"][-1]["end"], None)
+        self.assertEqual(s["sales"][0]["pct"], 50)
+        self.assertEqual(verlauf.series("x", [["2026-01-01", 5.0]], "2026-01-10")["sale_count"], 0)
+        self.assertIsNone(verlauf.series("x", [], "2026-01-10"))
+        # älter als 24 Monate: der letzte Wert davor beginnt den Zeitraum
+        old = verlauf.series("x", [["2020-01-01", 7.0], ["2026-01-01", 20.0]], "2026-08-10")
+        self.assertEqual((old["since"], old["points"][0][1], old["full"]), ("2024-08-10", 7.0, True))
+        t = {"name": "Laser Tennis", "meta_id": "2222222222222222", "steam_appid": "3000001",
+             "live": {"meta": {"base": 30.0}, "steam": {"base": 25.0}}}
+        v = verlauf.vr(t, {"meta": {"2222222222222222": pts}, "steam": {"3000001": [["2026-07-01", 25.0]]}}, "2026-08-10")
+        self.assertEqual([x["name"] for x in v["series"]], ["Meta", "Steam"])
+        self.assertEqual((v["best"], v["typical"]), (9.0, 9.0))
+        e = {"name": "Harbor Heist", "ph": [["2026-07-01", 12.0]], "itad": {"shops": [{"s": "GOG", "p": 10.0, "r": 40.0}]},
+             "sh": {"GOG": [["2026-06-01", 40.0], ["2026-07-01", 10.0]]}}
+        v = verlauf.pc(e, "2026-08-10")
+        self.assertEqual([(x["name"], x["regular"]) for x in v["series"]], [("gg.deals (Händler und Keyshops)", 12.0), ("GOG", 40.0)])
+        verlauf.record_shops(e, {"shops": [{"s": "GOG", "p": 10.0}, {"s": "Steam", "p": 30.0}]}, "2026-08-10")
+        self.assertEqual((e["sh"]["GOG"][-1], e["sh"]["Steam"]), (["2026-07-01", 10.0], [["2026-08-10", 30.0]]))
 
     def test_diagnose(self):
         self.seed()

@@ -270,6 +270,12 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Preis, Name und Preis als Link, grün (`.g-buy`) höchstens 5 % über dem Tief der Händler, Rabatt als `.b.deal`,
   Normalpreis, Tief dort und Ende im Tooltip, „+n weitere“ grau mit Liste im Tooltip. Eine Sache, mehrere Orte: das
   Urteil „nah am Tief“ je Laden kommt aus `itad.shop_rows` (Server) und gilt für Einzelheiten und das Menü „Laden“.
+- Preisverlauf (0.9.1, wie im eShopKompass): Knopf „Preisverlauf“ als Link, bei VR rechts im Kopf der Karte (`.vlb`),
+  bei PC in der kleinen Zeile unten der Einzelheiten (nicht bei Paketen und DLC). Öffnet `dialog#verlauf.vl`
+  (`openVerlauf`, `drawVerlauf`, `vlSvg`): Kurve je Laden als Stufenlinie, Meta im Türkis des Tools, Steam in
+  `--deal`, gg.deals grau gestrichelt, Läden von IsThereAnyDeal in festen Farben (`VL_SHOP`); Bestpreis gold
+  (`--best`) und „typisch“ grau gestrichelt quer; Legende als Knöpfe zum Ausblenden (`V.vl.hide`, ab sieben Läden die
+  übrigen aus). Darunter eine Tabelle je Laden, am Handy seitlich scrollbar (`.scroll`). Esc schließt.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
 - VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): Spiel, Wo, Meta, Steam, zum Bestpreis,

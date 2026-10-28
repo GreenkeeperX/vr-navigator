@@ -407,3 +407,22 @@ a.pl:hover{text-decoration:underline}
 .b.vrq{background:transparent;border:1px dashed var(--brand);color:var(--brand)}
 .gr .mut{color:var(--muted)}
 .gr .valt{font-size:11px;margin-left:3px;white-space:nowrap}
+/* Preisverlauf (0.9.1), wie im eShopKompass */
+dialog.vl{width:min(920px,calc(100vw - 32px));max-height:calc(100vh - 40px);padding:16px 18px}
+dialog.vl header{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+dialog.vl h2{margin:0;font-size:18px;flex:1;min-width:0;overflow-wrap:anywhere}
+.vl svg{width:100%;height:auto;display:block;margin:8px 0}
+.vl svg text{fill:var(--muted);font-size:11px}
+.vl svg .grid{stroke:var(--line);stroke-width:1}
+.vl svg .ln{fill:none;stroke-width:2}
+.vl svg .ref{stroke-width:1.5;stroke-dasharray:5 4}
+.vl .lg{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.vl .lg button{font-size:12px;padding:2px 8px;border-radius:999px}
+.vl .lg button.off{opacity:.45}
+.vl .lg i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.vl table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+.vl th,.vl td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;vertical-align:top}
+.vl th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.vl table td:first-child,.vl table th:first-child{text-align:left}
+.vl td small{display:block;color:var(--muted);font-size:11px}
+.item .hd .vlb{margin-left:auto;font-size:12.5px}
