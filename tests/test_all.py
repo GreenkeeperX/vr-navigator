@@ -2504,7 +2504,8 @@ class TestSync(unittest.TestCase):
         sources.fetch = net
         logs = []
         self.assertTrue(sync._pcwish(sync.load_settings(), logs.append)["ok"])
-        self.assertIn("3 Spiele, 2 Steam-IDs neu zugeordnet (2 Steam-Suchen), 2 mit Preis von gg.deals, 1 ohne Steam-ID", "\n".join(logs))
+        # 0.8.24: „Night Tram Deluxe“ passt nur in der Grundform: übernommen, aber zum Bestätigen
+        self.assertIn("3 Spiele, 3 Steam-IDs neu zugeordnet (2 Steam-Suchen, 1 nach der Grundform des Namens), 2 mit Preis von gg.deals", "\n".join(logs))
         self.assertNotIn("geheim-1234567890abcd", "\n".join(logs))
         self.assertFalse(any("Harbor" in u for u in net.calls if "storesearch" in u))     # aus der Sammlung
         v = {r["slug"]: r for r in pcwish.view(store.load_data())["rows"]}
@@ -2512,7 +2513,23 @@ class TestSync(unittest.TestCase):
         self.assertTrue(v["harbor-heist"]["near"])
         self.assertTrue(v["harbor-heist"]["owned"])
         self.assertEqual(v["rally-moth"]["over"], 1.002)
-        self.assertEqual(v["night-tram"]["appid"], "")
+        self.assertEqual((v["night-tram"]["appid"], v["night-tram"]["id_near"]), ("3100009", "Night Tram Deluxe"))
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+        self.assertEqual([(x["key"], x["kind"]) for x in pcwish.id_todo(pw)], [("night-tram", "near")])
+        pcwish.settle_id(pw, "night-tram", "")                     # falsch: weg und nicht wieder vorgeschlagen
+        self.assertEqual((pw["items"]["night-tram"].get("appid"), pw["items"]["night-tram"]["no_ids"]), (None, ["3100009"]))
+        self.assertEqual(pcwish.pick("Night Tram", [{"appid": "3100009", "name": "Night Tram Deluxe"}], {"3100009"}), {})
+        # Mehrere Treffer: Vorschläge zur Wahl, nie von allein; ein Emoji im Namen stört die Suche nicht
+        two = [{"appid": "1", "name": "Lantern Keep"}, {"appid": "2", "name": "Lantern Keep"}]
+        self.assertEqual(pcwish.pick("Lantern Keep", two), {"cands": two})
+        self.assertEqual(pcwish.search_term("Road Trip 🛣️"), "Road Trip")
+        self.assertEqual(pcwish.pick("Moon Rover 2 / Mondfahrer 2", [{"appid": "7", "name": "Moon Rover 2"}]), {"appid": "7", "how": "near"})
+        self.assertEqual(pcwish.pick("Moon Rover 2", [{"appid": "8", "name": "Moon Rover"}]), {})       # andere Zahl
+        pw["items"]["night-tram"]["cand"] = [{"appid": "3100010", "name": "Night Tram: Depot"}]
+        pcwish.settle_id(pw, "night-tram", "3100010")
+        self.assertEqual((pw["items"]["night-tram"]["appid"], "cand" in pw["items"]["night-tram"]), ("3100010", False))
+        with self.assertRaises(ValueError):
+            pcwish.settle_id(pw, "night-tram", "999")
         # neue Liste: Bekanntes bleibt, Fehlendes fällt weg
         added, gone = pcwish.replace([{"slug": "rally-moth", "name": "Rally Moth"}], "Server")
         self.assertEqual((added, sorted(gone)), ([], ["Harbor Heist", "Night Tram"]))

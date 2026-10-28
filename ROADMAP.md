@@ -114,7 +114,8 @@ Nachschlagen rechts. 0.8.20: Marken VR und SimRacing umrandet, Hinweise gestrich
 Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. 0.8.21: Trend wöchentlich für alle Spiele ab 50 Rezensionen, nicht erst mit der nächsten
 Rezensionszahl. 0.8.22: VR-Wünsche als Tabelle wie die PC-Wünsche, die Karte als Einzelheiten; Jetzt
 mit zwei gleich gebauten Tabellen. 0.8.23: eine Spaltenreihenfolge für alle Tabellen, „max. Spieler“ statt Mehrspieler,
-„Aktiv“ auch für PC-Spiele, Wertung der eigenen Fassung im Reiter VR. Grundsatz (Entscheidung 22.10.2026): so wenig
+„Aktiv“ auch für PC-Spiele, Wertung der eigenen Fassung im Reiter VR. 0.8.24: PC-Wünsche ohne Steam-ID: mehr Suchen, Grundform des
+Namens, Ähnliches zum Bestätigen in „Zu erledigen“; Geheimtipp dunkler. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

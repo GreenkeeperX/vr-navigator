@@ -4,6 +4,7 @@ gg.deals bleibt führend (Entscheidung 27.10.2026): Das Tool spiegelt die Liste,
 Steam-ID zu und holt dazu die Preise über die gg.deals-API, wie der eShopKompass zu DekuDeals. Abgelegt in
 pcwish.json im Datenordner; eine neue Liste behält Steam-ID und Preise je Spiel.
 """
+import re
 from datetime import date, timedelta
 
 from . import collection, store, titles, trend
@@ -110,6 +111,101 @@ def steam_index(data, col):
     return out
 
 
+# Steam-ID per Suche (0.8.24): gesucht wird mit dem Namen ohne Zeichen, die die Steam-Suche stören (Emoji, „[Studio]“
+# vorn), und, wenn das nichts bringt, mit der Grundform (vor „ / “, ohne Zusatz wie „Definitive Edition“).
+# Genau gleicher Name, einmal: sicher. Gleich nur in der Grundform, einmal: übernommen, aber als „≈“ markiert und in
+# „Zu erledigen“ zum Bestätigen. Sonst bis zu CANDS ähnliche Namen zur Wahl, nie von allein.
+CANDS = 3
+_EDITION = re.compile(r"\s*[-:–]?\s*\b(?:the\s+)?(?:definitive|complete|enhanced|ultimate|deluxe|gold|zen|goty|game of the year|"
+                      r"anniversary|director'?s cut|legacy)(?:\s+edition)?\s*$", re.I)
+
+
+def search_term(name):
+    """Name für die Steam-Suche: ohne Emoji und Zeichen außerhalb von Buchstaben, Ziffern und üblichen Satzzeichen,
+    ohne „[…]“ am Anfang."""
+    t = re.sub(r"^\s*\[[^\]]*\]\s*", "", str(name or ""))
+    t = re.sub(r"[^\w\s:.,&'!?+\-/()]", " ", t)
+    return " ".join(t.split())
+
+
+def base_forms(name):
+    """Grundformen des Namens zum Vergleichen: vor „ / “ und „ | “, ohne Editions-Zusatz, ohne Klammer am Ende."""
+    t = search_term(name)
+    out = []
+    for part in (t, re.split(r"\s+[/|]\s+", t)[0]):
+        for x in (part, _EDITION.sub("", part)):
+            n = titles.base_norm(x)
+            if n and n not in out:
+                out.append(n)
+    return out
+
+
+def _words(n):
+    return set(n.split())
+
+
+def pick(name, results, no=()):
+    """Steam-ID aus Suchtreffern: {"appid", "how": "exact" oder "near"} oder {"cands": [{appid, name}]} oder {}."""
+    res = [r for r in results if r["appid"] not in no]
+    exact = [r for r in res if titles.norm(r["name"]) == titles.norm(name)]
+    if len(exact) == 1:
+        return {"appid": exact[0]["appid"], "how": "exact"}
+    if len(exact) > 1:
+        return {"cands": exact[:CANDS]}
+    forms = set(base_forms(name))
+    near = [r for r in res if set(base_forms(r["name"])) & forms]
+    if len(near) == 1:
+        return {"appid": near[0]["appid"], "how": "near"}
+    if len(near) > 1:
+        return {"cands": near[:CANDS]}
+    # Ähnlich: gleiche Zahlen, mindestens die Hälfte der Wörter gemeinsam (Jaccard)
+    mine = _words(titles.norm(name))
+    digits = lambda ws: {w for w in ws if w.isdigit()}
+    cands = []
+    for r in res:
+        other = _words(titles.norm(r["name"]))
+        if mine and other and digits(mine) == digits(other) and len(mine & other) / len(mine | other) >= 0.5:
+            cands.append(r)
+    return {"cands": cands[:CANDS]} if cands else {}
+
+
+def id_todo(pw):
+    """PC-Wünsche für „Zu erledigen“ (0.8.24): Steam-ID nur nach der Grundform (bestätigen) oder Vorschläge zur Wahl."""
+    out = []
+    for k, e in (pw.get("items") or {}).items():
+        if e.get("kind"):
+            continue
+        if e.get("appid") and e.get("id_near"):
+            out.append({"key": k, "name": e["name"], "appid": e["appid"], "steam": e.get("id_name") or "", "kind": "near"})
+        elif not e.get("appid") and e.get("cand"):
+            out.append({"key": k, "name": e["name"], "cands": e["cand"], "kind": "cand"})
+    return sorted(out, key=lambda x: titles.norm(x["name"]))
+
+
+def settle_id(pw, key, appid):
+    """Antwort aus „Zu erledigen“: appid gilt (aus den Vorschlägen oder die übernommene bestätigt); leer heißt falsch
+    oder keiner davon, diese IDs schlägt das Tool nicht wieder vor."""
+    e = (pw.get("items") or {}).get(key)
+    if not e:
+        raise ValueError("kein PC-Wunsch mit diesem Schlüssel")
+    offered = [c["appid"] for c in e.get("cand") or []] + ([e["appid"]] if e.get("id_near") else [])
+    if appid:
+        if appid not in offered:
+            raise ValueError("diese Steam-ID stand nicht zur Wahl")
+        if e.get("appid") != appid:
+            for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph"):
+                e.pop(f, None)
+        e["appid"] = appid
+    else:
+        e["no_ids"] = sorted(set(e.get("no_ids") or []) | set(offered))
+        e.pop("appid", None)
+        for f in ("gg", "steam", "rev", "igdb", "news", "play", "ph"):
+            e.pop(f, None)
+    for f in ("id_near", "id_name", "cand"):
+        e.pop(f, None)
+    return e
+
+
 def _vr_keys(data, col=None):
     """Steam-IDs und Namen der VR-Titel im Tool (Marke „VR“ in der PC-Liste), ab 0.8.7 auch Steam-Apps, die die
     VR-Prüfung im Store oder die Steam-Details als VR kennen."""
@@ -181,6 +277,8 @@ def view(data, col=None):
              "vr": vr or collection.vr_name(e["name"]), "vr_guess": not vr and collection.vr_name(e["name"]),
              "owned": bool(e.get("appid") and e["appid"] in owned) or titles.norm(e["name"]) in owned_names, **inf}
         r["trend"] = trend.trend(e.get("rev"))
+        if e.get("id_near"):
+            r["id_near"] = e.get("id_name") or True       # 0.8.24: Steam-ID nur nach der Grundform des Namens
         r["care"] = trend.care((e.get("news") or {}).get("date"))
         r["drop"] = drop(e.get("ph"), best[0])
         if isinstance((e.get("play") or {}).get("now"), int):

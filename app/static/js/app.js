@@ -118,7 +118,7 @@ const foldAll = `<span class="foldall"><button class="link" data-act="foldall" d
 
 /* ---------------------------------------------------------------- Rahmen */
 function renderNav(){
-  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length + (S.retro_near || []).length;
+  const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length + (S.retro_near || []).length + (S.pcwish_ids || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
   const cnt = {now: c.now || "", wish: c.wish + (S.pcwish?.rows || []).filter(r => !pcIsVr(r)).length || "", find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
@@ -336,7 +336,7 @@ function pcWishView(pw){
   const src = {Server: "über den Teilen-Link", Lesezeichen: "per Lesezeichen", Datei: "aus einer Datei"}[pw.via] || "";
   const games = all.filter(r => !r.kind).length, info = all.filter(r => r.srcs?.length).length;
   const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === all.length ? `${num(all.length)} Einträge ohne VR` : `${num(rows.length)} von ${num(all.length)} Einträgen`}</summary>
-    <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach genau gleichem Namen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.
+    <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach dem Namen; Ähnliches zum Bestätigen unter Einstellungen, Zu erledigen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.
     Spielinfos wie in der Sammlung (Wertung, Spielzeit, Genre, Mehrspieler, Beschreibung) kommen von Steam und IGDB über die Steam-ID: ${info < games ? `${num(info)} von ${num(games)} Spielen haben sie schon, der Abgleich holt je Lauf weitere` : "alle Spiele haben sie"}${S.settings?.igdb_set ? "" : "; ohne IGDB-Schlüssel nur von Steam, ohne Spielzeit"}. Klick auf den Namen zeigt Einzelheiten.
     ${pw.kinds?.pack || pw.kinds?.dlc ? `Dazu ${[pw.kinds.pack && `${num(pw.kinds.pack)} Pakete`, pw.kinds.dlc && `${num(pw.kinds.dlc)} DLC`].filter(Boolean).join(" und ")}; für sie hat die gg.deals-API keinen Preis je Steam-App, der Link führt zur Seite bei gg.deals.` : ""}
     ${nVr ? `${num(nVr)} VR-Spiele der Liste stehen unter <button class="link" data-act="wsub" data-v="vr">VR</button>.` : ""} Violett „VR“: nur der Name nennt VR, der Abgleich prüft das bei Steam.</p></details>`;
@@ -365,7 +365,7 @@ function pcRow(r){
   const low = r.over == null ? "" : atLow ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
     : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`;
   const g = Object.assign({mp: [], genres: []}, r);
-  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.id_near ? `<span class="b warn" title="${esc(`Steam-ID nur nach der Grundform des Namens${typeof r.id_near === "string" ? `: ${r.id_near}` : ""}; bestätigen unter Einstellungen, Zu erledigen`)}">Steam-ID ≈</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
     `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
     cell("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") + cell("Rezensionen", gRev(g), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
@@ -1466,7 +1466,8 @@ function settingsView(){
   // Wie im eShopKompass: grün, was läuft, rot mit Namen, was nicht läuft
   const badNames = shown.filter(([k]) => isBad(k)).map(([k]) => SRC_NAME[k] || k).join(", ");
   const srcInfo = [okN && `<b class="ok">${okN} ok</b>`, bad && `<b class="err">${bad} mit Problem</b> (${esc(badNames)})`].filter(Boolean).join(", ") || "noch nicht gelaufen";
-  const todo = S.todo || [], lists = S.lists || [], near = S.retro_near || [], rown = S.retro_own || [], open = sug + todo.length + lists.length + near.length + rown.length;
+  const todo = S.todo || [], lists = S.lists || [], near = S.retro_near || [], rown = S.retro_own || [], pcIds = S.pcwish_ids || [];
+  const open = sug + todo.length + lists.length + near.length + rown.length + pcIds.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
@@ -1485,6 +1486,14 @@ function settingsView(){
       <span class="row2"><span class="hint">${esc(x.why)}${x.row?.origin?.length ? `. Herkunft: ${originText(x.row)}` : ""}</span>
         <a href="https://queststoredb.com/all_apps/?release_status=all&amp;q=${encodeURIComponent(x.name)}" target="_blank" rel="noopener noreferrer">suchen</a>
         <button class="link" data-act="edit" data-k="${esc(x.key)}">bearbeiten</button></span></div>`).join("")}</div>`;
+  // PC-Wunschliste (0.8.24): Steam-ID nur nach der Grundform des Namens, oder mehrere Vorschläge zur Wahl
+  const sLink = (id, name) => `<a href="https://store.steampowered.com/app/${esc(id)}/" target="_blank" rel="noopener noreferrer">${esc(name || "Steam " + id)}</a>`;
+  const pcIdList = `<p class="hint">Für diese PC-Wünsche fand die Steam-Suche keinen genau gleichen Namen. Ohne Steam-ID gibt es keine Preise, Wertung und Spielinfos. „passt“ oder ein Vorschlag übernimmt die ID; „keins“ verwirft die Vorschläge, sie kommen nicht wieder.</p>
+    <div class="list">${pcIds.map(x => `<div class="item"><span class="nm">${esc(x.name)}</span>
+      <span class="row2">${x.kind === "near" ? `<span class="hint">übernommen: ${sLink(x.appid, x.steam)}</span>
+        <button data-act="pcid" data-k="${esc(x.key)}" data-v="${esc(x.appid)}" title="Die App gehört zu diesem Wunsch">passt</button>`
+        : `<span class="hint">Vorschläge:</span> ${x.cands.map(c => `${sLink(c.appid, c.name)} <button data-act="pcid" data-k="${esc(x.key)}" data-v="${esc(c.appid)}" title="Diese App übernehmen">dieses</button>`).join(" ")}`}
+        <button data-act="pcid" data-k="${esc(x.key)}" data-v="" title="Keine davon; diese Vorschläge kommen nicht wieder">${x.kind === "near" ? "falsch" : "keins"}</button></span></div>`).join("")}</div>`;
   // Retro (0.8.4): Titel ohne Treffer in der Fassungsliste, dort aber ein ähnlicher
   const nearList = `<p class="hint">Diese Retro-Spiele stehen nicht unter ihrem Namen in der Fassungsliste (No-Intro oder Redump), dort aber ein ähnlicher Titel. Ist es dasselbe Spiel, prüft das Tool darüber, ob es eine Fassung mit Deutsch gab.</p>
     <div class="list">${near.map(x => `<div class="item"><span class="nm">${esc(x.name)} <span class="hint">(${esc(x.system)})</span></span>
@@ -1505,6 +1514,7 @@ function settingsView(){
     ${sug ? sub("sug", "Derselbe Titel?", `${tn(S.suggestions.length)} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
     ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", tn(steamTodo.length), steamList) : ""}
     ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}
+    ${pcIds.length ? sub("pcids", "PC-Wunsch: Steam-ID", tn(pcIds.length), pcIdList) : ""}
     ${near.length ? sub("retronear", "Retro: ähnlicher Name", tn(near.length), nearList) : ""}
     ${rown.length ? sub("retroown", "Retro: Genre weicht von deiner Liste ab", tn(rown.length), ownList) : ""}`) : "";
   const ll = lastLine(sy);
@@ -2026,6 +2036,15 @@ document.addEventListener("click", async ev => {
       const res = await api("/api/retro/gone", {action: v});
       C = res.collection; if(S.imports.retro) S.imports.retro.gone = 0;
       toast(v === "drop" ? `${res.changed} Spiele aus der Sammlung entfernt` : `${res.changed} Spiele behalten`);
+    }catch(e){ toast(e.message); }
+    render();
+  }
+  else if(a === "pcid"){
+    const k = el.dataset.k, x = (S.pcwish_ids || []).find(y => y.key === k) || {};
+    try{
+      const res = await api("/api/pcwish/id", {key: k, appid: el.dataset.v});
+      S.pcwish = res.pcwish; S.pcwish_ids = res.pcwish_ids;
+      toast(el.dataset.v ? `Steam-ID für „${x.name}“ übernommen; Preise und Spielinfos kommen mit dem nächsten Abgleich` : `Vorschläge für „${x.name}“ verworfen`);
     }catch(e){ toast(e.message); }
     render();
   }
