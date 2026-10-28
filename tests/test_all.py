@@ -1780,7 +1780,8 @@ class TestSync(unittest.TestCase):
         col["games"]["steam:3000101"]["rev"] = {"n": 400, "pct": 91, "at": titles.now_iso()}
         store.save_json(collection.FILE, col)
         ans = json.dumps({"success": 1, "query_summary": {"total_positive": 30, "total_negative": 10, "total_reviews": 40}})
-        sources.fetch = net = FakeNet({"appreviews/3000030": ans})
+        hist = json.dumps({"success": 1, "results": {"recent": [{"recommendations_up": 5, "recommendations_down": 15}]}})
+        sources.fetch = net = FakeNet({"appreviews/3000030": ans, "appreviewhistogram/3000101": hist})
         sync.run(only={"rating"})
         self.assertEqual(len(net.calls), 1)                     # 3000101 kam aus der Sammlung
         t = store.load_data()["titles"]
@@ -1789,13 +1790,17 @@ class TestSync(unittest.TestCase):
         self.assertEqual(ra, {"meta": {"stars": 4.5, "n": 120}, "steam": {"pct": None, "n": 40}, "score": 90})
         self.assertEqual((rb["steam"], rb["score"]), ({"pct": 91, "n": 400}, 91))
         self.assertEqual(rc, {"meta": None, "steam": None, "score": None})
-        sync.run(only={"rating"})                                # frisch: kein neuer Abruf
-        self.assertEqual(len(net.calls), 1)
+        sync.run(only={"rating"})                                # frisch: nur der Trend für 3000101 (0.8.21)
+        self.assertEqual(len(net.calls), 2)
+        self.assertIn("appreviewhistogram/3000101", net.calls[1])
+        self.assertEqual(library.rating(store.load_data()["titles"][b])["steam"]["trend"]["dir"], "down")   # 25 % gegen 91 %
+        sync.run(only={"rating"})                                # Trend frisch: kein Abruf
+        self.assertEqual(len(net.calls), 2)
         d = store.load_data()
         d["titles"][a]["steam_appid"] = "3000031"                # andere Steam-ID: neu fragen
         store.save_data(d)
         sync.run(only={"rating"})
-        self.assertEqual(len(net.calls), 2)
+        self.assertEqual(len(net.calls), 3)
 
     def test_eshop_collection(self):
         """Switch-Sammlung aus dem eShopKompass (0.7.3): nur mit ESHOP_URL, genau diese eine Adresse im

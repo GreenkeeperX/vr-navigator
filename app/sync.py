@@ -69,6 +69,8 @@ PLAYERS_MAX = 80            # Spielerzahlen je Lauf (Steam, ohne Schlüssel)
 PLAYERS_H = 20              # so alt darf eine Spielerzahl werden
 PEAK_DAYS = 30              # Spitze über so viele Tage
 NEWS_DAYS = 7               # Steam-Neuigkeiten (letztes Update) so oft neu
+TREND_DAYS = 7              # Steam-Trend (Stimmen der letzten 30 Tage) so oft neu (0.8.21)
+TREND_MAX = 60              # Trend-Abrufe je Lauf, je für Titel und PC-Wunschliste
 SMALL_EUR, SMALL_REL = 0.5, 0.05   # Preisänderung darunter (beides) gilt im Protokoll als Schwankung
 BOOT_WAIT_S = 300           # Ruhe nach dem Start (etwa nach einem Update), Entscheidung 22.10.2026
 META_DAYS = 30              # Spielinfos der libretro-database (0.8.8) je System höchstens monatlich
@@ -90,7 +92,7 @@ IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
-FAST_LIMITS = ("REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
+FAST_LIMITS = ("TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
                "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
@@ -941,8 +943,30 @@ def _recent_get(src, gid):
         src.__dict__["hist_pages"] = True
         src.log(f"{src.name}: Steam-Trend liefert eine Seite statt Daten, in diesem Lauf nur eigene Messungen")
         return None
-    r = trend.histogram(text)
-    return dict(r, at=titles.now_iso()) if r else None
+    # Ohne lesbare Stimmen gilt das Spiel als gefragt (0.8.21), sonst fragt jeder Lauf es wieder
+    return dict(trend.histogram(text) or {"up": 0, "down": 0, "miss": True}, at=titles.now_iso())
+
+
+def _trend_due(entries, skip=()):
+    """Schlüssel, deren Trend fällig ist (0.8.21): ab trend.MIN_ALL Rezensionen, ohne Stimmen der letzten 30 Tage oder
+    älter als TREND_DAYS, die ältesten zuerst. entries: {Schlüssel: rev}."""
+    old = _iso(now() - timedelta(days=TREND_DAYS))
+    due = [((r.get("recent") or {}).get("at") or "", k) for k, r in entries.items()
+           if k not in skip and (r.get("n") or 0) >= trend.MIN_ALL and ((r.get("recent") or {}).get("at") or "") < old]
+    return [k for _, k in sorted(due)]
+
+
+def _trend_fill(src, keys, gid_of, label):
+    """Trend für die fälligen Schlüssel holen, höchstens TREND_MAX; {Schlüssel: recent}."""
+    out = {}
+    for i, k in enumerate(keys[:TREND_MAX]):
+        progress(label, i, min(TREND_MAX, len(keys)))
+        rc = _recent_get(src, gid_of(k))
+        if rc:
+            out[k] = rc
+        if src.stopped or src.__dict__.get("hist_pages"):
+            break
+    return out
 
 
 def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, want=None, order=None):
@@ -1122,7 +1146,8 @@ def _rating(log):
                   if str(t.get("steam_appid") or "").isdigit()
                   and (((t.get("rev") or {}).get("at") or "") < old or (t.get("rev") or {}).get("app") != str(t["steam_appid"])))
     src = _Source("Steam-Wertungen", log)
-    if not todo:
+    revs = {k: t["rev"] for k, t in data["titles"].items() if t.get("rev") and str(t.get("steam_appid") or "").isdigit()}
+    if not todo and not _trend_due(revs):
         log("Steam-Wertungen: alle aktuell")
         return src.result()
     got, asked = {}, 0
@@ -1145,16 +1170,23 @@ def _rating(log):
         rc = _recent_get(src, gid) if (got[k].get("n") or 0) >= trend.MIN_ALL else None
         if rc:
             got[k]["recent"] = rc
+    # Trend auch für Titel, deren Rezensionszahl noch frisch ist (0.8.21)
+    tdue = _trend_due(revs, skip=got) if not src.stopped else []
+    rec = _trend_fill(src, tdue, lambda k: str(data["titles"][k]["steam_appid"]), "Steam-Trend")
     with store.lock:
         data = store.load_data()
         for k, r in got.items():
             if k in data["titles"]:
                 t = data["titles"][k]
                 t["rev"] = trend.keep(t.get("rev") if (t.get("rev") or {}).get("app") == r.get("app") else None, r)
+        for k, rc in rec.items():
+            if (data["titles"].get(k) or {}).get("rev"):
+                data["titles"][k]["rev"]["recent"] = rc
         store.save_data(data)
     left = len(todo) - len(got)
-    src.stats = {"read": len(got), "left": left}
+    src.stats = {"read": len(got), "left": left, "trend": len(rec)}
     log(f"Steam-Wertungen: {len(got)} Titel aktualisiert ({asked} Anfragen)"
+        + (f", Trend für {len(rec)} Titel" + (f" ({len(tdue) - len(rec)} offen)" if len(tdue) > len(rec) else "") if tdue else "")
         + (f", {left} noch offen (je Lauf {RATING_MAX}{_runs(left, RATING_MAX, ", ")})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 
@@ -1552,6 +1584,9 @@ def _pcwish_info(settings, log):
             got[k] = r
         if src.stopped:
             break
+    # Trend auch für Spiele, deren Rezensionszahl noch frisch ist (0.8.21)
+    tdue = _trend_due({k: e["rev"] for k, e in items.items() if e.get("rev")}, skip={k for k, r in got.items() if "rev" in r}) if not src.stopped else []
+    rec = _trend_fill(src, tdue, lambda k: str(items[k]["appid"]), "PC-Wunschliste, Trend")
     ig = {}
     if settings.get("igdb_id") and settings.get("igdb_secret") and not src.stopped:
         due = {k: str(e["appid"]) for k, e in items.items() if at(e, "igdb") < old_i or (e.get("igdb") or {}).get("v") != igdb.V}
@@ -1593,12 +1628,15 @@ def _pcwish_info(settings, log):
         pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
         for k, e in (pw.get("items") or {}).items():
             e.update(got.get(k) or {})
+            if k in rec and e.get("rev"):
+                e["rev"]["recent"] = rec[k]
             if k in ig:
                 e["igdb"] = ig[k]
         store.save_json(pcwish.FILE, pw)
     left = max(0, len(todo) - len(got))
-    src.stats = {"read": len(got), "left": left, "igdb": sum(1 for r in ig.values() if r.get("id"))}
+    src.stats = {"read": len(got), "left": left, "igdb": sum(1 for r in ig.values() if r.get("id")), "trend": len(rec)}
     log(f"PC-Wunschliste, Spielinfos: {len(got)} Spiele bei Steam gelesen"
+        + (f", Trend für {len(rec)}" + (f" ({len(tdue) - len(rec)} offen)" if len(tdue) > len(rec) else "") if tdue else "")
         + (f", IGDB {src.stats['igdb']} von {len(ig)} gefunden" if ig else "")
         + (f", {left} noch offen (je Lauf {PCWISH_INFO}{_runs(left, PCWISH_INFO, ', ')})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()

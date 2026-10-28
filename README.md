@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.20:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.21:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -418,7 +418,8 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
     Ab 0.8.18 **Trend und Pflege**: Sind die Steam-Rezensionen der letzten 30 Tage mindestens 8 Punkte besser oder
     schlechter als insgesamt, steht neben der Steam-Wertung ein grüner ↗ oder roter ↘ Pfeil (Zahlen im Tooltip, in den
     Fakten „Trend: fallend (60 % gegen 92 %)“). Über ein Jahr ohne Update heißt „ruht“ (grau). Dasselbe gilt in der
-    Wunschliste PC und im Reiter VR der Sammlung (Spalten Steam und Update). Woher die Zahlen kommen, steht in
+    Wunschliste PC und im Reiter VR der Sammlung (Spalten Steam und Update). Ab 0.8.21 frischt der Abgleich den Trend
+    wöchentlich auf, je Lauf bis zu 60 Titel und 60 PC-Wünsche. Woher die Zahlen kommen, steht in
     `docs/abrufe.md` (Trend und Pflege).
   - **Recherche** violett gestrichelt mit „≈“, weil sie nicht vom Tool gemessen ist; die Notiz.
   - **Klappe** (zugeklappt), ihre Zeile nennt den Inhalt, etwa „Bestpreise · gg.deals · Links ·
