@@ -111,7 +111,8 @@ von der Wunschliste; Jetzt mit Reitern. 0.8.18: Trend (Steam-Rezensionen der let
 Wertung und Pflege („ruht“ nach einem Jahr ohne Update), auch für die PC-Wunschliste; „Preissturz“ aus dem eigenen
 Preisverlauf je PC-Wunsch. 0.8.19: Spaltenreihenfolge, Wichtiges links (Wertung, Genre, Spielzeit, Mehrspieler),
 Nachschlagen rechts. 0.8.20: Marken VR und SimRacing umrandet, Hinweise gestrichelt ohne „?“; Switch-Systemwahl als
-Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. Grundsatz (Entscheidung 22.10.2026): so wenig
+Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. 0.8.21: Trend wöchentlich für alle Spiele ab 50 Rezensionen, nicht erst mit der nächsten
+Rezensionszahl. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

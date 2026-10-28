@@ -294,6 +294,11 @@ Rezensionen merkt sich das Tool Zahl und genaue Zahl positiver (`rev.hist`, höc
 nur aus `appreviews`, das `total_positive` nennt). Der Unterschied zur jüngsten Messung, die 20 bis 120 Tage älter ist,
 sind die neuen Rezensionen. Der Verbindungstest fragt das Diagramm an einem Spiel der Sammlung („Steam, Trend“).
 
+Ab 0.8.21 holt der Abgleich den Trend auch für Spiele, deren Rezensionszahl noch frisch ist: je Lauf höchstens
+60 Titel des Tools und 60 PC-Wünsche (`TREND_MAX`, zählt beim beschleunigten Auffüllen mit), ab 50 Rezensionen,
+jeder nach 7 Tagen neu (`TREND_DAYS`), die ältesten zuerst. Eine Antwort ohne lesbare Stimmen gilt als gefragt
+(`recent.miss`), damit nicht jeder Lauf dasselbe Spiel fragt.
+
 Pflege: das letzte Update laut Steam-Neuigkeiten; bis 90 Tage „gepflegt“, über ein Jahr „ruht“. Für die Titel des
 Tools wie bisher unter Steam-Spieler und Updates, für die PC-Wunschliste ab 0.8.18 mit den Spielinfos.
 
