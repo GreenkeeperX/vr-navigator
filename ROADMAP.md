@@ -115,15 +115,13 @@ Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. 0.8
 Rezensionszahl. 0.8.22: VR-Wünsche als Tabelle wie die PC-Wünsche, die Karte als Einzelheiten; Jetzt
 mit zwei gleich gebauten Tabellen. 0.8.23: eine Spaltenreihenfolge für alle Tabellen, „max. Spieler“ statt Mehrspieler,
 „Aktiv“ auch für PC-Spiele, Wertung der eigenen Fassung im Reiter VR. 0.8.24: PC-Wünsche ohne Steam-ID: mehr Suchen, Grundform des
-Namens, Ähnliches zum Bestätigen in „Zu erledigen“; Geheimtipp dunkler. 0.8.25: Preissturz auch für VR-Wünsche. 0.8.26: Trend zählt halb in „wo kaufen“. 0.8.27: Jetzt „Alle“ als eine gemischte Tabelle. 0.9.0: Läden einzeln über IsThereAnyDeal, Jetzt PC nach Laden. 0.9.1: Preisverlauf je Titel. 0.9.2: „Meinung fehlt“ mit Auftrag für die Recherche. Grundsatz (Entscheidung 22.10.2026): so wenig
+Namens, Ähnliches zum Bestätigen in „Zu erledigen“; Geheimtipp dunkler. 0.8.25: Preissturz auch für VR-Wünsche. 0.8.26: Trend zählt halb in „wo kaufen“. 0.8.27: Jetzt „Alle“ als eine gemischte Tabelle. 0.9.0: Läden einzeln über IsThereAnyDeal, Jetzt PC nach Laden. 0.9.1: Preisverlauf je Titel. 0.9.2: „Meinung fehlt“ mit Auftrag für die Recherche. 0.9.3: Spielzeit und „zuletzt gespielt“ aus dem Steam-Konto, Mischung „Liegt brach“. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- Spielzeit und „zuletzt gespielt“ aus dem Steam-Konto, Mischung „Liegt brach“ (gekauft, nie gespielt)
 - Meldungen aufs Handy: nicht gewünscht (Entscheidung 28.10.2026)
 
-- Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
-  Mischung „Liegt brach“, Gespieltes ausblenden
+- Spielzeit auch für Spiele außerhalb von Steam (zusätzliche Playnite-Spalten)
 - weitere Marken je Spiel neben Mein Stand („nie wieder vorschlagen“), Sharenite als Nachschub
 - Besitz mit zweiter Quelle bestätigen (Steam-Konto und Sharenite, Meta-Käufe und VRDB) und
   Widersprüche melden statt sie nachzufragen

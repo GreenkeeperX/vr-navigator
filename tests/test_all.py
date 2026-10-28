@@ -2050,7 +2050,8 @@ class TestSync(unittest.TestCase):
         self.assertIn("gg", by["Laser Tennis"]["wish_src"])
         self.assertEqual(by["Nebula Drift"]["owned"]["pc"], dict(by["Nebula Drift"]["owned"]["pc"], src="sharenite", label="GOG"))
         log = "\n".join(sync.status()["log"])
-        self.assertIn("Steam-Konto, Besitz: 3 Spiele, davon 2 VR-Titel", log)
+        self.assertIn("Steam-Konto, Besitz: 3 Spiele, davon 2 VR-Titel, 0 nie gespielt", log)
+        self.assertEqual(store.load_data()["steam_play"], {})     # die Testantwort nennt keine Spielzeit
         self.assertIn("gg.deals-Wunschliste: 3 Spiele auf 2 Seiten", log)
         self.assertIn("Sharenite: 300 Spiele im Profil, 1 mit VR-Schlagwort", log)
         self.assertFalse(any("cdcdcdcd" in line or "AbCdEf123" in line for line in sync.status()["log"]))
@@ -2926,11 +2927,35 @@ def sharenite_html(games, total=None, vr_tags=()):
 
 
 class TestAccounts(unittest.TestCase):
+    def test_steam_play(self):
+        """Spielzeit (0.9.3): Minuten und zuletzt gespielt aus GetOwnedGames, in der Zeile des VR-Titels und
+        im Spiel der Sammlung; nie gespielt heißt 0 Minuten, ohne Angabe fehlt die App."""
+        text = json.dumps({"response": {"games": [
+            {"appid": 3000001, "name": "Harbor Heist", "playtime_forever": 754, "rtime_last_played": 1767225600},
+            {"appid": 3000002, "name": "Rally Moth", "playtime_forever": 0, "rtime_last_played": 0},
+            {"appid": 3000003, "name": "Night Tram"}]}})
+        owned = accounts.steam_owned(text)
+        self.assertEqual([(g["min"], g["last"]) for g in owned], [(754, "2026-01-01"), (0, ""), (None, "")])
+        self.assertEqual(accounts.steam_play(owned), {"3000001": [754, "2026-01-01"], "3000002": [0, ""]})
+        d = empty()
+        a, _ = titles.upsert(d, "Harbor Heist", steam_appid="3000001")
+        d["steam_play"] = accounts.steam_play(owned)
+        r = library.row(a, d["titles"][a], data=d)
+        self.assertEqual((r["pt"], r["lp"]), (754, "2026-01-01"))
+        self.assertIsNone(library.row(a, d["titles"][a])["pt"])
+        col = {"games": {"s:3000002": {"name": "Rally Moth", "system": "PC", "store": "Steam", "id": "3000002"},
+                         "s:3000009": {"name": "Lantern Keep", "system": "PC", "store": "Steam", "id": "3000009"}}}
+        rows = {g["name"]: g for g in collection.view(col, d)["games"]}
+        self.assertEqual((rows["Rally Moth"]["pt"], rows["Rally Moth"]["lp"]), (0, ""))
+        self.assertNotIn("pt", rows["Lantern Keep"])
+        # Alte Daten ohne steam_play laden weiter
+        self.assertNotIn("pt", collection.view(col, empty())["games"][0])
+
     def test_parsers(self):
         self.assertEqual(accounts.steam_id_input("https://steamcommunity.com/profiles/76561190000000001/"), ("id", "76561190000000001"))
         self.assertEqual(accounts.steam_id_input("https://steamcommunity.com/id/beispiel/"), ("vanity", "beispiel"))
         self.assertEqual(accounts.steam_id_input("x y"), ("", ""))
-        self.assertEqual(accounts.steam_owned(steam_owned_json(("3000001", "Sky Garden"))), [{"appid": "3000001", "name": "Sky Garden"}])
+        self.assertEqual(accounts.steam_owned(steam_owned_json(("3000001", "Sky Garden"))), [{"appid": "3000001", "name": "Sky Garden", "min": None, "last": ""}])
         with self.assertRaises(ValueError):
             accounts.steam_owned(json.dumps({"response": {}}))     # Spieldetails privat
         self.assertEqual(accounts.steam_wishlist(steam_wish_json("3000009", "3000010")), ["3000009", "3000010"])

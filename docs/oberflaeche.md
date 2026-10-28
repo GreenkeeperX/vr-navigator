@@ -241,8 +241,11 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Sammlung: ganz oben „Nicht mehr in der Retro-Liste“, wenn etwas fehlt (Behalten, Stand
   übernehmen); Retro-Spiele tragen DE, EN oder JP (violett: aus der Region geschätzt), Homebrew, Hack
   und „nicht mehr in der Liste“ als Marken, Dateizahl und Regionen in den Einzelheiten. Unterreiter je System („Alle“, PC, VR, dann Konsolen, je mit grauer Zahl; der
-  gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar), Filter als Menüs (Mehrspieler: alle
+  gewählte unterstrichen, am Handy seitlich wischbar), darunter Mischungen in einer Zeile (am Handy wischbar; „Liegt brach“ ab 0.9.3 nur, wenn ein Spiel des Reiters laut Steam nie gespielt ist), Filter als Menüs (Mehrspieler: alle
   müssen passen; Genre: Schalter „eines davon“ oder „alle“, Suche, Zahl je Genre).
+- Gespielt (0.9.3): in den Einzelheiten unter Mein Stand „Gespielt“ mit Spielzeit und „zuletzt am …“ oder „nie“
+  (`.gpt`, Tooltip „Laut Steam-Konto“); Filter „Gespielt“ (`G_PL`) hinter Mein Stand, nur wenn ein Spiel des Reiters
+  eine Spielzeit hat; Sortierung „Zuletzt gespielt“.
 - Löschen und Zusammenführen fragen nicht vorher. Der Hinweis unten nennt, was geschah, und
   bietet sieben Sekunden „Rückgängig“. Rückfragen bleiben für Dinge, die alles ersetzen
   (Sicherung einlesen).

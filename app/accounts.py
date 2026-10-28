@@ -12,6 +12,7 @@ macht sync.py (siehe docs/abrufe.md).
 import html
 import json
 import re
+from datetime import datetime, timezone
 
 from . import collection, titles
 
@@ -53,13 +54,27 @@ def steam_vanity(text):
 
 
 def steam_owned(text):
-    """GetOwnedGames: [{appid, name}]. Ein leeres response heißt meist: Spieldetails im Profil
-    nicht öffentlich."""
+    """GetOwnedGames: [{appid, name, min, last}]. Ab 0.9.3 mit der Spielzeit in Minuten (min) und dem Tag,
+    an dem du zuletzt gespielt hast (last, leer: nie oder unbekannt). Ein leeres response heißt meist:
+    Spieldetails im Profil nicht öffentlich."""
     r = _json(text, "Steam, Besitz").get("response")
     if not isinstance(r, dict) or "games" not in r:
         raise ValueError("Steam, Besitz: keine Spiele in der Antwort (sind die Spieldetails im Profil öffentlich?)")
-    return [{"appid": str(g["appid"]), "name": str(g.get("name") or "")}
-            for g in r["games"] if isinstance(g, dict) and g.get("appid")]
+    out = []
+    for g in r["games"]:
+        if not isinstance(g, dict) or not g.get("appid"):
+            continue
+        m, t = g.get("playtime_forever"), g.get("rtime_last_played")
+        last = datetime.fromtimestamp(t, timezone.utc).date().isoformat() if isinstance(t, int) and t > 0 else ""
+        out.append({"appid": str(g["appid"]), "name": str(g.get("name") or ""),
+                    "min": m if isinstance(m, int) and m >= 0 else None, "last": last})
+    return out
+
+
+def steam_play(owned):
+    """Spielzeit je Steam-App aus steam_owned, für data.json: {App-ID: [Minuten, zuletzt gespielt]}. Ohne
+    Minuten (Steam nennt sie nicht) fällt die App weg."""
+    return {g["appid"]: [g["min"], g["last"]] for g in owned if g.get("min") is not None}
 
 
 def steam_wishlist(text):

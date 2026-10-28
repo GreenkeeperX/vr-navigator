@@ -95,7 +95,7 @@ bekommen. Eingetragen wird erst nach dem Lesen, unter der Sperre auf `data.json`
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
 | Steam, Profilname auflösen | `api.steampowered.com/ISteamUser/ResolveVanityURL/v1/` (mit Schlüssel) | nur bei Profilnamen statt Zahl | SteamID |
-| Steam, Besitz | `api.steampowered.com/IPlayerService/GetOwnedGames/v1/` (mit Schlüssel) | jeder Lauf | App-ID und Name je Spiel |
+| Steam, Besitz | `api.steampowered.com/IPlayerService/GetOwnedGames/v1/` (mit Schlüssel) | jeder Lauf | App-ID und Name je Spiel, ab 0.9.3 Spielzeit (`playtime_forever`) und zuletzt gespielt (`rtime_last_played`), abgelegt unter `steam_play` in `data.json` (`{App-ID: [Minuten, Tag]}`, jeder Lauf ersetzt sie ganz) |
 | Steam, Wunschliste | `api.steampowered.com/IWishlistService/GetWishlist/v1/` | jeder Lauf | App-IDs |
 | Steam, VR-Prüfung | `store.steampowered.com/api/appdetails?appids=<ID>&cc=de&l=german` | je unbekannter App einmal, 40 je Lauf | Name, Kategorien (VR Support, VR Supported, VR Only) |
 | gg.deals-Wunschliste | der geteilte Link, `?page=N` | jeder Lauf, höchstens 10 Seiten; nach einer Sperre (Cloudflare) per Lesezeichen, nach 7 Tagen (`GG_RETRY_DAYS`) oder beim Speichern des Links ein neuer Versuch (`sync.json`, `manual`) | Links auf `/game/<name>/` mit Namen |
