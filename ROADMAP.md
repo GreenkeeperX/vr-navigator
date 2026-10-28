@@ -92,18 +92,19 @@ bleiben); Retro: DSiWare-Liste beim DS, Titel ohne Leerzeichen gleich, ähnliche
 Zahlen; die Simucube-Liste wird nach einem neuen Leser gleich neu gelesen. 0.8.7: Wunschliste PC vor VR, mit Paketen
 und DLC, VR-Spiele nur unter VR; VR-Titel am PC (auch Meta mit Crossbuy) in der Sammlung PC, VR-Marke aus mehr
 Quellen; Suche je Reiter; Liste als CSV, Titel kopieren; Mein Stand überall an derselben Stelle; PC-Wunschliste in
-der Sicherung. Grundsatz (Entscheidung 22.10.2026): so wenig
+der Sicherung. 0.8.8: Retro-Spielinfos aus der libretro-database (Genre, Spieler, Erscheinen, Entwickler, bei PS1
+und PS2 Beschreibung), deine Ordner-Listen als erste Quelle mit Widersprüchen beim Genre in „Zu erledigen“,
+Dateigröße aus der Ordnerwahl; Lenkrad-Marke auch bei VR-Titeln am PC ohne Playnite-Eintrag; das
+gg.deals-Lesezeichen nennt, wenn gg.deals mehr Einträge zählt, als Links da waren. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
   und „Jetzt“ für alle Wünsche mit Filter VR
 
-- Retro, Infos: Genre, Spielerzahl, Jahr und Entwickler aus der libretro-database (Probe in „Verbindung testen“
-  ergab Treffer), zur Bestätigung IGDB; Dateigröße aus der Ordnerwahl. Eigene Sortierlisten je System
-  (`_ordner.csv`: Titel, Reihe, Genre) als erste Quelle, Widersprüche zu No-Intro, libretro und IGDB zum Klären in
-  „Zu erledigen“ (Entscheidung 28.10.2026)
-  GameCube, Wii und PlayStation mit Redump-Namen
+- Retro: Kurzbeschreibungen und Spielzeit über IGDB, Retro-Spiele dort früher in der Warteschlange; DS und 3DS
+  haben bei libretro kaum Spielinfos. GameCube, Wii und PlayStation mit Redump-Namen
+- VR-Titel am PC ohne Playnite-Eintrag in die Abrufe (Steam-Details, IGDB)
 
 - Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als

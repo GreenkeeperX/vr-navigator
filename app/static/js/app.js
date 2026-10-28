@@ -8,6 +8,9 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "
 const safeUrl = u => /^https?:\/\//i.test(String(u || "")) ? String(u) : "";
 const eur = v => v == null ? "–" : v.toLocaleString("de-DE", {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2}) + " €";
 const day = iso => iso ? new Date(iso).toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit", year: "numeric"}) : "";
+// Erscheinen (0.8.8): libretro nennt oft nur Jahr und Monat („2004-11“)
+const relDay = r => /^\d{4}-\d{2}$/.test(r || "") ? new Date(r + "-15").toLocaleDateString("de-DE", {month: "long", year: "numeric"}) : (r || "").length > 4 ? day(r) : "";
+const mb = b => b >= 1e9 ? `${(b / 1e9).toLocaleString("de-DE", {maximumFractionDigits: 1})} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`;
 const when = iso => iso ? new Date(iso).toLocaleString("de-DE", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) : "";
 // Ende eines Angebots als Tag: „bis 28.10.“
 const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
@@ -570,7 +573,7 @@ function dFilter(d){
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
     && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel)
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || (g.pub || "").toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
-      || !!g.lib?.note?.toLowerCase().includes(q)));
+      || !!g.lib?.note?.toLowerCase().includes(q) || (g.own && [g.own.series, g.own.coll, g.own.genre, g.own.sub, g.fname].some(x => (x || "").toLowerCase().includes(q)))));
 }
 function dSort(rows, d, cols){
   if(d.sort === "random" && !V.sorts.find){
@@ -662,7 +665,8 @@ const one = (g, list, x) => chk(g) && !(list || []).includes(x);
 function gGenres(g, all){
   if(!g.genres.length) return "";
   const only = g.genres.filter(x => one(g, g.gc, x));
-  const tip = chk(g) ? (only.length ? `Nur eine Quelle (${srcList(g)}): ${only.join(", ")}; die übrigen nennen zwei` : `${srcList(g)} einig`) : g.eshop ? ESH : "Laut Playnite";
+  const tip = chk(g) ? (only.length ? `Nur eine Quelle (${srcList(g)}): ${only.join(", ")}; die übrigen nennen zwei` : `${srcList(g)} einig`) : g.eshop ? ESH
+    : g.retro ? (g.own?.genre ? `Zuerst dein Genre aus der Ordner-Liste (${g.own.genre})${g.lgen?.length ? `; libretro: ${g.lgen.join(", ")}` : ""}` : g.lgen?.length ? "Laut libretro-database" : "") : "Laut Playnite";
   return `<span class="gtags${all ? "" : " fit"}" title="${esc(tip)}">${genreOrder(g.genres).map(gTag).join("")}</span>`;
 }
 function gMp(g){
@@ -672,10 +676,10 @@ function gMp(g){
 function gYear(g){
   if(!g.year) return "";
   const tip = g.src === "steam" ? (g.year_ok ? "Playnite und Steam einig" : `Playnite ${g.year === g.syear ? "ohne Jahr" : "und Steam verschieden"}${g.syear ? `, Steam ${g.syear}` : ""}`)
-    : g.ig ? (g.year_src === "IGDB" ? "Laut IGDB" : g.year_ok ? "Playnite und IGDB einig" : `Playnite ${g.year}, IGDB ${g.iyear || "ohne Jahr"}`)
-    : g.retro ? "" : g.eshop ? ESH : "Laut Playnite";
+    : g.ig ? (g.year_src === "IGDB" ? "Laut IGDB" : g.year_ok ? `${g.retro ? "libretro" : "Playnite"} und IGDB einig` : `${g.retro ? "libretro" : "Playnite"} ${g.year}, IGDB ${g.iyear || "ohne Jahr"}`)
+    : g.retro ? (g.year_src === "libretro" ? "Laut libretro-database" : "") : g.eshop ? ESH : "Laut Playnite";
   // Wie im eShopKompass: Erscheinen, Entwickler und Verlag im Tooltip (0.6.2), die Suche findet sie
-  const who = [g.rel?.length > 4 && `Erschienen am ${day(g.rel)}`, g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean);
+  const who = [g.rel?.length > 4 && `Erschienen ${/^\d{4}-\d{2}$/.test(g.rel) ? "im" : "am"} ${relDay(g.rel)}`, g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean);
   return `<span class="${chk(g) && !g.year_ok ? "gxc" : ""}" title="${esc(who.concat(tip ? [tip] : []).join("\n"))}">${esc(g.year)}</span>`;
 }
 const vrMod = g => !!(g.vrmod?.length || g.nexus?.vr?.length || g.vorpx);
@@ -730,7 +734,7 @@ const COLS = [
       return `<span class="ux" title="Recherche aus Foren und Tests, nicht geprüft${o.stand ? ", " + esc(o.stand) : ""}">${esc(t || "Meinungen")}</span>`; },
     sort: g => g.lib.opinion?.fassung || null},
   {k: "pl", l: "Spieler", w: "52px", cls: "r", tip: "Höchste Spielerzahl online oder an einem Gerät laut IGDB, sonst Playnite (violett)", d0: -1,
-    cell: g => !g.players ? "" : `<span class="${g.ig && g.pl_src !== "IGDB" ? "gxc" : ""}" title="${g.pl_src === "IGDB" ? "Laut IGDB" : g.ig ? "Nur laut Playnite, IGDB nennt keine Zahl" : "Laut Playnite"}">bis ${g.players}</span>`, sort: g => g.players || null},
+    cell: g => !g.players ? "" : `<span class="${g.ig && g.pl_src !== "IGDB" ? "gxc" : ""}" title="${g.pl_src === "IGDB" ? `Laut IGDB${g.pl_ok ? " und libretro" : ""}` : g.pl_src === "libretro" ? `Laut libretro-database${g.ig ? ", IGDB nennt keine Zahl" : ""}` : g.ig ? "Nur laut Playnite, IGDB nennt keine Zahl" : "Laut Playnite"}">bis ${g.players}</span>`, sort: g => g.players || null},
   {k: "mp", l: "Mehrspieler", w: "minmax(90px,.7fr)", tip: "Laut Playnite, bei PC-Spielen mit Steam abgeglichen; violett: nur eine Quelle", cell: gMp, sort: g => g.mp.length || null, d0: -1},
   {k: "sc", l: "Wertung", w: "70px", cls: "r", tip: "PC: Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv). Konsolen und Retro: IGDB-Kritiken, sonst IGDB gesamt (grau und kursiv). Switch: Metacritic, sonst OpenCritic", d0: -1,
     cell: gSc, sort: g => g.score},
@@ -953,7 +957,7 @@ function gDetail(g){
   const st = G_ST.find(x => x[0] === m.s);
   const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im ${C.eshop_link ? `<a class="eshl" href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer" title="Öffnet das Spiel im eShopKompass"><span class="brand">eShop</span>Kompass</a>` : "eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
   // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
-  const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : g.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
+  const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : g.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : g.desc_src === "libretro" ? "Beschreibung laut libretro-database, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
   if(g.lib){
     const r = g.lib;
@@ -972,7 +976,14 @@ function gDetail(g){
     const small = [g.added && `gekauft am ${day(g.added)}`, `laut eShopKompass${C.eshop_at ? `, gelesen ${day(C.eshop_at)}` : ""}`, link].filter(Boolean).join(" · ");
     return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
   }
-  const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : ""].filter(Boolean).join(", ") : "";
+  const files = g.retro ? [g.files > 1 ? `${g.files} Dateien` : "", g.regions?.length ? g.regions.join(", ") : "", g.size ? mb(g.size) : g.own?.mb ? `${num(g.own.mb)} MB laut deiner Liste` : ""].filter(Boolean).join(", ") : "";
+  // Deine Ordner-Liste (0.8.8): Ordner, Reihe; ein anderer Titel im Dateinamen; was andere Quellen zum Genre sagen
+  const o = g.own || {};
+  const ownRows = !g.retro ? "" : row("Dein Ordner", esc([o.genre, o.sub].filter(Boolean).join(" › ") + (o.folder && o.folder !== [o.genre, o.sub].filter(Boolean).join("\\") ? ` (Ordner ${o.folder})` : "")), "Aus deiner Ordner-Liste") +
+    row("Reihe", esc([o.series, o.coll].filter(Boolean).join(", ")), "Reihe und Sammelreihe aus deiner Ordner-Liste") +
+    row("Status", esc(o.status || ""), "Aus deiner Ordner-Liste") +
+    row("Dateiname", g.fname ? esc(g.fname) : "", "Titel laut Dateiname (No-Intro); es gilt deiner aus der Ordner-Liste") +
+    row("Genre anders", g.own_diff ? `<span class="gxc">${g.own_diff.map(d => `${esc(d.src)}: ${esc(d.other)}`).join(" · ")}</span>` : "", "Widerspricht deinem Genre; unter Einstellungen, Zu erledigen bestätigst du deins");
   // Nur, was die Zeile nicht schon zeigt (0.6.2): Spieler, Genre, Jahr und Launcher stehen in den Spalten.
   // Dazu wie im eShopKompass (0.7.1): Wertung aus weiteren Quellen, genaues Erscheinen, Sprachen
   // Wertung wie im eShopKompass (0.7.2): Zahlen statt Steams Worten, Steam in Prozent, Metacritic auf 100
@@ -981,13 +992,14 @@ function gDetail(g){
   const score = !(g.mc != null || g.icrit != null) ? "" : [g.score != null && g.score_src === "Steam" && `Steam ${gScore(g.score, `Anteil positiver Steam-Rezensionen${steamTip ? ": " + steamTip : ""}`)}`,
     g.mc != null && `Metacritic ${gScore(g.mc, "Metacritic laut Steam", "")}`,
     g.icrit != null && `IGDB Kritik ${gScore(g.icrit, "Kritiker-Wertung laut IGDB", "")}`].filter(Boolean).join(" · ");
-  const date = g.sdate && !/^\d{4}$/.test(g.sdate) ? g.sdate : g.rel?.length > 4 ? day(g.rel) : "";
+  const date = g.sdate && !/^\d{4}$/.test(g.sdate) ? g.sdate : relDay(g.rel);
   const who = [g.dev && `Entwickler: ${g.dev}`, g.pub && g.pub !== g.dev && `Verlag: ${g.pub}`].filter(Boolean).join("\n");
   const langs = g.sde == null ? "" : g.sde ? `Deutsch${g.slangs > 1 ? ` und ${g.slangs - 1} weitere Sprache${g.slangs > 2 ? "n" : ""}` : ""}` : `<span class="gno">ohne Deutsch</span>${g.slangs ? ` (${g.slangs} Sprache${g.slangs > 1 ? "n" : ""})` : ""}`;
   const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : g.de?.langs ? `Laut No-Intro über den Produktcode: ${g.de.rel}` : "Laut Dateiname") +
     row("VR per Mod", vrModHtml(g)) + row("Nexus Mods", nexusHtml(g)) + row("Sim-Racing", wheelHtml(g)) +
-    row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
+    row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels") + ownRows;
   const src = [g.from_vr ? `dein VR-Titel im Tool (${esc(g.store)}), Playnite kennt ihn nicht` : g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
+    g.own && "deine Ordner-Liste", g.lname && `libretro-database (dort „${esc(g.lname)}“)`,
     g.ig ? `IGDB${g.iname ? ` (dort „${esc(g.iname)}“)` : ""}` : ""].filter(Boolean).join(", ");
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
@@ -1229,7 +1241,7 @@ function settingsView(){
   // Wie im eShopKompass: grün, was läuft, rot mit Namen, was nicht läuft
   const badNames = shown.filter(([k]) => isBad(k)).map(([k]) => SRC_NAME[k] || k).join(", ");
   const srcInfo = [okN && `<b class="ok">${okN} ok</b>`, bad && `<b class="err">${bad} mit Problem</b> (${esc(badNames)})`].filter(Boolean).join(", ") || "noch nicht gelaufen";
-  const todo = S.todo || [], lists = S.lists || [], near = S.retro_near || [], open = sug + todo.length + lists.length + near.length;
+  const todo = S.todo || [], lists = S.lists || [], near = S.retro_near || [], rown = S.retro_own || [], open = sug + todo.length + lists.length + near.length + rown.length;
   const jumps = [open && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${esc(x.a_name)} ↔ ${esc(x.b_name)}</span>
@@ -1254,6 +1266,12 @@ function settingsView(){
       <span class="row2"><span class="hint">ähnlich: „${esc(x.near)}“</span>
         <button data-act="nearok" data-k="${esc(x.key)}" title="Dasselbe Spiel; der Titel der Liste gilt fortan">dasselbe</button>
         <button data-act="nearno" data-k="${esc(x.key)}" title="Ein anderes Spiel; dieser Vorschlag kommt nicht wieder">anderes</button></span></div>`).join("")}</div>`;
+  // Retro (0.8.8): andere Quellen widersprechen deinem Genre aus der Ordner-Liste
+  const ownList = `<p class="hint">Deine Ordner-Liste gilt zuerst. Hier nennen libretro oder IGDB ein ganz anderes Genre. „Liste gilt“ blendet den Hinweis aus; ändert sich ein Wert, kommt er wieder. Stimmt die andere Quelle, änderst du deine Liste und liest den Ordner neu ein.</p>
+    <div class="bar"><button data-act="ownok" data-k="" title="Für alle hier: deine Liste gilt">Alle: Liste gilt</button></div>
+    <div class="list">${rown.slice(0, 300).map(x => `<div class="item"><span class="nm">${esc(x.name)} <span class="hint">(${esc(x.system)})</span></span>
+      <span class="row2"><span class="hint">deins: ${esc(x.diff[0].own)}; ${x.diff.map(d => `${esc(d.src)}: ${esc(d.other)}`).join("; ")}</span>
+        <button data-act="ownok" data-k="${esc(x.key)}" title="Dein Genre gilt; der Hinweis verschwindet">Liste gilt</button></span></div>`).join("")}</div>${rown.length > 300 ? `<p class="hint">… und ${rown.length - 300} weitere</p>` : ""}`;
   // Zahlen, die etwas zu tun bedeuten, violett und fett (0.7.4, wie im eShopKompass „offen“)
   const tn = n => `<b class="warnc">${n}</b>`;
   const sugCard = open ? box("todo", "Zu erledigen", `${tn(open)} offen`, `
@@ -1262,7 +1280,8 @@ function settingsView(){
     ${sug ? sub("sug", "Derselbe Titel?", `${tn(S.suggestions.length)} ${S.suggestions.length === 1 ? "Paar" : "Paare"}`, sugList) : ""}
     ${steamTodo.length ? sub("steamtodo", "Steam-ID prüfen", tn(steamTodo.length), steamList) : ""}
     ${metaTodo.length ? sub("metatodo", "Ohne Meta-ID", tn(metaTodo.length), metaList) : ""}
-    ${near.length ? sub("retronear", "Retro: ähnlicher Name", tn(near.length), nearList) : ""}`) : "";
+    ${near.length ? sub("retronear", "Retro: ähnlicher Name", tn(near.length), nearList) : ""}
+    ${rown.length ? sub("retroown", "Retro: Genre weicht von deiner Liste ab", tn(rown.length), ownList) : ""}`) : "";
   const ll = lastLine(sy);
   const logInfo = sy.running ? "läuft" : !sy.started ? "noch keins" : `${when(sy.started)}${sy.ok === false ? `, <span class="err">mit Fehlern</span>` : ""}${ll.end ? " · " + esc(ll.end) : ""}`;
   const abgleich = box("abgleich", "Abgleich", sy.running ? "läuft" : `Stand ${ago(sy.started)}${next ? ` · nächster ca. ${next < new Date() ? "in Kürze" : whenDay(next) + clock(next)}` : se.auto === false ? " · Zeitplan aus" : ""}`, `
@@ -1367,7 +1386,7 @@ function opinionHtml(r){
    - gg.deals: deine Wunschliste; weitere Seiten holt es mit kurzer Pause nach.
    Dann öffnet es dieses Tool mit den Daten im Adressteil hinter # (geht nicht übers Netz an einen
    Server). Das Tool übernimmt sie. Ausweg: „Als Datei sichern“. */
-const META_HV = 7;
+const META_HV = 8;
 function metaHelper(tool){ return `(async()=>{
 const gg=/(^|\\.)gg\\.deals$/.test(location.hostname);
 if(!gg&&!/(^|\\.)meta\\.com$/.test(location.hostname)){alert("Bitte zuerst eine dieser Seiten öffnen, dann das Lesezeichen anklicken: angemeldet deine Meta-Bestellungen (meta.com/my/orders), die Transaktionen von Meta Pay, deine Wunschliste im Meta Store oder deine Wunschliste bei gg.deals.");return}
@@ -1384,7 +1403,8 @@ const pages=[];for(let p=2;p<=last;p++){const u=new URL(location.href);u.searchP
 for(let i=0;i<pages.length;i++){box.textContent="VR-Navigator: lese Seite "+(i+2)+" von "+(pages.length+1)+" …";await wait(1200);try{const r=await fetch(pages[i],{credentials:"include"});items=items.concat(read(new DOMParser().parseFromString(await r.text(),"text/html")))}catch(e){}}
 const by={};items.forEach(x=>{const k=x.kind+":"+x.slug;if(!by[k]||(!by[k].name&&x.name))by[k]=x});items=Object.values(by);
 const games=items.filter(x=>x.kind==="game").length;
-txt=JSON.stringify({kind:"gg-wunschliste",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,pages:pages.length+1,items});
+const found=(document.body.innerText.match(/we found\\s+([\\d.,]+)\\s+results?/i)||[])[1];
+txt=JSON.stringify({kind:"gg-wunschliste",hv:${META_HV},at:new Date().toISOString(),page:location.pathname,pages:pages.length+1,shown:found?+found.replace(/[.,]/g,""):null,items});
 msg="gg.deals-Wunschliste gelesen: "+games+" Spiele"+(items.length>games?" und "+(items.length-games)+" Pakete oder DLC":"")+" auf "+(pages.length+1)+" Seiten. Der VR-Navigator übernimmt die Spiele.";file="gg-wunschliste.json";
 }else{
 const wish=/wish/i.test(location.pathname)||/wunschliste|wishlist/i.test(document.title);
@@ -1474,8 +1494,12 @@ function retroPreview(p){
   const sk = p.skipped || {}, skip = [sk.archive && `${sk.archive} in Archiv-Ordnern`, sk.save && `${sk.save} Spielstände`, sk.extra && `${sk.extra} Beiwerk`].filter(Boolean).join(", ");
   const gone = p.gone_n ? `<p class="hint">Nicht mehr in der Liste (${p.gone_n}): ${p.gone.slice(0, 40).map(esc).join(", ")}${p.gone_n > 40 ? " …" : ""}. ${p.done ? "Im Reiter Sammlung übernimmst du den Stand oder behältst sie." : "Sie werden nicht gelöscht, sondern im Reiter Sammlung markiert."}</p>` : "";
   const unk = p.unknown_n ? `<p class="hint">Nicht erkannt (${p.unknown_n}): ${p.unknown.map(esc).join(", ")}${p.unknown_n > p.unknown.length ? " …" : ""}</p>` : "";
-  if(p.done) return `<p class="ok">Retro-Liste übernommen: ${p.n} Spiele (${sy}), ${p.new} neu.</p>${gone}`;
-  return `<div class="prev"><b>Retro-Liste</b>: ${p.files} Dateien ergeben ${p.n} Spiele (${sy}), davon ${p.new} neu.${skip ? ` Übersprungen: ${skip}.` : ""} Noch nichts gespeichert.${unk}${gone}<ul>${p.entries.map(e =>
+  // Deine Ordner-Listen (0.8.8): wie viele Zeilen passen, was nur in der Liste steht, was in der Liste fehlt
+  const o = p.own, more = (l, n) => `${l.slice(0, 30).map(esc).join(", ")}${n > 30 ? " …" : ""}`;
+  const own = o ? `<p class="hint">Deine Ordner-Listen (${o.systems.map(esc).join(", ")}): ${o.matched} von ${o.rows} Zeilen passen zu einer Datei. Titel und Genre daraus gelten zuerst.${o.extra_n ? ` Nur in der Liste, ohne Datei (${o.extra_n}): ${more(o.extra, o.extra_n)}.` : ""}${o.missing_n ? ` Datei da, aber nicht in der Liste (${o.missing_n}): ${more(o.missing, o.missing_n)}.` : ""}</p>` : "";
+  const size = p.size ? ` Zusammen ${mb(p.size)}.` : "";
+  if(p.done) return `<p class="ok">Retro-Liste übernommen: ${p.n} Spiele (${sy}), ${p.new} neu.</p>${own}${gone}`;
+  return `<div class="prev"><b>Retro-Liste</b>: ${p.files} Dateien ergeben ${p.n} Spiele (${sy}), davon ${p.new} neu.${size}${skip ? ` Übersprungen: ${skip}.` : ""} Noch nichts gespeichert.${own}${unk}${gone}<ul>${p.entries.map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span> <span class="b">${esc(e.system)}</span> ${langBadge(e)}${e.files > 1 ? ` <span class="hint">${e.files} Dateien</span>` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul>${p.n > p.entries.length ? `<p class="hint">… und ${p.n - p.entries.length} weitere</p>` : ""}</div>`;
 }
 /* Konten: bei jedem Abgleich automatisch gelesen */
@@ -1791,6 +1815,13 @@ document.addEventListener("click", async ev => {
     const res = await act("/api/wishes", {kind: v, keys});
     if(res) toast(`${res.changed} ${res.changed === 1 ? "Titel" : "Titel"} ${{keep: "behalten", drop: "von der Wunschliste genommen", wish: "wieder gewünscht"}[v]}`, undoTo(res));
   }
+  else if(a === "ownok"){
+    const k = el.dataset.k;
+    const res = await api("/api/retro/own", k ? {key: k} : {all: true});
+    C = res.collection; S.retro_own = res.retro_own;
+    toast(k ? "Deine Liste gilt" : "Deine Liste gilt für alle");
+    render();
+  }
   else if(a === "steamwrong"){
     const k = el.dataset.k, x = (S.todo || []).find(y => y.key === k) || {};
     if(await act("/api/title", {key: k, steam_appid: ""})) toast(`Steam-ID von „${x.name || "Titel"}“ entfernt`, x.steam_appid ? () => act("/api/title", {key: k, steam_appid: x.steam_appid}) : null);
@@ -1801,10 +1832,10 @@ document.addEventListener("click", async ev => {
     el.disabled = true;
     try{
       if(v === "file") V.kindFile = $("kind-file")?.value || "auto";
-      const res = await api("/api/import", {kind: v === "file" ? V.kindFile || "auto" : v, text, dry: a === "preview"});
+      const res = await api("/api/import", Object.assign({kind: v === "file" ? V.kindFile || "auto" : v, text, dry: a === "preview"}, v === "retro" && V.retroLists?.length ? {lists: V.retroLists} : {}));
       V.prev[v] = a === "apply" ? Object.assign({done: true}, res, {state: null}) : res;
       if(res.state) S = res.state;
-      if(a === "apply"){ V.txt[v] = ""; if(res.collection || res.kind === "retro") C = null; }
+      if(a === "apply"){ V.txt[v] = ""; if(v === "retro") V.retroLists = null; if(res.collection || res.kind === "retro") C = null; }
     }catch(e){ V.prev[v] = {error: e.message}; }
     render("imp-" + v);
   }
@@ -1852,7 +1883,11 @@ document.addEventListener("change", async ev => {
   if(!kind || !ev.target.files[0]) return;
   if(kind === "retrodir"){
     // Nur die Namen: relativer Pfad je Datei, Archiv-Ordner (…_zip) gleich hier weggelassen
-    const lines = [...ev.target.files].map(f => f.webkitRelativePath || f.name).filter(x => !/(^|\/)[^/]*_zip\//i.test(x));
+    // 0.8.8: dazu die Größe (hinter einem Tabulator) und deine Ordner-Listen „…_ordner.csv“, auch aus „…_zip/_Sortierung“
+    const all = [...ev.target.files], path = f => f.webkitRelativePath || f.name;
+    const lines = all.filter(f => !/(^|\/)[^/]*_zip\//i.test(path(f))).map(f => path(f) + (f.size ? "\t" + f.size : ""));
+    V.retroLists = await Promise.all(all.filter(f => /(^|\/)[^/]*_ordner\.csv$/i.test(path(f)) && f.size < 5e6).slice(0, 60).map(async f => ({path: path(f), text: await f.text()})));
+    ev.target.value = "";
     V.txt = Object.assign(V.txt || {}, {retro: lines.join("\n")});
     V.prev.retro = null; V.folds["imp-retro"] = false;
     render("imp-retro");

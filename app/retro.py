@@ -88,9 +88,13 @@ def _system_of_folder(name):
     return ""
 
 
+_SIZE = re.compile(r"\t(\d{1,15})\s*$")
+
+
 def split_path(line):
-    """Ordner und Dateiname aus einer Zeile (Linux oder Windows, absolut oder relativ)."""
-    p = line.strip().strip('"').replace("\\", "/")
+    """Ordner und Dateiname aus einer Zeile (Linux oder Windows, absolut oder relativ). Eine Größe in Bytes hinter
+    einem Tabulator (0.8.8, aus der Ordnerwahl) gehört nicht zum Namen."""
+    p = _SIZE.sub("", line).strip().strip('"').replace("\\", "/")
     p = re.sub(r"^[A-Za-z]:/", "", p)
     parts = [x for x in p.split("/") if x not in ("", ".")]
     return parts[:-1], (parts[-1] if parts else "")
@@ -167,6 +171,9 @@ def classify(line):
     if any(_HACK.fullmatch(d) or d.casefold() in ("rom-hacks", "romhacks") for d in dirs):
         info["flags"] = sorted(set(info["flags"]) | {"hack"})
     info["file"] = fname
+    sz = _SIZE.search(line)
+    if sz:
+        info["size"] = int(sz.group(1))
     return system, info
 
 
@@ -240,6 +247,8 @@ def parse(text):
             stats["systems"][system] = stats["systems"].get(system, 0) + 1
         ext = info["file"].rsplit(".", 1)[-1].casefold()
         g["_ext"][ext] = g["_ext"].get(ext, 0) + 1
+        if info.get("size"):
+            g["size"] = g.get("size", 0) + info["size"]
         g["regions"] = sorted(set(g["regions"]) | set(info["regions"]))
         g["langs"] = sorted(set(g["langs"]) | set(info["langs"]))
         if info["langs"] and not info["lang_guess"]:
@@ -268,7 +277,7 @@ def unknown_lines(text, limit=30):
     return out
 
 
-def apply(col, games, dry=True):
+def apply(col, games, dry=True, own_systems=()):
     """Neue Retro-Liste mit der Sammlung abgleichen. Spiele anderer Quellen bleiben unberührt.
     Fehlt ein Retro-Spiel eines Systems, das in der neuen Liste vorkommt, bekommt es „gone“
     (Tag), statt gelöscht zu werden; taucht es wieder auf, fällt die Marke weg.
@@ -287,9 +296,14 @@ def apply(col, games, dry=True):
     for k, g in games.items():
         o = old.get(k)
         if o:
-            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag", "alias", "near_no"):
+            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag", "alias", "near_no", "lr", "own_ok"):
                 if f in o:
                     g[f] = o[f]
+            # Ordner-Liste (0.8.8): ohne neue Liste für das System bleibt die alte, ebenso die Größe ohne Ordnerwahl
+            if "own" in o and "own" not in g and g["system"] not in own_systems:
+                g["own"] = o["own"]
+            if "size" in o and "size" not in g:
+                g["size"] = o["size"]
         old[k] = g
     for k in gone:
         old[k].setdefault("gone", day)
@@ -585,4 +599,244 @@ def settle_near(col, key, ok, idx):
         g["de"] = match(g, idx)
     else:
         g["de"] = {"st": "unknown"}
+    return g
+
+
+# ---------------------------------------------------------------- Spielinfos aus der libretro-database (0.8.8)
+# Je System und Feld eine Liste (metadat/genre, maxusers, releaseyear, releasemonth, developer). Bei PS1 und PS2
+# steht alles in der Entwickler-Liste, mit englischer Beschreibung. Die Listen sind groß; das Tool behält nur, was
+# zu den eigenen Spielen passt („lr“ am Spiel), und fragt je System höchstens alle META_DAYS Tage neu.
+META_FILE = "retro_meta.json"
+META_V = 1
+META_FIELDS = ("genre", "maxusers", "releaseyear", "releasemonth", "developer")
+_META_KEYS = {"genre": "genre", "users": "users", "releaseyear": "year", "releasemonth": "month",
+              "releaseday": "day", "developer": "dev", "publisher": "pub", "description": "desc"}
+_META_LINE = re.compile(r'^\s*(\w+)\s+(?:"(.*)"|(\S+))\s*$', re.M)
+
+
+def meta_urls(system):
+    """[(Feld, Adresse)] der Spielinfos eines Systems, mit den weiteren Listen (DSiWare, 3DS-Downloads)."""
+    from urllib.parse import quote
+    kind, name = DATS.get(system, (None, None))
+    if not kind:
+        return []
+    return [(f, LIBRETRO + f + "/" + quote(n) + ".dat") for n in [name] + EXTRA_DATS.get(system, []) for f in META_FIELDS]
+
+
+def parse_meta(text, into=None):
+    """Einträge einer metadat-Liste in into sammeln: {Name der Fassung: {Feld: Wert}}. Dieselbe Fassung aus
+    mehreren Listen wird ein Eintrag (die Entwickler-Liste schreibt „Pixel Kart: Turbo“, die anderen „Pixel Kart - Turbo“)."""
+    into = {} if into is None else into
+    for m in re.finditer(r'(?ms)^game \(\s*(.*?)^\)', str(text or "")):
+        body = m.group(1)
+        nm = re.search(r'^\s*(?:comment|name) "([^"]+)"', body, re.M)
+        if not nm or _SKIP_REL.search(nm.group(1)):
+            continue
+        e = into.setdefault(titles.norm(nm.group(1)), {"n": nm.group(1)[:200]})
+        for k, quoted, bare in _META_LINE.findall(body):
+            f, v = _META_KEYS.get(k), (quoted or bare).strip()
+            if f and v and f not in e:
+                e[f] = v[:1200] if f == "desc" else v[:120]
+    return into
+
+
+def meta_index(entries):
+    """Fassungen je Titel: {Titel: [Einträge]}, dazu Titel ohne Leerzeichen."""
+    by, sq = {}, {}
+    for e in entries.values():
+        info = parse_name(e["n"] + ".x")
+        t = titles.norm(info["title"])
+        if t:
+            by.setdefault(t, []).append(dict(e, r=info["regions"]))
+            sq.setdefault(_squash(t), t)
+    return {"t": by, "sq": sq}
+
+
+def _meta_rank(e, regions):
+    return (not set(e["r"]) & set(regions), "Europe" not in e["r"], -len(e), e["n"])
+
+
+def meta_for(g, idx):
+    """Spielinfos zu einem Retro-Spiel: Titel (dein Titel aus der Ordner-Liste, ein bestätigter ähnlicher Name, der
+    Titel aus dem Dateinamen), gleiche Region zuerst. {} heißt: nicht gefunden."""
+    by = idx.get("t") or {}
+    own = titles.norm((g.get("own") or {}).get("title") or "")
+    hits = []
+    for t in (g.get("alias"), titles.norm(g.get("name") or ""), own):
+        if t and not hits:
+            hits = by.get(t) or by.get((idx.get("sq") or {}).get(_squash(t)) or "") or []
+    if not hits:
+        return {}
+    hits = sorted(hits, key=lambda e: _meta_rank(e, g.get("regions") or []))
+    out = {"n": hits[0]["n"]}
+    for f in ("genre", "users", "year", "month", "day", "dev", "pub", "desc"):
+        v = next((e[f] for e in hits if e.get(f)), "")
+        if v:
+            out[f] = v
+    try:
+        out["users"] = max(0, min(int(out.get("users") or 0), 99))
+    except ValueError:
+        out["users"] = 0
+    if not out["users"]:
+        out.pop("users")
+    y = out.pop("year", "")
+    if re.fullmatch(r"(19|20)\d\d", y):
+        mo, d = out.pop("month", ""), out.pop("day", "")
+        out["rel"] = y + (f"-{int(mo):02d}" if mo.isdigit() and 1 <= int(mo) <= 12 else "")
+        if len(out["rel"]) > 4 and d.isdigit() and 1 <= int(d) <= 31:
+            out["rel"] += f"-{int(d):02d}"
+    out.pop("month", None), out.pop("day", None)
+    if out.get("genre"):
+        out["genre"] = [x.strip() for x in out["genre"].split(",") if x.strip()][:4]
+    return out
+
+
+def mark_meta(col, indexes):
+    """Spielinfos je Retro-Spiel unter „lr“ speichern. indexes: {System: meta_index}. Gibt (gefunden, gesamt) zurück."""
+    got = n = 0
+    for g in (col.get("games") or {}).values():
+        if g.get("src") != SRC or g.get("system") not in indexes:
+            continue
+        g["lr"] = meta_for(g, indexes[g["system"]])
+        n += 1
+        got += bool(g["lr"])
+    return got, n
+
+
+# ---------------------------------------------------------------- Deine Ordner-Listen (0.8.8)
+# „<system>_ordner.csv“ unter „_Sortierung“: Datei;Titel;Reihe;Sammelreihe;Genre;Untergruppe;Ordner, beim 3DS dazu
+# Status;TitleID;Liegt in;MB. Sie sind die erste Quelle (Entscheidung 28.10.2026): Titel und Genre daraus gelten vor
+# Dateiname, libretro und IGDB. Wo andere Quellen widersprechen, steht es unter „Zu erledigen“.
+OWN_COLS = {"title": ("titel", "title"), "series": ("reihe",), "coll": ("sammelreihe",), "genre": ("genre",),
+            "sub": ("untergruppe",), "folder": ("ordner",), "status": ("status",), "mb": ("mb",)}
+# Deine Genres auf die Genre-Gruppen des Tools
+OWN_GENRE = {"jump & run": "Plattformer", "action & arcade": "Action", "sport": "Sport", "rennspiele": "Rennen",
+             "rollenspiele": "Rollenspiel", "shooter": "Shooter", "adventure": "Abenteuer", "simulation": "Simulation",
+             "puzzle": "Puzzle", "brett- & kartenspiele": "Karten und Brett", "kampfspiele": "Kampfspiel",
+             "party & minispiele": "Party", "musik & rhythmus": "Musik", "flipper": "Arcade", "strategie": "Strategie",
+             "lernspiele": "Lernspiel"}
+
+
+def is_folder_list(path):
+    return bool(re.search(r"(?:^|[/\\])[^/\\]*_ordner\.csv$", str(path or ""), re.I))
+
+
+def parse_folder_list(path, text):
+    """Eine Ordner-Liste: [(Schlüssel des Spiels, System, Angaben)]. Das System kommt aus der Endung der Datei, sonst
+    aus dem Ordner, in dem die Liste liegt (ohne „…_zip“ und „_Sortierung“)."""
+    from .imports import _col, _rows
+    rows = _rows(str(text or "").lstrip("﻿"))
+    if not rows:
+        return []
+    h = rows[0]
+    cf = _col(h, "datei", "file", "dateiname")
+    if cf is None:
+        return []
+    cols = {f: _col(h, *names) for f, names in OWN_COLS.items()}
+    dirs = [d for d in split_path(path)[0] if not _SKIP_DIR.search(d)]
+    out = []
+    for r in rows[1:MAX_LINES]:
+        fname = r[cf].strip() if cf < len(r) else ""
+        if not fname:
+            continue
+        system, info = classify("/".join(dirs + [fname]))
+        if system is None:
+            continue
+        own = {}
+        for f, c in cols.items():
+            v = r[c].strip() if c is not None and c < len(r) else ""
+            if v:
+                own[f] = v[:200]
+        try:
+            own["mb"] = round(float(own["mb"].replace(",", ".")), 1) if own.get("mb") else None
+        except ValueError:
+            own["mb"] = None
+        if own.get("mb") is None:
+            own.pop("mb", None)
+        out.append((key(system, info["title"]), system, dict(own, file=fname[:200])))
+    return out
+
+
+def apply_folder_lists(games, lists):
+    """Ordner-Listen in die gelesenen Spiele (games aus parse). Ein Spiel mit mehreren Zeilen nimmt die erste. Gibt
+    {"systems", "rows", "matched", "extra": Zeilen ohne Datei, "missing": Spiele ohne Zeile} zurück."""
+    rows = []
+    for path, text in lists:
+        rows += parse_folder_list(path, text)
+    systems = sorted({s for _, s, _ in rows})
+    matched, extra = set(), []
+    for k, s, own in rows:
+        g = games.get(k)
+        if g is None:
+            extra.append(own.get("title") or own["file"])
+            continue
+        if k not in matched:
+            g["own"] = own
+            matched.add(k)
+    missing = sorted(g["name"] for k, g in games.items() if g["system"] in systems and k not in matched)
+    return {"systems": systems, "rows": len(rows), "matched": len(matched), "extra": sorted(extra), "missing": missing}
+
+
+# Genre-Gruppen, die einander nahe sind: Ein Widerspruch ist es erst, wenn keine Familie übereinstimmt
+# („Jump & Run“ und „Action“ passen, „Puzzle“ und „Rennen“ nicht)
+_FAMILY = {"Action": "akt", "Plattformer": "akt", "Shooter": "akt", "Kampfspiel": "akt", "Arcade": "akt",
+           "Abenteuer": "akt rpg", "Rollenspiel": "rpg", "Strategie": "rpg sim", "Simulation": "sim", "Aufbau": "sim",
+           "Sport": "sport", "Rennen": "sport", "Puzzle": "denk", "Karten und Brett": "denk", "Quiz": "denk",
+           "Casual": "denk party", "Party": "party", "Lernspiel": "denk", "Musik": "party"}
+
+
+def _fam(groups):
+    return {f for x in groups for f in _FAMILY.get(x, "").split()}
+
+
+def _same_title(a, b):
+    c = lambda t: _squash(titles.norm(article_front(str(t or "").replace("_", " "))))
+    return c(a) == c(b)
+
+
+def own_genre(g):
+    return OWN_GENRE.get(((g.get("own") or {}).get("genre") or "").casefold())
+
+
+def own_conflicts(g):
+    """Wo eine andere Quelle beim Genre deiner Ordner-Liste widerspricht: [(Feld, deins, anderes, Quelle)]. Nur, wenn
+    keine nahe Genre-Gruppe übereinstimmt. Einen anderen Titel (etwa deinen deutschen) zeigen die Einzelheiten,
+    er ist kein Widerspruch."""
+    from . import collection
+    own = g.get("own") or {}
+    out = []
+    mine = _fam([own_genre(g)])
+    if mine:
+        for src, raw in (("libretro", (g.get("lr") or {}).get("genre") or []), ("IGDB", (g.get("igdb") or {}).get("genres") or [])):
+            other = _fam(collection.genres(raw, []))
+            if other and not other & mine:
+                out.append(("genre", own["genre"], ", ".join(raw), src))
+    return out
+
+
+def _conflict_id(c):
+    return titles.norm(f"{c[0]} {c[1]} {c[2]} {c[3]}")[:200]
+
+
+def own_list(col):
+    """Retro-Spiele, bei denen andere Quellen deiner Ordner-Liste widersprechen (für „Zu erledigen“); was du schon
+    mit „Liste gilt“ bestätigt hast, fehlt."""
+    out = []
+    for k, g in (col.get("games") or {}).items():
+        if g.get("src") != SRC or not g.get("own") or g.get("gone"):
+            continue
+        ok = set(g.get("own_ok") or [])
+        cs = [c for c in own_conflicts(g) if _conflict_id(c) not in ok]
+        if cs:
+            out.append({"key": k, "name": g["own"].get("title") or g["name"], "system": g.get("system") or "",
+                        "diff": [{"f": c[0], "own": c[1], "other": c[2], "src": c[3]} for c in cs]})
+    return sorted(out, key=lambda x: (x["system"], titles.norm(x["name"])))
+
+
+def settle_own(col, key):
+    """„Liste gilt“: die jetzigen Widersprüche dieses Spiels nicht mehr zeigen (ändert sich ein Wert, kommt es wieder)."""
+    g = (col.get("games") or {}).get(key)
+    if not g or not g.get("own"):
+        raise ValueError("kein Spiel aus deiner Ordner-Liste")
+    g["own_ok"] = sorted(set(g.get("own_ok") or []) | {_conflict_id(c) for c in own_conflicts(g)})[:20]
     return g

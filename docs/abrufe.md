@@ -321,6 +321,18 @@ Ab 0.8.6 (`retro_dat.json` in Fassung 3, alle Listen einmal neu): eine Fassung j
 (in der DSi-Liste heißen viele Dateien nur „00000000“), dazu `sq` mit Titeln ohne Leerzeichen.
 Systeme ohne Liste bleiben ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-Liste einmal ab.
 
+### Spielinfos (0.8.8)
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Spielinfos je Feld | `…/metadat/genre/<System>.dat`, ebenso `maxusers`, `releaseyear`, `releasemonth`, `developer`; dazu dieselben Felder der weiteren Listen (3DS-Downloads, DSiWare) | je System höchstens alle 30 Tage (`META_DAYS`), früher nur, wenn ein Retro-Spiel des Systems noch kein `lr` hat; 404 heißt „gibt es nicht“ | Genre, Spielerzahl, Jahr und Monat, Entwickler; bei PS1 und PS2 steht in der Entwickler-Liste alles, mit Verlag, Tag und englischer Beschreibung |
+
+Die Listen werden nur im Speicher zu einem Verzeichnis je Titel; behalten wird je Retro-Spiel unter `lr`, was
+passt (`n` Name der Fassung, `genre` als Liste, `users`, `rel` als `JJJJ`, `JJJJ-MM` oder `JJJJ-MM-TT`, `dev`,
+`pub`, `desc`), `{}` ohne Treffer. Gesucht wird unter dem bestätigten ähnlichen Namen, dem Titel aus dem
+Dateinamen und deinem Titel aus der Ordner-Liste, Fassungen der eigenen Region zuerst. Fehlt ein Feld in der
+besten Fassung, gilt das der nächsten. Beta, Proto und Ähnliches zählen nicht.
+
 ## Ablage im Datenordner
 
 - `data.json`: je Titel unter `live` die letzten Werte je Quelle (`meta`, `steam`, `gg`), jeweils
@@ -336,8 +348,12 @@ Systeme ohne Liste bleiben ohne Angabe. „Verbindung testen“ fragt beide List
 - `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB).
 - `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
   geholt, wenn sie fehlt oder älter als sieben Tage ist.
+- `retro_meta.json` (0.8.8): je System Tag des letzten Abrufs der Spielinfos, Fassung (`v`) und Zahl der Einträge.
 - `collection.json`: die ganze Sammlung (je Spiel mit System, ohne Feld PC), je Spiel Merkmale aus Playnite;
   Spiele aus der Retro-Liste mit `src` „retro“, Schlüssel `retro:<system>:<name>`, dazu `files`, `regions`,
   `langs`, `lang_guess`, `flags`, gegebenenfalls `tid` und `serial` (3DS) und `gone` (Tag, seit dem es in der
-  Liste fehlt) und `de` (siehe Retro-Fassungen), nie Pfade; und
+  Liste fehlt) und `de` (siehe Retro-Fassungen), ab 0.8.8 `lr` (Spielinfos), `size` (Bytes aus der Ordnerwahl),
+  `own` (deine Zeile der Ordner-Liste: `file`, `title`, `series`, `coll`, `genre`, `sub`, `folder`, `status`, `mb`)
+  und `own_ok` (bestätigte Widersprüche), nie Pfade; ein neuer Import ohne Ordner-Liste für das System behält
+  `own`, einer ohne Größen behält `size`; und
   `rev` (Steam-Rezensionen) und `steam` (Steam-Details).

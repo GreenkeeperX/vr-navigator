@@ -50,7 +50,9 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/retro.py`: Retro-Liste (Dateinamen aus dem ROM-Ordner oder CSV) zu einem Eintrag je Spiel und
   System, Region und Sprache aus No-Intro- und Redump-Namen, „nicht mehr in der Liste“; Fassungslisten
   (libretro-DAT, Retool) zu Gruppen und „DE fehlt“ je Spiel (`build_index`, `match`), 3DS über den
-  Produktcode, ähnliche Namen zum Bestätigen (`similar`, `near_list`, `settle_near`)
+  Produktcode, ähnliche Namen zum Bestätigen (`similar`, `near_list`, `settle_near`); ab 0.8.8 Spielinfos der
+  libretro-database (`parse_meta`, `meta_for`, `mark_meta`) und deine Ordner-Listen `…_ordner.csv`
+  (`parse_folder_list`, `apply_folder_lists`, Widersprüche `own_list`, `settle_own`)
 - `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export,
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
 - `app/wheel.py`: Sim-Racing ohne Netz: Steam-Schlagwörter (Hinweis), Liste der Rennsimulationen (Bestätigung)

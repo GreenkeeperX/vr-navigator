@@ -53,25 +53,30 @@ GENRES = {
     "Strategie": ("strategy", "turn-based strategy (tbs)", "real time strategy (rts)", "tactical", "4x",
                   "grand strategy", "turn-based tactics", "tower defense"),
     "Rollenspiel": ("role-playing (rpg)", "rpg", "jrpg", "action rpg", "crpg"),
-    "Shooter": ("shooter", "fps", "third-person shooter", "shoot 'em up", "bullet hell", "twin stick shooter"),
-    "Action": ("action", "hack and slash/beat 'em up", "action-adventure", "beat 'em up", "hack and slash"),
+    "Shooter": ("shooter", "fps", "third-person shooter", "shoot 'em up", "bullet hell", "twin stick shooter",
+                "shoot'em up", "lightgun shooter"),
+    "Action": ("action", "hack and slash/beat 'em up", "action-adventure", "beat 'em up", "hack and slash", "beat'em up"),
     "Abenteuer": ("adventure", "point-and-click", "point & click", "walking simulator"),
-    "Puzzle": ("puzzle",),
+    "Puzzle": ("puzzle", "thinking"),
     "Plattformer": ("platform", "platformer", "metroidvania", "precision platformer"),
     "Simulation": ("simulator", "simulation", "farming sim", "life sim"),
     "Aufbau": ("city builder", "base building", "colony sim", "management", "automation", "building"),
     "Rennen": ("racing", "driving"),
-    "Sport": ("sport", "sports"),
+    "Sport": ("sport", "sports", "hunting and fishing", "sports with animals"),
     "Kampfspiel": ("fighting",),
-    "Arcade": ("arcade",),
-    "Karten und Brett": ("card & board game", "card game", "board game", "deckbuilding", "card battler"),
+    "Arcade": ("arcade", "pinball"),
+    "Karten und Brett": ("card & board game", "card game", "board game", "deckbuilding", "card battler", "board", "card",
+                         "gambling"),
     "Horror": ("horror", "survival horror", "psychological horror"),
     "Roguelike": ("roguelike", "roguelite", "action roguelike"),
     "Survival": ("survival", "open world survival craft"),
     "Visual Novel": ("visual novel",),
-    "Musik": ("music", "rhythm"),
-    "Quiz": ("quiz/trivia", "trivia"),
-    "Casual": ("casual",),
+    "Musik": ("music", "rhythm", "music / dancing"),
+    "Quiz": ("quiz/trivia", "trivia", "quiz"),
+    "Casual": ("casual", "casual game"),
+    # Ab 0.8.8 für Retro (libretro, deine Ordner-Liste)
+    "Party": ("party",),
+    "Lernspiel": ("educational",),
 }
 _GENRE_OF = {w: g for g, ws in GENRES.items() for w in ws}
 
@@ -484,7 +489,7 @@ def vr_name(name):
     return bool(_VR_NAME.search(name or ""))
 
 
-def _pc_vr(rows, data):
+def _pc_vr(rows, data, wmatch=None):
     """VR am PC (0.8.7): Steam-Spiele der Sammlung, die das Tool als VR kennt (VR-Titel oder VR-Prüfung im Store),
     tragen „VR“; nennt nur der Name VR, ist das ein Hinweis (vr_guess). Dazu kommen deine VR-Titel am PC, die
     Playnite nicht kennt: am PC gekauft (Steam, Epic …) oder bei Meta mit Crossbuy (Entscheidung 28.10.2026)."""
@@ -527,8 +532,63 @@ def _pc_vr(rows, data):
              "dev": "", "pub": "", "rel": "", "desc": "", "gem": 0, "gem_guess": True, "srcs": ["VR-Titel im Tool"],
              "url": f"https://store.steampowered.com/app/{sid}/" if sid.isdigit() else "",
              "vr": True, "vr_src": "VR-Titel im Tool", "from_vr": k}
+        # Lenkrad (0.8.8): auch die VR-Titel ohne Playnite-Eintrag, über Steam-ID und Namen
+        w = wheel.row(wmatch, sid, None, t["name"]) if wmatch else None
+        if w:
+            r["wheel"] = w
         extra.append(r)
     return extra
+
+
+def merge_retro(r, g):
+    """Retro (0.8.8): Spielinfos aus der libretro-database, dann deine Ordner-Liste als erste Quelle.
+    - libretro: Genre und Spielerzahl wie IGDB (bestätigt, was beide sagen; nennt sonst niemand ein Genre, gilt es),
+      Erscheinen, Entwickler, Verlag, Beschreibung (englisch) nur, wo nichts anderes steht
+    - Ordner-Liste: dein Titel ist der Name, dein Genre steht vorn und gilt als bestätigt; Reihe, Untergruppe und
+      Ordner stehen in den Einzelheiten. Widerspricht libretro oder IGDB beim Genre, nennt es own_diff"""
+    lr = g.get("lr") or {}
+    if lr:
+        r["srcs"] = r["srcs"] + ["libretro"]
+        lg = genres(lr.get("genre") or [], [])
+        r["gc"] = list(dict.fromkeys((r.get("gc") or []) + [x for x in r["genres"] if x in lg] + (lg if not r["genres"] else [])))
+        r["genres"] = r["genres"] + [x for x in lg if x not in r["genres"]]
+        r["lgen"] = lr.get("genre") or []
+        if lr.get("users"):
+            if r.get("pl_src") == "IGDB" and r["players"] == lr["users"]:
+                r["pl_ok"] = True
+            elif not r["players"] or r.get("pl_src") != "IGDB":
+                r["players"], r["pl_src"] = lr["users"], "libretro"
+        rel = lr.get("rel") or ""
+        if rel:
+            if r["year"]:
+                r["year_ok"] = r["year"] == rel[:4]
+            else:
+                r.update(year=rel[:4], year_src="libretro", rel=rel)
+            r["lyear"] = rel[:4]
+        for f in ("dev", "pub"):
+            if lr.get(f) and not r.get(f):
+                r[f] = lr[f]
+        if lr.get("desc") and not r.get("desc"):
+            r["desc"], r["desc_lang"], r["desc_src"] = lr["desc"], "en", "libretro"
+        r["lname"] = lr.get("n") or ""
+    own = g.get("own") or {}
+    if own:
+        r["srcs"] = ["Ordner-Liste"] + r["srcs"]
+        from . import retro
+        t = retro.article_front(own.get("title") or "")
+        if t and t != r["name"]:
+            r["fname"], r["name"] = r["name"], t[:200]
+        mg = retro.own_genre(g)
+        if mg:
+            r["genres"] = [mg] + [x for x in r["genres"] if x != mg]
+            r["gc"] = [mg] + [x for x in (r.get("gc") or []) if x != mg]
+        r["own"] = {k: own[k] for k in ("series", "coll", "genre", "sub", "folder", "status", "mb") if own.get(k) not in (None, "")}
+        ok = set(g.get("own_ok") or [])
+        diff = [c for c in retro.own_conflicts(g) if retro._conflict_id(c) not in ok]
+        if diff:
+            r["own_diff"] = [{"own": c[1], "other": c[2], "src": c[3]} for c in diff]
+    if g.get("size"):
+        r["size"] = g["size"]
 
 
 def view(col, data=None):
@@ -571,6 +631,8 @@ def view(col, data=None):
         ig = g.get("igdb") or {}
         if ig.get("id"):
             merge_igdb(r, ig)
+        if r.get("retro"):
+            merge_retro(r, g)
         # VR per Mod (0.8.1): PCGamingWiki „hackable“, vorpX; Nexus Mods mit Spielseite und Mods
         pc, nx = g.get("pcgw") or {}, g.get("nexus") or {}
         if pc.get("mod"):
@@ -595,7 +657,7 @@ def view(col, data=None):
         if r["system"] == "Switch":
             r["system"], r["sw1"] = "Switch 2", True
     if data is not None:
-        rows += _pc_vr(rows, data)
+        rows += _pc_vr(rows, data, wmatch)
     rows.sort(key=lambda r: titles.norm(r["name"]))
     systems = {}
     for r in rows:

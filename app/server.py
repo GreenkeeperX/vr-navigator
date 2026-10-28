@@ -108,16 +108,18 @@ def import_collection(data, text, dry):
     return {"n": len(games), "new": new, "console": console, "systems": systems, "kept": kept}
 
 
-def import_retro(data, text, dry):
+def import_retro(data, text, dry, lists=()):
     """Retro-Liste in die Sammlung (collection.json). Die Vorschau nennt je System die Zahl,
-    was neu ist, was in der Liste fehlt, und was übersprungen oder nicht erkannt wurde."""
+    was neu ist, was in der Liste fehlt, und was übersprungen oder nicht erkannt wurde. lists (0.8.8): deine
+    Ordner-Listen aus der Ordnerwahl als [(Pfad, Text)]."""
     games, st = retro.parse(text)
     if not games:
         raise ValueError("In der Liste ist kein Spiel zu erkennen. Erwartet sind Dateinamen mit Ordnern, etwa "
                          "„SNES/Pixel Kart (Europe).sfc“, oder eine CSV mit den Spalten System und Titel.")
     col = store.load_json(collection.FILE, collection.EMPTY)
     old = col.get("games") or {}
-    new, gone = retro.apply(col, games, dry=dry)
+    own = retro.apply_folder_lists(games, lists) if lists else None
+    new, gone = retro.apply(col, games, dry=dry, own_systems=own["systems"] if own else ())
     if not dry:
         store.save_json(collection.FILE, col)
         data["imports"]["retro"] = {"at": col["at"], "n": len(games), "new": new, "files": st["files"], "gone": len(gone)}
@@ -127,15 +129,28 @@ def import_retro(data, text, dry):
             "skipped": {"save": st["save"], "extra": st["extra"], "archive": st["archive"]},
             "unknown_n": st["unknown"], "unknown": retro.unknown_lines(text) if st["unknown"] else [],
             "gone": gone[:200], "gone_n": len(gone),
+            "own": dict(own, extra=own["extra"][:100], missing=own["missing"][:100], extra_n=len(own["extra"]),
+                        missing_n=len(own["missing"])) if own else None,
+            "size": sum(g.get("size") or 0 for g in games.values()),
             "entries": [{"name": g["name"], "system": g["system"], "known": k in old, "langs": g["langs"],
                          "lang_guess": g["lang_guess"], "files": g["files"]} for k, g in rows[:300]]}
 
 
+def _lists(body):
+    """Ordner-Listen aus dem Import: höchstens 60, je 5 MB, nur Dateien „…_ordner.csv“."""
+    out = []
+    for x in (body.get("lists") or [])[:60] if isinstance(body.get("lists"), list) else []:
+        if isinstance(x, dict) and retro.is_folder_list(x.get("path")):
+            out.append((str(x["path"])[:500], str(x.get("text") or "")[:5_000_000]))
+    return out
+
+
 def state():
     data = store.load_data()
+    col = store.load_json(collection.FILE, collection.EMPTY)
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
                 marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
-                retro_near=retro.near_list(store.load_json(collection.FILE, collection.EMPTY)),
+                retro_near=retro.near_list(col), retro_own=retro.own_list(col),
                 sync=sync.status(), settings=settings_view())
 
 
@@ -370,7 +385,7 @@ class Handler(BaseHTTPRequestHandler):
                 fn = import_retro if kind == "retro" else imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
                 with store.lock:
                     data = store.load_data()
-                    res = fn(data, text, dry=dry)
+                    res = fn(data, text, dry=dry, lists=_lists(body)) if fn is import_retro else fn(data, text, dry=dry)
                     if (res.get("kind") or kind) == "playnite":
                         res["collection"] = import_collection(data, text, dry)
                     if not dry:
@@ -390,6 +405,15 @@ class Handler(BaseHTTPRequestHandler):
                         data["imports"]["retro"]["gone"] = 0
                         store.save_data(data)
                 self._send(200, {"changed": n, "collection": collection.view(col, store.load_data())})
+            elif path == "/api/retro/own":
+                # Widerspruch zu deiner Ordner-Liste (0.8.8): „Liste gilt“ für ein Spiel oder alle
+                with store.lock:
+                    col = store.load_json(collection.FILE, collection.EMPTY)
+                    keys = [x["key"] for x in retro.own_list(col)] if body.get("all") is True else [_text(body.get("key"), 300)]
+                    for k in keys:
+                        retro.settle_own(col, k)
+                    store.save_json(collection.FILE, col)
+                self._send(200, {"retro_own": retro.own_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/near":
                 # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
                 key = _text(body.get("key"), 300)
