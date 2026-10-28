@@ -143,7 +143,7 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Einstellungen in der Reihenfolge der Daten: Sprungleiste oben (bleibt beim Scrollen stehen),
   „Zu erledigen“ (nur wenn etwas offen ist), Einlesen (Konten und Schlüssel, Lesezeichen, ein
   Feld für jede Datei), Abgleich (oben „automatisch alle … Stunden“, speichert sofort; Quellen,
-  „Aktualisieren“, „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung
+  „Aktualisieren“, „Beschleunigt auffüllen“ (0.8.6, Lauf von Hand mit fünffachen Grenzen), „Verbindung testen“, klappbar Verbindungstest und Protokoll) und Sicherung
   (drei Knöpfe wie im eShopKompass: Abgleichsdaten herunterladen, Sicherung herunterladen,
   Sicherung einlesen). Die Klappe „Quellen“ nennt den Stand farbig wie im eShopKompass
   („10 ok“ grün, „1 mit Problem (gg.deals)“ rot), aufgeklappt eine kompakte Tabelle (`.mini-t`: Quelle,

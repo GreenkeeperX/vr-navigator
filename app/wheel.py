@@ -17,7 +17,7 @@ import urllib.parse
 from . import titles
 from .probes import search_name
 
-V = 1
+V = 2                       # Stand des Lesers; ändert er sich, liest der Abgleich beide Listen neu (0.8.6)
 LIST = "https://community.granitedevices.com/raw/5645"
 LIST_NAME = "Liste der Rennsimulationen (Simucube-Forum)"
 LIST_FILE = "wheel_list.json"

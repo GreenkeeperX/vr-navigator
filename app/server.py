@@ -454,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/sync":
                 only = body.get("only")
                 only = {str(x) for x in only} if isinstance(only, list) else None
-                started = sync.start(only)
+                started = sync.start(only, fast=body.get("fast") is True)
                 self._send(200, dict(state(), started=started))
             elif path == "/api/diag":
                 start_diag()

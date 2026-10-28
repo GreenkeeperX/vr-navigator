@@ -15,6 +15,11 @@ endet sie für diesen Lauf und **ruht 24 Stunden**, auch über spätere Läufe h
 nennt das Ende der Ruhezeit. Nach 5 anderen Fehlern endet sie nur für diesen Lauf. Die übrigen
 Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
 
+**Beschleunigt auffüllen** (ab 0.8.6, nur von Hand, `run(fast=True)`): Für diesen einen Lauf gelten die
+Grenzen je Lauf mal `FAST` (5): `REVIEWS_MAX`, `DETAILS_MAX`, `RATING_MAX`, `IGDB_NAMES`, `PCGW_MAX`,
+`NEXUS_MAX`, `WHEEL_MAX`, `PLAYERS_MAX`, `VRDB_MAX`. Pausen, Ruhezeiten und der Abbruch bei 403 und 429
+bleiben wie sonst; danach gelten wieder die üblichen Grenzen. Der Zeitplan startet nie einen solchen Lauf.
+
 ## Protokoll, Selbstprüfung, Verbindung testen
 
 - **Protokoll:** jede Quelle schreibt, was sie tut, live während des Laufs (letzte 200 Zeilen,
@@ -243,7 +248,7 @@ dem Server eine Bot-Prüfung und wird nicht abgerufen.
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Liste der Rennsimulationen | `https://community.granitedevices.com/raw/5645` (Rohtext eines offenen Themas im Simucube-Forum; gelesen wird nur der erste Beitrag) | höchstens alle 30 Tage (`WHEEL_LIST_DAYS`), eine Anfrage; abgelegt in `wheel_list.json`; unter 20 Namen bleibt die alte Liste | ein Name je Zeile; Zuordnung lokal über den Namen (auch IGDB-Name). Bestätigung |
+| Liste der Rennsimulationen | `https://community.granitedevices.com/raw/5645` (Rohtext eines offenen Themas im Simucube-Forum; gelesen wird nur der erste Beitrag) | höchstens alle 30 Tage (`WHEEL_LIST_DAYS`), eine Anfrage; abgelegt in `wheel_list.json`; unter 20 Namen bleibt die alte Liste; ändert sich der Leser (`wheel.V`, ab 0.8.6 unter `v`), liest der nächste Abgleich beide Listen gleich neu | ein Name je Zeile; Zuordnung lokal über den Namen (auch IGDB-Name). Bestätigung |
 | SimHub, unterstützte Spiele (ab 0.8.5) | `https://www.simhubdash.com/supported-games/` | höchstens alle 30 Tage, eine Anfrage; in `wheel_list.json` unter `simhub` | nur der Abschnitt „Racing“: Steam-IDs aus den Bildnamen, die Namen darunter. Bestätigung |
 | Steam-Schlagwörter, Liste | `https://api.steampowered.com/IStoreService/GetTagList/v1/?language=english` | höchstens alle 30 Tage; abgelegt in `steam_tags.json` | Name je Kennung |
 | Steam-Schlagwörter je Spiel | `https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=…` mit `include_tag_count` | zuerst die VR-Titel mit Steam-ID (ab 0.8.5), dann die Steam-Spiele am PC, je nach 90 Tagen (`WHEEL_DAYS`), 50 Apps je Anfrage, höchstens 400 je Lauf (`WHEEL_MAX`) | die stärksten Schlagwörter; Hinweis, wenn unter den ersten zehn „Racing“ oder „Driving“ und „Automobile Sim“ oder „Simulation“ stehen |
@@ -298,7 +303,7 @@ Nur mit einer Retro-Liste, je System, das darin vorkommt. Ohne Schlüssel, nach 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
 | Fassungsliste | `https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/<System>.dat` (Discs: `…/metadat/redump/…`) | je System höchstens alle 7 Tage | alle bekannten Fassungen mit Region, Sprachen und bei GBA, GBC, DS und 3DS dem Produktcode |
-| Fassungsliste, weitere | `…/metadat/no-intro/Nintendo - Nintendo 3DS (Digital).dat` (nur 3DS, ab 0.8.4) | mit der Fassungsliste | Download-Titel aus dem eShop, mit Produktcode |
+| Fassungsliste, weitere | `…/metadat/no-intro/Nintendo - Nintendo 3DS (Digital).dat` (3DS, ab 0.8.4), `…/Nintendo - Nintendo DSi.dat` (DS, ab 0.8.6) | mit der Fassungsliste | Download-Titel aus dem eShop und dem DSi-Shop (DSiWare), mit Produktcode |
 | Retool-Liste | `https://raw.githubusercontent.com/unexpectedpanda/retool-clonelists-metadata/main/clonelists/<System> (No-Intro).json` | mit der Fassungsliste | Gruppen von Fassungen eines Spiels mit verschiedenen Titeln |
 
 Fassungen gehören zusammen, wenn sie denselben Titel haben, denselben Produktcode ohne den
@@ -310,6 +315,8 @@ Fassung bekannt (`none`) oder nicht in der Liste (`unknown`, mit `near`, wenn ei
 Liste steht). Nennt der Dateiname eines 3DS-Spiels den Produktcode, stehen unter `langs` und `rel` die
 Sprachen und der Name genau dieser Fassung (ab 0.8.4, `retro_dat.json` in Fassung 2). Bestätigte
 ähnliche Namen stehen je Spiel unter `alias`, abgelehnte unter `near_no`; ein neuer Import behält beides.
+Ab 0.8.6 (`retro_dat.json` in Fassung 3, alle Listen einmal neu): eine Fassung je Eintrag `game ( name … )`
+(in der DSi-Liste heißen viele Dateien nur „00000000“), dazu `sq` mit Titeln ohne Leerzeichen.
 Systeme ohne Liste bleiben ohne Angabe. „Verbindung testen“ fragt beide Listen eines Systems der Retro-Liste einmal ab.
 
 ## Ablage im Datenordner
