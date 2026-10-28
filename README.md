@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.1:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.2:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -250,7 +250,10 @@ Jeder Abgleich ordnet auch Titel zu, die nicht auf der Wunschliste stehen, etwa 
 Was offen bleibt, steht in den Einstellungen unter „Zu erledigen“: „Derselbe Titel?“,
 Steam-IDs, die die Prüfung nicht bestätigt hat („passt“ oder „falsch“; eine falsche App schlägt
 die Suche nicht wieder vor), Titel, die QuestStoreDB nicht fand, und Retro-Spiele mit ähnlichem
-Namen in der Fassungsliste. Bundles sind dort als solche markiert.
+Namen in der Fassungsliste. Bundles sind dort als solche markiert. Ab 0.9.2 dazu „Meinung fehlt“:
+VR-Wünsche ohne Recherche. „Auftrag kopieren“ gibt einen fertigen Auftrag mit Namen, Meta- und
+Steam-ID und dem verlangten Aufbau aus; du fügst ihn in eine Claude-Routine oder einen Chat ein und
+liest die Antwort als Meinungen-Datei ein (siehe [docs/meinungen.md](docs/meinungen.md)).
 
 ## Wunschliste abgleichen
 

@@ -654,6 +654,54 @@ def import_opinions(data, text, dry=True):
     return res
 
 
+OPINION_BATCH = 25     # so viele Titel je Auftrag, damit ein Lauf gründlich bleibt
+
+
+def opinion_task(data, today=None, limit=OPINION_BATCH):
+    """Auftrag an die Recherche (0.9.2): die Wünsche ohne Meinung mit Kennungen und dazu, wie die Antwort aussehen
+    muss, als Text zum Einfügen in eine Claude-Routine oder einen Chat. Höchstens limit Titel, die zuletzt
+    gewünschten zuerst; leer, wenn nichts fehlt."""
+    todo = [x for x in titles.todo(data) if x["kind"] == "opinion"]
+    todo.sort(key=lambda x: data["titles"][x["key"]].get("added") or "", reverse=True)
+    todo = todo[:limit]
+    if not todo:
+        return ""
+    today = today or titles.now_iso()[:10]
+    rows = [{k: v for k, v in (("name", x["name"]), ("meta_id", x["meta_id"]), ("steam_appid", x["steam_appid"])) if v}
+            for x in todo]
+    fields = "\n".join(f"- {f}" for f in OPINION_FIELDS)
+    return f"""Recherchiere für jeden der folgenden VR-Titel, wie er ankommt und ob die Fassung im Meta Store (Quest,
+mit Crossbuy auch PC-VR über die Meta-App) oder bei Steam (PC-VR) die bessere Wahl ist. Quellen: Reddit
+(r/OculusQuest, r/virtualreality, r/SteamVR), Foren, Tests, Store-Seiten und Patchnotes; bevorzugt aus den
+letzten zwölf Monaten. Nichts erfinden: was sich nicht belegen lässt, bleibt leer.
+
+Titel ({len(rows)}):
+{json.dumps(rows, ensure_ascii=False, indent=1)}
+
+Antworte nur mit einer JSON-Datei in diesem Aufbau (meta_id und steam_appid wie oben übernehmen):
+{{"app": "{OPINION_MARK}", "stand": "{today}", "titles": [{{"name": "…", "meta_id": "…", "steam_appid": "…", …}}]}}
+
+Felder je Titel:
+{fields}
+
+Crossbuy heißt: ein Kauf im Meta Store gilt für Quest und PC-VR. Steam gehört nie dazu; gemeinsames Spielen von
+Quest und PC ist Crossplay, kein Crossbuy.
+"""
+
+
+OPINION_FIELDS = (
+    "fazit: zwei bis drei Sätze, wie das Spiel ankommt",
+    "fassung: quest, pc oder gleich; fassung_grund: warum (Grafik, Inhalte, Updates, Mods)",
+    "mehrspieler: lebendig, ruhig, tot oder keiner; mehrspieler_stand: wie voll die Lobbys sind, mit Zeitraum",
+    "pflege: letzte größere Updates, ist der Entwickler aktiv",
+    "crossbuy: true oder false, nur mit Beleg (Store-Seite, Test); crossbuy_grund: der Beleg",
+    "crossplay: true oder false; crossplay_grund: warum",
+    "komfort: Bewegung, Sitzen oder Stehen, Spieldauer",
+    "warnungen: Bugs, Abbruch der Entwicklung, Bezahlinhalte (sonst leer)",
+    "quellen: Liste von {\"url\", \"titel\", \"datum\"}, nur https-Links, die du gelesen hast",
+)
+
+
 # ------------------------------------------------------------------ Eine Datei, egal welche
 
 KINDS = {"sheet": "Vergleichstabelle", "playnite": "Playnite-Export", "meta": "Meta-Käufe",
