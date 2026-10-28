@@ -333,10 +333,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/status":
                 self._send(200, sync.status())
             elif path == "/api/collection":
-                self._send(200, collection.view(store.load_json(collection.FILE, collection.EMPTY)))
+                self._send(200, collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
             elif path == "/api/export":
                 self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
-                                 "collection": store.load_json(collection.FILE, collection.EMPTY)},
+                                 "collection": store.load_json(collection.FILE, collection.EMPTY),
+                                 "pcwish": store.load_json(pcwish.FILE, pcwish.EMPTY)},
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
             elif path == "/api/abgleich":
                 # Zum Nachprüfen (wie im eShopKompass): Stand und Protokoll des Abgleichs, Preisverlauf,
@@ -388,7 +389,7 @@ class Handler(BaseHTTPRequestHandler):
                     if data["imports"].get("retro"):
                         data["imports"]["retro"]["gone"] = 0
                         store.save_data(data)
-                self._send(200, {"changed": n, "collection": collection.view(col)})
+                self._send(200, {"changed": n, "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/near":
                 # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
                 key = _text(body.get("key"), 300)
@@ -398,7 +399,7 @@ class Handler(BaseHTTPRequestHandler):
                     idx = (store.load_json(retro.CACHE, {}).get(g.get("system") or "") or {}).get("idx")
                     retro.settle_near(col, key, bool(body.get("ok")), idx)
                     store.save_json(collection.FILE, col)
-                self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col)})
+                self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/mark":
@@ -473,6 +474,11 @@ class Handler(BaseHTTPRequestHandler):
                     if isinstance(col, dict) and isinstance(col.get("games"), dict):
                         games = {str(k): g for k, g in col["games"].items() if isinstance(g, dict) and g.get("name")}
                         store.save_json(collection.FILE, dict(col, games=games, n=len(games)))
+                    # PC-Wunschliste ab 0.8.7 in der Sicherung; ältere Sicherungen lassen die vorhandene
+                    pw = body.get("pcwish")
+                    if isinstance(pw, dict) and isinstance(pw.get("items"), dict):
+                        items = {str(k): e for k, e in pw["items"].items() if isinstance(e, dict) and e.get("name")}
+                        store.save_json(pcwish.FILE, dict(pw, items=items))
                 self._send(200, state())
             else:
                 self._send(404, {"error": "nicht gefunden"})

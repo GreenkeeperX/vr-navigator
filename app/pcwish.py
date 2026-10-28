@@ -11,7 +11,12 @@ EMPTY = {"items": {}, "at": "", "via": ""}
 NEAR = 0.05         # bis 5 % über dem bisherigen Tief gilt als „nah am Tief“
 
 
+KINDS = {"pack": "Paket", "dlc": "DLC"}
+
+
 def _key(it):
+    if it.get("kind"):
+        return f"{it['kind']}:{it['slug']}"     # 0.8.7: Pakete und DLC, eigene Adresse bei gg.deals
     return it["slug"] if it.get("slug") else "name:" + titles.norm(it["name"])
 
 
@@ -25,6 +30,8 @@ def replace(items, via, stamp=None):
         for it in items:
             k = _key(it)
             e = dict(old.get(k) or {}, name=str(it["name"])[:200], slug=it.get("slug") or "")
+            if it.get("kind"):
+                e["kind"] = it["kind"]
             e.setdefault("since", stamp)
             new[k] = e
         added = [e["name"] for k, e in new.items() if k not in old]
@@ -45,13 +52,18 @@ def steam_index(data, col):
     return out
 
 
-def _vr_keys(data):
-    """Steam-IDs und Namen der VR-Titel im Tool (Marke „VR“ in der PC-Liste)."""
+def _vr_keys(data, col=None):
+    """Steam-IDs und Namen der VR-Titel im Tool (Marke „VR“ in der PC-Liste), ab 0.8.7 auch Steam-Apps, die die
+    VR-Prüfung im Store oder die Steam-Details als VR kennen."""
     ids, names = set(), set()
     for t in data["titles"].values():
         if t.get("steam_appid"):
             ids.add(str(t["steam_appid"]))
         names.add(titles.base_norm(t["name"]))
+    ids |= {a for a, x in (data.get("steam_apps") or {}).items() if (x or {}).get("vr")}
+    for g in ((col or {}).get("games") or {}).values():
+        if g.get("store") == "Steam" and (g.get("steam") or {}).get("vr"):
+            ids.add(str(g.get("id")))
     return ids, names
 
 
@@ -61,7 +73,7 @@ def view(data, col=None):
     col = col if col is not None else store.load_json(collection.FILE, collection.EMPTY)
     owned = {str(g.get("id")) for g in (col.get("games") or {}).values() if g.get("store") == "Steam"}
     owned_names = {titles.norm(g["name"]) for g in (col.get("games") or {}).values() if (g.get("system") or "PC") == "PC"}
-    vr_ids, vr_names = _vr_keys(data)
+    vr_ids, vr_names = _vr_keys(data, col)
     rows = []
     for k, e in (pw.get("items") or {}).items():
         gg = e.get("gg") or {}
@@ -69,12 +81,14 @@ def view(data, col=None):
         best = min((c for c in cands if c[0] is not None), default=(None, ""))
         lows = [x for x in (gg.get("retail_low"), gg.get("keyshops_low")) if x is not None]
         low = min(lows) if lows else None
-        r = {"key": k, "name": e["name"], "slug": e.get("slug") or "", "appid": e.get("appid") or "",
-             "url": gg.get("url") or (f"https://gg.deals/game/{e['slug']}/" if e.get("slug") else ""),
+        kind = e.get("kind") or ""
+        vr = bool(e.get("appid") and e["appid"] in vr_ids) or titles.base_norm(e["name"]) in vr_names
+        r = {"key": k, "name": e["name"], "slug": e.get("slug") or "", "appid": e.get("appid") or "", "kind": kind,
+             "url": gg.get("url") or (f"https://gg.deals/{kind or 'game'}/{e['slug']}/" if e.get("slug") else ""),
              "retail": gg.get("retail"), "keyshops": gg.get("keyshops"), "retail_low": gg.get("retail_low"),
              "keyshops_low": gg.get("keyshops_low"), "best": best[0], "best_from": best[1], "low": low,
              "price_at": gg.get("at") or "", "since": e.get("since") or "",
-             "vr": bool(e.get("appid") and e["appid"] in vr_ids) or titles.base_norm(e["name"]) in vr_names,
+             "vr": vr or collection.vr_name(e["name"]), "vr_guess": not vr and collection.vr_name(e["name"]),
              "owned": bool(e.get("appid") and e["appid"] in owned) or titles.norm(e["name"]) in owned_names}
         if best[0] is not None and low is not None:
             r["over"] = round((best[0] - low) / low, 3) if low > 0 else 0.0
@@ -82,4 +96,5 @@ def view(data, col=None):
         rows.append(r)
     rows.sort(key=lambda r: titles.norm(r["name"]))
     return {"at": pw.get("at") or "", "via": pw.get("via") or "", "n": len(rows), "rows": rows,
-            "priced": sum(1 for r in rows if r["best"] is not None), "noid": sum(1 for r in rows if not r["appid"])}
+            "priced": sum(1 for r in rows if r["best"] is not None), "noid": sum(1 for r in rows if not r["appid"] and not r["kind"]),
+            "kinds": {kd: sum(1 for r in rows if r["kind"] == kd) for kd in KINDS}}

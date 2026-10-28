@@ -89,7 +89,7 @@ IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
 FAST_LIMITS = ("REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX",
-               "PLAYERS_MAX", "VRDB_MAX")
+               "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
@@ -1367,10 +1367,11 @@ def _pcwish(settings, log):
     idx = pcwish.steam_index(store.load_data(), store.load_json(collection.FILE, collection.EMPTY))
     ids, found = {}, 0
     for k, e in items.items():
-        if not e.get("appid") and idx.get(titles.norm(e["name"])):
+        if not e.get("appid") and not e.get("kind") and idx.get(titles.norm(e["name"])):
             ids[k] = idx[titles.norm(e["name"])]
     old = _iso(now() - timedelta(days=MISS_DAYS))
-    todo = [k for k, e in items.items() if not e.get("appid") and k not in ids and (e.get("tried") or "") < old]
+    # Pakete und DLC (0.8.7) haben keine eigene App bei Steam: keine Suche, Preise nur über die Seite bei gg.deals
+    todo = [k for k, e in items.items() if not e.get("appid") and not e.get("kind") and k not in ids and (e.get("tried") or "") < old]
     tried = {}
     for k in todo[:PCWISH_SEARCH]:
         progress("PC-Wunschliste: Steam-IDs", len(tried), min(len(todo), PCWISH_SEARCH))

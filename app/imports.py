@@ -487,12 +487,16 @@ def parse_ggpage(payload, stats=None):
             if name and kind == "game" and seen[(kind, slug)] is not None and not out[seen[(kind, slug)]]["named"]:
                 out[seen[(kind, slug)]].update(name=name, named=True)      # erster Link ohne Text
             continue
-        if kind != "game":
+        if kind not in ("game", "pack", "dlc"):
+            # Bundles von gg.deals sind Angebote mehrerer Läden („Very Positive (1k)“), keine Wünsche
             seen[(kind, slug)] = None
             st["other"].setdefault(kind, []).append(name or slug)
             continue
         seen[(kind, slug)] = len(out)
-        out.append({"slug": slug, "name": name or slug.replace("-", " "), "named": bool(name)})
+        it = {"slug": slug, "name": name or slug.replace("-", " "), "named": bool(name)}
+        if kind != "game":
+            it["kind"] = kind               # 0.8.7: Pakete und DLC stehen auf der PC-Wunschliste
+        out.append(it)
     for it in out:
         del it["named"]
     return out
@@ -503,26 +507,31 @@ def import_ggpage(data, payload, dry=True):
     Unbekannte Namen sucht der nächste Abgleich im Steam-Store (data["gg_unknown"])."""
     from . import accounts
     st = {}
-    items = parse_ggpage(payload, st)
+    every = parse_ggpage(payload, st)
+    items = [it for it in every if not it.get("kind")]          # VR-Titel: nur Spiele
     if not items:
         raise ValueError("Keine Spiele auf der gg.deals-Wunschliste erkannt. Bitte die Seite neu laden und noch einmal versuchen")
     entries = [{"name": it["name"], "known": k is not None} for it, k in zip(items, accounts.gg_match(data, items))]
     res = _summary(data, entries, dry, 0)
+    res["pc_n"] = len(every)
+    res["pc_kinds"] = {kd: sum(1 for it in every if it.get("kind") == kd) for kd in ("pack", "dlc")}
+    res["skipped"] = {kd: len(v) for kd, v in st["other"].items()}
     if not dry:
         r = accounts.apply_gg_wishes(data, items)
         res.update(wish_added=r["wish_added"], wish_removed=r["wish_removed"], unknown=r["unknown"])
         data["gg_unknown"] = r["unknown"]
         data["imports"]["ggwish"] = {"at": titles.now_iso(), "n": len(items), "new": 0, "via": "Lesezeichen"}
         from . import pcwish
-        pcwish.replace(items, "Lesezeichen")         # 0.8.2: die ganze Liste für den Unterreiter PC
+        pcwish.replace(every, "Lesezeichen")         # 0.8.2: die ganze Liste für den Unterreiter PC, ab 0.8.7 mit Paketen und DLC
     res["what"] = "gg.deals-Wunschliste"
-    res["note"] = ("Gezählt werden Titel, die das Tool schon kennt. Die übrigen sucht der nächste Abgleich im "
-                   "Steam-Store und nimmt sie auf, wenn sie VR können.")
-    # Was nicht als Spiel übernommen wurde, steht in der Vorschau, damit nichts still verschwindet
+    res["note"] = ("Alle Spiele, Pakete und DLC kommen auf die PC-Wunschliste. Als VR-Titel zählen Spiele, die das Tool "
+                   "schon kennt; die übrigen Spiele fragt der nächste Abgleich im Steam-Store und nimmt sie auf, wenn sie VR können.")
+    # Was gar nicht übernommen wurde (Bundles von gg.deals), steht in der Vorschau, damit nichts still verschwindet
     other = [f"{len(v)} {GG_KINDS.get(k, k)} ({', '.join(v[:5])}{' …' if len(v) > 5 else ''})" for k, v in st["other"].items()]
     if other:
-        res["note"] += f" Nicht als Spiel übernommen: {'; '.join(other)}."
-    res["gg"] = {"raw": st["raw"], "games": len(items), "dups": st["dups"], "other": {k: len(v) for k, v in st["other"].items()}}
+        res["note"] += f" Nicht übernommen: {'; '.join(other)}."
+    res["gg"] = {"raw": st["raw"], "games": len(items), "dups": st["dups"], "other": {k: len(v) for k, v in st["other"].items()},
+                 "kinds": res["pc_kinds"]}
     return res
 
 

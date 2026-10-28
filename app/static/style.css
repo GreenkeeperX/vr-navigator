@@ -262,7 +262,7 @@ details.menu input[type=search]{width:100%}
 .legend .best-t{color:var(--best);font-weight:600}
 .sched{font-size:14px}
 /* Aktualisieren und Verbindung testen gleich hoch (wie im eShopKompass) */
-.bar.slim>button{padding:4px 12px;font-size:14px;line-height:1.4}
+.bar.slim>button{padding:0 12px;font-size:14px;line-height:1.4;height:30px;box-sizing:border-box;display:inline-flex;align-items:center}
 .sched input[type=number]{width:64px}
 .rate{color:var(--ink)}
 .rate.win{color:var(--go);font-weight:600}
@@ -376,3 +376,7 @@ details.menu .opts .chip{font-size:12px}
   .gdf,.gdv,.gdm{grid-column:1}
   .gdf,.gdv,.gd .gds{padding-left:4px}
 }
+/* Titel kopieren und Liste herunterladen (0.8.7) */
+.gh-t .gcopy{margin-left:6px;text-decoration:none;font-size:13px;color:var(--muted)}
+.gh-t .gcopy:hover{color:var(--accent)}
+.bar .gdl{white-space:nowrap}

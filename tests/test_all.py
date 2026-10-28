@@ -243,6 +243,7 @@ class TestImports(unittest.TestCase):
 
     def test_ggpage_and_guess(self):
         """gg.deals-Wunschliste aus dem Lesezeichen; unklare Dateien melden sich statt still nichts."""
+        store.DATA_DIR = tempfile.mkdtemp()
         d = empty()
         k, _ = titles.upsert(d, "Orbit Golf")
         payload = json.dumps({"kind": "gg-wunschliste", "hv": 5, "items": [
@@ -260,14 +261,24 @@ class TestImports(unittest.TestCase):
         self.assertIn("Art", str(e.exception))
         res = imports.import_auto(d, SHEET, dry=True)
         self.assertEqual((res["kind"], res["guess"]), ("sheet", False))
-        # Lesezeichen 7: Pakete und DLC kommen mit, übernommen werden nur Spiele, einmal je Slug
+        # Lesezeichen 7: Pakete und DLC kommen mit; VR-Titel nur aus Spielen, einmal je Slug. Ab 0.8.7 stehen Pakete
+        # und DLC auf der PC-Wunschliste, Bundles von gg.deals (Angebote mehrerer Läden) fallen weg
         payload = json.dumps({"kind": "gg-wunschliste", "hv": 7, "items": [
             {"kind": "game", "slug": "orbit-golf", "name": ""}, {"kind": "game", "slug": "orbit-golf", "name": "Orbit Golf"},
-            {"kind": "pack", "slug": "sky-bundle", "name": "Sky Bundle"}, {"kind": "dlc", "slug": "orbit-golf-holes", "name": "Mehr Löcher"}]})
+            {"kind": "pack", "slug": "sky-bundle", "name": "Sky Bundle"}, {"kind": "dlc", "slug": "orbit-golf-holes", "name": "Mehr Löcher"},
+            {"kind": "bundle", "slug": "12345", "name": "Very Positive (1k)"}]})
         res = imports.import_auto(d, payload, dry=True)
         self.assertEqual([e["name"] for e in res["entries"]], ["Orbit Golf"])
-        self.assertEqual(res["gg"], {"raw": 4, "games": 1, "dups": 1, "other": {"pack": 1, "dlc": 1}})
-        self.assertIn("1 Pakete (Sky Bundle); 1 DLC (Mehr Löcher)", res["note"])
+        self.assertEqual(res["gg"], {"raw": 5, "games": 1, "dups": 1, "other": {"bundle": 1}, "kinds": {"pack": 1, "dlc": 1}})
+        self.assertIn("Nicht übernommen: 1 Bundles (Very Positive (1k))", res["note"])
+        imports.import_auto(d, payload, dry=False)
+        from app import pcwish
+        pw = store.load_json(pcwish.FILE, pcwish.EMPTY)["items"]
+        self.assertEqual(set(pw), {"orbit-golf", "pack:sky-bundle", "dlc:orbit-golf-holes"})
+        rows = {r["key"]: r for r in pcwish.view(d, {"games": {}})["rows"]}
+        self.assertEqual(rows["pack:sky-bundle"]["url"], "https://gg.deals/pack/sky-bundle/")
+        self.assertEqual(rows["dlc:orbit-golf-holes"]["kind"], "dlc")
+        self.assertTrue(rows["orbit-golf"]["vr"])
 
     def test_opinions(self):
         """Meinungen-Datei: erkannt, nur bekannte Titel, Crossbuy nur ohne eigenen Wert."""
@@ -586,6 +597,35 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(retro.match(g("Mega Comet Zero 3"), idx), {"st": "unknown"})
         self.assertEqual(retro.match(g("Star Hop 4 Heimweg"), idx)["near"], "Star Hop IV - Heimweg")
         self.assertEqual(retro.extra_urls("GBA"), [])
+
+    def test_pc_vr_in_collection(self):
+        """VR am PC (0.8.7): Marke aus Steam, VR-Titeln, VR-Prüfung im Store, Name nur als Hinweis; VR-Titel am PC
+        und Meta mit Crossbuy kommen dazu, wenn Playnite sie nicht kennt."""
+        store.DATA_DIR = tempfile.mkdtemp()
+        d = empty()
+        a, _ = titles.upsert(d, "Orbit Golf", steam_appid="3300001")
+        b, _ = titles.upsert(d, "Comet Chase VR", steam_appid="3300002")
+        c, _ = titles.upsert(d, "Star Hop")
+        e, _ = titles.upsert(d, "Moon Rover")
+        d["titles"][b]["owned"] = {"pc": {"src": "steam", "label": "Steam"}}
+        d["titles"][c]["owned"] = {"meta": {"src": "meta"}}
+        d["titles"][c]["crossbuy"], d["titles"][c]["crossbuy_src"] = True, "Hand"
+        d["titles"][e]["owned"] = {"meta": {"src": "meta"}}
+        d["steam_apps"] = {"3300003": {"name": "Pixel Kart", "vr": True}}
+        col = {"games": {
+            "steam:3300001": {"name": "Orbit Golf", "store": "Steam", "id": "3300001"},
+            "steam:3300003": {"name": "Pixel Kart", "store": "Steam", "id": "3300003"},
+            "steam:3300004": {"name": "Harbor Heist VR", "store": "Steam", "id": "3300004"},
+            "steam:3300005": {"name": "Revolver Night", "store": "Steam", "id": "3300005"}}}
+        rows = {r["name"]: r for r in collection.view(col, d)["games"]}
+        self.assertEqual(rows["Orbit Golf"]["vr_src"], "VR-Titel im Tool")
+        self.assertEqual(rows["Pixel Kart"]["vr_src"], "VR-Prüfung im Steam-Store")
+        self.assertTrue(rows["Harbor Heist VR"]["vr_guess"])
+        self.assertFalse(rows["Revolver Night"].get("vr"))
+        self.assertEqual((rows["Comet Chase VR"]["store"], rows["Comet Chase VR"]["key"]), ("Steam", "pcvr:" + b))
+        self.assertEqual(rows["Star Hop"]["store"], "Meta (Crossbuy)")
+        self.assertNotIn("Moon Rover", rows)                    # Meta ohne Crossbuy läuft nicht am PC
+        self.assertEqual(len(collection.view(col)["games"]), 4)   # ohne Daten wie bisher
 
     def test_replace_keeps_fetched_and_gem(self):
         col = json.loads(json.dumps(collection.EMPTY))

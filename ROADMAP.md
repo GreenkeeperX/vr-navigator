@@ -89,15 +89,20 @@ Bestätigen in „Zu erledigen“. 0.8.5 nach dem Verbindungstest: Lenkrad auch 
 Liste (Steam-ID im Bildnamen), strengere Schlagwort-Regel, Simucube nur der erste Beitrag; Nexus-Spieleliste
 in Seiten zu 80. 0.8.6: „Beschleunigt auffüllen“ (ein Lauf von Hand mit fünffachen Grenzen, Pausen
 bleiben); Retro: DSiWare-Liste beim DS, Titel ohne Leerzeichen gleich, ähnliche Namen nur bei gleichen
-Zahlen; die Simucube-Liste wird nach einem neuen Leser gleich neu gelesen. Grundsatz (Entscheidung 22.10.2026): so wenig
+Zahlen; die Simucube-Liste wird nach einem neuen Leser gleich neu gelesen. 0.8.7: Wunschliste PC vor VR, mit Paketen
+und DLC, VR-Spiele nur unter VR; VR-Titel am PC (auch Meta mit Crossbuy) in der Sammlung PC, VR-Marke aus mehr
+Quellen; Suche je Reiter; Liste als CSV, Titel kopieren; Mein Stand überall an derselben Stelle; PC-Wunschliste in
+der Sicherung. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
   und „Jetzt“ für alle Wünsche mit Filter VR
 
-- Retro, Infos: Genre, Spielerzahl, Jahr aus der libretro-database, zur Bestätigung IGDB
-  (optionaler Twitch-Schlüssel); jede Quelle zuerst als Probe in „Verbindung testen“.
+- Retro, Infos: Genre, Spielerzahl, Jahr und Entwickler aus der libretro-database (Probe in „Verbindung testen“
+  ergab Treffer), zur Bestätigung IGDB; Dateigröße aus der Ordnerwahl. Eigene Sortierlisten je System
+  (`_ordner.csv`: Titel, Reihe, Genre) als erste Quelle, Widersprüche zu No-Intro, libretro und IGDB zum Klären in
+  „Zu erledigen“ (Entscheidung 28.10.2026)
   GameCube, Wii und PlayStation mit Redump-Namen
 
 - Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
