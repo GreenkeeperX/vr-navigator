@@ -399,7 +399,8 @@ a.pl:hover{text-decoration:underline}
 .g-buy{color:var(--go);font-weight:600}
 /* SimRacing und Geheimtipp (0.8.12): eigene Farben wie VR; SimRacing orange gefüllt, Geheimtipp grün umrandet */
 .b.simb{background:transparent;border:1px solid var(--sim);color:var(--sim)}
-.b.gemb{background:transparent;border:1px solid var(--go);color:var(--go)}
+/* 0.8.24: dunkler, damit die Marke nicht heraussticht (Entscheidung 28.10.2026) */
+.b.gemb{background:transparent;border:1px solid color-mix(in srgb,var(--go) 45%,transparent);color:color-mix(in srgb,var(--go) 65%,var(--muted))}
 /* Hinweise mit „?“ (0.8.17): in der Farbe ihrer Marke, nur gestrichelt umrandet statt gefüllt */
 .b.simq{background:transparent;border:1px dashed var(--sim);color:var(--sim)}
 .b.vrq{background:transparent;border:1px dashed var(--brand);color:var(--brand)}

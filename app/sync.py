@@ -88,7 +88,7 @@ NEXUS_LIST_DAYS = 7         # Spieleliste von Nexus Mods (nexus_games.json) so o
 WHEEL_MAX = 400             # Steam-Spiele je Lauf für die Schlagwörter (0.8.3), je Anfrage wheel.BATCH
 WHEEL_DAYS = 90
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
-PCWISH_SEARCH = 30          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2)
+PCWISH_SEARCH = 60          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2, ab 0.8.24 60 statt 30)
 PCWISH_INFO = 60            # Spiele der PC-Wunschliste je Lauf mit Steam-Details und Rezensionen (0.8.11)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
@@ -1530,21 +1530,42 @@ def _pcwish(settings, log):
             ids[k] = idx[titles.norm(e["name"])]
     old = _iso(now() - timedelta(days=MISS_DAYS))
     # Pakete und DLC (0.8.7) haben keine eigene App bei Steam: keine Suche, Preise nur über die Seite bei gg.deals
-    todo = [k for k, e in items.items() if not e.get("appid") and not e.get("kind") and k not in ids and (e.get("tried") or "") < old]
-    tried = {}
-    for k in todo[:PCWISH_SEARCH]:
-        progress("PC-Wunschliste: Steam-IDs", len(tried), min(len(todo), PCWISH_SEARCH))
-        name = items[k]["name"]
-        text = src.get(f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": name, "l": "german", "cc": "DE"}),
-                       shown=f"Steam-Suche „{name[:40]}“")
-        if text is None:
-            if src.stopped:
+    # Erst die nie gesuchten, dann die am längsten nicht gesuchten; Vorschläge zur Wahl warten auf dich
+    todo = sorted((k for k, e in items.items() if not e.get("appid") and not e.get("kind") and k not in ids
+                   and not e.get("cand") and (e.get("tried") or "") < old), key=lambda k: items[k].get("tried") or "")
+    tried, near, cand, searches = {}, {}, {}, 0
+    for k in todo:
+        if searches >= PCWISH_SEARCH or src.stopped:
+            break
+        progress("PC-Wunschliste: Steam-IDs", searches, PCWISH_SEARCH)
+        name, no = items[k]["name"], set(items[k].get("no_ids") or [])
+        # 0.8.24: Suche ohne störende Zeichen, sonst mit der Grundform; Treffer nach pcwish.pick
+        terms = [pcwish.search_term(name)]
+        base = pcwish.search_term(re.split(r"\s+[/|]\s+", pcwish.search_term(name))[0])
+        base = pcwish._EDITION.sub("", base).strip()
+        if base and titles.norm(base) != titles.norm(terms[0]):
+            terms.append(base)
+        found_here, p = {}, {}
+        for term in terms:
+            if searches >= PCWISH_SEARCH:
                 break
-            continue
-        tried[k] = titles.now_iso()
-        same = [i for i in prices.steam_search(text) if titles.norm(i["name"]) == titles.norm(name)]
-        if len(same) == 1:
-            ids[k] = str(same[0]["appid"])
+            text = src.get(f"{STEAM}/api/storesearch/?" + urllib.parse.urlencode({"term": term, "l": "german", "cc": "DE"}),
+                           shown=f"Steam-Suche „{term[:40]}“")
+            searches += 1
+            if text is None:
+                break
+            tried[k] = titles.now_iso()
+            hits = {i["appid"]: i for i in prices.steam_search(text)}
+            found_here.update(hits)
+            p = pcwish.pick(name, list(found_here.values()), no)
+            if p.get("appid"):
+                break
+        if p.get("appid"):
+            ids[k] = p["appid"]
+            if p["how"] == "near":
+                near[k] = found_here[p["appid"]]["name"]
+        elif p.get("cands"):
+            cand[k] = p["cands"]
     got = {}
     if settings["gg_key"]:
         apps = {}
@@ -1575,6 +1596,10 @@ def _pcwish(settings, log):
             if k in ids and not e.get("appid"):
                 e["appid"] = ids[k]
                 found += 1
+                if k in near:
+                    e.update(id_near=True, id_name=near[k])
+            if k in cand and not e.get("appid"):
+                e["cand"] = cand[k]
             if k in tried:
                 e["tried"] = tried[k]
             if k in got:
@@ -1582,7 +1607,9 @@ def _pcwish(settings, log):
                 pcwish.record(e, got[k])
         store.save_json(pcwish.FILE, pw)
     noid = sum(1 for k, e in items.items() if not e.get("appid") and k not in ids)
-    log(f"PC-Wunschliste: {len(items)} Spiele, {found} Steam-IDs neu zugeordnet ({len(tried)} Steam-Suchen), "
+    log(f"PC-Wunschliste: {len(items)} Spiele, {found} Steam-IDs neu zugeordnet ({searches} Steam-Suchen"
+        + (f", {len(near)} nach der Grundform des Namens" if near else "") + (f", {len(cand)} mit Vorschlägen zur Wahl" if cand else "")
+        + "), "
         + (f"{len(got)} mit Preis von gg.deals" if settings["gg_key"] else "ohne gg.deals-Schlüssel keine Preise")
         + (f", {noid} ohne Steam-ID" if noid else "") + f", {_took(start)}")
     src.stats = {"items": len(items), "priced": len(got), "noid": noid}

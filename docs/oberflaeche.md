@@ -189,7 +189,8 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - SimRacing (ab 0.8.12, vorher „Lenkrad“): Marke orange gefüllt (`.b.simb`, Token `--sim`), wie VR türkis (`.b.vrb`);
   „SimRacing“ orange gestrichelt (`.b.simq`). Ab 0.8.20: bestätigte Marken VR, VR per Mod und SimRacing (`.b.vrb`, `.b.simb`)
   durchgehend umrandet in ihrer Farbe wie „Geheimtipp“, Hinweise gestrichelt ohne „?“; ein „VR“ nur nach dem Namen ebenfalls türkis gestrichelt. Filter „SimRacing“ (`d.wh`) und im Reiter PC „VR“ (`d.vr`, nur bestätigte VR-Marken).
-- Geheimtipp (ab 0.8.12): grün umrandet (`.b.gemb`), erst ab Wert 0,4 (`GEM_MIN`).
+- Geheimtipp (ab 0.8.12): grün umrandet (`.b.gemb`), erst ab Wert 0,4 (`GEM_MIN`); ab 0.8.24 gedämpft (Rand 45 % Grün,
+  Schrift zwischen Grün und `--muted`), damit die Marke nicht heraussticht.
 - Preise als Links (ab 0.8.12, `extLink`, `a.pl` in Textfarbe): VR-Karte Meta und Steam in den Laden, gg.deals-Zeile zu
   gg.deals; PC-Wunschliste der Preis zu gg.deals (Händler, Keyshop, Tief und Stand im Tooltip, `pcPriceTip`), ★ gold
   vor dem Preis am Tief (bis 2 %), Spalte „zum Tief“ als roter Betrag `+x €` ohne Fettdruck (`.over`, Prozent im Tooltip),
@@ -225,6 +226,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
   hat. Einzelheiten: Zeile „Sim-Racing“ mit Links auf die Listen und den Schlagwörtern (violett ohne Liste).
 - Über der Liste nur „Alle n Spiele (Reiter).“ mit Aufklappdreieck; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
+- „Zu erledigen“, Gruppe „PC-Wunsch: Steam-ID“ (0.8.24, `pcwish_ids`): übernommene ID nach der Grundform mit Link zur
+  Steam-Seite und „passt“, „falsch“; sonst Vorschläge mit Link und „dieses“, dazu „keins“. In der Wunschliste PC am
+  Namen „Steam-ID ≈“ (`.b.warn`, Steam-Name im Tooltip), solange nicht bestätigt.
 - „Zu erledigen“, Gruppe „Retro: ähnlicher Name“ (0.8.4): je Spiel System, ähnlicher Titel der Fassungsliste,
   Knöpfe „dasselbe“ und „anderes“. Sprachen eines 3DS-Spiels über den Produktcode sind nicht violett; der
   Tooltip nennt „laut No-Intro“ und die Fassung.

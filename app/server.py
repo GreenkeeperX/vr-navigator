@@ -174,6 +174,7 @@ def state():
     near, own = memo("retro", (collection.FILE,), _retro_lists)
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
                 marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
+                pcwish_ids=pcwish.id_todo(store.load_json(pcwish.FILE, pcwish.EMPTY)),
                 retro_near=near, retro_own=own,
                 sync=sync.status(), settings=settings_view())
 
@@ -460,6 +461,13 @@ class Handler(BaseHTTPRequestHandler):
                     retro.settle_near(col, key, bool(body.get("ok")), idx)
                     store.save_json(collection.FILE, col)
                 self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col, store.load_data())})
+            elif path == "/api/pcwish/id":
+                # Steam-ID eines PC-Wunschs aus „Zu erledigen“ (0.8.24): eine der angebotenen oder keine
+                with store.lock:
+                    pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
+                    pcwish.settle_id(pw, _text(body.get("key"), 300), _text(body.get("appid"), 20))
+                    store.save_json(pcwish.FILE, pw)
+                self._send(200, {"pcwish": pcwish.view(store.load_data()), "pcwish_ids": pcwish.id_todo(pw)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/mark":

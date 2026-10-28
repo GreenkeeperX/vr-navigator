@@ -232,7 +232,7 @@ Schlüssel `pack:<slug>`, `dlc:<slug>`): ohne Steam-Suche und ohne API-Preis, nu
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
-| Steam-Suche | `store.steampowered.com/api/storesearch/?term=<Name>&l=german&cc=DE` | nur ohne Steam-ID aus Titeln oder Sammlung, 30 je Lauf, je Spiel höchstens alle 7 Tage | App-ID bei genau einem gleichen Namen |
+| Steam-Suche | `store.steampowered.com/api/storesearch/?term=<Name>&l=german&cc=DE` | nur ohne Steam-ID aus Titeln oder Sammlung, ab 0.8.24 60 Suchen je Lauf (vorher 30), je Spiel höchstens alle 7 Tage, nie gesuchte zuerst; ohne Treffer ein zweites Mal mit der Grundform des Namens | App-ID bei genau einem gleichen Namen; nur in der Grundform gleich: übernommen mit `id_near` und `id_name`; mehrere: bis zu drei Vorschläge unter `cand`, verworfene unter `no_ids` |
 | gg.deals-Preise | `https://api.gg.deals/v1/prices/by-steam-app-id/?ids=<IDs>&region=de` (mit Schlüssel) | jeder Lauf, Pakete zu 100 IDs | Händler und Keyshop jetzt, bisheriges Tief, Link |
 
 Spielinfos (ab 0.8.11, Quelle `pcinfo`, gleich nach der PC-Wunschliste) nur für Spiele mit Steam-ID, ohne Pakete
