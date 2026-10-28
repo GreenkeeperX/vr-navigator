@@ -907,6 +907,15 @@ class TestTrend(unittest.TestCase):
         self.assertEqual(len(e["ph"]), 2)
         pcwish.record(e, {"retail": 20.0}, "2027-06-01")                       # alte Einträge fallen weg
         self.assertEqual(e["ph"], [["2026-10-20", 12.0], ["2027-06-01", 20.0]])
+        # 0.8.25: VR-Wünsche aus dem Preisverlauf je Laden (history.json), der deutlichere Sturz zählt
+        at = datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
+        t = {"name": "Comet Chase", "meta_id": "1234567890123456", "steam_appid": "3000030", "wish": True,
+             "live": {"meta": {"price": 9.99, "at": "2026-10-28T10:00:00+00:00"}, "steam": {"price": 18.0, "at": "2026-10-28T10:00:00+00:00"}}}
+        hist = {"meta": {"1234567890123456": [["2026-06-01", 24.99], ["2026-10-25", 9.99]]},
+                "steam": {"3000030": [["2026-06-01", 20.0], ["2026-10-25", 18.0]]}}
+        d = library.row("a", t, at=at, hist=hist)["drop"]
+        self.assertEqual((d["shop"], d["usual"], d["pct"]), ("meta", 24.99, 60))
+        self.assertIsNone(library.row("a", t, at=at, hist={})["drop"])
 
 
 class TestSources(unittest.TestCase):
