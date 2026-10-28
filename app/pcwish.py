@@ -4,11 +4,21 @@ gg.deals bleibt führend (Entscheidung 27.10.2026): Das Tool spiegelt die Liste,
 Steam-ID zu und holt dazu die Preise über die gg.deals-API, wie der eShopKompass zu DekuDeals. Abgelegt in
 pcwish.json im Datenordner; eine neue Liste behält Steam-ID und Preise je Spiel.
 """
-from . import collection, store, titles
+from datetime import date, timedelta
+
+from . import collection, store, titles, trend
 
 FILE = "pcwish.json"
 EMPTY = {"items": {}, "at": "", "via": ""}
 NEAR = 0.05         # bis 5 % über dem bisherigen Tief gilt als „nah am Tief“
+
+# Preissturz (0.8.18): eigener Preisverlauf je Spiel (ph: [[Tag, bester Preis]], nur Änderungen). Üblich ist der
+# Median der Tagespreise der letzten DROP_DAYS Tage; ein Preissturz liegt DROP_PCT darunter und DROP_EUR billiger.
+# Steam-Sales zählen nicht eigens: Keyshops sind oft billiger als ein Sale, es gilt der beste Preis
+PH_DAYS = 180       # so lange bleibt der Verlauf
+DROP_DAYS = 90
+DROP_MIN_DAYS = 21  # so viele Tage Verlauf braucht das Urteil
+DROP_PCT, DROP_EUR = 25, 3.0
 
 
 KINDS = {"pack": "Paket", "dlc": "DLC"}
@@ -18,6 +28,54 @@ def _key(it):
     if it.get("kind"):
         return f"{it['kind']}:{it['slug']}"     # 0.8.7: Pakete und DLC, eigene Adresse bei gg.deals
     return it["slug"] if it.get("slug") else "name:" + titles.norm(it["name"])
+
+
+def record(e, gg, day=None):
+    """Besten Preis aus gg (Händler oder Keyshop) im Verlauf ph vermerken, nur wenn er sich ändert."""
+    vals = [x for x in (gg.get("retail"), gg.get("keyshops")) if isinstance(x, (int, float))]
+    if not vals:
+        return
+    day = day or date.today().isoformat()
+    best = round(min(vals), 2)
+    ph = [x for x in (e.get("ph") or []) if isinstance(x, list) and len(x) == 2]
+    cut = (date.fromisoformat(day) - timedelta(days=PH_DAYS)).isoformat()
+    # ältere Einträge fallen weg, der letzte vor der Grenze bleibt als Anfangswert
+    while len(ph) > 1 and ph[1][0] <= cut:
+        ph.pop(0)
+    if not ph or ph[-1][1] != best:
+        ph = [x for x in ph if x[0] != day] + [[day, best]]
+    e["ph"] = ph
+
+
+def drop(ph, now_price, today=None):
+    """Preissturz aus dem Verlauf: {"usual": Median, "pct": so viel darunter, "days": Tage Verlauf} oder None."""
+    if now_price is None or not ph:
+        return None
+    today = date.fromisoformat(today or date.today().isoformat())
+    try:
+        first = date.fromisoformat(ph[0][0])
+    except (TypeError, ValueError):
+        return None
+    start = max(first, today - timedelta(days=DROP_DAYS))
+    days = (today - start).days
+    if days < DROP_MIN_DAYS:
+        return None
+    daily, i, price = [], 0, None
+    for n in range(days):
+        d = (start + timedelta(days=n)).isoformat()
+        while i < len(ph) and ph[i][0] <= d:
+            price = ph[i][1]
+            i += 1
+        if price is not None:
+            daily.append(price)
+    if not daily:
+        return None
+    daily.sort()
+    m = len(daily) // 2
+    usual = daily[m] if len(daily) % 2 else (daily[m - 1] + daily[m]) / 2
+    if usual <= 0 or usual - now_price < DROP_EUR or 100 * (usual - now_price) / usual < DROP_PCT:
+        return None
+    return {"usual": round(usual, 2), "pct": round(100 * (usual - now_price) / usual), "days": days}
 
 
 def replace(items, via, stamp=None):
@@ -122,6 +180,9 @@ def view(data, col=None):
              "price_at": gg.get("at") or "", "since": e.get("since") or "",
              "vr": vr or collection.vr_name(e["name"]), "vr_guess": not vr and collection.vr_name(e["name"]),
              "owned": bool(e.get("appid") and e["appid"] in owned) or titles.norm(e["name"]) in owned_names, **inf}
+        r["trend"] = trend.trend(e.get("rev"))
+        r["care"] = trend.care((e.get("news") or {}).get("date"))
+        r["drop"] = drop(e.get("ph"), best[0])
         if best[0] is not None and low is not None:
             r["over"] = round((best[0] - low) / low, 3) if low > 0 else 0.0
             r["near"] = best[0] <= low * (1 + NEAR) + 0.005

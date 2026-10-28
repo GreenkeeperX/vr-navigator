@@ -193,6 +193,13 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   vor dem Preis am Tief (bis 2 %), Spalte „zum Tief“ als roter Betrag `+x €` ohne Fettdruck (`.over`, Prozent im Tooltip),
   am Tief grün „am Tief“ (`.g-buy`, ab 0.8.17 wie „am Bestpreis“ im eShopKompass). Spalten ab 0.8.17: Spiel, Preis,
   zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr (`PC_COLS`).
+- Trend und Pflege (ab 0.8.18): Pfeil hinter der Steam-Wertung (`trendMark`, `.tr.up` grün ↗, `.tr.down` rot ↘, nur ab
+  8 Punkten Abstand, gleichbleibend ohne Zeichen), Zahlen im Tooltip; in Fakten und Einzelheiten die Zeile „Trend“
+  (`trendText`). Pflege: „ruht“ als graue, umrandete Marke (`.b.care`) am Namen in der Wunschliste PC, sonst „(ruht)“
+  oder „(gepflegt)“ hinter „Update“; in der Spalte Update des Reiters VR grau. Eine Sache, mehrere Orte: VR-Karte
+  (Fakten), Reiter VR der Sammlung (Spalten Steam, Update), Wunschliste PC (Wertung, Name, Einzelheiten), Jetzt PC.
+- Preissturz (ab 0.8.18): grüne Marke „Preissturz“ (`.b.go`, `dropMark`) am Namen in der Wunschliste PC und unter
+  Jetzt, Prozent und üblicher Preis im Tooltip, in den Einzelheiten die Zeile „Preissturz“.
 - Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das Spiel in einer Liste der Rennspiele steht (SimHub,
   Simucube-Forum; Tooltip nennt beide); nur Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`), `wheelBadge`.
   Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins

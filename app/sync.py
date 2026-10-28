@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, lists, mods, pcwish, prices, probes, retro, sources, store, titles, wheel
+from . import accounts, collection, igdb, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, wheel
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -929,6 +929,22 @@ def _rev_get(src, gid, shown):
     return text
 
 
+def _recent_get(src, gid):
+    """Stimmen der letzten 30 Tage aus dem Bewertungsdiagramm des Steam-Stores (0.8.18) für den Trend. Schickt
+    Steam statt Daten eine Seite, fragt der Lauf nicht weiter; der Trend nimmt dann die eigenen Messungen."""
+    if src.__dict__.get("hist_pages") or src.stopped:
+        return None
+    text = src.get(f"{STEAM}/appreviewhistogram/{gid}?l=english&review_score_preference=0", shown=f"Steam-Trend {gid}")
+    if text is None:
+        return None
+    if text.lstrip()[:1] == "<":
+        src.__dict__["hist_pages"] = True
+        src.log(f"{src.name}: Steam-Trend liefert eine Seite statt Daten, in diesem Lauf nur eigene Messungen")
+        return None
+    r = trend.histogram(text)
+    return dict(r, at=titles.now_iso()) if r else None
+
+
 def _per_game(log, label, field, days, limit, url, parse, stale=None, get=None, want=None, order=None):
     """Abruf je Steam-Spiel der Sammlung (Entdecken): zuerst die ohne Wert, dann die ältesten;
     höchstens limit je Lauf, nach days Tagen neu. Ergebnis je Spiel unter field in
@@ -1126,11 +1142,15 @@ def _rating(log):
                 break
             continue
         got[k] = dict(prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso(), app=gid)
+        rc = _recent_get(src, gid) if (got[k].get("n") or 0) >= trend.MIN_ALL else None
+        if rc:
+            got[k]["recent"] = rc
     with store.lock:
         data = store.load_data()
         for k, r in got.items():
             if k in data["titles"]:
-                data["titles"][k]["rev"] = r
+                t = data["titles"][k]
+                t["rev"] = trend.keep(t.get("rev") if (t.get("rev") or {}).get("app") == r.get("app") else None, r)
         store.save_data(data)
     left = len(todo) - len(got)
     src.stats = {"read": len(got), "left": left}
@@ -1476,6 +1496,7 @@ def _pcwish(settings, log):
                 e["tried"] = tried[k]
             if k in got:
                 e["gg"] = got[k]
+                pcwish.record(e, got[k])
         store.save_json(pcwish.FILE, pw)
     noid = sum(1 for k, e in items.items() if not e.get("appid") and k not in ids)
     log(f"PC-Wunschliste: {len(items)} Spiele, {found} Steam-IDs neu zugeordnet ({len(tried)} Steam-Suchen), "
@@ -1497,10 +1518,10 @@ def _pcwish_info(settings, log):
     if not items:
         log("PC-Wunschliste, Spielinfos: keine Spiele mit Steam-ID")
         return src.result()
-    old_d, old_r, old_i = (_iso(now() - timedelta(days=d)) for d in (DETAILS_DAYS, REVIEWS_DAYS, IGDB_DAYS))
+    old_d, old_r, old_i, old_n = (_iso(now() - timedelta(days=d)) for d in (DETAILS_DAYS, REVIEWS_DAYS, IGDB_DAYS, NEWS_DAYS))
     at = lambda e, f: (e.get(f) or {}).get("at") or ""
-    todo = sorted((min(at(e, "steam"), at(e, "rev")), k) for k, e in items.items()
-                  if at(e, "steam") < old_d or at(e, "rev") < old_r
+    todo = sorted((min(at(e, "steam"), at(e, "rev"), at(e, "news")), k) for k, e in items.items()
+                  if at(e, "steam") < old_d or at(e, "rev") < old_r or at(e, "news") < old_n
                   or ((e.get("steam") or {}).get("ok") and (e["steam"].get("v", 1) < prices.DETAILS_V)))
     got = {}
     for i, (_, k) in enumerate(todo[:PCWISH_INFO]):
@@ -1515,7 +1536,18 @@ def _pcwish_info(settings, log):
         if at(e, "rev") < old_r:
             text = _rev_get(src, gid, f"Steam-Rezensionen {gid}")
             if text is not None:
-                r["rev"] = dict(prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso())
+                r["rev"] = trend.keep(e.get("rev"), dict(prices.steam_reviews(text) or {"n": None, "pct": None, "desc": ""}, at=titles.now_iso()))
+                rc = _recent_get(src, gid) if (r["rev"].get("n") or 0) >= trend.MIN_ALL else None
+                if rc:
+                    r["rev"]["recent"] = rc
+        if src.stopped:
+            break
+        # Pflege (0.8.18): letztes Update laut Neuigkeiten des Entwicklers, nach NEWS_DAYS neu
+        if at(e, "news") < old_n:
+            text = src.get(f"{STEAM_API}/ISteamNews/GetNewsForApp/v2/?appid={gid}&count=20&maxlength=1", shown=f"Neuigkeiten {gid}")
+            n = prices.steam_news(text) if text is not None else None
+            if n is not None:
+                r["news"] = dict(n, at=titles.now_iso())
         if r:
             got[k] = r
         if src.stopped:
@@ -2235,6 +2267,13 @@ def diagnose():
     # 0.7.4: am ersten Spiel jede Form der Adresse, damit klar ist, welche Steam noch beantwortet
     for i in range(1, sb):
         probe("Steam, Rezensionen", review_url(rapps[0], i), rev_info(rapps[0], i + 1))
+
+    def hist_info(text):
+        h = trend.histogram(text)
+        if h:
+            return f"App {rapps[0]}: {h['up'] + h['down']} Rezensionen in den letzten 30 Tagen, {h['up']} positiv"
+        return "Store-Seite statt Daten" if text.lstrip()[:1] == "<" else f"Antwort nicht lesbar. Anfang: {' '.join(text[:200].split())}"
+    probe("Steam, Trend", f"{STEAM}/appreviewhistogram/{rapps[0]}?l=english&review_score_preference=0", hist_info)
 
     if not key:
         lines.append("gg.deals: kein Schlüssel eingetragen, nicht angefragt")

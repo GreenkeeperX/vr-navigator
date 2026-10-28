@@ -191,7 +191,10 @@ def steam_reviews(text):
     if not isinstance(q, dict) or not isinstance(q.get("total_reviews"), int):
         return None
     n, pos = q["total_reviews"], int(q.get("total_positive") or 0)
-    return {"n": n, "pct": round(100 * pos / n) if n else None, "desc": str(q.get("review_score_desc") or "")[:40]}
+    out = {"n": n, "pct": round(100 * pos / n) if n else None, "desc": str(q.get("review_score_desc") or "")[:40]}
+    if n and isinstance(q.get("total_positive"), int):
+        out["pos"] = pos      # genaue Zahl für den Trend aus eigenen Messungen (0.8.18)
+    return out
 
 
 # Feste Kennungen der Steam-Store-Daten (gleich in jeder Sprache)

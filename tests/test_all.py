@@ -865,6 +865,50 @@ class TestLibrary(unittest.TestCase):
         self.assertIn("Reddit", labels)
 
 
+class TestTrend(unittest.TestCase):
+    def test_trend_and_care(self):
+        """Trend (0.8.18): letzte 30 Tage von Steam, sonst eigene Messungen; Pflege nach dem letzten Update."""
+        from app import trend
+        self.assertIsNone(trend.histogram("<html>"))
+        self.assertEqual(trend.histogram(json.dumps({"success": 1, "results": {"recent": [
+            {"recommendations_up": 3, "recommendations_down": 1}, {"recommendations_up": 2}]}})), {"up": 5, "down": 1})
+        # zu wenige Rezensionen insgesamt oder im Zeitraum: kein Trend
+        self.assertIsNone(trend.trend({"n": 40, "pct": 90, "recent": {"up": 30, "down": 0}}))
+        self.assertIsNone(trend.trend({"n": 400, "pct": 90, "recent": {"up": 5, "down": 3}}))
+        self.assertEqual(trend.trend({"n": 400, "pct": 80, "recent": {"up": 19, "down": 1}})["dir"], "up")
+        self.assertEqual(trend.trend({"n": 400, "pct": 80, "recent": {"up": 15, "down": 5}})["dir"], "flat")
+        # eigene Messungen: nur mit genauer Zahl positiver, Abstand 20 bis 120 Tage
+        r = trend.keep(None, {"n": 1000, "pct": 90, "pos": 900, "at": "2026-08-01T10:00:00"})
+        r = trend.keep(r, {"n": 1010, "pct": 90, "pos": 905, "at": "2026-08-10T10:00:00"})
+        r = trend.keep(r, {"n": 1040, "pct": 89, "pos": 924, "at": "2026-09-01T10:00:00"})
+        self.assertEqual(len(r["hist"]), 3)
+        t = trend.trend(r)
+        self.assertEqual((t["dir"], t["recent"], t["n"], t["src"], t["since"]), ("down", 63, 30, "own", "2026-08-10"))   # die jüngste Messung mit genug Abstand
+        self.assertNotIn("hist", trend.keep(None, {"n": 500, "pct": 90, "at": "2026-09-01"}))   # Anteil gerundet: nicht gemessen
+        self.assertIsNone(trend.trend({"n": 1000, "pct": 90, "hist": [["2026-09-01", 1000, 900], ["2026-09-05", 1040, 920]]}))
+        self.assertEqual(trend.care("2026-09-01", "2026-10-28")["state"], "fresh")
+        self.assertEqual(trend.care("2025-06-01", "2026-10-28")["state"], "stale")
+        self.assertEqual(trend.care("2026-03-01", "2026-10-28")["state"], "ok")
+        self.assertIsNone(trend.care(""))
+
+    def test_price_drop(self):
+        """Preissturz (0.8.18): Verlauf nur bei Änderung, Urteil gegen den Median der letzten 90 Tage."""
+        from app import pcwish
+        e = {}
+        pcwish.record(e, {"retail": 29.99, "keyshops": 24.5}, "2026-07-01")
+        pcwish.record(e, {"retail": 29.99, "keyshops": 24.5}, "2026-07-02")
+        pcwish.record(e, {"retail": 29.99, "keyshops": 12.0}, "2026-10-20")
+        self.assertEqual(e["ph"], [["2026-07-01", 24.5], ["2026-10-20", 12.0]])
+        d = pcwish.drop(e["ph"], 12.0, "2026-10-28")
+        self.assertEqual((d["usual"], d["pct"], d["days"]), (24.5, 51, 90))
+        self.assertIsNone(pcwish.drop(e["ph"], 22.0, "2026-10-28"))            # nur 10 % darunter
+        self.assertIsNone(pcwish.drop([["2026-10-20", 24.5]], 12.0, "2026-10-28"))   # zu kurzer Verlauf
+        pcwish.record(e, {"retail": None, "keyshops": None}, "2026-10-21")    # ohne Preis: nichts
+        self.assertEqual(len(e["ph"]), 2)
+        pcwish.record(e, {"retail": 20.0}, "2027-06-01")                       # alte Einträge fallen weg
+        self.assertEqual(e["ph"], [["2026-10-20", 12.0], ["2027-06-01", 20.0]])
+
+
 class TestSources(unittest.TestCase):
     def test_blocked_target(self):
         self.assertEqual(sources.blocked_target("file:///etc/passwd"), "nur http und https")
@@ -2209,6 +2253,13 @@ class TestSync(unittest.TestCase):
                 return json.dumps(app)
             if "appreviews" in url:
                 return rev
+            if "appreviewhistogram" in url:
+                return json.dumps({"success": 1, "results": {"rollups": [], "recent": [
+                    {"date": 1, "recommendations_up": 6, "recommendations_down": 4},
+                    {"date": 2, "recommendations_up": 6, "recommendations_down": 4}]}})
+            if "GetNewsForApp" in url:
+                return json.dumps({"appnews": {"newsitems": [{"date": 1767225600, "feedname": "steam_community_announcements",
+                                                              "title": "Patch 1.4"}]}})
             if "twitch" in url:
                 return json.dumps({"access_token": "tok"})
             if url.endswith("external_games"):
@@ -2238,6 +2289,10 @@ class TestSync(unittest.TestCase):
         self.assertEqual((h["score"], h["score_src"], h["reviews"]), (92, "Steam", 300))
         self.assertEqual((h["hours"], h["players"], h["pl_src"], h["dev"], h["desc"]), (7.0, 4, "IGDB", "Kite Works", "Ein Raubzug im Hafen."))
         self.assertEqual((h["genres"], h["gc"]), (["Action", "Shooter"], ["Action"]))   # Shooter nur laut IGDB
+        # 0.8.18: Trend aus dem Bewertungsdiagramm (60 % der letzten 20 gegen 92 %), Pflege aus den Neuigkeiten
+        self.assertEqual((h["trend"]["dir"], h["trend"]["recent"], h["trend"]["n"], h["trend"]["src"]), ("down", 60, 20, "steam"))
+        self.assertEqual(h["care"]["date"], "2026-01-01")
+        self.assertEqual(e["rev"]["hist"], [[e["rev"]["at"][:10], 300, 276]])
         self.assertIn("online", h["mp"])
         self.assertFalse(h["vr"])
         self.assertEqual(h["srcs"], ["Steam", "IGDB"])

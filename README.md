@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.17:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.18:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -365,7 +365,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   oder Keyshop, als Link zu gg.deals) und wie weit er über dem bisherigen Tief liegt: grün „am Tief“ (bis 2 %),
   sonst rot der Betrag. Ab 0.8.17 wie im eShopKompass: Händler, Keyshop und das Tief stehen im Tooltip des
   Preises und in den Einzelheiten statt in eigenen Spalten; dazu die Spalten Spieler und Jahr. Reihenfolge:
-  Spiel, Preis, zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr. „Nah am Tief“ (Jetzt) heißt höchstens 5 % darüber. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der
+  Spiel, Preis, zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr. „Nah am Tief“ (Jetzt) heißt höchstens 5 % darüber.
+  Ab 0.8.18 merkt sich das Tool den Preisverlauf je Spiel; liegt der Preis jetzt deutlich unter dem üblichen (mindestens
+  25 % und 3 € unter dem Median der letzten 90 Tage), steht grün „Preissturz“ am Namen. Das gilt für Händler und
+  Keyshop gleich, denn Keyshops sind oft günstiger als ein Steam-Sale. Dazu Trend und Pflege wie unten. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der
   Steam-Suche nach genau gleichem Namen (30 je Abgleich); ohne gg.deals-Schlüssel gibt es keine Preise.
   Ab 0.8.11 mit Spielinfos wie in der Sammlung: Spalten Wertung (Steam-Rezensionen ab 50, sonst IGDB grau und
   kursiv), Spielzeit (IGDB) und Genre (Steam und IGDB, violett nur eine Quelle); ein Klick auf den Namen zeigt
@@ -409,6 +412,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
     „Meta +8“), Steam-Spieler gerade jetzt mit der Spitze aus den eigenen Messungen der letzten
     30 Tage, das letzte Steam-Update laut Entwickler-Meldungen und die Meta-Version mit dem Tag,
     an dem das Tool sie zuerst sah.
+    Ab 0.8.18 **Trend und Pflege**: Sind die Steam-Rezensionen der letzten 30 Tage mindestens 8 Punkte besser oder
+    schlechter als insgesamt, steht neben der Steam-Wertung ein grüner ↗ oder roter ↘ Pfeil (Zahlen im Tooltip, in den
+    Fakten „Trend: fallend (60 % gegen 92 %)“). Über ein Jahr ohne Update heißt „ruht“ (grau). Dasselbe gilt in der
+    Wunschliste PC und im Reiter VR der Sammlung (Spalten Steam und Update). Woher die Zahlen kommen, steht in
+    `docs/abrufe.md` (Trend und Pflege).
   - **Recherche** violett gestrichelt mit „≈“, weil sie nicht vom Tool gemessen ist; die Notiz.
   - **Klappe** (zugeklappt), ihre Zeile nennt den Inhalt, etwa „Bestpreise · gg.deals · Links ·
     bearbeiten“: Bestpreise je Laden mit Datum und Quelle, gg.deals (Händler, Keyshop,

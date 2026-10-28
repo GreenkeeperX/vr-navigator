@@ -107,13 +107,14 @@ Genre-Blasen in einem Messdurchgang. 0.8.15: Urteil „wo kaufen“ aus Gemessen
 Preisabstand, Spieler, Wertung, Pflege; Recherche halb) im Kopf der Karte, Gründe in der Zeile „Wo“. 0.8.16: Retro-IGDB-Suche mit deinem Titel aus der
 Ordner-Liste; GameCube, Wii und PlayStation über Spiel-ID und Seriennummer. 0.8.17: Hinweis-Marken in der Farbe ihrer Marke; Wunschliste PC
 wie im eShopKompass (Preis mit Tooltip, „am Tief“ grün, Spalten Spieler und Jahr); Gekauftes fällt nicht mehr von selbst
-von der Wunschliste; Jetzt mit Reitern. Grundsatz (Entscheidung 22.10.2026): so wenig
+von der Wunschliste; Jetzt mit Reitern. 0.8.18: Trend (Steam-Rezensionen der letzten 30 Tage gegen alle) als Pfeil an der
+Wertung und Pflege („ruht“ nach einem Jahr ohne Update), auch für die PC-Wunschliste; „Preissturz“ aus dem eigenen
+Preisverlauf je PC-Wunsch. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
-- Steam-Trend (kürzliche gegen alle Rezensionen) und Pflege, schlicht dargestellt (Entscheidung 28.10.2026)
-- „Preissturz“ statt Steam-Sale: eigener Preisverlauf je PC-Wunsch, Preis deutlich unter dem üblichen
+- Trend in das Urteil „wo kaufen“ einbeziehen, wenn er sich bewährt; Preisverlauf auch für die VR-Wünsche
 - Spaltenreihenfolge in Wunschliste und Sammlung: Wichtiges links, Unwichtiges rechts
 - Meinungen per Claude-Routine (später, Entscheidung 28.10.2026)
 

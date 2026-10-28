@@ -2,7 +2,7 @@
 import re
 from datetime import datetime, timedelta, timezone
 
-from . import lists, prices, store, titles, wheel
+from . import lists, prices, store, titles, trend, wheel
 
 STALE_H = 48        # ältere Live-Preise markiert die Oberfläche als veraltet
 
@@ -207,7 +207,7 @@ def measured(t):
     if p.get("at"):
         out["players"] = {"now": p.get("now"), "peak": p.get("peak"), "since": p.get("since") or "", "at": p["at"]}
     if n.get("date"):
-        out["update"] = {"date": n["date"], "title": n.get("title") or ""}
+        out["update"] = {"date": n["date"], "title": n.get("title") or "", "care": trend.care(n["date"])}
     if mv.get("v"):
         out["meta_ver"] = {"v": mv["v"], "since": mv.get("since") or ""}
     if v.get("modes"):
@@ -230,6 +230,9 @@ def rating(t):
     steam = None
     if isinstance(rev.get("n"), int) and rev["n"] > 0:
         steam = {"pct": rev.get("pct") if rev["n"] >= 50 else None, "n": rev["n"]}
+        tr = trend.trend(rev)
+        if tr:
+            steam["trend"] = tr
     vals = ([meta.get("pos", meta["stars"] * 20)] if meta else []) + ([steam["pct"]] if steam and steam["pct"] is not None else [])
     score = round(max(vals)) if vals else None
     return {"meta": meta, "steam": steam, "score": score}
