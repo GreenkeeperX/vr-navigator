@@ -380,3 +380,5 @@ details.menu .opts .chip{font-size:12px}
 .gh-t .gcopy{margin-left:6px;text-decoration:none;font-size:13px;color:var(--muted)}
 .gh-t .gcopy:hover{color:var(--accent)}
 .bar .gdl{white-space:nowrap}
+/* Jetzt: Alle, VR, PC (0.8.11) */
+.seg.nowk button{white-space:nowrap}
