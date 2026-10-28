@@ -103,7 +103,9 @@ Einzelheiten), „Jetzt“ für alle Wünsche mit Schalter Alle, VR, PC. 0.8.12:
 Wertung nur von IGDB ab (fehlende Zahl der Bewertungen); Hinweisklappe dezenter und über die volle Breite. 0.8.13: Preise als Links, Abstand zum Tief in Euro; SimRacing
 und Geheimtipp farbig, Geheimtipp erst ab 0,4, Filter VR im Reiter PC; Retro-Genre nur noch als Fall, wenn libretro
 und IGDB sich einig sind, Sprachen bestätigt bei genau gleicher Datei in der Fassungsliste; „Zu erledigen“ klärt
-Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam-Namen ohne Leerzeichen gleich. Grundsatz (Entscheidung 22.10.2026): so wenig
+Gekauftes selbst, „fehlt auf Laden-Wunschliste“ nur noch an der Karte; Steam-Namen ohne Leerzeichen gleich. 0.8.14: Sammlung
+schneller: der Server hält sie berechnet, bis sich eine ihrer Dateien ändert, die Seite lädt sie im Hintergrund vor,
+Genre-Blasen in einem Messdurchgang. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 

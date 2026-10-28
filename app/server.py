@@ -10,7 +10,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import collection, imports, library, lists, pcwish, retro, sources, store, sync, titles
+from . import collection, imports, library, lists, pcwish, retro, sources, store, sync, titles, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -146,13 +146,45 @@ def _lists(body):
     return out
 
 
+# Antworten aus großen Dateien bleiben zwischengespeichert, bis sich eine der Dateien ändert (0.8.14):
+# collection.json allein zu lesen dauert auf einem kleinen Server schon eine Weile
+_memo = {}
+_memo_lock = threading.Lock()
+
+
+def memo(key, files, make):
+    st = (store.DATA_DIR, store.stamp(*files))
+    with _memo_lock:
+        hit = _memo.get(key)
+    if hit and hit[0] == st:
+        return hit[1]
+    val = make()
+    with _memo_lock:
+        _memo[key] = (st, val)
+    return val
+
+
+def _retro_lists():
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    return retro.near_list(col), retro.own_list(col)
+
+
 def state():
     data = store.load_data()
-    col = store.load_json(collection.FILE, collection.EMPTY)
+    near, own = memo("retro", (collection.FILE,), _retro_lists)
     return dict(library.view(data, hist=store.load_json("history.json", {}), settings=sync.load_settings()),
                 marks=data["marks"], version=sources.VERSION, pcwish=pcwish.view(data),
-                retro_near=retro.near_list(col), retro_own=retro.own_list(col),
+                retro_near=near, retro_own=own,
                 sync=sync.status(), settings=settings_view())
+
+
+def collection_body():
+    """Die Sammlung als fertige Antwort, roh und gepackt."""
+    def make():
+        raw = json.dumps(collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()),
+                         ensure_ascii=False).encode("utf-8")
+        return raw, gzip.compress(raw, compresslevel=5)
+    return memo("collection", (collection.FILE, "data.json", wheel.LIST_FILE), make)
 
 
 # Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder
@@ -288,11 +320,14 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
-        if not isinstance(body, bytes):
+        zipped = None
+        if isinstance(body, tuple):         # schon fertig: (roh, gepackt), siehe collection_body
+            body, zipped = body
+        elif not isinstance(body, bytes):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         packed = len(body) > 20_000 and "gzip" in (self.headers.get("Accept-Encoding") or "")
         if packed:
-            body = gzip.compress(body, compresslevel=5)
+            body = zipped or gzip.compress(body, compresslevel=5)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         if packed:
@@ -349,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/status":
                 self._send(200, sync.status())
             elif path == "/api/collection":
-                self._send(200, collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
+                self._send(200, collection_body())
             elif path == "/api/export":
                 self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
                                  "collection": store.load_json(collection.FILE, collection.EMPTY),
@@ -520,11 +555,21 @@ class Handler(BaseHTTPRequestHandler):
         self._send(500, {"error": f"Interner Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers"})
 
 
+def _warm():
+    """Sammlung gleich nach dem Start einmal berechnen, dann öffnet sie der erste Klick ohne Warten."""
+    try:
+        collection_body()
+        state()
+    except Exception:
+        pass
+
+
 def main():
     port = int(os.environ.get("PORT", "8788"))
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     if os.environ.get("AUTO_SYNC", "1") != "0":
         threading.Thread(target=sync.scheduler, daemon=True).start()
+    threading.Thread(target=_warm, daemon=True).start()
     print(f"VR-Navigator läuft auf Port {port}", flush=True)
     srv.serve_forever()
 

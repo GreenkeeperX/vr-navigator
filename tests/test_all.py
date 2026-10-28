@@ -1,3 +1,4 @@
+import gzip
 import json
 import re
 from datetime import datetime, timezone
@@ -825,6 +826,19 @@ class TestServer(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+
+    def test_collection_memo(self):
+        # 0.8.14: die Sammlung bleibt berechnet, bis sich eine ihrer Dateien ändert
+        store.save_json(collection.FILE, {"games": {}})
+        a = server.collection_body()
+        self.assertIs(server.collection_body(), a)
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        col["games"]["pc:moon"] = {"name": "Moon Rover", "system": "PC"}
+        store.save_json(collection.FILE, col)
+        b = server.collection_body()
+        self.assertIsNot(b, a)
+        self.assertIn("Moon Rover", b[0].decode())
+        self.assertEqual(gzip.decompress(b[1]), b[0])
 
     def call(self, path, body=None, ctype="application/json", host=None):
         data = None if body is None else json.dumps(body).encode()

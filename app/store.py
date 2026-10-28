@@ -74,6 +74,18 @@ def load_json(name, default):
         return _load(name, default)
 
 
+def stamp(*names):
+    """Stand der Dateien (Änderungszeit und Größe) zum Zwischenspeichern daraus berechneter Antworten (0.8.14)."""
+    out = []
+    for n in names:
+        try:
+            st = os.stat(_path(n))
+            out.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
 def save_json(name, obj):
     with lock:
         _save(name, obj)

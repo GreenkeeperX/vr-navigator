@@ -1073,20 +1073,33 @@ function nexusHtml(g){
 /* Genres in der Zeile einzeilig (0.6.1): so viele Blasen, wie mit „+n“ dahinter in die Spalte passen;
    alle stehen in den Einzelheiten */
 function fitTags(){
-  for(const t of document.querySelectorAll(".gr .gtags.fit")){
-    t.querySelector(".gmore")?.remove();
-    const cs = [...t.children];
-    cs.forEach(c => { c.hidden = false; });
-    if(cs.length < 2 || cs[cs.length - 1].offsetTop === cs[0].offsetTop) continue;
-    const more = document.createElement("span");
+  // Erst alles lesen, dann alles schreiben (0.8.14): sonst rechnet der Browser je Blase das Layout neu
+  const ts = [...document.querySelectorAll(".gr .gtags.fit")];
+  if(!ts.length) return;
+  for(const t of ts){ t.querySelector(".gmore")?.remove(); for(const c of t.children) c.hidden = false; }
+  const probe = document.createElement("span");
+  probe.className = "chip gmore";
+  probe.textContent = "+9 weitere";
+  ts[0].appendChild(probe);
+  const moreW = probe.getBoundingClientRect().width, gap = 4;
+  const plan = ts.map(t => {
+    const cs = [...t.children].filter(c => c !== probe);
+    if(cs.length < 2) return null;
+    const box = t.getBoundingClientRect(), rs = cs.map(c => c.getBoundingClientRect());
+    if(rs[rs.length - 1].top === rs[0].top) return null;
+    let n = cs.length - 1;
+    while(n > 1 && (rs[n - 1].top !== rs[0].top || rs[n - 1].right - box.left + gap + moreW > box.width)) n--;
+    return [t, cs, n];
+  });
+  probe.remove();
+  for(const p of plan){
+    if(!p) continue;
+    const [t, cs, n] = p, more = document.createElement("span");
+    cs.slice(n).forEach(c => { c.hidden = true; });
     more.className = "chip gmore";
+    more.textContent = `+${cs.length - n} weitere`;
+    more.title = cs.slice(n).map(c => c.textContent).join(", ");
     t.appendChild(more);
-    for(let n = cs.length - 1; n >= 1; n--){
-      cs[n].hidden = true;
-      more.textContent = `+${cs.length - n} weitere`;
-      if(more.offsetTop === cs[0].offsetTop) break;
-    }
-    more.title = cs.filter(c => c.hidden).map(c => c.textContent).join(", ");
   }
 }
 addEventListener("resize", () => { if(V.tab === "find") fitTags(); });
@@ -2029,4 +2042,8 @@ $("nav").addEventListener("scroll", navFade);
 
 renderTheme();
 readFindHash();
-load().then(() => { if(META_IN !== null && S) metaHandOver(); });
+load().then(() => {
+  if(META_IN !== null && S) metaHandOver();
+  // Sammlung im Hintergrund vorladen (0.8.14): der Wechsel in den Reiter wartet dann nicht auf den Server
+  setTimeout(() => { if(!C) loadCollection(); }, 1500);
+});
