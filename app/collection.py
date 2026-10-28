@@ -479,7 +479,7 @@ def merge_igdb(r, ig):
 def view(col):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele)."""
     rows = []
-    widx = wheel.index(datastore.load_json(wheel.LIST_FILE, {}).get("names") or [])
+    wmatch = wheel.matcher(datastore.load_json(wheel.LIST_FILE, {}))
     for k, g in (col.get("games") or {}).items():
         r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
              "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
@@ -523,12 +523,11 @@ def view(col):
             r["vorpx"] = True
         if nx.get("dom"):
             r["nexus"] = {"dom": nx["dom"], "n": nx.get("n") or 0, "top": nx.get("top") or [], "vr": nx.get("vr") or []}
-        # Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt, Steam-Schlagwörter nur ein Hinweis
+        # Sim-Racing (0.8.3): in einer Liste der Rennspiele bestätigt, Steam-Schlagwörter nur ein Hinweis
         if r["system"] == "PC" and not r.get("retro"):
-            hit = wheel.find(widx, (g.get("igdb") or {}).get("name"), g["name"]) if widx else None
-            tags = wheel.hint((g.get("stag") or {}).get("tags") or [])
-            if hit or tags:
-                r["wheel"] = {"list": hit or "", "tags": tags}
+            w = wheel.row(wmatch, g.get("id") if g.get("store") == "Steam" else "", g.get("stag"), (g.get("igdb") or {}).get("name"), g["name"])
+            if w:
+                r["wheel"] = w
         rows.append(r)
     # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}

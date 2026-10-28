@@ -85,12 +85,12 @@ und PC: die ganze gg.deals-Wunschliste mit Steam-ID und Preisen (Händler, Keysh
 Bestätigung, Steam-Schlagwörter (gebündelt über die Store-Schnittstelle) als violetter Hinweis; die
 Simagic-Liste liegt hinter einer Bot-Prüfung. 0.8.4 Retro: 3DS mit Fassungslisten für Module und eShop,
 Sprachen genau der eigenen Fassung über den Produktcode im Dateinamen; ähnliche Namen ohne Treffer zum
-Bestätigen in „Zu erledigen“. Grundsatz (Entscheidung 22.10.2026): so wenig
+Bestätigen in „Zu erledigen“. 0.8.5 nach dem Verbindungstest: Lenkrad auch für VR-Titel, SimHub als zweite
+Liste (Steam-ID im Bildnamen), strengere Schlagwort-Regel, Simucube nur der erste Beitrag; Nexus-Spieleliste
+in Seiten zu 80. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
-- Lenkrad: nach dem ersten Verbindungstest prüfen, ob Steam „Sim Racing“ als Schlagwort führt und wie gut
-  die Liste der Rennsimulationen zur Sammlung passt; Rennspiele im VR-Reiter
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
   und „Jetzt“ für alle Wünsche mit Filter VR
 

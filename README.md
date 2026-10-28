@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.4:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.5:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -394,10 +394,12 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   hat Nexus Mods nur Mods mit VR im Namen oder geht es mit vorpX, steht violett „VR-Mod?“ (ein
   Hinweis). Der Filter „VR per Mod“ zeigt beide. Die Einzelheiten nennen die Brillen und verlinken die
   Nexus-Seite, die beliebtesten Mods und die VR-Mods. **Lenkrad** (0.8.3, Sim-Racing): Steht ein
-  PC-Spiel in der offenen Liste der Rennsimulationen aus dem Simucube-Forum (Direktantriebe mit Force
-  Feedback; was dort läuft, läuft auch mit Simagic), trägt es die Marke „Lenkrad“. Deuten nur die
-  Steam-Schlagwörter darauf („Automobile Sim“, „Sim Racing“ oder Rennen zusammen mit „Simulation“),
-  steht violett „Lenkrad?“ (ein Hinweis). Die Kompatibilitätsliste zu Simagic selbst liegt hinter einer
+  PC-Spiel oder ein VR-Titel (ab 0.8.5, auch auf der Wunschliste) in einer Liste der Rennspiele, trägt es
+  die Marke „Lenkrad“: die Liste „Supported Games“ von SimHub (ab 0.8.5, über die Steam-ID) oder die
+  offene Liste der Rennsimulationen aus dem Simucube-Forum (Direktantriebe mit Force Feedback; was dort
+  läuft, läuft auch mit Simagic). Deuten nur die Steam-Schlagwörter darauf (unter den ersten zehn ein
+  Rennen, „Racing“ oder „Driving“, und eine Simulation, „Automobile Sim“ oder „Simulation“), steht
+  violett „Lenkrad?“ (ein Hinweis). Die Kompatibilitätsliste zu Simagic selbst liegt hinter einer
   Bot-Prüfung und wird deshalb nicht abgerufen. Filter „Lenkrad“, Zeile „Sim-Racing“ in den Einzelheiten.
   Über der Liste steht kurz die Zahl
   der Spiele, die Herkunft der Angaben klappt auf,

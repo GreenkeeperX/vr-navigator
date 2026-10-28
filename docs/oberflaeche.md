@@ -180,9 +180,10 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - VR per Mod (0.8.1): Marke „VR per Mod“ (`.b`) nach PCGamingWiki „hackable“; nur Nexus-Mods mit VR im Namen
   oder vorpX: „VR-Mod?“ violett (`.b.gxc`), ein Hinweis. Filter „VR per Mod“ (`d.vm`) erscheint, wenn ein
   Spiel im Reiter eins von beiden hat. Einzelheiten: Zeilen „VR per Mod“ und „Nexus Mods“ mit Links.
-- Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das PC-Spiel in der Liste der Rennsimulationen steht; nur
-  Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
-  hat. Einzelheiten: Zeile „Sim-Racing“ mit Link auf die Liste und den Schlagwörtern (violett ohne Liste).
+- Lenkrad (0.8.3): Marke „Lenkrad“ (`.b`), wenn das Spiel in einer Liste der Rennspiele steht (SimHub,
+  Simucube-Forum; Tooltip nennt beide); nur Steam-Schlagwörter: „Lenkrad?“ violett (`.b.gxc`), `wheelBadge`.
+  Ab 0.8.5 auch an VR-Titeln (Reiter VR, Wunschliste, Karten). Filter „Lenkrad“ (`d.wh`), wenn ein Spiel im Reiter eins
+  hat. Einzelheiten: Zeile „Sim-Racing“ mit Links auf die Listen und den Schlagwörtern (violett ohne Liste).
 - Über der Liste nur „Alle n Spiele (Reiter).“ mit Aufklappdreieck; die Herkunft klappt darunter auf (`details.gnote`, 0.7.5).
 - „Zu erledigen“, Gruppe „Retro: ähnlicher Name“ (0.8.4): je Spiel System, ähnlicher Titel der Fassungsliste,
   Knöpfe „dasselbe“ und „anderes“. Sprachen eines 3DS-Spiels über den Produktcode sind nicht violett; der
