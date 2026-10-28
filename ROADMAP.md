@@ -148,9 +148,6 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 
 ## 0.9 Nächste Schritte (Rückmeldung 28.10.2026)
 
-- 0.9.5 Sammlung: in den Einzelheiten „Spieler“ je Modus (lokal, LAN, online, Koop) mit Zahl, aus PCGamingWiki und
-  IGDB (Koop-Höchstzahlen); kein „2+“ mehr in „max. Spieler“; VR-Sammlung mit Genre und den Spalten der übrigen
-  Ansichten; Sprachen nur, wenn Deutsch fehlt (wie in den Nintendo-Reitern)
 - 0.9.6 Einstellungen: Steam-Hinweis auf eine Zeile mit Klappe; Retro „Genre weicht ab“ auch mit „Quellen
   übernehmen“, wenn die anderen Quellen sich einig sind
 

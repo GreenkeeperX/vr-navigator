@@ -1933,8 +1933,9 @@ def _fame(g):
 
 
 def _pcgw(log):
-    """PCGamingWiki (0.8.1): Vorlage „VR support“ je Steam-Spiel ohne eingebautes VR, über die Steam-ID
-    (appid.php leitet auf die Seite, dann der Wikitext). „hackable“ heißt VR per Mod."""
+    """PCGamingWiki (0.8.1): Vorlage „VR support“ je Steam-Spiel, über die Steam-ID (appid.php leitet auf die
+    Seite, dann der Wikitext). „hackable“ heißt VR per Mod. Ab 0.9.5 für alle PC-Spiele (vorher nur ohne
+    eingebautes VR), dazu die Spielerzahlen je Art aus „Network/Multiplayer“; ältere Einträge liest er neu."""
     start = time.monotonic()
 
     def get(src, gid, shown):
@@ -1947,10 +1948,11 @@ def _pcgw(log):
         return src.get(mods.parse_url(t), shown=f"{shown} ({t[:40]})")
     src, got, left = _per_game(log, "PCGamingWiki", "pcgw", PCGW_DAYS, PCGW_MAX, None,
                                lambda text, gid: dict(mods.pcgw(text) if text else {"ok": True, "page": False}, v=mods.V),
-                               get=get, want=_pc_no_vr, order=_fame)
+                               stale=lambda r: (r or {}).get("v", 1) < mods.V,
+                               get=get, want=lambda g: (g.get("system") or "PC") == "PC", order=_fame)
     if got is not None:
         hack = sum(1 for r in got.values() if r.get("mod"))
-        log(f"PCGamingWiki: {len(got)} Spiele gelesen, {sum(1 for r in got.values() if r.get('page'))} mit Seite, {hack} mit VR per Mod"
+        log(f"PCGamingWiki: {len(got)} Spiele gelesen, {sum(1 for r in got.values() if r.get('page'))} mit Seite, {hack} mit VR per Mod, {sum(1 for r in got.values() if r.get('pl'))} mit Spielerzahl"
             + (f", {left} noch offen (je Lauf {PCGW_MAX}{_runs(left, PCGW_MAX, ', ')})" if left else ", alle aktuell") + f", {_took(start)}")
     return src.result()
 

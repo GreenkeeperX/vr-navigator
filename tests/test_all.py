@@ -454,7 +454,7 @@ class TestCollection(unittest.TestCase):
         self.assertEqual(collection.view({"games": p})["games"][0]["pub"], "Paper Moon")
         s = g["epic:abc123def"]
         self.assertEqual(s["mp"], ["multi", "coop", "couch", "split"])
-        self.assertEqual(s["players"], 2)                      # Splitscreen ohne Zahl: zwei
+        self.assertEqual(s["players"], 0)                      # Splitscreen ohne Zahl: offen (bis 0.9.4 zwei)
         self.assertEqual(s["genres"], ["Kampfspiel", "Arcade"])
         q = g["steam:3000103"]
         self.assertTrue(q["store_guess"])                      # Zahl ohne Laden: vermutlich Steam
@@ -2408,7 +2408,9 @@ class TestSync(unittest.TestCase):
             "gog:77": {"name": "Paper Lantern Legacy", "store": "GOG", "id": "77"},
             "name:ps2:star hop": {"name": "Star Hop", "system": "PS2"}}, "n": 5})
         wiki = {"3000101": ("Harbor_Heist", "{{VR support\n|htc vive = hackable\n|oculus rift = hackable\n|vorpx = true\n|steamvr = false\n}}\n"),
-                "3000102": ("Rally_Moth", "{{VR support\n|htc vive = false\n}}\n")}
+                "3000102": ("Rally_Moth", "{{VR support\n|htc vive = false\n}}\n{{Network/Multiplayer\n|local play = true\n"
+                            "|local play players = 2-4\n|local play modes = Co-op\n|local play notes = \n|lan play = false\n"
+                            "|lan play players = \n|online play = true\n|online play players = 8\n|online play modes = Versus\n}}\n")}
         calls = []
 
         def fake(url, timeout=25, ua=None, headers=None, data=None):
@@ -2435,8 +2437,8 @@ class TestSync(unittest.TestCase):
         sources.fetch = fake
         logs = []
         self.assertTrue(sync._pcgw(logs.append)["ok"])
-        self.assertFalse(any("3000103" in u for u, d, h in calls))       # VR eingebaut: nicht gefragt
-        self.assertIn("PCGamingWiki: 2 Spiele gelesen, 2 mit Seite, 1 mit VR per Mod", "\n".join(logs))
+        self.assertTrue(any("3000103" in u for u, d, h in calls))        # ab 0.9.5 auch mit eingebautem VR (Spielerzahlen)
+        self.assertIn("PCGamingWiki: 3 Spiele gelesen, 2 mit Seite, 1 mit VR per Mod, 1 mit Spielerzahl", "\n".join(logs))
         self.assertTrue(sync._nexus(dict(sync.SETTINGS, nexus_key="k" * 30), logs.append)["ok"])
         self.assertEqual([json.loads(d)["variables"]["o"] for u, d, h in calls if "games(" in d], [0, 1])
         self.assertTrue(all(h.get("apikey") == "k" * 30 for u, d, h in calls if "nexusmods" in u))
@@ -2450,6 +2452,24 @@ class TestSync(unittest.TestCase):
         self.assertTrue(rows["steam:3000101"]["vorpx"])
         self.assertEqual(rows["gog:77"]["nexus"]["n"], 3)
         self.assertNotIn("vrmod", rows["steam:3000102"])
+        # Spieler je Art (0.9.5): PCGamingWiki „Network/Multiplayer“, Koop nur lokal
+        m = rows["steam:3000102"]
+        self.assertEqual((m["plm"], m["players"], m["pl_src"]), ({"couch": [4, "PCGamingWiki"], "online": [8, "PCGamingWiki"]}, 8, "PCGamingWiki"))
+        self.assertEqual(m["mp"], ["multi", "couch", "online", "coop"])
+        # mit IGDB: gleiche Zahl bestätigt, verschiedene: PCGamingWiki gilt, IGDB bleibt für den Tooltip
+        r = {"mp": ["multi", "online"], "mpc": [], "players": 16, "pl_src": "IGDB", "srcs": ["Steam", "IGDB"],
+             "plm": {"online": [16, "IGDB"], "couch": [4, "IGDB"]}}
+        collection.merge_pcgw(r, {"page": True, "mp": ["couch", "online"], "pl": {"couch": 4, "online": 8}})
+        self.assertEqual(r["plm"], {"online": [8, "PCGamingWiki", 16], "couch": [4, "IGDB, PCGamingWiki"]})
+        self.assertEqual((r["players"], r["pl_src"], r["mpc"]), (8, "PCGamingWiki", ["multi", "online"]))
+        self.assertEqual(mods.V, 2)
+        # Alte Einträge (v 1) liest der Abgleich neu
+        calls.clear()
+        c = store.load_json(collection.FILE, collection.EMPTY)
+        c["games"]["steam:3000101"]["pcgw"]["v"] = 1
+        store.save_json(collection.FILE, c)
+        sync._pcgw(logs.append)
+        self.assertEqual(sum(1 for u, d, h in calls if "appid.php" in u), 1)
         # zweiter Lauf: Liste aus dem Zwischenspeicher, nichts mehr zu tun
         calls.clear()
         sync._nexus(dict(sync.SETTINGS), logs.append)
@@ -2939,7 +2959,7 @@ class TestAccounts(unittest.TestCase):
             "type": "game", "name": "Rally Moth", "release_date": {"date": "2 May, 2024"},
             "genres": [{"id": "9", "description": "Racing"}], "categories": [{"id": 1}, {"id": 2}]}}}
         moth = {"id": 7, "name": "Rally Moth", "genres": [{"name": "Racing"}], "game_modes": [{"name": "Multiplayer"}],
-                "multiplayer_modes": [{"onlinemax": 8}], "first_release_date": 1714608000}
+                "multiplayer_modes": [{"onlinemax": 8, "onlinecoop": True, "onlinecoopmax": 4}], "first_release_date": 1714608000}
         calls = []
 
         def fake(url, timeout=25, ua=None, headers=None, data=None):
@@ -2967,6 +2987,7 @@ class TestAccounts(unittest.TestCase):
         self.assertTrue(t["night-tram"]["igdb"]["none"])             # Namenssuche ohne Treffer
         inf = library.info(t["rally-moth"])
         self.assertEqual((inf["players"], inf["genres"][0]), (8, "Rennen"))
+        self.assertEqual(inf["plm"], {"online": [8, "IGDB"], "coop_on": [4, "IGDB"]})      # 0.9.5: Koop online bis 4
         calls.clear()
         sync._vr_info(settings, logs.append)                       # alles frisch: kein Abruf bei Steam
         self.assertFalse(any("appdetails" in u for u, _ in calls))

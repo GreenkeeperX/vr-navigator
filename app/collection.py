@@ -160,7 +160,7 @@ def _split(s):
 
 
 def features(feats, tags):
-    """Mehrspieler-Art und höchste Spielerzahl. Splitscreen ohne Zahl gilt als mindestens 2."""
+    """Mehrspieler-Art und höchste Spielerzahl, soweit Playnite sie nennt („4 players in co-op“)."""
     words = {x.casefold() for x in feats + tags}
     mp = [k for k, ws in MP_RULES.items() if words & set(ws)]
     if mp or words & set(_MULTI) or any(_PLAYERS.match(w) for w in words):
@@ -170,8 +170,7 @@ def features(feats, tags):
         m = _PLAYERS.match(w)
         if m:
             players = max(players, int(m.group(1)))
-    if not players and ("couch" in mp or "split" in mp):
-        players = 2
+    # Bis 0.9.4 galt Splitscreen ohne Zahl als 2; ab 0.9.5 bleibt die Zahl offen (keine geratene Zahl)
     return mp, players
 
 
@@ -434,6 +433,29 @@ def check(r, st):
         r["year"] = y                   # nur Steam kennt das Jahr: übernommen, ≈
 
 
+def merge_pcgw(r, pc):
+    """PCGamingWiki (0.9.5): Spieler je Art aus „Network/Multiplayer“ (lokal, LAN, online). Nennen IGDB und
+    PCGamingWiki dieselbe Zahl, gilt sie als bestätigt; sonst gilt PCGamingWiki (am PC gepflegt), IGDBs Zahl
+    bleibt als dritter Wert für den Tooltip. Die Arten zählen wie bei Steam und IGDB zum Abgleich."""
+    if not pc.get("page"):
+        return
+    kinds = list(pc.get("mp") or []) + (["coop"] if pc.get("coop") else [])
+    if kinds:
+        r["srcs"] = r.get("srcs", []) + ["PCGamingWiki"]
+        r["mpc"] = list(dict.fromkeys((r.get("mpc") or []) + [x for x in r["mp"] if x in kinds + ["multi"]]))
+        r["mp"] = (["multi"] if "multi" not in r["mp"] else []) + r["mp"] + [x for x in kinds if x not in r["mp"]]
+    plm = r.setdefault("plm", {})
+    for m, n in (pc.get("pl") or {}).items():
+        if not isinstance(n, int) or n < 2:
+            continue
+        old = plm.get(m)
+        plm[m] = [n, "IGDB, PCGamingWiki"] if old and old[0] == n else [n, "PCGamingWiki"] + ([old[0]] if old else [])
+    if plm:
+        top = max(v[0] for v in plm.values())
+        r["players"] = top
+        r["pl_src"] = ", ".join(sorted({x for v in plm.values() if v[0] == top for x in v[1].split(", ")}))
+
+
 def merge_igdb(r, ig):
     """IGDB (0.8.0) in eine Zeile, mit fester Rangfolge je Feld. Was IGDB und eine andere Quelle beide sagen,
     gilt als bestätigt (gc, mpc wie beim Abgleich mit Steam); was nur eine sagt, zeigt die Oberfläche violett.
@@ -451,6 +473,11 @@ def merge_igdb(r, ig):
     ig_m = igdb.mp_kinds(ig)
     r["mpc"] = list(dict.fromkeys((r.get("mpc") or []) + [x for x in r["mp"] if x in ig_m] + (ig_m if not r["mp"] else [])))
     r["mp"] = r["mp"] + [x for x in ig_m if x not in r["mp"]]
+    # Spieler je Art (0.9.5): online, lokal, Koop online, Koop lokal; als [Zahl, Quelle]
+    plm = r.setdefault("plm", {})
+    for m, f in (("online", "on"), ("couch", "off"), ("coop_on", "coop_on_n"), ("coop_off", "coop_off_n")):
+        if (ig.get(f) or 0) > 1:
+            plm[m] = [int(ig[f]), "IGDB"]
     n = max(ig.get("on") or 0, ig.get("off") or 0)
     if n > 1:
         r["players"], r["pl_src"] = n, "IGDB"
@@ -706,6 +733,7 @@ def view(col, data=None):
             merge_retro(r, g)
         # VR per Mod (0.8.1): PCGamingWiki „hackable“, vorpX; Nexus Mods mit Spielseite und Mods
         pc, nx = g.get("pcgw") or {}, g.get("nexus") or {}
+        merge_pcgw(r, pc)
         if pc.get("mod"):
             r["vrmod"] = pc["mod"]
         if pc.get("vorpx"):

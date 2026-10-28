@@ -215,8 +215,15 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Block; Reiter VR: Wertung, Rezensionen, Aktiv, Update, Crossbuy, Besitz, Recherche. Breiten überall gleich: Spiel
   `minmax(180px,1.5fr)`, Wertung 70, Rezensionen 98, Spielzeit 66, max. Spieler 96, Aktiv 56, Update 62, Jahr 44 px;
   den Rest nimmt Genre, sonst Recherche oder Wo.
-- „max. Spieler“ (`gMaxPl`, Switch `kMaxCell`): die Zahl; ohne Zahl grau „2+“ bei bekanntem Mehrspieler, grau „1“, wenn
-  Steam keinen nennt. Die Arten im Tooltip, in den Einzelheiten die Zeile „Mehrspieler“ (Switch: „Spieler“ je Art).
+- „max. Spieler“ (`gMaxPl`, Switch `kMaxCell`): die Zahl; ohne Zahl grau „–“ bei bekanntem Mehrspieler (ab 0.9.5, vorher
+  „2+“), grau „1“, wenn Steam keinen nennt. Die Arten im Tooltip, in den Einzelheiten ab 0.9.5 überall die Zeile
+  „Spieler“ (`gPlayers`, `plKinds`, vorher „Mehrspieler“): je Art die höchste Zahl, „Online bis 8 · Koop online bis 4 ·
+  Lokal bis 4 · LAN“; ohne Zahl nur die Art, violett, was nur eine Quelle nennt; Quelle der Zahl im Tooltip (IGDB,
+  PCGamingWiki, beide einig). Nur „Mehrspieler“ ohne Art: „mehrere, Art unbekannt“; laut Steam ohne: „allein“.
+- Sprachen (ab 0.9.5, Entscheidung 28.10.2026): nur, wenn Deutsch fehlt, als rotes „ohne Deutsch“ (`.gno`) klein in
+  der Zeile unten der Einzelheiten, die Sprachen im Tooltip; gilt für PC, Retro, Switch und die eShopKompass-Zeilen.
+- Reiter VR der Sammlung (ab 0.9.5): Spiel, max. Spieler, Wertung, Rezensionen, Genre, Aktiv, Update, Crossbuy, Besitz,
+  Recherche (130 px); Genre und Spieler aus den VR-Spielinfos (`r.info`).
   Filter Mehrspieler in Sammlung und Wunschliste PC (`V.pcMp`).
 - „Aktiv“ (`gActive`): Steam-Spieler gerade eben, überall dieser Name (auch die Zeile in der VR-Karte). Rezensionen
   (`gRev`): Steam-Zahl, ab einer Million kurz („1,9 Mio.“), Meta-Bewertungen im Tooltip.

@@ -14,12 +14,13 @@ from .probes import IGDB_PLATFORMS, search_name
 
 API = "https://api.igdb.com/v4/"
 TWITCH = "https://id.twitch.tv/oauth2/token"
-V = 1               # Stand der knappen Fassung; ändert er sich, liest der Abgleich alles neu
+V = 2               # Stand der knappen Fassung; ändert er sich, liest der Abgleich alles neu (2: Koop-Spielerzahlen, 0.9.5)
 CHUNK = 400         # Kennungen je Anfrage (IGDB erlaubt bis 500 Treffer)
 FIELDS = ("fields name,first_release_date,genres.name,game_modes.name,aggregated_rating,aggregated_rating_count,"
           "total_rating,total_rating_count,summary,involved_companies.company.name,involved_companies.developer,"
           "involved_companies.publisher,multiplayer_modes.onlinemax,multiplayer_modes.offlinemax,"
-          "multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.splitscreen,"
+          "multiplayer_modes.onlinecoop,multiplayer_modes.offlinecoop,multiplayer_modes.onlinecoopmax,"
+          "multiplayer_modes.offlinecoopmax,multiplayer_modes.splitscreen,"
           "multiplayer_modes.lancoop,multiplayer_modes.platform,alternative_names.name;")
 CRIT_MIN = 3        # Kritiken, ab denen die Kritiker-Wertung zählt
 TOTAL_MIN = 10      # Bewertungen, ab denen die Gesamtwertung zählt
@@ -120,6 +121,7 @@ def compact(g):
            "on": num("onlinemax"), "off": num("offlinemax"),
            "coop_on": any(m.get("onlinecoop") for m in mm), "coop_off": any(m.get("offlinecoop") for m in mm),
            "split": any(m.get("splitscreen") for m in mm), "lan": any(m.get("lancoop") for m in mm),
+           "coop_on_n": num("onlinecoopmax"), "coop_off_n": num("offlinecoopmax"),
            "year": _year(g.get("first_release_date")),
            "desc": " ".join(str(g.get("summary") or "").split())[:900],
            "dev": next((c["company"].get("name") for c in comp if c.get("developer")), "") or "",

@@ -12,7 +12,7 @@ import urllib.parse
 from . import titles
 from .probes import NEXUS_GQL, PCGW, PCGW_APPID, pcgw_title, pcgw_vr, search_name
 
-V = 1
+V = 2                       # 2: dazu Spielerzahlen aus „Network/Multiplayer“ (0.9.5)
 HEADSETS = {"htc vive": "HTC Vive", "oculus rift": "Oculus Rift", "windows mixed reality": "Windows Mixed Reality",
             "osvr": "OSVR", "openxr": "OpenXR", "steamvr": "SteamVR", "oculusvr": "Oculus"}
 GAMES_PAGE = 100            # erbetene Spiele je Seite; Nexus liefert höchstens 80 (Verbindungstest 0.8.4),
@@ -34,17 +34,33 @@ def title(text):
     return pcgw_title(text or "")
 
 
+# Arten der Vorlage „Network/Multiplayer“ zu den Arten der Sammlung (collection.MP_LABEL)
+MP_PLAY = {"local play": "couch", "lan play": "lan", "online play": "online"}
+
+
+def _most(v):
+    """Höchste Zahl aus „4“, „2-8“, „64+“; 0 ohne Zahl."""
+    return max([int(x) for x in re.findall(r"\d{1,3}", str(v or ""))] or [0])
+
+
 def pcgw(text):
-    """Knappe Fassung der Vorlage „VR support“: welche Brillen per Mod gehen, ob VR schon eingebaut ist, vorpX."""
+    """Knappe Fassung der Vorlage „VR support“: welche Brillen per Mod gehen, ob VR schon eingebaut ist, vorpX.
+    Ab 0.9.5 dazu „Network/Multiplayer“: je Art (lokal, LAN, online) ob es sie gibt (mp), die Spielerzahl (pl)
+    und ob es dort Koop gibt (coop)."""
     try:
         f = pcgw_vr(text)
+        m = pcgw_vr(text, "Network/Multiplayer")
     except (ValueError, AttributeError):
         return {"ok": False}
     val = lambda v: str(v).strip().casefold()
+    on = [k for k in MP_PLAY if val(m.get(k, "")) in ("true", "limited")]
     return {"ok": True, "page": True,
             "mod": [n for k, n in HEADSETS.items() if val(f.get(k, "")) == "hackable"],
             "native": [n for k, n in HEADSETS.items() if val(f.get(k, "")) == "true"],
-            "vorpx": val(f.get("vorpx", "")) == "true"}
+            "vorpx": val(f.get("vorpx", "")) == "true",
+            "mp": [MP_PLAY[k] for k in on],
+            "pl": {MP_PLAY[k]: _most(m.get(k + " players")) for k in on if _most(m.get(k + " players")) > 1},
+            "coop": [MP_PLAY[k] for k in on if "co-op" in val(m.get(k + " modes", ""))]}
 
 
 def games_query(offset):
