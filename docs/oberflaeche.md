@@ -134,8 +134,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Kopfleiste (Name, Stand, Aktualisieren, Reiter) kommt beim Scrollen mit, blendet nach 300 px
   nach unten weich aus (0,8 s) und nach 40 px nach oben wieder ein, wie im eShopKompass; kleine
   Gegenbewegungen unter 8 px zählen nicht. Ohne Bewegung (reduzierte Bewegung) ohne Übergang.
-- Reiter: Jetzt, Wunschliste (0.8.2, Unterreiter VR und PC als `.systabs`, `V.wsub`; PC in Grün der Familie PC,
-  Liste im Raster der Sammlung `.glist.pcw`, Name verlinkt gg.deals, Marken VR, „schon in der Sammlung“ violett,
+- Reiter: Jetzt, Wunschliste (0.8.2, Unterreiter als `.systabs`, `V.wsub`, ab 0.8.7 PC zuerst und Vorgabe; PC in
+  Grün der Familie PC, ohne bestätigte VR-Spiele (`pcIsVr`), Liste im Raster der Sammlung `.glist.pcw`, Name verlinkt
+  gg.deals, Marken „Paket“, „DLC“ grau, „VR“ violett nur aus dem Namen, „schon in der Sammlung“ violett,
   „nah am Tief“ grün), Sammlung, Einstellungen (die Bibliothek ist seit 0.6.0 der Reiter
   VR in der Sammlung; ein gemerkter Reiter „Bibliothek“ öffnet ihn). Am Reiter eine graue Zahl oder ein
   Wort („läuft“, „Fehler“, „1 prüfen“). Am Handy blendet die Leiste rechts weich aus, solange
@@ -208,3 +209,12 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   oder `label`). Ohne Chromium wird er lokal übersprungen, in GitHub Actions nicht.
 - Jede Adresse `/api/...`, die die Oberfläche ruft, muss es im Server geben (Test).
 - Bildschirmfotos breit und bei 390 px, hell und dunkel, gegen eine bestehende Ansicht halten.
+
+## Sammlung, ab 0.8.7
+
+- Marke „VR“ in PC-Zeilen türkis (`.vrb`), Tooltip nennt die Quelle (`vr_src`); nur aus dem Namen violett (`.gxc`).
+  Zeilen `pcvr:` sind VR-Titel des Tools am PC, die Playnite nicht kennt; ihre Einzelheiten sagen das.
+- Einzelheiten: Mein Stand immer bei 1,5fr / 1fr (`--dcols` fest), gleich in jedem Reiter.
+- Werkzeugzeile: „herunterladen“ (Link, `gdl`) als CSV; Spaltenkopf „Spiel“ mit ⧉ (`.gcopy`) für alle Titel.
+- Suche (`V.q`, `V.d.q`) leert sich beim Wechsel von Reiter, Unterreiter und System.
+- Knöpfe in `.bar.slim` mit fester Höhe 30 px.

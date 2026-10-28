@@ -15,7 +15,7 @@ const until = d => d ? "bis " + new Date(d + "T12:00:00").toLocaleDateString("de
 let S = null;                                   // Zustand vom Server
 // Die Bibliothek ist seit 0.6.0 der Reiter VR in der Sammlung
 const TABS = [["now", "Jetzt"], ["wish", "Wunschliste"], ["find", "Sammlung"], ["settings", "Einstellungen"]];
-const V = {tab: "wish", wsub: "vr", pcSort: "near", q: "", sort: "name", prev: {}, folds: {}, sorts: {}};
+const V = {tab: "wish", wsub: "pc", pcSort: "near", q: "", sort: "name", prev: {}, folds: {}, sorts: {}};
 // Ansicht je Browser (vn.view): Reiter, Klappzustände, Sortierung nach Spalte. Bis 0.2.1 gab es die
 // Reiter Abrufe und Import, beide stehen jetzt unter Einstellungen; „lib“ führt in die Sammlung, Reiter VR.
 let LIB_IN = false;
@@ -26,7 +26,7 @@ try{
   V.tab = t === "sync" || t === "import" ? "settings" : LIB_IN ? "find" : TABS.some(x => x[0] === t) ? t : V.tab;
   V.folds = v.folds && typeof v.folds === "object" ? v.folds : {};
   V.sorts = v.sorts && typeof v.sorts === "object" ? v.sorts : {};
-  if(v.wsub === "pc") V.wsub = "pc";
+  if(v.wsub === "pc" || v.wsub === "vr") V.wsub = v.wsub;
 }catch(e){}
 function saveView(){ try{ localStorage.setItem("vn.view", JSON.stringify({tab: V.tab, wsub: V.wsub, folds: V.folds, sorts: V.sorts})); }catch(e){} }
 
@@ -118,7 +118,7 @@ function renderNav(){
   const c = S.counts, sug = S.suggestions.length + (S.todo || []).length + (S.lists || []).length + (S.retro_near || []).length;
   const sy = S.sync || {};
   const set = sy.running ? "läuft" : Object.values(sy.sources || {}).some(x => !x.ok) ? "Fehler" : sug ? `${sug} offen` : "";
-  const cnt = {now: c.now || "", wish: c.wish + (S.pcwish?.n || 0) || "", find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
+  const cnt = {now: c.now || "", wish: c.wish + (S.pcwish?.rows || []).filter(r => !pcIsVr(r)).length || "", find: (S.imports.collection?.n || 0) + (c.owned || 0) || "", settings: set};
   $("nav").innerHTML = TABS.map(([k, l]) =>
     `<button data-act="tab" data-v="${k}" class="${V.tab === k ? "on" : ""}">${l}${cnt[k] !== "" ? `<span class="cnt">${esc(cnt[k])}</span>` : ""}</button>`).join("");
   renderHead();
@@ -298,24 +298,31 @@ function wishView(){
   const pw = S.pcwish || {n: 0};
   if(!pw.n) return vrWishView();
   const tab = (v, l, c, cls, tip) => `<button role="tab" aria-selected="${V.wsub === v}" data-act="wsub" data-v="${v}" class="${cls}${V.wsub === v ? " on" : ""}" title="${esc(tip)}">${l} <span class="n">${c}</span></button>`;
-  const tabs = `<div class="systabs" role="tablist" aria-label="Wunschliste">${tab("vr", "VR", S.counts.wish, "", "Deine VR-Wünsche bei Meta und am PC, mit Preisen beider Läden")}${tab("pc", "PC", pw.n, "fam-pc", "Deine ganze Wunschliste bei gg.deals, mit Preisen von Händlern und Keyshops")}</div>`;
+  // PC vor VR wie in der Sammlung (0.8.7); VR-Spiele der gg.deals-Liste stehen nur unter VR
+  const pcN = pw.rows.filter(r => !pcIsVr(r)).length;
+  const tabs = `<div class="systabs" role="tablist" aria-label="Wunschliste">${tab("pc", "PC", pcN, "fam-pc", "Deine Wunschliste bei gg.deals ohne die VR-Spiele, mit Preisen von Händlern und Keyshops")}${tab("vr", "VR", S.counts.wish, "", "Deine VR-Wünsche bei Meta und am PC, mit Preisen beider Läden")}</div>`;
   return tabs + (V.wsub === "pc" ? pcWishView(pw) : vrWishView());
 }
+const pcIsVr = r => r.vr && !r.vr_guess;
+const PC_KIND = {pack: ["Paket", "Paket aus mehreren Spielen oder Edition mit Zusätzen; Preis auf der Seite bei gg.deals"], dlc: ["DLC", "Erweiterung; Preis auf der Seite bei gg.deals"]};
 const PC_SORTS = [["near", "Nah am Tief"], ["best", "Preis"], ["name", "Name"], ["new", "Neu"]];
 function pcWishView(pw){
   const q = V.q.trim().toLowerCase();
-  let rows = pw.rows.filter(r => !q || r.name.toLowerCase().includes(q));
+  const all = pw.rows.filter(r => !pcIsVr(r)), nVr = pw.rows.length - all.length;
+  let rows = all.filter(r => !q || r.name.toLowerCase().includes(q));
   const key = {near: r => r.over ?? 1e9, best: r => r.best ?? 1e9, new: r => -Date.parse(r.since || 0) || 0}[V.pcSort];
   if(key) rows = rows.slice().sort((a, b) => key(a) - key(b));
   const sel = `<label class="kind">Sortieren <select data-sort="pc">${PC_SORTS.map(([v, l]) => `<option value="${v}"${V.pcSort === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="q" placeholder="Titel suchen" aria-label="Titel suchen" value="${esc(V.q)}" data-in="q">${V.q ? `<button class="sx" data-act="qclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span><span class="tools">${sel}</span></div>`;
   const src = {Server: "über den Teilen-Link", Lesezeichen: "per Lesezeichen", Datei: "aus einer Datei"}[pw.via] || "";
-  const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === pw.n ? `Alle ${num(pw.n)} Spiele deiner gg.deals-Wunschliste.` : `${num(rows.length)} von ${num(pw.n)} Spielen.`}</summary>
-    <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach genau gleichem Namen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.</p></details>`;
+  const note = `<details class="gnote" ${foldAttr("pcnote", true)}><summary>${rows.length === all.length ? `Alle ${num(all.length)} Einträge deiner gg.deals-Wunschliste ohne VR.` : `${num(rows.length)} von ${num(all.length)} Einträgen.`}</summary>
+    <p class="hint">Gepflegt wird die Liste bei gg.deals; das Tool liest sie ${src}${pw.at ? `, zuletzt ${when(pw.at)}` : ""}, sucht die Steam-ID und holt die Preise über die gg.deals-API. ${num(pw.priced)} mit Preis${pw.noid ? `, ${num(pw.noid)} noch ohne Steam-ID (gesucht wird nach genau gleichem Namen)` : ""}${S.settings?.gg_key_set ? "" : ". Ohne gg.deals-Schlüssel gibt es keine Preise (Einstellungen, Konten)"}.
+    ${pw.kinds?.pack || pw.kinds?.dlc ? `Dazu ${[pw.kinds.pack && `${num(pw.kinds.pack)} Pakete`, pw.kinds.dlc && `${num(pw.kinds.dlc)} DLC`].filter(Boolean).join(" und ")}; für sie hat die gg.deals-API keinen Preis je Steam-App, der Link führt zur Seite bei gg.deals.` : ""}
+    ${nVr ? `${num(nVr)} VR-Spiele der Liste stehen unter <button class="link" data-act="wsub" data-v="vr">VR</button>.` : ""} Violett „VR“: nur der Name nennt VR, der Abgleich prüft das bei Steam.</p></details>`;
   const cols = "minmax(160px,2fr) 82px 82px 82px 82px 74px";
   const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt: Händler oder Keyshop">Jetzt</span><span class="r" title="Offizielle Händler laut gg.deals">Händler</span><span class="r" title="Keyshops laut gg.deals">Keyshop</span><span class="r" title="Bisheriges Tief, Händler oder Keyshop">Tief</span><span class="r" title="Wie weit der Preis jetzt über dem bisherigen Tief liegt">über Tief</span></div>`;
-  const row = r => `<div class="gr"><span class="t">${r.url ? `<a class="g-n" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" title="${esc(r.name)} bei gg.deals">${esc(r.name)}</a>` : esc(r.name)}${r.vr ? `<span class="b vrb" title="Steht als VR-Titel im Tool">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.near ? `<span class="b go" title="Höchstens 5 % über dem bisherigen Tief">nah am Tief</span>` : ""}</span>` +
-    `<span class="r" data-l="Jetzt">${r.best != null ? `<b title="${esc(r.best_from)}">${eur(r.best)}</b>` : `<span class="hint" title="${r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">–</span>`}</span>` +
+  const row = r => `<div class="gr"><span class="t">${r.url ? `<a class="g-n" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" title="${esc(r.name)} bei gg.deals">${esc(r.name)}</a>` : esc(r.name)}${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.near ? `<span class="b go" title="Höchstens 5 % über dem bisherigen Tief">nah am Tief</span>` : ""}</span>` +
+    `<span class="r" data-l="Jetzt">${r.best != null ? `<b title="${esc(r.best_from)}">${eur(r.best)}</b>` : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">–</span>`}</span>` +
     `<span class="r${r.retail != null ? "" : " nil"}" data-l="Händler">${r.retail != null ? eur(r.retail) : G_NIL}</span><span class="r${r.keyshops != null ? "" : " nil"}" data-l="Keyshop">${r.keyshops != null ? eur(r.keyshops) : G_NIL}</span>` +
     `<span class="r${r.low != null ? "" : " nil"}" data-l="Tief" title="${esc([r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", "))}">${r.low != null ? eur(r.low) : G_NIL}</span>` +
     `<span class="r${r.over == null ? " nil" : ""}" data-l="über Tief">${r.over == null ? G_NIL : r.over <= 0.005 ? `<span class="ok">am Tief</span>` : `+${Math.round(r.over * 100)} %`}</span></div>`;
@@ -885,7 +892,9 @@ function gBadges(g){
     return b.join("");
   }
   if(kOn(g)) return b.join("") + kBadges(g);
-  if(g.vr) b.push(`<span class="b vrb" title="Laut Steam mit VR-Unterstützung">VR</span>`);
+  // VR am PC (0.8.7): Steam, VR-Titel im Tool oder VR-Prüfung im Store; nennt nur der Name VR, ist es ein Hinweis (violett)
+  if(g.vr) b.push(g.vr_guess ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR, Steam und das Tool sagen nichts dazu">VR</span>`
+    : `<span class="b vrb" title="${esc(g.from_vr ? `Dein VR-Titel (${g.store}); Playnite kennt ihn nicht` : `VR laut ${g.vr_src || "Steam"}`)}">VR</span>`);
   // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (violett)
   else if(g.vrmod?.length) b.push(`<span class="b" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
   else if(vrMod(g)) b.push(`<span class="b gxc" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod?</span>`);
@@ -899,6 +908,35 @@ function gBadges(g){
     if(g.gone) b.push(`<span class="b warn" title="Stand in der letzten Retro-Liste nicht mehr">nicht mehr in der Liste</span>`);
   }
   return b.join("");
+}
+/* Liste herunterladen und Titel kopieren (0.8.7): genau die gefilterte und sortierte Liste mit den gezeigten
+   Spalten; aufgeklappte Spiele bekommen ihre Einzelheiten als letzte Spalte */
+let G_SHOWN = null;
+const plain = h => { const e = document.createElement("div"); e.innerHTML = h || ""; return (e.textContent || "").replace(/\s+/g, " ").trim(); };
+// Einzelheiten als Text: „Angabe: Wert“ je Zeile der linken Seite, dann Beschreibung und Herkunft; Mein Stand hat eine eigene Spalte
+function detailText(g){
+  const e = document.createElement("div");
+  e.innerHTML = gDetail(g);
+  e.querySelectorAll(".gdm .fl, .gmark, .gmk").forEach(x => x.remove());
+  const out = [...e.querySelectorAll(".gdf .fl, .gdv .fl")].map(l => `${l.textContent.trim()}: ${plain(l.nextElementSibling?.innerHTML)}`);
+  for(const x of e.querySelectorAll(".gdesc, .gds")) out.push(plain(x.innerHTML));
+  return out.filter(Boolean).join(" | ");
+}
+function gExport(){
+  const {rows, cols, sys} = G_SHOWN || {rows: [], cols: []};
+  const cell = v => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const open = rows.some(g => V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key);
+  const stand = g => { const m = mine(g), st = G_ST.find(x => x[0] === m.s); return [st && st[1], m.fav && "Favorit"].filter(Boolean).join(", "); };
+  const lines = [["Spiel", ...cols.map(c => c.l), "Mein Stand", ...(open ? ["Einzelheiten"] : [])].map(cell).join(";")];
+  for(const g of rows){
+    const det = open && (V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key) ? detailText(g) : "";
+    lines.push([g.name, ...cols.map(c => plain(c.k === "genre" ? (g.genres || []).join(", ") : c.cell(g))), stand(g), ...(open ? [det] : [])].map(x => cell(String(x ?? ""))).join(";"));
+  }
+  const name = `sammlung-${(sys ? (sys[0] === "@" ? famName(sys) : sys) : "alle").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], {type: "text/csv;charset=utf-8"}));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  toast(`${num(rows.length)} Spiele als ${name}`);
 }
 function gRow(g, cols, pick){
   const open = (V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key) && !pick;
@@ -949,7 +987,7 @@ function gDetail(g){
   const facts = row("Wertung", score) + row("Erschienen", esc(date), who) + row("Sprachen", langs, "Laut Steam") + row("Sprachen", g.langs?.length > 1 ? `<span class="${g.lang_guess ? "gxc" : ""}">${esc(g.langs.join(", "))}</span>` : "", g.lang_guess ? "Nur aus der Region geschätzt" : g.de?.langs ? `Laut No-Intro über den Produktcode: ${g.de.rel}` : "Laut Dateiname") +
     row("VR per Mod", vrModHtml(g)) + row("Nexus Mods", nexusHtml(g)) + row("Sim-Racing", wheelHtml(g)) +
     row("Gesucht", g.de?.st === "missing" ? esc(g.de.alt) : "", "Die Fassung mit Deutsch laut No-Intro, Redump oder Retool") + row("Dateien", esc(files), "Regionen, Fassungen oder Discs desselben Spiels");
-  const src = [g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
+  const src = [g.from_vr ? `dein VR-Titel im Tool (${esc(g.store)}), Playnite kennt ihn nicht` : g.retro ? `System laut Retro-Liste${S.imports.retro?.at ? ` vom ${day(S.imports.retro.at)}` : ""}` : g.src === "steam" ? "Playnite, mit Steam abgeglichen (Steam-Details)" : g.system === "PC" ? "Playnite, noch nicht mit Steam abgeglichen" : "laut Playnite",
     g.ig ? `IGDB${g.iname ? ` (dort „${esc(g.iname)}“)` : ""}` : ""].filter(Boolean).join(", ");
   const small = [g.added && `in der Sammlung seit ${day(g.added)}`, src, safeUrl(g.url) && `<a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Seite im Launcher</a>`].filter(Boolean).join(" · ");
   return `<div class="gd"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
@@ -1053,6 +1091,7 @@ function findView(){
   const tabs = sys.length > 1 ? `<div class="systabs" role="tablist" aria-label="System">${multi ? tab("", "Alle", nAll, "", "Alle Systeme aus Playnite, der Retro-Liste und dem eShopKompass; deine VR-Titel stehen unter VR") : ""}${top.join("")}</div>` : "";
   const inTab = allGames().filter(g => inSys(g, d.sys)), vr = d.sys === "VR";
   const filtered = dFilter(d), cols = colsFor(d, inTab), rows = dSort(filtered, d, cols);
+  G_SHOWN = {rows, cols, sys: d.sys};
   const pick = d.mix === "surprise" || d.mix === "wild" ? dPick(filtered, d.seed) : [];
   const opt = (list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(l)}</option>`).join("");
   const stores = [...new Set(inTab.map(g => g.store).filter(Boolean))].sort();
@@ -1105,10 +1144,11 @@ function findView(){
   const foldall = `<span class="foldall" title="${canAll ? rows.length === 1 ? "Das eine Spiel der Liste aufklappen" : `Alle ${num(rows.length)} Spiele der Liste aufklappen` : `Alle aufklappen geht bei höchstens ${G_ALL} Spielen, hier sind es ${num(rows.length)}. Wähl ein System, filtere oder suche`}"><button class="link" data-act="gall" data-v="1"${canAll ? "" : " disabled"}>alle aufklappen</button> · <button class="link" data-act="gall" data-v=""${V.gAll || V.gOpen ? "" : " disabled"}>alle zuklappen</button></span>`;
   const bar = `<div class="bar"><span class="sbox"><input type="search" id="dq" placeholder="${vr ? "Name oder Notiz suchen" : "Name, Entwickler oder Genre suchen"}" aria-label="In der Sammlung suchen" value="${esc(d.q)}" data-in="dq">${d.q ? `<button class="sx" data-act="dqclear" title="Suche leeren (Esc)" aria-label="Suche leeren">×</button>` : ""}</span>
     <label class="kind">Sortieren <select data-dset="sort">${colSort ? `<option value="" selected>nach Spalte</option>` : ""}${opt(D_SORTS.filter(([k]) => !vr || !["gem", "known", "year"].includes(k)), colSort ? "" : d.sort)}</select></label>
-    ${d.sort === "random" && !colSort ? `<button data-act="dshuffle">Neu mischen</button>` : ""}${foldall}</div>`;
+    ${d.sort === "random" && !colSort ? `<button data-act="dshuffle">Neu mischen</button>` : ""}${foldall}
+    <button class="link gdl" data-act="gdl" title="Die Liste mit den gezeigten Spalten als Datei (CSV); aufgeklappte Spiele mit ihren Einzelheiten">herunterladen</button></div>`;
   const gcols = `minmax(180px,1.5fr) ${cols.map(c => c.w).join(" ")}`;
-  // Einzelheiten: Mein Stand braucht Platz; ohne mitwachsende Spalte (etwa nur „Jahr“) eigene Breite (0.7.7)
-  const dcols = cols.some(c => c.w.includes("fr")) ? gcols : "minmax(180px,1.5fr) minmax(320px,1fr)";
+  // Einzelheiten: Mein Stand steht in jedem Reiter an derselben Stelle (0.8.7), unabhängig von den Spalten
+  const dcols = "minmax(180px,1.5fr) minmax(320px,1fr)";
   const glist = (list, head) => `<div class="glist${head ? " box" : ""}" style="--gcols:${gcols};--dcols:${dcols}">${head || ""}${list}</div>`;
   const pickCard = pick.length || d.mix === "surprise" || d.mix === "wild" ? `<div class="card gpick"><h2>${d.mix === "wild" ? "Wilde Mischung" : "Vorschlag"}${label ? ` <span class="n">${esc(label)}</span>` : ""}</h2>
     ${pick.length ? glist(pick.map(g => gRow(g, cols, true)).join("")) : `<p class="hint">Nichts passt zu den Filtern.</p>`}
@@ -1128,7 +1168,7 @@ function findView(){
   // Kurz, die Herkunft zum Aufklappen (0.7.5, Entscheidung 27.10.2026: der lange Text war zu viel)
   const note = `<details class="gnote"><summary class="hint">${rows.length === inTab.length ? (inTab.length === 1 ? "1 Spiel" : `Alle ${num(inTab.length)} Spiele`) : `${num(rows.length)} von ${num(inTab.length)} Spielen`}${d.sys ? ` (${esc(d.sys[0] === "@" ? famName(d.sys) : d.sys)})` : ""}.</summary><p class="hint">${src}</p></details>`;
   const es = cols === K_COLS;
-  const head = `<div class="gr nph${es ? " es" : ""}" role="row">${es ? `<span class="gh-sp" aria-hidden="true">Spieler</span>` : ""}${gTh("title", "Spiel", "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
+  const head = `<div class="gr nph${es ? " es" : ""}" role="row">${es ? `<span class="gh-sp" aria-hidden="true">Spieler</span>` : ""}${gTh("title", `Spiel <button class="link gcopy" data-act="gcopy" title="Alle ${num(rows.length)} Titel der Liste kopieren, einer je Zeile" aria-label="Titel kopieren">⧉</button>`, "", "gh-t")}${cols.map(c => gTh(c.k, c.l, c.tip || "", c.cls || "", c.d0 || 1)).join("")}</div>`;
   return goneCard + tabs + bar + mixes + filters + pickCard + note +
     glist(rows.slice(0, d.n).map(g => gRow(g, cols)).join("") || `<p class="hint">Kein Treffer.</p>`, head) +
     (rows.length > d.n ? `<div class="actions"><button id="dmore" data-act="dmore">weitere ${Math.min(D0.n, rows.length - d.n)} zeigen</button></div>` : "");
@@ -1239,7 +1279,7 @@ function settingsView(){
   const importe = box("importe", "Einlesen", "", `<p class="hint">Bringt Käufe und Wünsche ins Tool: Konten automatisch, Meta per Lesezeichen, alles andere als Datei. Gelöscht wird nichts.</p>
     ${accountsCard()}${metaCard()}${fileCard()}${retroCard()}`);
   // Wie im eShopKompass: drei Knöpfe; der dritte öffnet die Dateiwahl
-  const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Enthält alle Titel mit Notizen, Zuordnungen und zuletzt gelesenen Preisen, dazu Mein Stand und die ganze Sammlung, keine Schlüssel und keine Konten. Einlesen ersetzt alles.</p>
+  const sicherung = box("sicherung", "Sicherung", "", `<p class="hint">Enthält alle Titel mit Notizen, Zuordnungen und zuletzt gelesenen Preisen, dazu Mein Stand, die ganze Sammlung und die PC-Wunschliste, keine Schlüssel und keine Konten. Einlesen ersetzt alles.</p>
      <div class="bar"><a class="btn" href="/api/abgleich" download="vr-navigator-abgleich.json" title="Stand und Protokoll des Abgleichs, Preisverlauf und Einstellungen ohne Schlüssel, zum Nachprüfen. Zum Einlesen nicht nötig.">Abgleichsdaten herunterladen</a>
      <a class="btn" href="/api/export" download="vr-navigator-sicherung.json">Sicherung herunterladen</a>
      <button data-act="pickrestore">Sicherung einlesen</button><input type="file" id="restoreFile" accept=".json,application/json" data-file="restore" hidden aria-label="Sicherung wählen"></div>`);
@@ -1470,7 +1510,9 @@ function accountsCard(){
 function wishMoves(p){
   return [p.wish_added?.length && `Neu auf der Wunschliste: ${p.wish_added.map(esc).join(", ")}.`,
     p.wish_removed?.length && `Nicht mehr auf dieser Wunschliste und damit von deiner: ${p.wish_removed.map(esc).join(", ")}.`,
-    p.unknown?.length && `Nicht zugeordnet (${p.unknown.length}): ${p.unknown.slice(0, 30).map(esc).join(", ")}${p.unknown.length > 30 ? " …" : ""}.`]
+    p.unknown?.length && (p.pc_n != null
+      ? `Noch kein VR-Titel im Tool (${p.unknown.length}): ${p.unknown.slice(0, 30).map(esc).join(", ")}${p.unknown.length > 30 ? " …" : ""}. Sie stehen auf der PC-Wunschliste; der nächste Abgleich fragt bei Steam, ob sie VR können.`
+      : `Nicht zugeordnet (${p.unknown.length}): ${p.unknown.slice(0, 30).map(esc).join(", ")}${p.unknown.length > 30 ? " …" : ""}.`)]
     .filter(Boolean).map(x => `<p class="hint">${x}</p>`).join("");
 }
 function previewHtml(p){
@@ -1482,8 +1524,11 @@ function previewHtml(p){
     : ` Die Sammlung bleibt, wie sie ist${pc.kept ? ` (${num(pc.kept)} Spiele)` : ""}.`);
   // Playnite: die erste Zahl zählt nur VR-Titel für Sammlung (VR) und Wunschliste
   const found = pc ? (p.n ? ` VR-Titel: ${p.n}, davon ${p.new} neu.` : " VR-Titel: keine darin.") : `${p.n} erkannt, davon ${p.new} neu.`;
-  if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}${pc ? "." : ":"}${pc ? `${col}${found}` : ` ${p.n} erkannt, ${p.new} neu angelegt.`}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 300).map(e =>
-    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · war schon da" : " · neu"}</li>`).join("")}</ul></details>` : "");
+  // gg.deals (0.8.7): erst die ganze PC-Wunschliste, dann wie viele davon VR-Titel im Tool sind
+  const gg = p.pc_n != null ? ` ${num(p.pc_n)} Einträge für die PC-Wunschliste (${[`${num(p.pc_n - (p.pc_kinds?.pack || 0) - (p.pc_kinds?.dlc || 0))} Spiele`, p.pc_kinds?.pack && `${num(p.pc_kinds.pack)} Pakete`, p.pc_kinds?.dlc && `${num(p.pc_kinds.dlc)} DLC`].filter(Boolean).join(", ")}), davon ${num(p.n - (p.unknown?.length || 0))} VR-Titel im Tool.` : "";
+  const mark = e => p.pc_n != null ? (e.known ? " · VR-Titel" : " · PC") : e.known ? " · war schon da" : " · neu";
+  if(p.done) return `<p class="ok">${p.what ? esc(p.what) + " übernommen" : "Übernommen"}${pc || gg ? "." : ":"}${pc ? `${col}${found}` : gg || ` ${p.n} erkannt, ${p.new} neu angelegt.`}</p>` + wishMoves(p) + (p.entries?.length ? `<details class="prev"><summary class="hint">Was übernommen wurde</summary><ul>${p.entries.slice(0, 600).map(e =>
+    `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.price != null ? ` ${eur(e.price)}` : ""}${mark(e)}</li>`).join("")}</ul></details>` : "");
   return `<div class="prev">${p.what ? `<b>${esc(p.what)}</b>${p.kind ? ` <span class="hint">(${p.guess ? "geraten, unter „Art“ änderbar" : "erkannt"})</span>` : ""}${pc ? "." : ":"} ` : ""}${pc ? `${col}${found}`.trim() : found} Noch nichts gespeichert.${p.note ? ` <span class="hint">${esc(p.note)}</span>` : ""}<ul>${p.entries.slice(0, 300).map(e =>
     `<li><span class="${e.known ? "" : "new"}">${esc(e.name)}</span>${e.meta_id ? ` <span class="b">Meta-ID</span>` : ""}${e.steam_appid ? ` <span class="b${e.steam_sure === false ? " warn" : ""}">Steam ${esc(e.steam_appid)}${e.steam_sure === false ? " ≈" : ""}</span>` : ""}${e.price != null ? ` ${eur(e.price)}` : ""}${e.known ? " · schon vorhanden" : ""}</li>`).join("")}</ul></div>`;
 }
@@ -1616,7 +1661,7 @@ document.addEventListener("click", async ev => {
   if(a === "bmcopy"){ copyNow(metaBm()); toast("Code kopiert. Jetzt ein Lesezeichen anlegen und den Code als Adresse einfügen"); return; }
   if(a === "thm") themeMenu($("thmMenu").hidden);
   else if(a === "thmset") setTheme(v);
-  else if(a === "tab"){ V.tab = v; V.q = ""; render(); scrollTo(0, 0); }
+  else if(a === "tab"){ V.tab = v; V.q = ""; if(V.d) V.d.q = ""; render(); scrollTo(0, 0); }
   else if(a === "lf"){ V.lf[v] = !V.lf[v]; render(); }
   else if(a === "legend"){ V.legend = !V.legend; render(); }
   else if(a === "addopen"){ V.add = !V.add; render(); if(V.add) document.querySelector("form[data-form=add] input")?.focus(); }
@@ -1659,10 +1704,11 @@ document.addEventListener("click", async ev => {
   else if(a === "dgop"){ V.d.gop = v; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dgclear"){ V.d.g = []; V.d.mix = ""; V.d.n = D0.n; V.menu = "g"; render(); }
   else if(a === "dreset"){ V.d = Object.assign({}, D0, {sort: V.d.sort, sys: V.d.sys}); delete V.sorts.find; render(); }
-  else if(a === "wsub"){ V.wsub = v === "pc" ? "pc" : "vr"; render(); }
+  // Suche gilt nur im Reiter, in dem sie steht (0.8.7)
+  else if(a === "wsub"){ V.wsub = v === "pc" ? "pc" : "vr"; V.q = ""; render(); }
   else if(a === "dsys"){
     // Ein anderer Reiter hat andere Spalten: Sortierung nach Spalte und Filter, die es dort nicht gibt, fallen weg
-    V.d.sys = v; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.wh = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
+    V.d.sys = v; V.d.q = ""; V.d.sw = ""; V.d.how = []; V.d.hr = 0; V.d.usk = ""; V.d.st = ""; V.d.cb = 0; V.d.vm = 0; V.d.wh = 0; V.d.n = D0.n; V.gOpen = null; V.gAll = false; V.gShut.clear(); delete V.sorts.find;
     if(V.d.mix && !(v === "VR" ? MIXES.find(x => x[0] === V.d.mix)?.[4] : true)) V.d = Object.assign({}, D0, {sys: v, sort: V.d.sort});
     if(V.d.mix) V.d.seed = newSeed();
     render();
@@ -1709,6 +1755,8 @@ document.addEventListener("click", async ev => {
     catch(e){ V.diag = ["Test fehlgeschlagen: " + e.message]; }
     V.diagRunning = false; render();
   }
+  else if(a === "gcopy"){ ev.stopPropagation(); copyNow((G_SHOWN?.rows || []).map(g => g.name).join("\n")); }
+  else if(a === "gdl") gExport();
   else if(a === "copy") copyNow(v === "diag" ? (V.diag || []).join("\n") : logText());
   else if(a === "showlog"){
     V.tab = "settings"; V.folds.logbox = false; render();
@@ -1818,7 +1866,7 @@ document.addEventListener("change", async ev => {
     let obj;
     try{ obj = JSON.parse(text); }catch(e){ alert("Keine gültige Sicherung"); return; }
     ev.target.value = "";
-    if(confirm(`Sicherung einlesen? Sie ersetzt alle ${S.counts.all} Titel.`) && await act("/api/restore", {data: obj.data || obj, collection: obj.collection})){ C = null; toast("Sicherung eingelesen"); }
+    if(confirm(`Sicherung einlesen? Sie ersetzt alle ${S.counts.all} Titel.`) && await act("/api/restore", {data: obj.data || obj, collection: obj.collection, pcwish: obj.pcwish})){ C = null; toast("Sicherung eingelesen"); }
     return;
   }
   V.txt = Object.assign(V.txt || {}, {[kind]: text});

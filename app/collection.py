@@ -476,8 +476,64 @@ def merge_igdb(r, ig):
         r["iname"] = ig["name"]
 
 
-def view(col):
-    """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele)."""
+_VR_NAME = re.compile(r"(?i)(?<![\w-])VR(?![\w-])")
+
+
+def vr_name(name):
+    """Nennt der Name VR als eigenes Wort („Moon Rover VR“, nicht „Revolver“)? Nur ein Hinweis."""
+    return bool(_VR_NAME.search(name or ""))
+
+
+def _pc_vr(rows, data):
+    """VR am PC (0.8.7): Steam-Spiele der Sammlung, die das Tool als VR kennt (VR-Titel oder VR-Prüfung im Store),
+    tragen „VR“; nennt nur der Name VR, ist das ein Hinweis (vr_guess). Dazu kommen deine VR-Titel am PC, die
+    Playnite nicht kennt: am PC gekauft (Steam, Epic …) oder bei Meta mit Crossbuy (Entscheidung 28.10.2026)."""
+    from . import library
+    apps = data.get("steam_apps") or {}
+    t_ids = {str(t["steam_appid"]): k for k, t in data["titles"].items() if str(t.get("steam_appid") or "").isdigit()}
+    t_names = {titles.base_norm(t["name"]): k for k, t in data["titles"].items()}
+    seen_ids, seen_names = set(), set()
+    for r in rows:
+        if r["system"] != "PC" or r.get("retro") or r.get("eshop"):
+            continue
+        sid = r["key"][6:] if r["key"].startswith("steam:") else ""
+        seen_ids.add(sid)
+        seen_names.add(titles.base_norm(r["name"]))
+        if r.get("vr"):
+            r["vr_src"] = "Steam"
+        elif sid and sid in t_ids:
+            r.update(vr=True, vr_src="VR-Titel im Tool")
+        elif sid and (apps.get(sid) or {}).get("vr"):
+            r.update(vr=True, vr_src="VR-Prüfung im Steam-Store")
+        elif titles.base_norm(r["name"]) in t_names:
+            r.update(vr=True, vr_src="VR-Titel im Tool (Name)")
+        elif vr_name(r["name"]):
+            r.update(vr=True, vr_guess=True, vr_src="nur der Name")
+    extra = []
+    for k, t in data["titles"].items():
+        o = t.get("owned") or {}
+        cb = library.crossbuy(t)[0]
+        if not (o.get("pc") or (o.get("meta") and cb)) or titles.is_bundle(t):
+            continue
+        sid = str(t.get("steam_appid") or "")
+        if (sid and sid in seen_ids) or titles.base_norm(t["name"]) in seen_names:
+            continue
+        store = (o.get("pc") or {}).get("label") or ("Meta (Crossbuy)" if not o.get("pc") else "PC")
+        rev = t.get("rev") or {}
+        n = rev.get("n") if isinstance(rev.get("n"), int) else None
+        r = {"key": "pcvr:" + k, "name": t["name"], "system": "PC", "store": store, "guess": False, "mp": [],
+             "players": 0, "genres": [], "score": rev.get("pct") if n is not None and n >= 50 else None,
+             "score_src": "Steam" if n is not None and n >= 50 else "", "reviews": n, "year": "", "added": t.get("added") or "",
+             "dev": "", "pub": "", "rel": "", "desc": "", "gem": 0, "gem_guess": True, "srcs": ["VR-Titel im Tool"],
+             "url": f"https://store.steampowered.com/app/{sid}/" if sid.isdigit() else "",
+             "vr": True, "vr_src": "VR-Titel im Tool", "from_vr": k}
+        extra.append(r)
+    return extra
+
+
+def view(col, data=None):
+    """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele). Mit data kommen die VR-Titel am PC
+    dazu (0.8.7)."""
     rows = []
     wmatch = wheel.matcher(datastore.load_json(wheel.LIST_FILE, {}))
     for k, g in (col.get("games") or {}).items():
@@ -538,6 +594,8 @@ def view(col):
     for r in rows:
         if r["system"] == "Switch":
             r["system"], r["sw1"] = "Switch 2", True
+    if data is not None:
+        rows += _pc_vr(rows, data)
     rows.sort(key=lambda r: titles.norm(r["name"]))
     systems = {}
     for r in rows:

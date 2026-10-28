@@ -219,7 +219,9 @@ wenn sich der Stand der Ablage ändert (`igdb.V`). Abgelegt je Spiel unter `igdb
 ## PC-Wunschliste (ab 0.8.2)
 
 Die ganze gg.deals-Wunschliste (über den Teilen-Link, das Lesezeichen oder eine Datei) liegt in
-`pcwish.json`; eine neue Liste behält Steam-ID und Preise je Spiel. Nach den Konten:
+`pcwish.json`; eine neue Liste behält Steam-ID und Preise je Spiel. Ab 0.8.7 auch Pakete und DLC (`kind`,
+Schlüssel `pack:<slug>`, `dlc:<slug>`): ohne Steam-Suche und ohne API-Preis, nur der Link zur Seite bei gg.deals.
+`PCWISH_SEARCH` zählt beim beschleunigten Auffüllen mit. Die Sicherung enthält `pcwish.json` ab 0.8.7. Nach den Konten:
 
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|

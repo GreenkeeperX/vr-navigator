@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.6:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.7:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen), Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB. Das Urteil „wo kaufen“ folgt (siehe [ROADMAP](ROADMAP.md)).
 
@@ -315,8 +315,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Angebote stehen zugeklappt darunter („Reduziert, aber noch weit über dem Bestpreis“). Sortiert
   nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Karte wie in der
   Wunschliste.
-- **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern VR und PC. **PC** spiegelt deine
-  ganze gg.deals-Wunschliste (gepflegt wird sie dort): je Spiel der günstigste Preis jetzt (Händler
+- **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern PC und VR (ab 0.8.7 PC zuerst, wie in der
+  Sammlung). **PC** spiegelt deine gg.deals-Wunschliste (gepflegt wird sie dort), ab 0.8.7 mit Paketen und DLC
+  (Marke „Paket“, „DLC“; Preis über den Link zur Seite bei gg.deals, die API kennt nur Steam-Apps) und ohne die
+  VR-Spiele, die unter VR stehen. Nennt nur der Name VR („… VR“), steht ein violettes „VR“ als Hinweis. Je Spiel der günstigste Preis jetzt (Händler
   oder Keyshop), beide Preise einzeln, das bisherige Tief und wie weit der Preis darüber liegt; „nah am
   Tief“ heißt höchstens 5 % darüber. Die Steam-ID kommt aus dem, was das Tool kennt, sonst aus der
   Steam-Suche nach genau gleichem Namen (30 je Abgleich); ohne gg.deals-Schlüssel gibt es keine Preise.
@@ -446,7 +448,11 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Zeichen, was nur eine Quelle sagt, bleibt drin und steht violett, der Tooltip nennt die Quelle
   (seit 0.6.1 statt „≈“; Steam kennt nur grobe Genres,
   Puzzle oder Horror etwa nicht). Die Einzelheiten nennen, ob ein Spiel schon abgeglichen ist;
-  Steam-Spiele mit VR tragen die türkise Marke „VR“. PlayStation-Spiele der ersten Generation
+  Spiele mit VR tragen die türkise Marke „VR“: laut Steam-Details, als VR-Titel im Tool oder laut VR-Prüfung im
+  Steam-Store (ab 0.8.7); nennt nur der Name VR, ist die Marke violett. Ab 0.8.7 stehen unter PC auch deine
+  VR-Titel am PC, die Playnite nicht kennt (am PC gekauft oder bei Meta mit Crossbuy). Die Suche gilt je Reiter
+  und leert sich beim Wechsel. „herunterladen“ gibt die gefilterte Liste mit den gezeigten Spalten und Mein Stand
+  als CSV aus, aufgeklappte Spiele mit ihren Einzelheiten; ⧉ am Spaltenkopf „Spiel“ kopiert alle Titel der Liste. PlayStation-Spiele der ersten Generation
   stehen unter PS1 (bis 0.6.0 „PS“). Die Wertung kommt nur aus Steam-Rezensionen (ab 50, Anteil positiv),
   die der Abgleich nach und nach holt (100 je Lauf, siehe [docs/abrufe.md](docs/abrufe.md));
   die Community- und Expertenwertung aus Playnite zählt nicht (Entscheidung 22.10.2026: zu
@@ -468,7 +474,7 @@ Schrift gedeckt, hell bleiben nur Name, Überschriften, aktiver Reiter und groß
 
 Unter Einstellungen, Sicherung, drei Knöpfe wie im eShopKompass: „Sicherung herunterladen“ (alle
 Titel, Notizen, Zuordnungen und Mein Stand als eine JSON-Datei, dazu die Sammlung,
-`collection.json`), „Sicherung einlesen“ (ersetzt alles; Sicherungen ohne Sammlung lassen die
+`collection.json`, und ab 0.8.7 die PC-Wunschliste, `pcwish.json`), „Sicherung einlesen“ (ersetzt alles; Sicherungen ohne Sammlung lassen die
 vorhandene stehen, Sicherungen vor 0.6.0 ohne Mein Stand laden weiter) und „Abgleichsdaten
 herunterladen“ (Stand und Protokoll des Abgleichs, Preisverlauf und Einstellungen ohne Schlüssel und
 Konten, zum Nachprüfen; zum Einlesen nicht nötig). Die Sicherung enthält deine Käufe; sie gehört
