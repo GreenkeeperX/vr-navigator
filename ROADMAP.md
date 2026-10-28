@@ -115,12 +115,11 @@ Menü am Ende der Filterzeile; „hinzugefügt am“; Jetzt mit PC über VR. 0.8
 Rezensionszahl. 0.8.22: VR-Wünsche als Tabelle wie die PC-Wünsche, die Karte als Einzelheiten; Jetzt
 mit zwei gleich gebauten Tabellen. 0.8.23: eine Spaltenreihenfolge für alle Tabellen, „max. Spieler“ statt Mehrspieler,
 „Aktiv“ auch für PC-Spiele, Wertung der eigenen Fassung im Reiter VR. 0.8.24: PC-Wünsche ohne Steam-ID: mehr Suchen, Grundform des
-Namens, Ähnliches zum Bestätigen in „Zu erledigen“; Geheimtipp dunkler. 0.8.25: Preissturz auch für VR-Wünsche. Grundsatz (Entscheidung 22.10.2026): so wenig
+Namens, Ähnliches zum Bestätigen in „Zu erledigen“; Geheimtipp dunkler. 0.8.25: Preissturz auch für VR-Wünsche. 0.8.26: Trend zählt halb in „wo kaufen“. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt)
-- Trend in das Urteil „wo kaufen“ einbeziehen, wenn er sich bewährt; Preisverlauf auch für die VR-Wünsche
 - Meinungen per Claude-Routine (später, Entscheidung 28.10.2026)
 
 - Spielzeit und „zuletzt gespielt“ (Steam-Konto oder zusätzliche Playnite-Spalten),
