@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.2:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.3:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -544,11 +544,13 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   Koop, Lokal, Splitscreen, LAN, MMO), Genre (Menü mit Suche und Häkchen, umschaltbar zwischen
   „eines davon“ und „alle“; die Zahl hinter einem Genre zählt, was mit den übrigen Filtern übrig
   bliebe), Spielerzahl, Launcher, Steam-Wertung und „über zwei Jahre in der Sammlung“; gewählte
-  Mehrspieler-Arten und Genres stehen als Marken mit × darunter; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, Jahr, Name
-  oder Zufall. Die Suche findet Name, Entwickler, Verlag und Genre; Erscheinungsdatum, Entwickler und
+  Mehrspieler-Arten und Genres stehen als Marken mit × darunter; sortiert nach Wertung, Geheimtipp, Bekanntheit, neu in der Sammlung, zuletzt gespielt, Jahr, Name
+  oder Zufall. Ab 0.9.3 stehen bei Spielen aus Steam (auch VR-Titeln mit Steam-ID) unter Mein Stand die Spielzeit
+  und der Tag, an dem du zuletzt gespielt hast, laut Steam-Konto; der Filter „Gespielt“ zeigt nie gespielte, seit
+  über einem Jahr nicht gespielte oder schon gespielte. Meta nennt keine Spielzeit. Die Suche findet Name, Entwickler, Verlag und Genre; Erscheinungsdatum, Entwickler und
   Verlag stehen im Tooltip am Jahr wie im eShopKompass. Die Liste lädt beim Scrollen weiter.
   Mischungen (eine Zeile, am Handy seitlich wischbar) setzen Filter mit einem Klick: „Koop zu zweit“, „Couch-Abend“, „Große Runde“,
-  „Geheimtipps“, „Gut, lange her“; ein zweiter Klick nimmt sie zurück. „Überrasch mich“ zieht
+  „Geheimtipps“, „Gut, lange her“, „Liegt brach“ (ab 0.9.3: gekauft und laut Steam-Konto nie gespielt); ein zweiter Klick nimmt sie zurück. „Überrasch mich“ zieht
   drei Spiele aus dem, was die Filter zeigen (gut bewertete kommen öfter), „Wilde Mischung“
   würfelt dazu eine Mehrspieler-Art und ein Genre; „Schließen“ blendet die Vorschläge aus.
   Filter und Zufall stehen in der Adresse (`#sammlung?…`, alte Lesezeichen mit `#entdecken?…`

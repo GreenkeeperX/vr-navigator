@@ -653,7 +653,7 @@ function allPcRow(r){
    ersten Öffnen geladen). Filter, Sortierung und Zufall laufen im Browser; der Zustand steht in der
    Adresse (#sammlung?…), so lässt sich eine Mischung als Lesezeichen merken. */
 let C = null, cLoading = false;
-const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", cb: 0, vm: 0, wh: 0, vr: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
+const D0 = {sys: "PC", sw: "", how: [], hr: 0, usk: "", mp: [], min: 0, g: [], gop: "", st: "", sc: 0, old: 0, lang: "", me: "", pl: "", cb: 0, vm: 0, wh: 0, vr: 0, q: "", sort: "score", seed: 0, mix: "", n: 100};
 V.d = Object.assign({}, D0);
 if(LIB_IN) V.d.sys = "VR";
 V.gOpen = null;
@@ -665,7 +665,7 @@ V.gShut = new Set();
 // Kurzbeschreibung: vier Zeilen, ein Klick zeigt alles (wie im eShopKompass)
 V.gDesc = null;
 const G_ALL = 150;
-const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
+const D_SORTS = [["score", "Wertung"], ["gem", "Geheimtipp"], ["known", "Bekanntheit"], ["added", "Neu in der Sammlung"], ["played", "Zuletzt gespielt"], ["year", "Erscheinungsjahr"], ["name", "Name"], ["random", "Zufall"]];
 // Mischungen: ein Klick setzt Filter und Sortierung (alles andere zurück); pick: zeigt drei Vorschläge.
 // vr: auch im Reiter VR sinnvoll
 const MIXES = [
@@ -675,6 +675,7 @@ const MIXES = [
   ["big", "Große Runde", "Mindestens vier Spieler", {min: 4}],
   ["gems", "Geheimtipps", "Gut bewertet und wenig bekannt (wenige Steam-Rezensionen); nur Spiele, deren Rezensionen schon abgerufen sind", {sc: 80, sort: "gem"}],
   ["old", "Gut, lange her", "Wertung ab 80, seit über zwei Jahren in der Sammlung, in zufälliger Folge", {sc: 80, old: 1, sort: "random"}],
+  ["idle", "Liegt brach", "Gekauft und laut Steam-Konto nie gespielt, die besten zuerst", {pl: "never"}, true],
   ["backlog", "Aus dem Backlog", "Was du dir zum Spielen vorgenommen hast, die besten zuerst; „Überrasch mich“ wählt dann daraus", {me: "backlog"}, true],
   ["wild", "Wilde Mischung", "Würfelt eine Mehrspieler-Art und ein Genre zusammen und zieht drei Vorschläge", null],
 ];
@@ -686,6 +687,15 @@ const G_STF = [["", "egal"], ["open", "nicht durchgespielt"], ["backlog", "Backl
 // Switch-Spiele aus dem eShopKompass (0.7.3): Mein Stand von dort, hier nur lesend
 const mine = g => g.eshop ? g.mine || {} : (S.marks || {})[g.key] || {};
 const ESH = "Laut eShopKompass";
+// Gespielt (0.9.3): Spielzeit und zuletzt gespielt laut Steam-Konto, nur Spiele aus Steam
+const G_PL = [["", "egal"], ["never", "nie gespielt"], ["long", "über ein Jahr nicht"], ["played", "schon gespielt"]];
+function plOk(g, k){
+  if(g.pt == null) return false;
+  if(k === "never") return g.pt === 0;
+  if(k === "long") return g.pt > 0 && (!g.lp || g.lp < new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10));
+  return g.pt > 0;
+}
+const playText = g => g.pt === 0 ? "nie" : (g.pt < 60 ? `${g.pt} min` : hrs(g.pt / 60)) + (g.lp ? `, zuletzt am ${day(g.lp)}` : "");
 // Link auf das Spiel im eShopKompass, dort aufgeklappt (ab eShopKompass 1.7.18: #spiele?o=<slug>)
 const eshUrl = g => `${C.eshop_link.replace(/\/+$/, "")}/#spiele?o=${encodeURIComponent(g.slug)}`;
 const hrs = h => `${String(Math.round(h * 2) / 2).replace(".", ",")} h`;
@@ -739,7 +749,7 @@ function allGames(){
   if(!GM || GM.s !== S || GM.c !== C)
     GM = {s: S, c: C, list: ((C && C.games) || []).concat((S.library || []).map(r => ({key: "vr:" + r.key, lib: r, name: r.name, system: "VR",
       store: vrStore(r), guess: false, mp: [], players: 0, genres: [], score: vrOwnScore(r)?.v ?? null, reviews: r.rating?.steam?.n ?? null,
-      year: "", added: r.added || "", dev: "", pub: "", rel: "", desc: "", gem: 0, url: "", wheel: r.wheel || null})))};
+      year: "", added: r.added || "", dev: "", pub: "", rel: "", desc: "", gem: 0, url: "", wheel: r.wheel || null, pt: r.pt ?? null, lp: r.lp || ""})))};
   return GM.list;
 }
 /* Genres in fester Reihenfolge, in jeder Zeile gleich (wie im eShopKompass): zuerst das in der Sammlung
@@ -777,7 +787,7 @@ function dFilter(d){
     && (!d.min || (g.players ? g.players >= d.min : d.min <= 2 && g.mp.includes("multi")))
     // mehrere Genres: eines davon genügt, mit gop „and“ alle
     && (!d.g.length || (d.gop === "and" ? d.g.every(x => g.genres.includes(x)) : d.g.some(x => g.genres.includes(x)))) && (!d.st || g.store === d.st) && (!d.sc || (g.score ?? -1) >= d.sc)
-    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel) && (!d.vr || (g.vr && !g.vr_guess))
+    && (!d.old || (g.added && g.added < cut)) && (!d.lang || langOk(g, d.lang)) && (!d.me || meOk(mine(g), d.me)) && (!d.pl || plOk(g, d.pl)) && (!d.cb || g.lib?.crossbuy === true) && (!d.vm || vrMod(g)) && (!d.wh || !!g.wheel) && (!d.vr || (g.vr && !g.vr_guess))
     && (!q || g.name.toLowerCase().includes(q) || g.dev.toLowerCase().includes(q) || (g.pub || "").toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q))
       || !!g.lib?.note?.toLowerCase().includes(q) || (g.own && [g.own.series, g.own.coll, g.own.genre, g.own.sub, g.fname].some(x => (x || "").toLowerCase().includes(q)))));
 }
@@ -788,6 +798,7 @@ function dSort(rows, d, cols){
     return a;
   }
   const by = {score: g => -(g.score ?? -1), gem: g => -g.gem, known: g => -(g.reviews ?? -1), added: g => g.added ? -Date.parse(g.added) : 0,
+              played: g => g.lp ? -Date.parse(g.lp) : 0,
               year: g => -(Number(g.year) || 0)}[d.sort];
   const out = by ? rows.slice().sort((a, b) => by(a) - by(b) || a.name.localeCompare(b.name, "de")) : rows;
   return sortRows("find", out, Object.fromEntries([["title", g => g.name]].concat(cols.map(c => [c.k, c.sort]))));
@@ -840,7 +851,7 @@ function setMix(k){
 }
 const dLabel = d => [d.how.map(h => (K_HOW.find(x => x[0] === h) || [h, h])[1]).join(" + "), d.mp.map(m => C.mp_label[m] || m).join(" + "),
   d.hr && (d.hr > 0 ? `bis ${d.hr} h` : `ab ${-d.hr} h`), d.usk && `USK bis ${d.usk}`, d.min && `ab ${d.min} Spieler`, d.g.join(d.gop === "and" ? " und " : " oder "), d.st,
-  d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1],
+  d.sc && `Wertung ab ${d.sc}`, d.old && "über zwei Jahre in der Sammlung", d.me && (G_STF.find(x => x[0] === d.me) || ["", ""])[1], d.pl && (G_PL.find(x => x[0] === d.pl) || ["", ""])[1],
   d.cb && "Crossbuy", d.vm && "VR per Mod", d.vr && "VR", d.wh && "SimRacing", d.lang && (LANG_FILTER.find(x => x[0] === d.lang) || ["", ""])[1], d.q && `„${d.q}“`].filter(Boolean).join(", ");
 
 /* Zellen. Leer heißt grauer Strich; violett (.gxc): nur eine Quelle oder geschätzt, der Tooltip sagt woher */
@@ -1221,7 +1232,8 @@ function gDetail(g){
   const shown = g.eshop ? `<span class="gmk hint">${st || m.fav ? [st && `<span class="gst ${m.s}">${st[2]}</span> ${st[1]}`, m.fav && `<span class="gfav">★</span> Favorit`].filter(Boolean).join(" · ") : "noch keiner"}; ändern im ${C.eshop_link ? `<a class="eshl" href="${esc(eshUrl(g))}" target="_blank" rel="noopener noreferrer" title="Öffnet das Spiel im eShopKompass"><span class="brand">eShop</span>Kompass</a>` : "eShopKompass"}</span>` : `<span class="gmk">${marks}</span>`;
   // Kurzbeschreibung (0.7.1, Steam auf Deutsch; Switch von Nintendo Europa) unter Mein Stand
   const dtip = g.eshop ? (g.desc_lang === "en" ? "Beschreibung von Nintendo Europa, nur auf Englisch" : "Beschreibung von Nintendo Europa") : g.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : g.desc_src === "libretro" ? "Beschreibung laut libretro-database, nur auf Englisch" : "Kurzbeschreibung laut Steam";
-  const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
+  const played = g.pt != null ? `<span class="fl">Gespielt</span><span class="gpt" title="Laut Steam-Konto">${playText(g)}</span>` : "";
+  const side = `<div class="gdm"><span class="fl">Mein Stand</span>${shown}${played}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}</div>`;
   if(g.lib){
     const r = g.lib;
     return `<div class="gd vrd"><div class="gdv">${badges(r)}${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
@@ -1388,7 +1400,7 @@ function findView(){
   const genresIn = [...new Set(inTab.flatMap(g => g.genres))].sort((a, b) => a.localeCompare(b, "de"));
   const mpIn = Object.keys(C.mp_label || {}).filter(k => inTab.some(g => g.mp.includes(k)));
   // ein Klick auf die gewählte Mischung nimmt sie wieder zurück; nur Mischungen, die im Reiter etwas finden können
-  const mixOk = ([k, , , m, vrOk]) => vr ? vrOk : k !== "wild" || (mpIn.length && genresIn.length);
+  const mixOk = ([k, , , m, vrOk]) => (k !== "idle" || inTab.some(g => g.pt === 0)) && (vr ? vrOk : k !== "wild" || (mpIn.length && genresIn.length));
   const mixes = `<div class="chips mix">${MIXES.filter(mixOk).map(([k, l, tip]) => `<button data-act="${d.mix === k ? "dmixoff" : "dmix"}" data-v="${k}" title="${esc(d.mix === k ? "Zurücknehmen" : tip)}" class="${d.mix === k ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`;
   // Filter als Menüs mit Häkchen. Die Zahl hinter einem Genre: Spiele mit diesem Genre unter den übrigen
   // Filtern; bei „alle“ zusätzlich mit allen schon gewählten Genres
@@ -1427,6 +1439,7 @@ function findView(){
       <label title="Höchstens diese Altersfreigabe: USK, ohne USK PEGI; Spiele ohne Angabe fallen heraus">USK <select data-dset="usk">${opt([["", "egal"], ["0", "bis 0"], ["6", "bis 6"], ["12", "bis 12"], ["16", "bis 16"]], d.usk)}</select></label>` : ""}
       ${inTab.some(g => g.retro) ? `<label title="Sprache laut Dateiname; „DE fehlt“: es gab eine Fassung mit Deutsch, deine hat keins">Sprache <select data-dset="lang">${opt(LANG_FILTER, d.lang)}</select></label>` : ""}
       <label title="Dein Stand je Spiel, setzt du in den Einzelheiten">Mein Stand <select data-dset="me">${opt(G_STF, d.me)}</select></label>
+      ${inTab.some(g => g.pt != null) ? `<label title="Laut Steam-Konto, nur Spiele aus Steam">Gespielt <select data-dset="pl">${opt(G_PL, d.pl)}</select></label>` : ""}
       ${vr ? `<label><input type="checkbox" data-dset="cb"${d.cb ? " checked" : ""}> Crossbuy</label>` : ""}
       ${inTab.some(g => g.wheel) ? `<label title="In der ${WHEEL_LIST} (bestätigt) oder laut Steam-Schlagwörtern (gestrichelt, nur ein Hinweis)"><input type="checkbox" data-dset="wh"${d.wh ? " checked" : ""}> SimRacing</label>` : ""}
       ${inTab.some(g => g.vr && !g.vr_guess) && d.sys === "PC" ? `<label title="Spiele mit VR laut Steam, Store-Prüfung oder als dein VR-Titel"><input type="checkbox" data-dset="vr"${d.vr ? " checked" : ""}> VR</label>` : ""}

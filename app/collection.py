@@ -717,6 +717,11 @@ def view(col, data=None):
             w = wheel.row(wmatch, g.get("id") if g.get("store") == "Steam" else "", g.get("stag"), (g.get("igdb") or {}).get("name"), g["name"])
             if w:
                 r["wheel"] = w
+        # Spielzeit und zuletzt gespielt laut Steam-Konto (0.9.3)
+        sid = str(g.get("id") or "") if g.get("store") == "Steam" or g.get("src") == PCVR else ""
+        sp = ((data or {}).get("steam_play") or {}).get(sid) if sid else None
+        if sp:
+            r["pt"], r["lp"] = sp[0], sp[1]
         rows.append(r)
     # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}

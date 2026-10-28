@@ -160,6 +160,7 @@ def row(key, t, at=None, hist=None, data=None):
     drops = [dict(d, shop=shop) for shop, ident, now_p in (("meta", t.get("meta_id"), meta_now), ("steam", t.get("steam_appid"), steam_now))
              if ident and (d := pcwish.drop((hist.get(shop) or {}).get(str(ident)), now_p, today))]
     drop = max(drops, key=lambda d: d["pct"], default=None)
+    play = ((data or {}).get("steam_play") or {}).get(str(t.get("steam_appid") or ""))
     return {
         "key": key, "name": t["name"], "meta_id": t.get("meta_id") or "",
         "steam_appid": t.get("steam_appid") or "", "steam_sure": bool(t.get("steam_sure")),
@@ -177,6 +178,8 @@ def row(key, t, at=None, hist=None, data=None):
         "gap_now": round(meta_now - pc["price"], 2) if meta_now is not None and pc else None,
         "links": titles.search_links(t), "added": t.get("added") or "",
         "rating": rating(t), "measured": measured(t), "drop": drop,
+        # 0.9.3: Spielzeit (Minuten) und zuletzt gespielt laut Steam-Konto, nur für die Steam-Fassung
+        "pt": play[0] if play else None, "lp": play[1] if play else "",
     }
 
 

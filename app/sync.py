@@ -782,9 +782,13 @@ def _steam_account(settings, log, budget):
         data = store.load_data()
         data["steam_apps"] = dict(data.get("steam_apps") or {}, **apps)
         res = accounts.apply_steam(data, owned, wished, data["steam_apps"], stamp)
+        if owned is not None:
+            # 0.9.3: Spielzeit und zuletzt gespielt je App, für Sammlung und „Liegt brach“
+            data["steam_play"], data["steam_play_at"] = accounts.steam_play(owned), stamp
         store.save_data(data)
     if owned is not None:
-        log(f"Steam-Konto, Besitz: {len(owned)} Spiele, davon {res['owned']} VR-Titel"
+        never = sum(1 for g in owned if g.get("min") == 0)
+        log(f"Steam-Konto, Besitz: {len(owned)} Spiele, davon {res['owned']} VR-Titel, {never} nie gespielt"
             + (f", neu ({len(res['owned_new'])}): {_few(res['owned_new'])}" if res["owned_new"] else ""))
     if wished is not None:
         log(f"Steam-Konto, Wunschliste: {len(wished)} Apps, davon {len(res['wish_keys'])} VR-Titel"
