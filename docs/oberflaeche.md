@@ -11,10 +11,10 @@ müssen beide lesbar sein; jede Farbänderung wird in beiden geprüft.
 
 | Farbe | Token | Bedeutung | Beispiele |
 |---|---|---|---|
-| Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`) |
-| Gold | `--best` | am Bestpreis (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber) | „★ Bestpreis“ im Preisfeld (`.bl.at`, `.star`) |
-| Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, auch in „wo kaufen“ (`.vd.wb`; „warten“ grau umrandet), günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
-| Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Bestpreis (`.over`, „+7 €“), Fehler einer Quelle |
+| Blau | `--deal` | Rabatt | `−67 %`, `−40 % Gutschein` (`.b.deal`, ab 0.9.4 nur blaue Schrift ohne Fläche, Ton wie im eShopKompass) |
+| Gold | `--best` | am Tief (niedrigster Preis beider Läden in 24 Monaten, bis 2 % darüber; ab 0.9.4 heißt es überall „Tief“, nicht mehr „Bestpreis“) | „★ am Tief“ im Preisfeld (`.bl.at`, `.star`) |
+| Grün | `--go` | spricht für dich, gelingt | Urteil „kaufen“ (gefüllt, `.vd.buy`) und „gut“ (umrandet, `.vd.good`) wie im eShopKompass, günstigerer Laden (Rahmen `.shop.win`, „5 € günstiger“ ab 1 €), Crossbuy, besser bewerteter Laden (`.rate.win`, „Meta +8“), Quelle „ok“ |
+| Rot | `--stop` | spricht gegen dich, misslingt | Aufpreis über dem Tief (`.over`, „+7 €“), Fehler einer Quelle |
 | Violett | `--warn` | prüfen, veraltet, geschätzt, unsicher | „Steam-ID ≈“ (Wunschliste; Sammlung „Steam-ID prüfen“), Wert aus nur einer Quelle in der Sammlung (`.gxc`), Stand älter als zwei Tage, Hinweise oben, widersprechende Quelle („Tabelle: nein“), Recherche (gestrichelte Linie links, „≈ Recherche“) |
 | Grau | `--chip`, `--muted` | Information ohne Wertung | Meta, PC, „Wunsch“, „Wunsch · Tabelle“, „ohne Crossbuy“, Feld ohne Preis (gestrichelt) |
 
@@ -22,6 +22,11 @@ Ausnahme, nur für die Reiter je System in der Sammlung (Entscheidung 27.10.2026
 Reiter trägt die Farbe seiner Familie, Nintendo rot (`--sys-nin`), PlayStation blau (`--sys-ps`),
 PC grün (`--sys-pc`), VR im Türkis des Tools (`--brand`), „Alle“ in `--accent`. Diese Töne sind
 eigene Tokens und stehen nirgends sonst.
+
+Ausnahme für die Marke „Wo“ (ab 0.9.4, Entscheidung 28.10.2026): Laden als dünn umrandete Marke ohne
+Fläche in der Farbe des Ladens, Meta `--wo-meta`, Steam und Händler `--wo-steam`, Keyshop `--wo-key`, „egal“
+grau gestrichelt (`.wo`, `woChip`). Das Preisurteil steht nur im Tooltip. Ein Klick öffnet den Preisverlauf.
+Diese Töne stehen nur in `.wo-meta`, `.wo-steam`, `.wo-key` (Test).
 
 Weitere Ausnahmen in der Sammlung, übernommen aus „Spiele“ im eShopKompass (0.6.0, Entscheidung
 27.10.2026): Die Wertung ist ein Farbton von Rot über Gelb nach Grün (`.gsc`, `--sh` aus 50 bis
@@ -57,16 +62,17 @@ Links stehen in Textfarbe, unterstrichen. Erklärungen stehen einmal in der Lege
 
 Jetzt und Wunschliste (`.item.wi`), immer in dieser Reihenfolge:
 
-1. Kopf (`.hd`): Name, „wo kaufen“ (ab 0.8.15, `.vd.wb`: Laden und Preisurteil dort, „Meta kaufen“
-   grün gefüllt, „Meta gut“ grün umrandet, „Steam warten“ grau umrandet, „Laden egal, …“), dann die Marken. Die
+1. Kopf (`.hd`): Name, „Wo“ (ab 0.9.4 `.wo` wie oben, vorher `.vd.wb`), dann die Marken; in den Einzelheiten
+   einer Tabelle nur, wenn es Marken gibt. Die
    Gründe stehen in der Zeile „Wo“; ab 0.8.26 auch „Steam-Wertung fällt“ oder „steigt“ (Trend, zählt halb). Die
    Legende nennt die Gewichte.
 2. Preise (`.shops`): zwei feste Felder, Meta links, Steam rechts (`.shop`; ohne Preis
    `.shop.none`, gestrichelt, „kein Preis“). Je Feld Preis, Rabatt, darunter `bestLine`: rot
-   „+x € über Bestpreis“ (jeder Aufpreis rot, Entscheidung 26.10.2026) und der Bestpreis mit Laden oder gold
-   „★ Bestpreis“, gemessen am niedrigsten Preis beider Läden (`best_all`); kommt er aus dem
+   „+x € über dem Tief“ (jeder Aufpreis rot, Entscheidung 26.10.2026) und das Tief mit Laden oder gold
+   „★ am Tief“, gemessen am niedrigsten Preis beider Läden (`best_all`); kommt er aus dem
    anderen Laden, klein darunter der eigene Tiefstpreis („Steam-Tief“). Der günstigere Laden:
-   `.shop.win` mit „x € günstiger“.
+   `.shop.win` mit „x € günstiger“. Darunter, linksbündig unter den Preisen, der Knopf „Preisverlauf“
+   (ab 0.9.4, `.pr .vlr`).
 3. Fakten (`.facts`): festes Raster mit zwei Spalten, links der kleine graue Name (`.fl`),
    rechts der Wert (`.fv`): zuerst „Wo“ mit den Gründen je Laden (`.wbl`; der gewählte Laden zuerst,
    der andere grau, Recherche violett mit „≈“), dann Wertung, Spieler, Update, Meta-Version; nur was es gibt.
@@ -198,8 +204,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   vor dem Preis am Tief (bis 2 %), Spalte „zum Tief“ als roter Betrag `+x €` ohne Fettdruck (`.over`, Prozent im Tooltip),
   am Tief grün „am Tief“ (`.g-buy`, ab 0.8.17 wie „am Bestpreis“ im eShopKompass). Spalten ab 0.8.17: Spiel, Preis,
   zum Tief, Wertung, Genre, Spielzeit, Spieler, Jahr (`PC_COLS`); ab 0.8.19 statt Spieler „Mehrspieler“ mit der Zahl
-  dahinter („coop, online bis 4“).
-- Spaltenreihenfolge der Sammlung (ab 0.8.19, `COL_ORDER`): Wertung, Genre, Spielzeit, Mehrspieler, Spieler, dann Jahr,
+  dahinter („coop, online bis 4“). Ab 0.9.4: Spiel, max. Spieler, Preis, überm Tief, Wo (Keyshop, sonst der günstigste Händler laut
+  IsThereAnyDeal, sonst „Händler“), Wertung, Rezensionen, Genre, Spielzeit, Aktiv, Jahr.
+- Spaltenreihenfolge der Sammlung (ab 0.9.4 „max. Spieler“ zuerst, dann wie bisher; ab 0.8.19, `COL_ORDER`): Wertung, Genre, Spielzeit, Mehrspieler, Spieler, dann Jahr,
   Rezensionen, Launcher; Sprache (Retro) vor der Wertung. Reiter VR: Besitz, Meta, Steam, Spieler, Update, Crossbuy,
   Recherche. Die CSV folgt der gezeigten Reihenfolge.
 - Spalten ab 0.8.23 (Entscheidung 28.10.2026), eine Reihenfolge für alle Tabellen (`COL_ORDER`, `PC_COLS`, `VR_COLS`,
@@ -266,26 +273,30 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Stelle wie in Wunschliste und Sammlung, mit Zahl je Seite; PC grün, VR türkis wie dort. Bei „Alle“ zwei
   Klappen „VR“ und „PC“; die PC-Liste ist dieselbe Tabelle wie unter Wunschliste, PC (`pcTable`), nur Wünsche nah am
   Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter. Ab 0.8.27 bei „Alle“ eine Tabelle
-  (`allTable`, `allVrRow`, `allPcRow`, Spalten `ALL_COLS`): Spiel, Art (`.b.pcb` PC grün umrandet, VR türkis), Wo,
-  Preis, zum Tief, Wertung, Rezensionen, Aktiv; sortiert nach Nähe, Rabatt (`_saleOf`) oder Wertung. Darunter
-  zugeklappt „VR: reduziert, aber noch weit über dem Bestpreis“. Ab 0.9.0 im Reiter PC das Menü „Laden“ (`select
+  (`allTable`, `allVrRow`, `allPcRow`, Spalten `ALL_COLS`): ab 0.9.4 Spiel, max. Spieler, Art (`.b.pcb` PC grün
+  umrandet, VR türkis), Preis, überm Tief, Wo, Wertung, Rezensionen, Genre, Aktiv; sortiert nach Nähe, Rabatt
+  (`_saleOf`) oder Wertung. Die Gruppe „VR: reduziert, aber noch weit über dem Tief“ fiel mit 0.9.4 weg (keine
+  Kaufempfehlung). „max. Spieler“ ist in allen Tabellen die erste Spalte nach „Spiel“, auch in der Sammlung. Ab 0.9.0 im Reiter PC das Menü „Laden“ (`select
   data-shop`, `V.nowShop`, Zählung `shopCounts`): je Laden die PC-Wünsche nah am Tief der Händler; nach Wahl dieselbe
   Tabelle (`pcTable`) mit dem Preis dort (`atShop` ersetzt `best`, `url`, `over`), Hinweis darüber nennt den Laden.
 - Läden einzeln (0.9.0, `pcShopsHtml`): in den Einzelheiten der PC-Wünsche die Zeile „Läden“, bis sechs Läden nach
   Preis, Name und Preis als Link, grün (`.g-buy`) höchstens 5 % über dem Tief der Händler, Rabatt als `.b.deal`,
   Normalpreis, Tief dort und Ende im Tooltip, „+n weitere“ grau mit Liste im Tooltip. Eine Sache, mehrere Orte: das
   Urteil „nah am Tief“ je Laden kommt aus `itad.shop_rows` (Server) und gilt für Einzelheiten und das Menü „Laden“.
-- Preisverlauf (0.9.1, wie im eShopKompass): Knopf „Preisverlauf“ als Link, bei VR rechts im Kopf der Karte (`.vlb`),
-  bei PC in der kleinen Zeile unten der Einzelheiten (nicht bei Paketen und DLC). Öffnet `dialog#verlauf.vl`
+- Preisverlauf (0.9.1, wie im eShopKompass): Knopf „Preisverlauf“ als Link (`.vlb`), ab 0.9.4 überall
+  unter dem Preis: bei VR unter den Preisfeldern, bei PC als Zeile nach „Läden“ (nicht bei Paketen und DLC); dazu
+  öffnet ein Klick auf die Marke „Wo“ den Verlauf. Öffnet `dialog#verlauf.vl`
   (`openVerlauf`, `drawVerlauf`, `vlSvg`): Kurve je Laden als Stufenlinie, Meta im Türkis des Tools, Steam in
-  `--deal`, gg.deals grau gestrichelt, Läden von IsThereAnyDeal in festen Farben (`VL_SHOP`); Bestpreis gold
+  `--deal`, gg.deals grau gestrichelt, Läden von IsThereAnyDeal in festen Farben (`VL_SHOP`); Tief gold
   (`--best`) und „typisch“ grau gestrichelt quer; Legende als Knöpfe zum Ausblenden (`V.vl.hide`, ab sieben Läden die
   übrigen aus). Darunter eine Tabelle je Laden, am Handy seitlich scrollbar (`.scroll`). Esc schließt.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
-- VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): Spiel, Wo, Meta, Steam, zum Bestpreis,
-  Wertung (mit Trend), Spieler, Update. Preise mit Rabattmarke (`vrPrice`, `.b.deal` klein) als Link zum Laden,
-  Bestpreis und Shop im Tooltip. „am Bestpreis“ grün (`.g-buy`, ≈ bei übernommenem Bestpreis), sonst rot der
+- VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): ab 0.9.4 Spiel, max. Spieler, Meta,
+  Steam, überm Tief, Wo, Wertung (mit Trend), Rezensionen, Genre, Aktiv, Update. Genre und Spielerzahl aus den
+  VR-Spielinfos (`library.info`, wie bei den PC-Wünschen). Der Trendpfeil hinter der Wertung steht frei
+  (`.gr .tr` absolut ab 761 px) und verschiebt die Wertung nicht. Preise mit Rabattmarke (`vrPrice`, `.b.deal` klein) als Link zum Laden,
+  Tief und Shop im Tooltip. „am Tief“ grün (`.g-buy`, ≈ bei übernommenem Tief), sonst rot der
   Abstand (`.over`). Am Namen kurze Marken (`badges(r, true)`: ohne „ohne Crossbuy“, Liste als „keine Liste“ oder
   „fehlt: Meta“). Klick auf den Namen (`V.vwOpen`) zeigt die Karte (`wishRow(r, true)`, ohne Namenskopf) als
   Einzelheiten. Eine Sache, mehrere Orte: Zeilen der VR-Wünsche ändern sich in `vrRow` für Wunschliste und Jetzt; Zellen

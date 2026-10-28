@@ -130,6 +130,20 @@ def _near(r):
                for s in ("meta", "steam"))
 
 
+# Spielinfos eines VR-Titels (0.9.4), ohne Beschreibung, damit der Stand klein bleibt
+INFO = ("genres", "gc", "gx", "mp", "mpc", "players", "pl_src", "hours", "hours_all", "hours_src", "year", "year_src",
+        "dev", "pub", "ig", "src", "srcs", "iname")
+
+
+def info(t):
+    """Genre, Mehrspieler, Spieler und Spielzeit eines VR-Titels nach den Regeln der Sammlung (wie die PC-Wunschliste,
+    pcwish.info) aus den Steam-Details (sdet), den Steam-Rezensionen und IGDB, die sync._vr_info je Titel ablegt."""
+    sid = str(t.get("steam_appid") or "")
+    ok = lambda f: (t.get(f) or {}) if (t.get(f) or {}).get("app", sid) == sid else {}     # nach einer neuen Steam-ID nicht mehr
+    inf = pcwish.info({"name": t["name"], "steam": ok("sdet"), "rev": t.get("rev"), "igdb": ok("igdb")})
+    return {f: inf[f] for f in INFO if f in inf}
+
+
 def row(key, t, at=None, hist=None, data=None):
     sheet = t.get("sheet") or None
     gap = None
@@ -180,6 +194,7 @@ def row(key, t, at=None, hist=None, data=None):
         "rating": rating(t), "measured": measured(t), "drop": drop,
         # 0.9.3: Spielzeit (Minuten) und zuletzt gespielt laut Steam-Konto, nur für die Steam-Fassung
         "pt": play[0] if play else None, "lp": play[1] if play else "",
+        "info": info(t),
     }
 
 

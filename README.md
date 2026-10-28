@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.3:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.4:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -370,9 +370,15 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   PC-Wünsche dort gerade höchstens 5 % über dem Tief der Händler liegen, und zeigt nach Wahl genau diese mit dem Preis
   dort. So lassen sich mehrere Spiele in einem Laden kaufen. In den Einzelheiten eines PC-Wunschs steht die Zeile
   „Läden“: bis zu sechs Läden nach Preis, grün nah am Tief, Normalpreis, Tief dort und Angebotsende im Tooltip.
+  Ab 0.9.4 heißt es überall „Tief“ (bei VR das Tief beider Läden aus dem eigenen Verlauf, bei PC das Tief bei
+  gg.deals); die Spalte heißt „überm Tief“, die Zelle „am Tief“. Die Gruppe „weit über dem Tief“ fällt weg. Spalten in
+  „Alle“: Spiel, max. Spieler, Art, Preis, überm Tief, Wo, Wertung, Rezensionen, Genre, Aktiv. „Wo“ ist eine dünn
+  umrandete Marke in der Farbe des Ladens (Meta, Steam oder Händler, Keyshop); ein Klick öffnet den Preisverlauf.
+  Der Rabatt („−40 %“) gilt dem gezeigten Preis gegenüber dem Normalpreis dieses Ladens und ist nur Information.
+  VR-Wünsche haben ab 0.9.4 Genre und Spielerzahl aus Steam und IGDB (Quelle „VR-Titel, Spielinfos“).
 - **Preisverlauf** (ab 0.9.1, wie im eShopKompass): „Preisverlauf“ in den Einzelheiten eines Wunschs öffnet die Kurve
   je Laden der letzten 24 Monate, bei VR Meta, Steam und gg.deals, bei PC gg.deals und jeder Laden von IsThereAnyDeal
-  (beim ersten Abgleich mit Schlüssel rückwirkend, danach führt das Tool ihn fort). Gestrichelt der Bestpreis und
+  (beim ersten Abgleich mit Schlüssel rückwirkend, danach führt das Tool ihn fort). Gestrichelt das Tief und
   der typische Angebotspreis. Darunter je Laden: Preis jetzt, Normalpreis (der am längsten galt), tiefster Preis mit
   Tag, Zahl der Angebote (jede Strecke mindestens 3 % unter normal), ihre übliche Dauer, Anteil der Zeit im Angebot,
   typischer Angebotspreis (Median der Tiefstwerte je Angebot, ab zwei; war das letzte tiefer, dieses) und das
@@ -389,6 +395,10 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   die Zahl der Steam-Spieler gerade eben, für PC-Spiele (Wunschliste, Sammlung) wöchentlich gemessen. Der Reiter VR
   zeigt die Wertung der Fassung, die du besitzt (bei beiden die bessere); ist die andere mindestens 8 Punkte besser,
   steht sie klein daneben („M 92“). Gleich benannte Spalten sind überall gleich breit.
+  Ab 0.9.4 (Entscheidung 28.10.2026) steht „max. Spieler“ überall als erste Spalte nach „Spiel“. Wunschliste VR:
+  Spiel, max. Spieler, Meta, Steam, überm Tief, Wo, Wertung, Rezensionen, Genre, Aktiv, Update; Wunschliste PC:
+  Spiel, max. Spieler, Preis, überm Tief, Wo, Wertung, Rezensionen, Genre, Spielzeit, Aktiv, Jahr. Der Knopf
+  „Preisverlauf“ steht in den Einzelheiten unter dem Preis.
 - **Wunschliste** (0.8.2, vorher „VR-Wunschliste“) mit den Unterreitern PC und VR (ab 0.8.7 PC zuerst, wie in der
   Sammlung). **PC** spiegelt deine gg.deals-Wunschliste (gepflegt wird sie dort), ab 0.8.7 mit Paketen und DLC
   (Marke „Paket“, „DLC“; Preis über den Link zur Seite bei gg.deals, die API kennt nur Steam-Apps) und ohne die
