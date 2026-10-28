@@ -260,7 +260,10 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Reiter „Alle, PC, VR“ (`.systabs`, `V.nowKind`, ab 0.8.17 statt des Schalters) über der Werkzeugzeile, an derselben
   Stelle wie in Wunschliste und Sammlung, mit Zahl je Seite; PC grün, VR türkis wie dort. Bei „Alle“ zwei
   Klappen „VR“ und „PC“; die PC-Liste ist dieselbe Tabelle wie unter Wunschliste, PC (`pcTable`), nur Wünsche nah am
-  Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter.
+  Tief und ohne die schon in der Sammlung. Bei „PC“ keine VR-Filter. Ab 0.8.27 bei „Alle“ eine Tabelle
+  (`allTable`, `allVrRow`, `allPcRow`, Spalten `ALL_COLS`): Spiel, Art (`.b.pcb` PC grün umrandet, VR türkis), Wo,
+  Preis, zum Tief, Wertung, Rezensionen, Aktiv; sortiert nach Nähe, Rabatt (`_saleOf`) oder Wertung. Darunter
+  zugeklappt „VR: reduziert, aber noch weit über dem Bestpreis“.
 - Hinweisklappe `.gnote`: Überschrift klein und grau (13 px, wie in der Sammlung), Text über die volle Breite (ab 0.8.12).
 - Eine Sache, mehrere Orte: Zeilen der PC-Wünsche ändern sich in `pcRow` für Wunschliste und Jetzt zugleich.
 - VR-Wünsche ab 0.8.22 als Tabelle (`vrTable`, `vrRow`, Spalten `VR_COLS`): Spiel, Wo, Meta, Steam, zum Bestpreis,
@@ -268,7 +271,9 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Bestpreis und Shop im Tooltip. „am Bestpreis“ grün (`.g-buy`, ≈ bei übernommenem Bestpreis), sonst rot der
   Abstand (`.over`). Am Namen kurze Marken (`badges(r, true)`: ohne „ohne Crossbuy“, Liste als „keine Liste“ oder
   „fehlt: Meta“). Klick auf den Namen (`V.vwOpen`) zeigt die Karte (`wishRow(r, true)`, ohne Namenskopf) als
-  Einzelheiten. Eine Sache, mehrere Orte: Zeilen der VR-Wünsche ändern sich in `vrRow` für Wunschliste und Jetzt.
+  Einzelheiten. Eine Sache, mehrere Orte: Zeilen der VR-Wünsche ändern sich in `vrRow` für Wunschliste und Jetzt; Zellen
+  der VR-Zeilen kommen aus `vrCells` (auch für `allVrRow`), Preis und Tief der PC-Zeilen aus `pcPriceHtml` und
+  `pcLowHtml` (auch für `allPcRow`).
 
 ## Sammlung, ab 0.8.7
 

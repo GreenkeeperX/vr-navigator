@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.8.26:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.8.27:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -357,7 +357,9 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   nach Nähe zum Bestpreis, nach Rabatt oder Wertung, mit Ende des Angebots. Jeder Titel als Zeile wie in der
   Wunschliste (bis 0.8.21 als Karte). Ab 0.8.11 darunter auch die PC-Wünsche, die höchstens 5 % über dem bisherigen Tief bei gg.deals
   liegen, als Liste wie unter Wunschliste, PC; die Reiter „Alle, PC, VR“ (ab 0.8.17, vorher ein Schalter, jetzt an
-  derselben Stelle wie in Wunschliste und Sammlung) zeigen beide oder nur eine Seite.
+  derselben Stelle wie in Wunschliste und Sammlung) zeigen beide oder nur eine Seite. Ab 0.8.27 zeigt „Alle“
+  PC- und VR-Wünsche gemischt in einer Tabelle (Spiel, Art PC oder VR, Wo, Preis, zum Tief, Wertung,
+  Rezensionen, Aktiv; „zum Tief“ ist bei VR der Abstand zum Bestpreis, bei PC zum Tief bei gg.deals), sortiert wie gewählt; die weit über dem Bestpreis liegenden VR-Angebote stehen zugeklappt darunter.
 - **Spaltenreihenfolge** (ab 0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest, rechts das Nachschlagen.
   Sammlung: Spiel, (Sprache bei Retro), Wertung, Genre, Spielzeit, Mehrspieler, Spieler, Jahr, Rezensionen, Launcher;
   Reiter VR: Spiel, Besitz, Meta, Steam, Spieler, Update, Crossbuy, Recherche.

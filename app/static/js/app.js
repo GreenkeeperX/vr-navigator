@@ -357,14 +357,22 @@ function pcPriceTip(r){
     (r.retail_low != null || r.keyshops_low != null) && `Tief: ${[r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(", ")}`,
     r.price_at && `Stand ${when(r.price_at)}`, "Klick öffnet die Angebote bei gg.deals"].filter(Boolean).join("\n");
 }
+// Preis und Abstand zum Tief einer PC-Zeile, auch für „Jetzt, Alle“ (0.8.27)
+function pcPriceHtml(r){
+  const atLow = r.over != null && r.over <= 0.02;
+  return r.best != null ? `${atLow ? `<span class="star" title="Am bisherigen Tief (höchstens 2 % darüber)">★</span>` : ""}${extLink(r.url, `<b>${eur(r.best)}</b>`, pcPriceTip(r))}`
+    : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">${extLink(r.kind ? r.url : "", "–")}</span>`;
+}
+function pcLowHtml(r){
+  if(r.over == null) return "";
+  return r.over <= 0.02 ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
+    : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(Math.round((r.best - r.low) * 100) / 100)}</span>`;
+}
 function pcRow(r){
   const open = V.pwOpen === r.key, atLow = r.over != null && r.over <= 0.02;
   const cell = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
   const hours = !r.hours ? "" : `<span title="${esc(`Laut IGDB${r.hours_all ? `; komplett ${hrs(r.hours_all)}` : ""}`)}">${hrs(r.hours)}</span>`;
-  const price = r.best != null ? `${atLow ? `<span class="star" title="Am bisherigen Tief (höchstens 2 % darüber)">★</span>` : ""}${extLink(r.url, `<b>${eur(r.best)}</b>`, pcPriceTip(r))}`
-    : `<span class="hint" title="${r.kind ? "Preis auf der Seite bei gg.deals" : r.appid ? "gg.deals nennt keinen Preis" : "Noch keine Steam-ID"}">${extLink(r.kind ? r.url : "", "–")}</span>`;
-  const low = r.over == null ? "" : atLow ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
-    : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`;
+  const price = pcPriceHtml(r), low = pcLowHtml(r);
   const g = Object.assign({mp: [], genres: []}, r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b vrq" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${r.id_near ? `<span class="b warn" title="${esc(`Steam-ID nur nach der Grundform des Namens${typeof r.id_near === "string" ? `: ${r.id_near}` : ""}; bestätigen unter Einstellungen, Zu erledigen`)}">Steam-ID ≈</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
     `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
@@ -555,9 +563,9 @@ function vrPrice(r, k){
     v.until && `Angebot ${until(v.until)}`, b && !b.thin && b.best != null && `${SHOP[k]}-Tief ${eur(b.best)}${b.src ? " ≈" : ""}`, v.stale && `Stand ${ago(v.at)}, Abruf prüfen`].filter(Boolean).join("\n");
   return `${v.discount ? `<span class="b deal">−${v.discount} %</span> ` : ""}${extLink(linkOf(r, SHOP[k]), v.stale ? `<span class="gxc">${eur(v.price)}</span>` : eur(v.price), tip)}`;
 }
-function vrRow(r){
-  const open = V.vwOpen === r.key, L = r.live, A = r.best_all;
-  const cell = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
+// Zellen einer VR-Zeile, auch für „Jetzt, Alle“ (0.8.27)
+function vrCells(r){
+  const L = r.live, A = r.best_all;
   const now = ["meta", "steam"].filter(k => L[k]).map(k => [L[k].price, k]).sort((a, b) => a[0] - b[0])[0];
   let gap = "";
   if(now && A?.best != null){
@@ -572,10 +580,43 @@ function vrRow(r){
   const p = r.measured?.players, u = r.measured?.update;
   const pl = p && p.now != null ? `<span title="${esc(`Gerade eben (${when(p.at)}); Spitze ${num(p.peak || p.now)} seit ${day(p.since)}`)}">${num(p.now)}</span>` : "";
   const up = u ? `<span class="${u.care?.state === "stale" ? "hint" : ""}" title="${esc(`${day(u.date)}: ${u.title}${u.care?.state === "stale" ? "\nÜber ein Jahr ohne Update" : ""}`)}">${short(agoDays(u.date))}</span>` : "";
+  return {now, gap, score, pl, up, rev: gRev({reviews: st?.n ?? null, lib: r})};
+}
+const cellOf = (l, v, cls) => `<span class="${cls || ""}${v ? "" : " nil"}" data-l="${l}">${v || G_NIL}</span>`;
+function vrRow(r){
+  const open = V.vwOpen === r.key, cell = cellOf, {gap, score, pl, up, rev} = vrCells(r);
   return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="vwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${badges(r, true)}</span>` +
     cell("Wo", buyBadge(r)) + cell("Meta", vrPrice(r, "meta"), "r") + cell("Steam", vrPrice(r, "steam"), "r") + cell("zum Bestpreis", gap, "r") +
-    cell("Wertung", score, "r") + cell("Rezensionen", gRev({reviews: st?.n ?? null, lib: r}), "r") + cell("Aktiv", pl, "r") + cell("Update", up, "r") + `</div>` +
+    cell("Wertung", score, "r") + cell("Rezensionen", rev, "r") + cell("Aktiv", pl, "r") + cell("Update", up, "r") + `</div>` +
     (open ? `<div class="gd vwd" style="--dcols:minmax(0,1fr)">${wishRow(r, true)}</div>` : "");
+}
+/* „Jetzt“, Reiter Alle (0.8.27): VR- und PC-Wünsche in einer Tabelle, sortiert wie gewählt. Gemeinsame Spalten: Art, Wo
+   (VR: wo kaufen; PC: Händler oder Keyshop), Preis (der günstigste jetzt), zum Tief (VR: Bestpreis beider Läden; PC: Tief
+   bei gg.deals), Wertung, Rezensionen, Aktiv. Ein Klick auf den Namen zeigt die Einzelheiten wie in den Reitern */
+const ALL_COLS = "minmax(180px,1.5fr) 44px minmax(112px,.6fr) 110px 100px 70px 98px 56px";
+function allTable(vr, pc, sort){
+  const items = vr.map(r => ({vr: true, r, near: nearBest(r), sale: _saleOf(r), score: r.rating?.score ?? null}))
+    .concat(pc.map(r => ({vr: false, r, near: 1 + (r.over ?? 1e9), sale: 0, score: r.score ?? null})));
+  const key = {best: x => x.near, sale: x => -x.sale, rating: x => -(x.score ?? -1)}[sort] || (x => x.near);
+  items.sort((a, b) => key(a) - key(b) || a.r.name.localeCompare(b.r.name));
+  const head = `<div class="gr nph"><span>Spiel</span><span>Art</span><span title="VR: wo kaufen; PC: Händler oder Keyshop">Wo</span><span class="r" title="Günstigster Preis jetzt">Preis</span><span class="r" title="VR: Abstand zum Bestpreis beider Läden; PC: zum bisherigen Tief bei gg.deals">zum Tief</span><span class="r">Wertung</span><span class="r">Rezensionen</span><span class="r" title="Steam-Spieler gerade eben">Aktiv</span></div>`;
+  return `<div class="glist box vwl" style="--gcols:${ALL_COLS}">${head}${items.map(x => x.vr ? allVrRow(x.r) : allPcRow(x.r)).join("")}</div>`;
+}
+const _saleOf = r => Math.max(r.live?.meta?.discount || 0, r.live?.steam?.discount || 0);
+function allVrRow(r){
+  const open = V.vwOpen === r.key, {now, gap, score, pl, rev} = vrCells(r);
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="vwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${badges(r, true)}</span>` +
+    cellOf("Art", `<span class="b vrb" title="VR-Wunsch, Meta oder Steam">VR</span>`) + cellOf("Wo", buyBadge(r)) + cellOf("Preis", now ? vrPrice(r, now[1]) : "", "r") +
+    cellOf("zum Tief", gap, "r") + cellOf("Wertung", score, "r") + cellOf("Rezensionen", rev, "r") + cellOf("Aktiv", pl, "r") + `</div>` +
+    (open ? `<div class="gd vwd" style="--dcols:minmax(0,1fr)">${wishRow(r, true)}</div>` : "");
+}
+function allPcRow(r){
+  const open = V.pwOpen === r.key, g = Object.assign({mp: [], genres: []}, r);
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${dropMark(r.drop)}${careMark(r.care)}</span>` +
+    cellOf("Art", `<span class="b pcb" title="PC-Wunsch von gg.deals">PC</span>`) + cellOf("Wo", r.best_from ? `<span class="hint">${esc(r.best_from)}</span>` : "") +
+    `<span class="r" data-l="Preis">${pcPriceHtml(r)}</span>` + cellOf("zum Tief", pcLowHtml(r), "r") +
+    cellOf("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") + cellOf("Rezensionen", gRev(g), "r") + cellOf("Aktiv", gActive(g), "r") + `</div>` +
+    (open ? pcDetail(r) : "");
 }
 
 /* ---------------------------------------------------------------- Sammlung
@@ -1423,16 +1464,20 @@ function nowView(){
   const vr = `<p class="hint">VR: Wunschtitel, die gerade bei Meta oder Steam reduziert sind und höchstens 15 % oder 2 € über dem Bestpreis beider Läden liegen. Letzter Abruf: ${when(last) || "–"}.</p>
     ${rows.length ? vrTable(rows) : `<p class="hint">${S.now.length ? "Kein Treffer." : "Gerade ist kein Wunschtitel nah am Bestpreis reduziert."}</p>`}
     ${far.length ? grp("now-far", `Reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
+  // 0.8.27: „Alle“ als eine Liste; die weit über dem Bestpreis reduzierten VR-Wünsche bleiben zugeklappt darunter
+  const allPart = `<p class="hint">PC- und VR-Wünsche nah am Tief: VR höchstens 15 % oder 2 € über dem Bestpreis beider Läden, PC höchstens 5 % über dem bisherigen Tief bei gg.deals. Letzter Abruf: ${when(last) || "–"}.</p>
+    ${rows.length || pc.length ? allTable(rows, pc, sort) : `<p class="hint">${S.now.length + pcAll.length ? "Kein Treffer." : "Gerade ist kein Wunsch nah am Tief."}</p>`}
+    ${far.length ? grp("now-far", `VR: reduziert, aber noch weit über dem Bestpreis`, far.length, vrTable(far.filter(r => match(r))), true) : ""}`;
   const pcPart = `<p class="hint">PC: Wünsche deiner gg.deals-Wunschliste, die höchstens 5 % über dem bisherigen Tief liegen (Händler oder Keyshop).</p>` +
     (pc.length ? pcTable(pc) : `<p class="hint">${pcAll.length ? "Kein Treffer." : S.pcwish?.n ? "Gerade ist kein PC-Wunsch nah am Tief." : "Noch keine PC-Wunschliste (Einstellungen, Konten)."}</p>`);
   return tabs + listBar({sorts: [["best", "Nah am Bestpreis"], ["sale", "Rabatt"], ["rating", "Wertung"]], sort, sortKey: "now", filters: kind === "pc" ? [] : ["cb", "best", "good"]}) +
-    (kind === "pc" ? pcPart : kind === "vr" ? vr : (kind === "" && pcAll.length ? grp("now-pc", "PC", pc.length, pcPart) + grp("now-vr", "VR", rows.length, vr) : vr));
+    (kind === "pc" ? pcPart : kind === "vr" ? vr : allPart);
 }
 
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){
