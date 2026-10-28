@@ -209,7 +209,7 @@ Switch-Spiele aus dem eShopKompass fragt es nicht an.
 | Anmeldung | `https://id.twitch.tv/oauth2/token` (POST, client_credentials) | einmal je Lauf, nur wenn etwas zu tun ist | Zugangsmarke für diesen Lauf |
 | Steam-IDs | `https://api.igdb.com/v4/external_games` (POST) | Pakete zu 400 Steam-IDs | IGDB-Spiel je Steam-ID |
 | Spiele | `…/v4/games` (POST, `where id = (…)`) | je Paket einmal | Name, Genres, Spielmodi, Mehrspieler-Angaben, Kritiker- und Gesamtwertung samt Zahl, Beschreibung, Erscheinen, Entwickler, Verlag |
-| Namenssuche | `…/v4/games` (POST, `search` mit Plattform, dann ohne Sonderzeichen, nach dem Doppelpunkt, ohne Plattform, zuletzt Teilname) | höchstens 120 Spiele je Lauf (`IGDB_NAMES`): erst die ohne Steam-ID, dann Steam-Spiele, die IGDB nicht verknüpft hat | wie oben; ein Treffer zählt nur bei gleichem oder weitgehend gleichem Namen |
+| Namenssuche | `…/v4/games` (POST, `search` mit Plattform, dann ohne Sonderzeichen, nach dem Doppelpunkt, ohne Plattform, zuletzt Teilname) | höchstens 120 Spiele je Lauf (`IGDB_NAMES`): erst die ohne Steam-ID, dann Steam-Spiele, die IGDB nicht verknüpft hat; bei gleichem Stand ab 0.8.9 zuerst VR-Titel am PC, dann abwechselnd Retro und die übrigen | wie oben; ein Treffer zählt nur bei gleichem oder weitgehend gleichem Namen |
 | Spielzeiten | `…/v4/game_time_to_beats` (POST) | Pakete zu 400 Spielen | eilig, normal, komplett, Zahl der Angaben |
 
 Jedes Spiel nach 90 Tagen neu (`IGDB_DAYS`), ohne Treffer nach 30 (`IGDB_MISS_DAYS`), alles sofort,
@@ -356,4 +356,7 @@ besten Fassung, gilt das der nächsten. Beta, Proto und Ähnliches zählen nicht
   `own` (deine Zeile der Ordner-Liste: `file`, `title`, `series`, `coll`, `genre`, `sub`, `folder`, `status`, `mb`)
   und `own_ok` (bestätigte Widersprüche), nie Pfade; ein neuer Import ohne Ordner-Liste für das System behält
   `own`, einer ohne Größen behält `size`; und
-  `rev` (Steam-Rezensionen) und `steam` (Steam-Details).
+  `rev` (Steam-Rezensionen) und `steam` (Steam-Details). Ab 0.8.9 dazu `pcvr:<Titel>` mit `src` „pcvr“: deine
+  VR-Titel am PC, die Playnite nicht kennt (`store` Steam, Epic … oder „Meta (Crossbuy)“, `id` die Steam-ID,
+  `from_vr` der Titel), angelegt und bereinigt bei jedem Abgleich vor den Steam-Abrufen und nach einem
+  Playnite-Import; ein Playnite-Import lässt sie stehen.

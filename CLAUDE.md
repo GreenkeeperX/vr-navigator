@@ -53,7 +53,8 @@ Weitere feste Regeln (wie im eShopKompass):
   Produktcode, ähnliche Namen zum Bestätigen (`similar`, `near_list`, `settle_near`); ab 0.8.8 Spielinfos der
   libretro-database (`parse_meta`, `meta_for`, `mark_meta`) und deine Ordner-Listen `…_ordner.csv`
   (`parse_folder_list`, `apply_folder_lists`, Widersprüche `own_list`, `settle_own`)
-- `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export,
+- `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export
+  und ab 0.8.9 deinen VR-Titeln am PC ohne Playnite-Eintrag (`sync_pcvr`),
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
 - `app/wheel.py`: Sim-Racing ohne Netz: Steam-Schlagwörter (Hinweis), Liste der Rennsimulationen (Bestätigung)
 - `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur

@@ -103,6 +103,7 @@ def import_collection(data, text, dry):
     if dry:
         return {"n": len(games), "new": sum(k not in old for k in games), "console": console, "systems": systems, "kept": kept}
     new = collection.replace(col, games)
+    collection.sync_pcvr(col, data)          # 0.8.9: kennt Playnite einen VR-Titel jetzt, fällt sein Eintrag weg
     store.save_json(collection.FILE, col)
     data["imports"]["collection"] = {"at": col["at"], "n": len(col["games"]), "new": new}
     return {"n": len(games), "new": new, "console": console, "systems": systems, "kept": kept}

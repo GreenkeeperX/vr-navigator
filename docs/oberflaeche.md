@@ -235,3 +235,5 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
 - Vorschau der Retro-Liste: Zeile zu deinen Ordner-Listen (passende Zeilen, nur in der Liste, nicht in der Liste)
   und die Größe zusammen.
 - VR-Titel am PC ohne Playnite-Eintrag (`pcvr:`) tragen die Marke „Lenkrad“ wie die übrigen.
+- Ab 0.8.9 sind sie Spiele der Sammlung mit Spalten aus Steam und IGDB; die Herkunft nennt „dein VR-Titel im Tool
+  (…), Playnite kennt ihn nicht; Steam-Details“.

@@ -95,16 +95,17 @@ Quellen; Suche je Reiter; Liste als CSV, Titel kopieren; Mein Stand überall an 
 der Sicherung. 0.8.8: Retro-Spielinfos aus der libretro-database (Genre, Spieler, Erscheinen, Entwickler, bei PS1
 und PS2 Beschreibung), deine Ordner-Listen als erste Quelle mit Widersprüchen beim Genre in „Zu erledigen“,
 Dateigröße aus der Ordnerwahl; Lenkrad-Marke auch bei VR-Titeln am PC ohne Playnite-Eintrag; das
-gg.deals-Lesezeichen nennt, wenn gg.deals mehr Einträge zählt, als Links da waren. Grundsatz (Entscheidung 22.10.2026): so wenig
+gg.deals-Lesezeichen nennt, wenn gg.deals mehr Einträge zählt, als Links da waren. 0.8.9: VR-Titel am PC ohne Playnite-Eintrag
+als eigene Spiele der Sammlung in allen Abrufen (Steam-Details, Rezensionen, IGDB, Mods); IGDB fragt Retro abwechselnd
+mit den übrigen Spielen statt nach allen PC-Spielen. Grundsatz (Entscheidung 22.10.2026): so wenig
 Handarbeit wie möglich; was sich abrufen und von einer zweiten Quelle bestätigen lässt, geht vor
 Bestätigen und Einlesen von Hand. Als Nächstes:
 
 - PC-Wunschliste: Läden einzeln (nur über die Spielseite bei gg.deals, die Cloudflare schützt), IGDB-Infos
   und „Jetzt“ für alle Wünsche mit Filter VR
 
-- Retro: Kurzbeschreibungen und Spielzeit über IGDB, Retro-Spiele dort früher in der Warteschlange; DS und 3DS
-  haben bei libretro kaum Spielinfos. GameCube, Wii und PlayStation mit Redump-Namen
-- VR-Titel am PC ohne Playnite-Eintrag in die Abrufe (Steam-Details, IGDB)
+- Retro: deutsche Titel aus deiner Ordner-Liste für die IGDB-Suche nutzen, wenn der Dateiname nichts findet;
+  GameCube, Wii und PlayStation mit Redump-Namen
 
 - Urteil „wo kaufen“ aus Gemessenem (Spieler, Pflege, Crossbuy, Wertung, Preis) als
   Hinweis im Kopf der Karte („Meta kaufen“, „warten“), Gründe in der Klappe; Recherche nur als

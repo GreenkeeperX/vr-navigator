@@ -287,8 +287,9 @@ def replace(col, games, src="playnite"):
     stehen, ebenso die Spiele aus der Retro-Liste. Gibt die Zahl der neuen Spiele zurück."""
     old = col.get("games") or {}
     systems = {g.get("system") or "PC" for g in games.values()}
-    # Spiele aus der Retro-Liste und dem eShopKompass gehören nicht zum Playnite-Export und bleiben immer stehen
-    games = dict({k: g for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") in ("retro", ESHOP))
+    # Spiele aus der Retro-Liste, dem eShopKompass und VR-Titel am PC (0.8.9) gehören nicht zum Playnite-Export und
+    # bleiben immer stehen
+    games = dict({k: g for k, g in old.items() if ((g.get("system") or "PC") not in systems or g.get("src") in ("retro", ESHOP, PCVR))
                   and k not in games}, **games)
     new = 0
     for k, g in games.items():
@@ -308,6 +309,7 @@ def replace(col, games, src="playnite"):
 
 ESHOP = "eshop"
 ESHOP_MAX = 5000
+PCVR = "pcvr"           # 0.8.9: deine VR-Titel am PC, die Playnite nicht kennt
 
 
 def _pl(v):
@@ -489,6 +491,55 @@ def vr_name(name):
     return bool(_VR_NAME.search(name or ""))
 
 
+def _pcvr_wanted(col, data):
+    """Deine VR-Titel am PC, die Playnite nicht kennt (am PC gekauft oder bei Meta mit Crossbuy), als Spiele der
+    Sammlung: {„pcvr:<Titel>“: Spiel}. Wie in _pc_vr gleicht das Tool über Steam-ID und Namen ab."""
+    from . import library
+    ids, names = set(), set()
+    for g in (col.get("games") or {}).values():
+        if g.get("src") in (PCVR, "retro", ESHOP) or (g.get("system") or "PC") != "PC":
+            continue
+        if g.get("store") == "Steam" and str(g.get("id") or "").isdigit():
+            ids.add(str(g["id"]))
+        names.add(titles.base_norm(g["name"]))
+    out = {}
+    for k, t in data["titles"].items():
+        o = t.get("owned") or {}
+        if not (o.get("pc") or (o.get("meta") and library.crossbuy(t)[0])) or titles.is_bundle(t):
+            continue
+        sid = str(t.get("steam_appid") or "")
+        if (sid and sid in ids) or titles.base_norm(t["name"]) in names:
+            continue
+        label = (o.get("pc") or {}).get("label") or ("Meta (Crossbuy)" if not o.get("pc") else "PC")
+        out["pcvr:" + k] = {"name": t["name"], "system": "PC", "src": PCVR, "store": label, "id": sid if sid.isdigit() else "",
+                            "from_vr": k, "added": t.get("added") or "", "mp": [], "players": 0, "genres": [],
+                            "released": "", "dev": "", "pub": ""}
+    return out
+
+
+def sync_pcvr(col, data):
+    """VR-Titel am PC ohne Playnite-Eintrag als eigene Spiele in collection.json (0.8.9), damit Steam-Details,
+    Rezensionen, IGDB, PCGamingWiki und Nexus sie wie jedes Spiel abrufen. Abgerufenes bleibt; kennt Playnite den
+    Titel inzwischen oder gilt er nicht mehr, fällt er weg. Gibt (neu, entfallen) zurück."""
+    games = col.setdefault("games", {})
+    want = _pcvr_wanted(col, data)
+    gone = [k for k, g in games.items() if g.get("src") == PCVR and k not in want]
+    for k in gone:
+        del games[k]
+    new = 0
+    for k, g in want.items():
+        o = games.get(k)
+        if o is None:
+            new += 1
+        else:
+            for f in ("rev", "steam", "mark", "igdb", "pcgw", "nexus", "stag"):
+                if f in o:
+                    g[f] = o[f]
+        games[k] = g
+    col["n"] = len(games)
+    return new, len(gone)
+
+
 def _pc_vr(rows, data, wmatch=None):
     """VR am PC (0.8.7): Steam-Spiele der Sammlung, die das Tool als VR kennt (VR-Titel oder VR-Prüfung im Store),
     tragen „VR“; nennt nur der Name VR, ist das ein Hinweis (vr_guess). Dazu kommen deine VR-Titel am PC, die
@@ -501,10 +552,12 @@ def _pc_vr(rows, data, wmatch=None):
     for r in rows:
         if r["system"] != "PC" or r.get("retro") or r.get("eshop"):
             continue
-        sid = r["key"][6:] if r["key"].startswith("steam:") else ""
+        sid = r["key"][6:] if r["key"].startswith("steam:") else r.get("steam_id") or ""
         seen_ids.add(sid)
         seen_names.add(titles.base_norm(r["name"]))
-        if r.get("vr"):
+        if r.get("from_vr"):
+            r.update(vr=True, vr_src="VR-Titel im Tool")
+        elif r.get("vr"):
             r["vr_src"] = "Steam"
         elif sid and sid in t_ids:
             r.update(vr=True, vr_src="VR-Titel im Tool")
@@ -619,6 +672,13 @@ def view(col, data=None):
                 r.update(langs=g["de"]["langs"], lang_guess=False)
         r["gem"], r["gem_guess"] = gem(g)
         rev = g.get("rev") or {}
+        if g.get("src") == PCVR:
+            # VR-Titel am PC (0.8.9): Wertung von Steam über das Spiel selbst, sonst die des VR-Titels
+            if not rev and data is not None:
+                rev = (data["titles"].get(g.get("from_vr")) or {}).get("rev") or {}
+            r.update(from_vr=g.get("from_vr"), steam_id=str(g.get("id") or ""))
+            if not r["url"] and str(g.get("id") or "").isdigit():
+                r["url"] = f"https://store.steampowered.com/app/{g['id']}/"
         r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
         r["rdesc"] = rev.get("desc") or ""
         if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
@@ -628,6 +688,9 @@ def view(col, data=None):
             r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
         check(r, g.get("steam") or {})
         r["srcs"] = ["Playnite"] + (["Steam"] if r["src"] == "steam" else []) if not r.get("retro") else ["Retro-Liste"]
+        if g.get("src") == PCVR:
+            r["srcs"][0] = "VR-Titel im Tool"
+            r.update(vr=True, vr_src="VR-Titel im Tool")
         ig = g.get("igdb") or {}
         if ig.get("id"):
             merge_igdb(r, ig)
