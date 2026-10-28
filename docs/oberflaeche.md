@@ -332,7 +332,10 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Jahr mit „Laut libretro-database“; Erscheinen mit nur Monat als „im Juli 2003“ (`relDay`). Beschreibung von
   libretro: Tooltip „nur auf Englisch“.
 - „Zu erledigen“, Gruppe „Retro: Genre weicht von deiner Liste ab“: je Spiel deins und das der anderen Quelle,
-  Knopf „Liste gilt“, oben „Alle: Liste gilt“.
+  Knöpfe „Liste gilt“ und ab 0.9.6 „Quellen gelten“ (`data-take`), oben beide für alle. Gilt das Genre der Quellen,
+  nennen die Einzelheiten unter „Genre“ deins mit dem Link „deins gilt“ (`own_taken`).
+- Konten und Schlüssel (ab 0.9.6): je Dienst eine kurze Zeile, wo es die Schlüssel gibt und was sie tun, in der
+  Klappe darunter (`details.how`, zu, gemerkt als `keyhow`).
 - Vorschau der Retro-Liste: Zeile zu deinen Ordner-Listen (passende Zeilen, nur in der Liste, nicht in der Liste)
   und die Größe zusammen.
 - VR-Titel am PC ohne Playnite-Eintrag (`pcvr:`) tragen die Marke „Lenkrad“ wie die übrigen.

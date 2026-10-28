@@ -146,11 +146,6 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
   enthält; Sharenite als zweite Quelle, Preise der PlayStation ohne offene Schnittstelle, daher
   zuerst ohne Preise
 
-## 0.9 Nächste Schritte (Rückmeldung 28.10.2026)
-
-- 0.9.6 Einstellungen: Steam-Hinweis auf eine Zeile mit Klappe; Retro „Genre weicht ab“ auch mit „Quellen
-  übernehmen“, wenn die anderen Quellen sich einig sind
-
 ## Danach
 
 - Freie Abrufe für die PC-Sammlung: Sind alle VR-Titel aktuell, holt der Abgleich mit dem Rest

@@ -324,7 +324,7 @@ def apply(col, games, dry=True, own_systems=()):
     for k, g in games.items():
         o = old.get(k)
         if o:
-            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag", "alias", "near_no", "lr", "own_ok"):
+            for f in ("rev", "steam", "mark", "info", "igdb", "pcgw", "nexus", "stag", "alias", "near_no", "lr", "own_ok", "own_take"):
                 if f in o:
                     g[f] = o[f]
             # Ordner-Liste (0.8.8): ohne neue Liste für das System bleibt die alte, ebenso die Größe ohne Ordnerwahl
@@ -891,10 +891,23 @@ def own_list(col):
     return sorted(out, key=lambda x: (x["system"], titles.norm(x["name"])))
 
 
-def settle_own(col, key):
-    """„Liste gilt“: die jetzigen Widersprüche dieses Spiels nicht mehr zeigen (ändert sich ein Wert, kommt es wieder)."""
+def settle_own(col, key, take=False):
+    """„Liste gilt“: die jetzigen Widersprüche dieses Spiels nicht mehr zeigen (ändert sich ein Wert, kommt es wieder).
+    Ab 0.9.6 „Quellen gelten“ (take): libretro und IGDB sind sich einig, ihr Genre gilt statt deinem (own_take); auch
+    das gilt nur, solange sich die Werte nicht ändern. Deine Ordner-Liste selbst bleibt, wie sie ist."""
     g = (col.get("games") or {}).get(key)
     if not g or not g.get("own"):
         raise ValueError("kein Spiel aus deiner Ordner-Liste")
-    g["own_ok"] = sorted(set(g.get("own_ok") or []) | {_conflict_id(c) for c in own_conflicts(g)})[:20]
+    ids = {_conflict_id(c) for c in own_conflicts(g)}
+    g["own_ok"] = sorted(set(g.get("own_ok") or []) | ids)[:20]
+    if take and ids:
+        g["own_take"] = sorted(ids)[:20]
+    elif not take:
+        g.pop("own_take", None)
     return g
+
+
+def own_taken(g):
+    """Gilt für dieses Spiel das Genre der anderen Quellen (0.9.6)? Nur, solange es genau diese Widersprüche gibt."""
+    take, cs = set(g.get("own_take") or []), own_conflicts(g)
+    return bool(take) and bool(cs) and all(_conflict_id(c) in take for c in cs)

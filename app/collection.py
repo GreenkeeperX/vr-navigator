@@ -659,7 +659,12 @@ def merge_retro(r, g):
         if t and t != r["name"]:
             r["fname"], r["name"] = r["name"], t[:200]
         mg = retro.own_genre(g)
-        if mg:
+        if mg and retro.own_taken(g):
+            # 0.9.6 „Quellen gelten“: libretro und IGDB einig, dein Genre fällt aus der Zeile (steht in den Einzelheiten)
+            r["own_taken"] = mg
+            r["genres"] = [x for x in r["genres"] if x != mg] or r["genres"]
+            r["gc"] = [x for x in (r.get("gc") or []) if x != mg]
+        elif mg:
             r["genres"] = [mg] + [x for x in r["genres"] if x != mg]
             r["gc"] = [mg] + [x for x in (r.get("gc") or []) if x != mg]
         r["own"] = {k: own[k] for k in ("series", "coll", "genre", "sub", "folder", "status", "mb") if own.get(k) not in (None, "")}
