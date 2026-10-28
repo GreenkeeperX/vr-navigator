@@ -244,14 +244,15 @@ function factsHtml(r){
     const parts = [];
     if(m) parts.push(m.pos != null ? cell("meta", "Meta", `${mp} %`, m.n, `Meta Store: Anteil 4 und 5 Sterne (laut VRDB), Schnitt ${String(m.stars).replace(".", ",")} von 5`)
       : cell("meta", "Meta", `≈${mp} %`, m.n, `Meta Store: ${String(m.stars).replace(".", ",")} von 5 Sternen, umgerechnet × 20 (gelesen bei QuestStoreDB)`));
-    if(s) parts.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen")
+    if(s) parts.push(sp != null ? cell("steam", "Steam", `${sp} %`, s.n, "Anteil positiver Steam-Rezensionen") + trendMark(s.trend)
       : `<span class="hint" title="Steam-Rezensionen; eine Wertung gibt es ab 50">Steam ${num(s.n)} Rez.</span>`);
     if(win) parts.push(`<span class="b go" title="Mindestens ${RATE_GAP} Punkte Abstand">${win === "meta" ? "Meta" : "Steam"} +${Math.abs(mp - sp)}</span>`);
     out.push(fact("Wertung", parts.join(" ")));
   }
   if(g.players && g.players.now != null) out.push(fact("Spieler", `${num(g.players.now)}${g.players.peak > g.players.now ? ` <span class="hint">(Spitze ${num(g.players.peak)})</span>` : ""}`,
     `Steam-Spieler gerade eben (${when(g.players.at)}); Spitze: höchster gemessener Wert seit ${day(g.players.since)}`));
-  if(g.update) out.push(fact("Update", agoDays(g.update.date), `Steam, laut Meldung des Entwicklers: ${g.update.title}`));
+  if(s?.trend) out.push(fact("Trend", trendText(s.trend)));
+  if(g.update) out.push(fact("Update", agoDays(g.update.date) + (CARE[g.update.care?.state] ? ` <span class="hint">(${CARE[g.update.care.state]})</span>` : ""), `Steam, laut Meldung des Entwicklers: ${g.update.title}`));
   if(g.meta_ver) out.push(fact("Meta", `v${esc(g.meta_ver.v.split("_")[0])}${g.meta_ver.since ? ` seit ${agoDays(g.meta_ver.since).replace("vor ", "")}` : ""}`,
     `Version im Meta Store laut VRDB${g.meta_ver.since ? "; das Tool sah sie zuerst am " + day(g.meta_ver.since) : ", zuerst gesehen beim ersten Abruf"}`));
   return out.length ? `<div class="facts">${out.join("")}</div>` : "";
@@ -349,9 +350,9 @@ function pcRow(r){
   const low = r.over == null ? "" : atLow ? `<span class="g-buy" title="${esc(`Höchstens 2 % über dem bisherigen Tief ${eur(r.low)}`)}">am Tief</span>`
     : `<span class="over" title="${esc(`${eur(r.best - r.low)} über dem bisherigen Tief ${eur(r.low)} (+${Math.round(r.over * 100)} %)`)}">+${eur(r.best - r.low)}</span>`;
   const pl = !r.players ? "" : `<span class="${r.pl_src === "IGDB" ? "" : "gxc"}" title="${r.pl_src === "IGDB" ? "Laut IGDB" : "Nur eine Quelle"}">bis ${r.players}</span>`;
-  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}</span>` +
+  return `<div class="gr${open ? " open" : ""}"><span class="t"><button class="link g-n" data-act="pwopen" data-s="${esc(r.key)}" aria-expanded="${open}" title="${esc(r.name)} · Einzelheiten">${esc(r.name)}</button>${r.kind ? `<span class="b" title="${esc(PC_KIND[r.kind]?.[1] || "")}">${esc(PC_KIND[r.kind]?.[0] || r.kind)}</span>` : ""}${r.vr ? `<span class="b gxc" title="Nur ein Hinweis: der Name nennt VR">VR</span>` : ""}${r.owned ? `<span class="b warn" title="Steht in deiner Sammlung; bei gg.deals von der Wunschliste nehmen?">schon in der Sammlung</span>` : ""}${dropMark(r.drop)}${careMark(r.care)}</span>` +
     `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
-    cell("Wertung", gSc(r), "r") +
+    cell("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
     cell("Spielzeit", hours, "r") + cell("Spieler", pl, "r") + cell("Jahr", gYear(Object.assign({mp: [], genres: []}, r)), "r") + `</div>` + (open ? pcDetail(r) : "");
 }
@@ -365,6 +366,9 @@ function pcDetail(r){
     row("Erschienen", esc(r.sdate || r.year || ""), [r.dev && `Entwickler: ${r.dev}`, r.pub && r.pub !== r.dev && `Verlag: ${r.pub}`, r.sdate ? "Laut Steam" : r.year_src === "IGDB" ? "Laut IGDB" : ""].filter(Boolean).join("\n")) +
     row("Entwickler", esc(r.dev || "")) +
     row("Steam", r.reviews != null ? esc(steamTip) : "", "Steam-Rezensionen; eine Wertung gibt es ab 50") +
+    row("Trend", trendText(r.trend)) +
+    row("Update", r.care ? `${agoDays(r.care.date)}${CARE[r.care.state] ? ` <span class="hint">(${CARE[r.care.state]})</span>` : ""}` : "", r.care ? `Letztes Update laut Steam-Neuigkeiten am ${day(r.care.date)}` : "") +
+    row("Preissturz", r.drop ? `${eur(r.best)} statt üblich ${eur(r.drop.usual)} (−${r.drop.pct} %)` : "", "Median der Preise der letzten Tage aus dem eigenen Verlauf") +
     row("IGDB Kritik", r.icrit != null ? gScore(r.icrit, "Kritiker-Wertung laut IGDB", "") : "") +
     row("Jetzt", [r.retail != null && `Händler ${eur(r.retail)}`, r.keyshops != null && `Keyshop ${eur(r.keyshops)}`].filter(Boolean).join(" · "), "Preise jetzt laut gg.deals") +
     row("Tief", [r.retail_low != null && `Händler ${eur(r.retail_low)}`, r.keyshops_low != null && `Keyshop ${eur(r.keyshops_low)}`].filter(Boolean).join(" · "), "Bisheriges Tief laut gg.deals");
@@ -714,6 +718,17 @@ const RDESC = {"Overwhelmingly Positive": "Äußerst positiv", "Very Positive": 
   "Mostly Positive": "Größtenteils positiv", "Mixed": "Ausgeglichen", "Mostly Negative": "Größtenteils negativ",
   "Negative": "Negativ", "Very Negative": "Sehr negativ", "Overwhelmingly Negative": "Äußerst negativ"};
 const gScore = (v, tip, unit = " %") => v == null ? "" : `<span class="gsc" style="--sh:${gScoreHue(v)}" title="${esc(tip)}">${v}${unit}</span>`;
+/* Trend und Pflege (0.8.18): ein Pfeil neben der Steam-Wertung, wenn die letzten 30 Tage mindestens 8 Punkte besser
+   (grün) oder schlechter (rot) bewertet sind als insgesamt; die Zahlen im Tooltip. „ruht“: über ein Jahr ohne Update */
+function trendTip(t){
+  const span = t.src === "steam" ? "Letzte 30 Tage" : `Seit ${day(t.since)} (eigene Messung)`;
+  return `${span}: ${t.recent} % positiv aus ${num(t.n)} Rezensionen, insgesamt ${t.all} %`;
+}
+const trendMark = t => !t || t.dir === "flat" ? "" : `<span class="tr ${t.dir}" title="${esc(trendTip(t))}">${t.dir === "up" ? "↗" : "↘"}</span>`;
+const trendText = t => !t ? "" : `<span title="${esc(trendTip(t))}">${t.dir === "up" ? "steigend" : t.dir === "down" ? "fallend" : "gleichbleibend"}${trendMark(t) ? " " + trendMark(t) : ""} <span class="hint">(${t.recent} % gegen ${t.all} %)</span></span>`;
+const CARE = {fresh: "gepflegt", ok: "", stale: "ruht"};
+const careMark = c => c?.state === "stale" ? `<span class="b care" title="${esc(`Letztes Update laut Steam-Neuigkeiten am ${day(c.date)}, über ein Jahr her`)}">ruht</span>` : "";
+const dropMark = d => !d ? "" : `<span class="b go" title="${esc(`${d.pct} % unter dem üblichen Preis von ${eur(d.usual)} (Median der letzten ${d.days} Tage, eigener Preisverlauf aus gg.deals)`)}">Preissturz</span>`;
 /* Genres als Blasen, Farbton nach Verwandtschaft (wie im eShopKompass): Action und Kampf rot, Tempo
    orange bis gelbgrün, Plattformer gelb, ruhiges Leben grün, Erkunden türkis bis cyan, Denken blau bis
    indigo, Gesellig rosa bis magenta, Sonstiges grau. Violett bleibt frei, es heißt „prüfen“ */
@@ -789,13 +804,13 @@ const COLS = [
       return gScore(v, `Meta Store: ${m.pos != null ? "Anteil 4 und 5 Sterne (laut VRDB)" : "Sterne × 20 (QuestStoreDB)"}, ${String(m.stars).replace(".", ",")} von 5${m.n ? `, ${num(m.n)} Bewertungen` : ""}`); },
     sort: g => { const m = g.lib.rating?.meta; return m ? m.pos ?? Math.round(m.stars * 20) : null; }},
   {k: "rsteam", l: "Steam", w: "62px", cls: "r", vr: true, tip: "Anteil positiver Steam-Rezensionen", d0: -1,
-    cell: g => { const s = g.lib.rating?.steam; return s?.pct != null ? gScore(s.pct, `Anteil positiver Steam-Rezensionen (${num(s.n)})`) : s ? `<span class="hint" title="Eine Wertung gibt es ab 50 Rezensionen">${num(s.n)} R.</span>` : ""; },
+    cell: g => { const s = g.lib.rating?.steam; return s?.pct != null ? gScore(s.pct, `Anteil positiver Steam-Rezensionen (${num(s.n)})`) + trendMark(s.trend) : s ? `<span class="hint" title="Eine Wertung gibt es ab 50 Rezensionen">${num(s.n)} R.</span>` : ""; },
     sort: g => g.lib.rating?.steam?.pct ?? null},
   {k: "play", l: "Spieler", w: "62px", cls: "r", vr: true, tip: "Steam-Spieler gerade eben; Spitze im Tooltip", d0: -1,
     cell: g => { const p = g.lib.measured?.players; return p && p.now != null ? `<span title="${esc(`Gerade eben (${when(p.at)}); Spitze ${num(p.peak || p.now)} seit ${day(p.since)}`)}">${num(p.now)}</span>` : ""; },
     sort: g => g.lib.measured?.players?.now ?? null},
   {k: "upd", l: "Update", w: "64px", cls: "r", vr: true, tip: "Letztes Steam-Update laut Entwickler",
-    cell: g => { const u = g.lib.measured?.update; return u ? `<span title="${esc(`${day(u.date)}: ${u.title}`)}">${short(agoDays(u.date))}</span>` : ""; },
+    cell: g => { const u = g.lib.measured?.update; return u ? `<span class="${u.care?.state === "stale" ? "hint" : ""}" title="${esc(`${day(u.date)}: ${u.title}${u.care?.state === "stale" ? "\nÜber ein Jahr ohne Update" : ""}`)}">${short(agoDays(u.date))}</span>` : ""; },
     sort: g => g.lib.measured?.update ? -Date.parse(g.lib.measured.update.date) : null},
   {k: "op", l: "Recherche", w: "minmax(0,1fr)", vr: true, tip: "Aus Foren und Tests zusammengetragen, nicht geprüft (violett)",
     cell: g => { const o = g.lib.opinion; if(!o) return ""; const t = [o.fassung && FASS_SHORT[o.fassung], o.mehrspieler && "MP " + MP_SHORT[o.mehrspieler]].filter(Boolean).join(" · ");

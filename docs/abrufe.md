@@ -244,6 +244,8 @@ Spiel in `pcwish.json` unter `steam`, `rev` und `igdb`; ältere Dateien ohne die
 |---|---|---|---|
 | Steam-Details | `store.steampowered.com/api/appdetails?appids=<ID>&l=german&cc=de` | je Spiel nach 90 Tagen (`DETAILS_DAYS`), zusammen mit den Rezensionen höchstens 60 Spiele je Lauf (`PCWISH_INFO`) | Genres, Mehrspieler, Erscheinen, Entwickler, Beschreibung, VR |
 | Steam-Rezensionen | wie bei der Sammlung (`appreviews/<ID>`) | je Spiel nach 30 Tagen (`REVIEWS_DAYS`) | Zahl und Anteil positiv |
+| Steam-Trend (0.8.18) | `store.steampowered.com/appreviewhistogram/<ID>?l=english&review_score_preference=0` | mit den Rezensionen, nur ab 50 Rezensionen | Stimmen der letzten 30 Tage (`recent`), abgelegt unter `rev.recent` |
+| Neuigkeiten (0.8.18) | wie bei Steam-Spieler und Updates (`GetNewsForApp`) | je Spiel nach 7 Tagen (`NEWS_DAYS`) | letztes Update für die Pflege, abgelegt unter `news` |
 | IGDB | `api.igdb.com/v4/external_games`, `games`, `game_time_to_beats` (nur mit IGDB-Schlüssel) | je Spiel nach 90 Tagen (`IGDB_DAYS`), gebündelt zu 400 Steam-IDs | Genres, Spieler, Spielzeit, Kritiken, Jahr |
 
 ## PCGamingWiki und Nexus Mods (Sammlung, ab 0.8.1)
@@ -278,6 +280,23 @@ neuer Export behält es. Der
 Verbindungstest prüft beide Steam-Abrufe an einem Rennspiel der Sammlung und die Liste (statt der
 PCGamingWiki-Vorlage „Input“, die kein Feld für Lenkräder hat).
 
+Preisverlauf (0.8.18, ohne eigenen Abruf): Bei jedem Preis von gg.deals vermerkt das Tool den besten Preis (Händler
+oder Keyshop) unter `ph` als `[Tag, Preis]`, nur wenn er sich ändert, 180 Tage lang. „Preissturz“ heißt: mindestens
+21 Tage Verlauf, und der Preis jetzt liegt mindestens 25 % und 3 € unter dem Median der Tagespreise der letzten 90 Tage.
+
+## Trend und Pflege (ab 0.8.18)
+
+Trend: Anteil positiver Steam-Rezensionen der letzten 30 Tage gegen alle, ab 50 Rezensionen insgesamt und 10 im
+Zeitraum; ab 8 Punkten Abstand steigend oder fallend. Die letzten 30 Tage kommen aus dem Bewertungsdiagramm des
+Steam-Stores (`appreviewhistogram`, nach dem Aufbau, den die Store-Seite selbst nutzt). Schickt Steam dort eine Seite
+statt Daten, fragt der Lauf nicht weiter und der Trend rechnet mit den eigenen Messungen: Bei jedem Abruf der
+Rezensionen merkt sich das Tool Zahl und genaue Zahl positiver (`rev.hist`, höchstens 8 Messungen,
+nur aus `appreviews`, das `total_positive` nennt). Der Unterschied zur jüngsten Messung, die 20 bis 120 Tage älter ist,
+sind die neuen Rezensionen. Der Verbindungstest fragt das Diagramm an einem Spiel der Sammlung („Steam, Trend“).
+
+Pflege: das letzte Update laut Steam-Neuigkeiten; bis 90 Tage „gepflegt“, über ein Jahr „ruht“. Für die Titel des
+Tools wie bisher unter Steam-Spieler und Updates, für die PC-Wunschliste ab 0.8.18 mit den Spielinfos.
+
 ## Steam-Wertungen (Wunschliste, Sammlung VR)
 
 Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.
@@ -285,6 +304,7 @@ Für alle Titel des Tools mit Steam-ID, ohne Schlüssel, nach den Steam-Details.
 | Abruf | Adresse | Wie oft | Liefert |
 |---|---|---|---|
 | Rezensionen | wie bei der Sammlung (`appreviews`) | je Lauf höchstens 60 Titel, zuerst die ohne Wert; jeder nach 30 Tagen neu, sofort bei geänderter Steam-ID | Zahl der Rezensionen und Anteil positiv |
+| Trend (0.8.18) | wie bei der PC-Wunschliste (`appreviewhistogram`) | mit jeder neu gefragten Rezensionszahl ab 50 | Stimmen der letzten 30 Tage |
 
 Hat die Sammlung dasselbe Spiel in den letzten 30 Tagen schon gefragt, wird der Wert übernommen
 statt neu abgerufen. Abgelegt je Titel unter `rev` in `data.json` (mit `app`, der Steam-ID). Die

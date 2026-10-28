@@ -218,6 +218,10 @@ label.kind{display:flex;gap:6px;align-items:center;max-width:100%}label.kind sel
 .shop.win{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
 .shop .cheap{color:var(--go);font-weight:600;font-size:12px}
 .over{color:var(--stop)}
+.tr{margin-left:2px;font-weight:600}
+.tr.up{color:var(--go)}
+.tr.down{color:var(--stop)}
+.b.care{background:transparent;border:1px solid var(--line);color:var(--muted)}
 /* Urteil (wie im eShopKompass): grün nur fürs Urteil */
 .vd{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;font-weight:600}
 .vd.buy{background:var(--go);color:var(--card)}
