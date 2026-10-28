@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.9.0:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.9.1:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Bestpreis über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 
@@ -367,6 +367,13 @@ Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheite
   PC-Wünsche dort gerade höchstens 5 % über dem Tief der Händler liegen, und zeigt nach Wahl genau diese mit dem Preis
   dort. So lassen sich mehrere Spiele in einem Laden kaufen. In den Einzelheiten eines PC-Wunschs steht die Zeile
   „Läden“: bis zu sechs Läden nach Preis, grün nah am Tief, Normalpreis, Tief dort und Angebotsende im Tooltip.
+- **Preisverlauf** (ab 0.9.1, wie im eShopKompass): „Preisverlauf“ in den Einzelheiten eines Wunschs öffnet die Kurve
+  je Laden der letzten 24 Monate, bei VR Meta, Steam und gg.deals, bei PC gg.deals und jeder Laden von IsThereAnyDeal
+  (beim ersten Abgleich mit Schlüssel rückwirkend, danach führt das Tool ihn fort). Gestrichelt der Bestpreis und
+  der typische Angebotspreis. Darunter je Laden: Preis jetzt, Normalpreis (der am längsten galt), tiefster Preis mit
+  Tag, Zahl der Angebote (jede Strecke mindestens 3 % unter normal), ihre übliche Dauer, Anteil der Zeit im Angebot,
+  typischer Angebotspreis (Median der Tiefstwerte je Angebot, ab zwei; war das letzte tiefer, dieses) und das
+  letzte Angebot. Ein Klick auf einen Laden blendet ihn aus.
 - **Spaltenreihenfolge** (ab 0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest, rechts das Nachschlagen.
   Sammlung: Spiel, (Sprache bei Retro), Wertung, Genre, Spielzeit, Mehrspieler, Spieler, Jahr, Rezensionen, Launcher;
   Reiter VR: Spiel, Besitz, Meta, Steam, Spieler, Update, Crossbuy, Recherche.

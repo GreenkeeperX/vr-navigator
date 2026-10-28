@@ -260,7 +260,14 @@ Quelle wie überall.
 | Zuordnung | `https://api.isthereanydeal.com/lookup/id/shop/61/v1` (POST, Liste `app/<Steam-ID>`) | je Spiel mit Steam-ID einmal, ohne Treffer nach 7 Tagen neu (`MISS_DAYS`), 200 je Abruf | ITAD-Kennung, abgelegt unter `itad_id` (ohne Treffer `itad_tried`) |
 | Preise je Laden | `https://api.isthereanydeal.com/games/prices/v3?country=DE&deals=false` (POST, Liste der Kennungen) | jeder Lauf, 200 Spiele je Abruf | je offiziellem Laden Preis, Normalpreis, Rabatt, Tief dort, Link, Angebotsende; Tief über alle Läden und der letzten zwölf Monate; abgelegt unter `itad` |
 
-Keyshops führt die Antwort nach der Doku nicht; sie kommen weiter von gg.deals. Eine andere Steam-ID (aus
+Ab 0.9.1 dazu der Verlauf je Laden:
+
+| Abruf | Adresse | Wie oft | Liefert |
+|---|---|---|---|
+| Verlauf je Laden | `https://api.isthereanydeal.com/games/history/v2?id=<Kennung>&country=DE&since=<vor 24 Monaten>` (GET) | je Spiel einmal (`sh_at`), 40 Spiele je Lauf (`ITAD_HIST`, zählt beim beschleunigten Auffüllen mit) | jede Preisänderung je Laden; abgelegt unter `sh` als `{Laden: [[Tag, Preis]]}` |
+
+Danach schreibt jeder Lauf die Preise je Laden selbst in `sh` fort (nur Änderungen, 24 Monate). Daraus und aus `ph`
+rechnet der Preisverlauf (`app/verlauf.py`, ohne Netz). Keyshops führt die Antwort nach der Doku nicht; sie kommen weiter von gg.deals. Eine andere Steam-ID (aus
 „Zu erledigen“) löscht `itad`, `itad_id` und `itad_tried`. Der Verbindungstest fragt Zuordnung und Preise an einer
 Steam-App der Wunschliste („IsThereAnyDeal, Zuordnung“, „IsThereAnyDeal, Preise“).
 
@@ -409,6 +416,8 @@ besten Fassung, gilt das der nächsten. Beta, Proto und Ähnliches zählen nicht
   Verlauf der QuestStoreDB-Titelseite dazu (je Tag gilt der eigene Wert). Daraus rechnet die
   Ansicht den Bestpreis der letzten 24 Monate je Shop (`prices.best_of`); gespeichert wird er
   nicht.
+- Preisverlauf (0.9.1): `GET /api/verlauf?vr=<Schlüssel>` liest `history.json`, `?pc=<Schlüssel>` die Felder `ph` und
+  `sh` in `pcwish.json`; nichts wird gespeichert.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
   Selbstprüfung (`warnings`), Protokoll.
 - `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB, Nexus Mods, ab 0.9.0 IsThereAnyDeal).

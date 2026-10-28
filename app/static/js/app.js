@@ -423,7 +423,8 @@ function pcDetail(r){
   const dtip = r.desc_src === "IGDB" ? "Beschreibung laut IGDB, nur auf Englisch" : "Kurzbeschreibung laut Steam";
   const side = `<div class="gdm">${r.desc ? `<p class="gdesc${V.gDesc === r.key ? " full" : ""}" data-act="gdesc" data-s="${esc(r.key)}" title="${dtip}${V.gDesc === r.key ? "" : ". Klick zeigt alles"}">${esc(r.desc)}</p>` : `<span class="hint">${r.kind ? "Pakete und DLC bekommen keine Spielinfos." : r.appid ? "Noch keine Spielinfos; der Abgleich holt sie." : "Ohne Steam-ID gibt es keine Spielinfos."}</span>`}</div>`;
   const links = [r.url && `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">bei gg.deals</a>`, r.appid && `<a href="https://store.steampowered.com/app/${esc(r.appid)}/" target="_blank" rel="noopener noreferrer">bei Steam</a>`].filter(Boolean);
-  const small = [r.since && `auf der Liste seit ${day(r.since)}`, r.srcs?.length && `Spielinfos von ${srcList(r)}`, r.price_at && `Preis von ${when(r.price_at)}`, ...links].filter(Boolean).join(" · ");
+  const vl = !r.kind && `<button class="link" data-act="verlauf" data-pc="${esc(r.key)}" title="Kurve je Laden, Tief, Angebote der letzten 24 Monate">Preisverlauf</button>`;
+  const small = [r.since && `auf der Liste seit ${day(r.since)}`, r.srcs?.length && `Spielinfos von ${srcList(r)}`, r.price_at && `Preis von ${when(r.price_at)}`, vl, ...links].filter(Boolean).join(" · ");
   return `<div class="gd" style="--dcols:minmax(180px,3fr) minmax(320px,5fr)"><div class="gdf">${facts}</div>${side}<p class="hint gds">${small}</p></div>`;
 }
 function vrWishView(){
@@ -565,7 +566,8 @@ function buyHtml(r){
 }
 function wishRow(r, inTable){
   const marks = inTable ? [r.crossbuy === false && badges(Object.assign({}, r, {wish: false, wheel: null, where: "", bundle: false, steam_sure: true})), wishListBadge(r)].filter(Boolean).join(" ") : "";
-  return `<div class="item wi${inTable ? " vw" : ""}">${inTable ? (marks ? `<div class="hd">${marks}</div>` : "") : `<div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}</div>`}
+  const vl = `<button class="link vlb" data-act="verlauf" data-vr="${esc(r.key)}" title="Kurve je Laden, Bestpreis, Angebote der letzten 24 Monate">Preisverlauf</button>`;
+  return `<div class="item wi${inTable ? " vw" : ""}">${inTable ? `<div class="hd">${marks}${vl}</div>` : `<div class="hd"><span class="nm">${esc(r.name)}</span>${buyBadge(r)}${badges(r)}${vl}</div>`}
     ${shopsHtml(r) || sheetHtml(r)}<div class="side">${buyHtml(r)}${factsHtml(r)}${opinionHtml(r)}
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}</div>
     ${moreHtml(r, `<button class="link" data-act="unwish" data-k="${esc(r.key)}" title="Von der Wunschliste nehmen; der Titel bleibt im Tool">nicht mehr wünschen</button>`)}</div>`;
@@ -1504,6 +1506,72 @@ function nowView(){
     (kind === "pc" ? pcPart : kind === "vr" ? vr : allPart);
 }
 
+/* ---------------------------------------------------------------- Preisverlauf (0.9.1)
+   Nach dem Vorbild des eShopKompass: Kurve je Laden aus dem eigenen Verlauf (VR: Meta, Steam, gg.deals; PC: gg.deals
+   und je Laden von IsThereAnyDeal), Linien für Bestpreis und typischen Angebotspreis, darunter je Laden die Zahlen */
+const VL_COLORS = {meta: "var(--brand)", steam: "var(--deal)", gg: "var(--muted)"};
+const VL_SHOP = ["#2563eb", "#c2410c", "#9333ea", "#0891b2", "#be185d", "#4d7c0f", "#a16207", "#64748b", "#7c3aed", "#0d6b4f"];
+const dm = iso => iso ? new Date(iso).toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"}) : "";
+async function openVerlauf(kind, key){
+  let v;
+  try{ v = await api(`/api/verlauf?${kind}=${encodeURIComponent(key)}`); }
+  catch(e){ toast(e.message); return; }
+  V.vl = {data: v, hide: new Set(v.series.length > 6 ? v.series.slice(6).map(s => s.name) : [])};
+  drawVerlauf();
+  const d = $("verlauf");
+  if(!d.open) d.showModal();
+}
+function vlColor(v, s){
+  if(VL_COLORS[s.kind]) return VL_COLORS[s.kind];
+  const shops = v.series.filter(x => x.kind === "shop");
+  return VL_SHOP[shops.indexOf(s) % VL_SHOP.length];
+}
+function drawVerlauf(){
+  const v = V.vl.data, d = $("verlauf");
+  let h = `<header><h2>${esc(v.name)}</h2><button data-act="vlclose" autofocus>Schließen</button></header>`;
+  if(!v.series.length){
+    d.innerHTML = h + `<p class="hint">Noch kein Verlauf. Jeder Abgleich hält fest, wenn sich ein Preis ändert.</p>`;
+    return;
+  }
+  const days = Math.round((new Date(v.today) - new Date(v.since)) / 864e5);
+  h += `<p class="hint">Verlauf seit ${day(v.since)} (${days} ${days === 1 ? "Tag" : "Tage"}), höchstens 24 Monate. Ein Angebot ist jede Strecke mindestens 3 % unter dem Normalpreis. Die eigene Aufzeichnung kennt nur Zeiten, in denen das Tool lief${v.series.some(s => s.kind === "meta") ? "; Meta reicht über QuestStoreDB weiter zurück" : ""}${v.series.some(s => s.kind === "shop") ? "; die Läden einzeln kommen von IsThereAnyDeal" : ""}.</p>`;
+  h += `<div class="lg">` + v.series.map(s => `<button class="${V.vl.hide.has(s.name) ? "off" : ""}" data-act="vltoggle" data-n="${esc(s.name)}" title="ein- oder ausblenden"><i style="background:${vlColor(v, s)}"></i>${esc(s.name)}</button>`).join("") + `</div>`;
+  h += vlSvg(v);
+  const last = s => { const l = s.sales[s.sales.length - 1]; return !l ? "–" : `${l.end ? `${dm(l.start)}–${dm(l.end)}` : `läuft seit ${dm(l.start)}`}<small>−${l.pct} %, ${eur(l.low)}</small>`; };
+  h += `<div class="scroll"><table><thead><tr><th>Laden</th><th>jetzt</th><th>normal</th><th title="Niedrigster Preis der letzten 24 Monate">tiefster</th><th title="Angebote in diesem Zeitraum">Angebote</th><th title="Mittlere Dauer der abgeschlossenen Angebote">Dauer</th><th title="Anteil der Zeit im Angebot">im Angebot</th><th title="Median der Tiefstwerte je Angebot, ab zwei Angeboten">typisch</th><th>zuletzt</th></tr></thead><tbody>` +
+    v.series.map(s => `<tr><td>${esc(s.name)}</td><td>${eur(s.now)}</td><td>${eur(s.regular)}</td><td>${eur(s.low)}<small>${day(s.low_at)}</small></td><td>${s.sale_count}</td><td>${s.typical_days == null ? "–" : s.typical_days + " T."}</td><td>${s.on_sale_pct} %</td><td>${s.typical == null ? "–" : eur(s.typical)}</td><td>${last(s)}</td></tr>`).join("") + `</tbody></table></div>`;
+  d.innerHTML = h;
+}
+function vlSvg(v){
+  // Breite nach Bildschirm, damit die Schrift auch am Handy lesbar bleibt (wie im eShopKompass)
+  const W = Math.max(300, Math.min(860, window.innerWidth - 70)), H = W < 600 ? 220 : 260, L = 44, R = 10, T = 12, B = 26;
+  const shown = v.series.filter(s => !V.vl.hide.has(s.name));
+  const t0 = +new Date(v.since), t1 = Math.max(+new Date(v.today), t0 + 864e5);
+  const refs = [];
+  if(v.best != null) refs.push({y: v.best, label: "Bestpreis", col: "var(--best)"});
+  if(v.typical != null && v.typical > v.best + 0.005) refs.push({y: v.typical, label: "typisch", col: "var(--muted)"});
+  const top = Math.max(1, ...shown.map(s => Math.max(s.regular || 0, ...s.points.map(p => p[1]))), ...refs.map(r => r.y)) * 1.08;
+  const x = t => L + (W - L - R) * (t - t0) / (t1 - t0), y = e => T + (H - T - B) * (1 - e / top);
+  let g = "";
+  const step = top > 80 ? 20 : top > 40 ? 10 : top > 16 ? 5 : top > 6 ? 2 : 1;
+  for(let e = 0; e <= top; e += step) g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(e)}" y2="${y(e)}"/><text x="${L - 6}" y="${y(e) + 4}" text-anchor="end">${e} €</text>`;
+  const ticks = W < 600 ? 3 : 5;
+  for(let i = 0; i <= ticks; i++){
+    const t = t0 + (t1 - t0) * i / ticks;
+    g += `<text x="${x(t)}" y="${H - 8}" text-anchor="${i === 0 ? "start" : i === ticks ? "end" : "middle"}">${new Date(t).toLocaleDateString("de-DE", {month: "2-digit", year: "2-digit"})}</text>`;
+  }
+  for(const r of refs) g += `<line class="ref" x1="${L}" x2="${W - R}" y1="${y(r.y)}" y2="${y(r.y)}" style="stroke:${r.col}"><title>${esc(r.label)}: ${eur(r.y)}</title></line><text x="${W - R}" y="${y(r.y) - 4}" text-anchor="end" style="fill:${r.col}">${esc(r.label)} ${eur(r.y)}</text>`;
+  for(const s of shown){
+    const pts = s.points, col = vlColor(v, s);
+    let p = `M${x(+new Date(pts[0][0]))},${y(pts[0][1])}`;
+    for(let i = 1; i < pts.length; i++) p += `H${x(+new Date(pts[i][0]))}V${y(pts[i][1])}`;
+    p += `H${x(t1)}`;
+    g += `<path class="ln" d="${p}" style="stroke:${col}"${s.kind === "gg" ? ` stroke-dasharray="6 4"` : ""}/>`;
+    g += pts.map(q => `<circle cx="${x(+new Date(q[0]))}" cy="${y(q[1])}" r="3" style="fill:${col}"><title>${esc(s.name)} ${day(q[0])}: ${eur(q[1])}</title></circle>`).join("");
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Preisverlauf in Euro">${g}</svg>`;
+}
+
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
@@ -2011,6 +2079,9 @@ document.addEventListener("click", async ev => {
     const gd = V.gOpen && document.querySelector(".gd");
     if(gd){ const r = gd.getBoundingClientRect(); if(r.bottom > innerHeight) scrollBy(0, Math.min(r.bottom - innerHeight + 12, r.top - 120)); }
   }
+  else if(a === "verlauf") openVerlauf(el.dataset.vr ? "vr" : "pc", el.dataset.vr || el.dataset.pc);
+  else if(a === "vlclose") $("verlauf").close();
+  else if(a === "vltoggle"){ const n = el.dataset.n; V.vl.hide.has(n) ? V.vl.hide.delete(n) : V.vl.hide.add(n); drawVerlauf(); }
   else if(a === "pwopen"){ V.pwOpen = V.pwOpen === el.dataset.s ? null : el.dataset.s; render(); }
   else if(a === "vwopen"){ V.vwOpen = V.vwOpen === el.dataset.s ? null : el.dataset.s; render(); }
   else if(a === "nowk"){ V.nowKind = v || ""; render(); }

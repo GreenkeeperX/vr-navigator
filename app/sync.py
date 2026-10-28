@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, igdb, itad, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, wheel
+from . import accounts, collection, igdb, itad, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, verlauf, wheel
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -92,12 +92,13 @@ WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Sch
 PCWISH_SEARCH = 60          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2, ab 0.8.24 60 statt 30)
 PCWISH_INFO = 60            # Spiele der PC-Wunschliste je Lauf mit Steam-Details und Rezensionen (0.8.11)
 ITAD_PAUSE = 1.0            # IsThereAnyDeal erlaubt 1000 Abrufe je 5 Minuten; ein Lauf braucht nur wenige
+ITAD_HIST = 40              # Spiele je Lauf, deren Verlauf je Laden einmal rückwirkend kommt (0.9.1)
 IGDB_PAUSE = 0.3            # IGDB erlaubt 4 Anfragen je Sekunde
 # Beschleunigt auffüllen (0.8.6): ein Lauf von Hand mit FAST-fachen Grenzen für die langen Warteschlangen.
 # Pausen und der Abbruch bei 403 und 429 bleiben; der Lauf dauert dafür entsprechend länger.
 FAST = 5
 FAST_LIMITS = ("ACTIVE_MAX", "TREND_MAX", "REVIEWS_MAX", "DETAILS_MAX", "RATING_MAX", "IGDB_NAMES", "PCGW_MAX", "NEXUS_MAX", "WHEEL_MAX", "PCWISH_INFO",
-               "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH")
+               "PLAYERS_MAX", "VRDB_MAX", "PCWISH_SEARCH", "ITAD_HIST")
 RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschliste und in der Bibliothek
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
@@ -1667,7 +1668,23 @@ def _itad(settings, log):
         except ValueError as e:
             log(str(e))
             break
+    # 0.9.1: einmal je Spiel der Verlauf je Laden der letzten 24 Monate, danach führt das Tool ihn selbst fort
+    since = (now() - timedelta(days=verlauf.MONTHS * 31)).date().isoformat()
+    back = {}
+    for g in [g for g, es in known.items() if not any(e.get("sh_at") for e in es)][:ITAD_HIST]:
+        if src.stopped:
+            break
+        progress("IsThereAnyDeal: Verlauf je Laden", len(back), ITAD_HIST)
+        text = src.get(itad.history_url(g, since), shown="Verlauf je Laden")
+        if text is None:
+            continue
+        try:
+            back[g] = itad.history(text)
+        except ValueError as e:
+            log(str(e))
+            break
     stamp = titles.now_iso()
+    day = now().strftime("%Y-%m-%d")
     with store.lock:
         pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
         for e in (pw.get("items") or {}).values():
@@ -1678,12 +1695,16 @@ def _itad(settings, log):
                     e["itad_id"] = ids[a]
                     e.pop("itad_tried", None)
             g = e.get("itad_id")
+            if g in back:
+                verlauf.merge_history(e, back[g])
+                e["sh_at"] = stamp
             if g in got:
                 e["itad"] = dict(got[g], at=stamp)
+                verlauf.record_shops(e, got[g], day)
         store.save_json(pcwish.FILE, pw)
     shops = sum(len(v["shops"]) for v in got.values())
     log(f"IsThereAnyDeal: {len(ids)} Spiele neu zugeordnet ({len(ask)} gefragt), Preise für {len(got)} Spiele"
-        f" aus {shops} Angeboten der Läden, {_took(start)}")
+        f" aus {shops} Angeboten der Läden" + (f", Verlauf je Laden für {len(back)} Spiele nachgeholt" if back else "") + f", {_took(start)}")
     src.stats = {"priced": len(got), "shops": shops}
     return src.result()
 

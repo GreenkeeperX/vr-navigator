@@ -8,9 +8,10 @@ import re
 import sys
 import threading
 import traceback
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import collection, imports, library, lists, pcwish, retro, sources, store, sync, titles, wheel
+from . import collection, imports, library, lists, pcwish, retro, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -385,6 +386,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, diag_view())
             elif path == "/api/status":
                 self._send(200, sync.status())
+            elif path == "/api/verlauf":
+                # Preisverlauf eines Titels (0.9.1): ?vr=<Schlüssel> oder ?pc=<Schlüssel der PC-Wunschliste>
+                q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                vk, pk = (q.get("vr") or [""])[0][:300], (q.get("pc") or [""])[0][:300]
+                if vk and vk in store.load_data()["titles"]:
+                    self._send(200, verlauf.vr(store.load_data()["titles"][vk], store.load_json("history.json", {})))
+                elif pk and pk in (store.load_json(pcwish.FILE, pcwish.EMPTY).get("items") or {}):
+                    self._send(200, verlauf.pc(store.load_json(pcwish.FILE, pcwish.EMPTY)["items"][pk]))
+                else:
+                    self._send(404, {"error": "Titel nicht gefunden"})
             elif path == "/api/collection":
                 self._send(200, collection_body())
             elif path == "/api/export":
