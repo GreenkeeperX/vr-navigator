@@ -331,9 +331,9 @@ function pcWishView(pw){
 /* Tabelle der PC-Wünsche (0.8.11 mit Spielinfos), auch unter „Jetzt“. Ab 0.8.17 wie im eShopKompass: vorn der Preis jetzt
    (Link zu gg.deals, Händler, Keyshop und Tief im Tooltip) und der Abstand zum Tief („am Tief“ grün, sonst rot), dahinter die
    Spielinfos wie in der Sammlung (gSc, gGenres, gYear); der Name klappt Einzelheiten auf */
-const PC_COLS = "minmax(160px,2fr) 76px 76px 62px minmax(0,1.2fr) 66px 52px 44px";
+const PC_COLS = "minmax(160px,2fr) 76px 76px 62px minmax(0,1.2fr) 66px minmax(90px,.8fr) 44px";
 function pcTable(rows){
-  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt bei gg.deals, Händler oder Keyshop; Einzelheiten im Tooltip">Preis</span><span class="r" title="Abstand zum bisherigen Tief laut gg.deals">zum Tief</span><span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span class="r" title="Höchste Spielerzahl laut IGDB, sonst Steam (violett)">Spieler</span><span class="r" title="Erscheinungsjahr">Jahr</span></div>`;
+  const head = `<div class="gr nph"><span>Spiel</span><span class="r" title="Günstigster Preis jetzt bei gg.deals, Händler oder Keyshop; Einzelheiten im Tooltip">Preis</span><span class="r" title="Abstand zum bisherigen Tief laut gg.deals">zum Tief</span><span class="r" title="Anteil positiver Steam-Rezensionen ab 50, sonst IGDB (grau und kursiv)">Wertung</span><span title="Von Steam und IGDB; violett: nur eine Quelle">Genre</span><span class="r" title="Laut IGDB: normal, sonst eilig">Spielzeit</span><span title="Laut Steam und IGDB, violett: nur eine Quelle; dahinter die höchste Spielerzahl laut IGDB, sonst Steam (violett)">Mehrspieler</span><span class="r" title="Erscheinungsjahr">Jahr</span></div>`;
   return `<div class="glist box pcw" style="--gcols:${PC_COLS}">${head}${rows.map(pcRow).join("")}</div>`;
 }
 function pcPriceTip(r){
@@ -354,7 +354,7 @@ function pcRow(r){
     `<span class="r" data-l="Preis">${price}</span>` + cell("zum Tief", low, "r") +
     cell("Wertung", gSc(r) + (r.score_src === "Steam" ? trendMark(r.trend) : ""), "r") +
     `<span class="c-gen${r.genres?.length ? "" : " nil"}" data-l="Genre">${r.genres?.length ? gGenres(r, open) : G_NIL}</span>` +
-    cell("Spielzeit", hours, "r") + cell("Spieler", pl, "r") + cell("Jahr", gYear(Object.assign({mp: [], genres: []}, r)), "r") + `</div>` + (open ? pcDetail(r) : "");
+    cell("Spielzeit", hours, "r") + cell("Mehrspieler", [r.mp?.length ? gMp(Object.assign({genres: []}, r)) : "", pl].filter(Boolean).join(" ")) + cell("Jahr", gYear(Object.assign({mp: [], genres: []}, r)), "r") + `</div>` + (open ? pcDetail(r) : "");
 }
 // Einzelheiten eines PC-Wunschs: was die Zeile nicht zeigt, rechts die Beschreibung, darunter Herkunft und Links
 function pcDetail(r){
@@ -829,6 +829,11 @@ const COLS = [
   {k: "year", l: "Jahr", w: "44px", cls: "r", d0: -1, cell: gYear, sort: g => g.year || null},
   {k: "store", l: "Launcher", w: "92px", tip: "PC: Launcher laut Playnite (violett: nur vermutet); Konsolen: das System", cell: gSrc, sort: g => g.system !== "PC" ? g.system : g.store || null},
 ];
+/* Reihenfolge (0.8.19, Entscheidung 28.10.2026): links, wonach du entscheidest (Wertung, Genre, Spielzeit, Mehrspieler),
+   rechts das Nachschlagen (Jahr, Rezensionen, Launcher); Retro mit der Sprache vorn. Reiter VR: Besitz, Wertungen, Spieler
+   und Update vorn, Crossbuy und Recherche rechts */
+const COL_ORDER = ["own", "rmeta", "rsteam", "play", "upd", "cb", "op", "lang", "sc", "genre", "hours", "mp", "pl", "year", "rev", "store"];
+COLS.sort((a, b) => COL_ORDER.indexOf(a.k) - COL_ORDER.indexOf(b.k));
 /* Switch-Spiele (0.7.5, Entscheidung 27.10.2026): Spalten, Marken und Einzelheiten 1:1 wie „Spiele“ im
    eShopKompass, aus der Zeile, die er unter kv mitgibt (ab eShopKompass 1.7.17). Violett heißt wie dort:
    Nintendo nennt etwas anderes als DekuDeals (Tooltip); grau und kursiv: OpenCritic statt Metacritic */
