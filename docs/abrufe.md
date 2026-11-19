@@ -33,7 +33,7 @@ für sich, außer sie hängt von einer anderen ab oder teilt mit ihr den Server)
 | VRDB | VRDB | vrdb.app |
 | Steam-Spieler | Spielerzahlen, aktive Spieler PC | api.steampowered.com |
 | IGDB | IGDB | api.igdb.com |
-| PCGamingWiki | PCGamingWiki | pcgamingwiki.com |
+| PCGamingWiki, Flat2VR | PCGamingWiki, ab 0.10.28 Flat2VR Index und UEVR Hub | pcgamingwiki.com, raw.githubusercontent.com |
 | Nexus Mods | Nexus Mods | api.nexusmods.com |
 | Sim-Racing, Retro | Sim-Racing, Retro-Fassungen, GameTDB | api.steampowered.com, Listen der Rennsimulationen, raw.githubusercontent.com, gametdb.com |
 | DekuDeals | DekuDeals | dekudeals.com |
@@ -339,6 +339,24 @@ Abgleich nach und nach neu, 60 je Lauf.
 
 Nexus mit einer Sekunde Pause je Anfrage, mit persönlichem Schlüssel als Kopfzeile `apikey`. Abgelegt je
 Spiel unter `pcgw` und `nexus` in `collection.json`; ein neuer Export behält beides.
+
+## Flat2VR Index und UEVR Hub (Sammlung, ab 0.10.28)
+
+Für „VR per Mod“ am PC: kuratierte VR-Ports und gesammelte UEVR-Profile. Je Datei höchstens ein Abruf in
+`FLAT2VR_HOURS` (20) Stunden, mit `If-None-Match` und dem gespeicherten ETag; bei 304 bleibt die Liste stehen,
+nur der Zeitpunkt der Prüfung wird einmal am Tag gemerkt.
+
+| Abruf | Adresse | Liefert |
+|---|---|---|
+| Flat2VR Index | `https://raw.githubusercontent.com/jrejaud/awesome-flat2vr/HEAD/data/ports.json` | je Port Name, Spiele, Art, Plattform, Steuerung, Stand, Version mit Datum, Links, bekannte Fehler, zuletzt geprüft (CC0 1.0) |
+| UEVR Hub | `https://raw.githubusercontent.com/uevr-profiles/repo/main/repo.json` (lädt auch die Seite des Hubs) | je Profil Spielname, Autor, Datum, Schlagwörter 6DOF, 3DOF, Motion Controls, Ordner des Profils |
+
+Abgelegt in `flat2vr.json` und `uevr.json` im Datenordner (`v`, `at`, `checked`, `etag`, die Liste, `removed` mit den
+letzten 50 weggefallenen Einträgen und den Spielen, an denen sie hingen). Weniger als 20 Ports oder 50 Spiele mit
+Profil gelten als unlesbar, die alte Liste gilt weiter. Beide Dateien nennen keine Steam-ID; `flat2vr.assign` ordnet
+über die Namen laut Playnite, Steam und IGDB zu (Klammerzusatz muss passen, Doppelte und Spiele mit eingebautem VR
+bekommen nichts). Die Sammlung rechnet die Zuordnung beim Aufbau (`collection.f2vr_match`), `collection.json` bleibt
+unverändert. Profile werden nie heruntergeladen.
 
 ## Sim-Racing (Sammlung, ab 0.8.3)
 

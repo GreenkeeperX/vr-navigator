@@ -13,7 +13,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import aufgaben, besitz, collection, imports, library, lists, muster, pcwish, retro, sources, store, sync, titles, verlauf, wheel
+from . import aufgaben, besitz, collection, flat2vr, imports, library, lists, muster, pcwish, retro, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -190,7 +190,7 @@ def price_stats(data=None, pw=None, hist=None):
 
 
 # Was der Zustand liest (0.10.15): ändert sich keine dieser Dateien, kommt er aus dem Zwischenspeicher
-STATE_FILES = ("data.json", collection.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE)
+STATE_FILES = ("data.json", collection.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
 
 
 def _state_core():
@@ -220,7 +220,7 @@ def state():
 
 def collection_view():
     """Die Sammlung wie in der Oberfläche, zwischengespeichert, bis sich eine der Dateien ändert."""
-    return memo("colview", (collection.FILE, "data.json", wheel.LIST_FILE),
+    return memo("colview", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE),
                 lambda: collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
 
 
@@ -229,7 +229,7 @@ def collection_body():
     def make():
         raw = json.dumps(collection_view(), ensure_ascii=False).encode("utf-8")
         return raw, gzip.compress(raw, compresslevel=5)
-    return memo("collection", (collection.FILE, "data.json", wheel.LIST_FILE), make)
+    return memo("collection", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE), make)
 
 
 # Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder

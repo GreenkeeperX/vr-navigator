@@ -1225,6 +1225,168 @@ class TestSources(unittest.TestCase):
         self.assertRegex(sources.VERSION, r"^\d+\.\d+\.\d+$")
 
 
+def f2_port(name, games, **kw):
+    """Ein Port im Aufbau von data/ports.json des Flat2VR Index (erfunden)."""
+    p = {"slug": titles.norm(name).replace(" ", "-"), "name": name, "games": games, "category": "mod", "authors": [{"name": "Kite Works"}],
+         "platform": "pcvr", "controls": "6dof", "status": "beta", "version": "1.0.0", "version_date": "2026-09-01",
+         "download_url": "https://example.org/" + titles.norm(name).replace(" ", "-") + "/releases", "source_url": "https://example.org/src",
+         "license": "MIT", "required_files": "eigene Kopie", "known_bugs": [], "reviews": [], "added_by": "bot",
+         "discovered_via": "https://example.org/liste", "last_checked": "2026-11-10"}
+    p.update(kw)
+    return p
+
+
+def uevr_profile(game, n=0, tags=(), date="2025-03-01T10:00:00Z", author="Mala"):
+    """Ein Profil im Aufbau von repo.json des UEVR Hubs (erfunden)."""
+    folder = f"00000000-0000-4000-8000-{n:012d}"
+    return {"ID": folder, "exeName": game.replace(" ", "") + "-Win64-Shipping", "gameName": game, "authorName": author,
+            "modifiedDate": date, "sourceName": "uevr-profiles.com", "sourceUrl": "https://uevr-profiles.com/", "downloadDate": "2026-03-12T14:21:38Z",
+            "zipHash": "0" * 32, "tags": list(tags), "sourceDownloadUrl": "https://uevr-profiles.com/",
+            "downloadUrl": "https://gitfolderdownloader.github.io/?url=" + urllib.parse.quote(f"https://github.com/uevr-profiles/repo/tree/main/profiles/{folder}", safe="") + "&name=x"}
+
+
+F2_PORTS = [f2_port("Lantern Hollow VR", ["Lantern Hollow"], known_bugs=["Zwischensequenzen flach", "Menü klein"], source_url="javascript:alert(1)"),
+            f2_port("Comet Chase Remake VR", ["Comet Chase (Remake)"]),
+            f2_port("Moon Rover Classic VR", ["Moon Rover (1999)"], status="alpha", platform="standalone"),
+            f2_port("Pixel Kart XR", ["Pixel Kart (SNES)"], category="source-port"),
+            f2_port("Echo Valley VR", ["Echo Valley"]),
+            f2_port("Sky Arena Plus", ["Sky Arena"]),
+            f2_port("Harbor Heist Duo", ["Old Harbor / Harbor Heist"], status="abandoned"),
+            f2_port("Harbor Heist VR", ["Harbor Heist (PC)"], controls="gamepad")] + \
+    [f2_port(f"Filler Port {i}", [f"Filler Game {i}"]) for i in range(20)]
+F2_UEVR = [uevr_profile("Quiet Garden", 1, ["6DOF", "Motion Controls"], "2025-05-02T10:00:00Z", "Mala"),
+           uevr_profile("Quiet Garden", 2, ["3DoF"], "2024-01-01T10:00:00Z", "Rook"),
+           uevr_profile("Lantern Hollow", 3, ["3DOF"])] + [uevr_profile(f"Filler Game {i}", 10 + i) for i in range(50)]
+F2_COL = {"games": {
+    "steam:1": {"name": "Lantern Hollow", "store": "Steam", "id": "3000301", "released": "2022-04-01", "steam": {"name": "Lantern Hollow", "vr": False}},
+    "steam:2": {"name": "Comet Chase", "store": "Steam", "id": "3000302", "released": "2024-02-02"},
+    "gog:3": {"name": "Moon Rover", "store": "GOG", "id": "m1", "released": "1999-10-10"},
+    "steam:4": {"name": "Moon Rover", "store": "Steam", "id": "3000304", "released": "2021-05-05"},
+    "steam:5": {"name": "Pixel Kart", "store": "Steam", "id": "3000305", "released": "2019-01-01"},
+    "retro:6": {"name": "Pixel Kart", "system": "SNES", "src": "retro", "released": "1993-01-01"},
+    "steam:7": {"name": "Echo Valley", "store": "Steam", "id": "3000307"},
+    "gog:8": {"name": "Echo Valley", "store": "GOG", "id": "e8"},
+    "steam:9": {"name": "Sky Arena", "store": "Steam", "id": "3000309", "steam": {"name": "Sky Arena", "vr": True}},
+    "steam:10": {"name": "Harbor Heist", "store": "Steam", "id": "3000310", "released": "2019-03-12"},
+    "steam:11": {"name": "Quiet Garden", "store": "Steam", "id": "3000311", "released": "2023-01-01"}}}
+
+
+class TestFlat2vr(unittest.TestCase):
+    """0.10.28: VR-Ports aus dem Flat2VR Index und UEVR-Profile aus dem UEVR Hub."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        self._fetch, self._sleep = sources.fetch, sync.sleep
+        sync.sleep = lambda s: None
+
+    def tearDown(self):
+        sources.fetch, sync.sleep = self._fetch, self._sleep
+
+    def test_parse(self):
+        from app import flat2vr
+        ports = flat2vr.parse_ports(json.dumps(F2_PORTS))
+        lh = ports[0]
+        self.assertEqual((lh["name"], lh["plat"], lh["ctl"], lh["st"], lh["bugs_n"], lh["src"], lh["chk"]),
+                         ("Lantern Hollow VR", "pcvr", "6dof", "beta", 2, "", "2026-11-10"))       # kein javascript:-Link
+        self.assertIsNone(flat2vr.parse_ports("<html>"))
+        self.assertIsNone(flat2vr.parse_ports('{"ports": []}'))
+        bad = flat2vr.parse_ports(json.dumps([f2_port("Odd", ["Odd Game"], status="kaputt", download_url="http://user:pw@example.org/")]))[0]
+        self.assertEqual((bad["st"], bad["dl"]), ("", ""))
+        games = {g["name"]: g for g in flat2vr.parse_uevr("\ufeff" + json.dumps(F2_UEVR))}
+        qg = games["Quiet Garden"]
+        self.assertEqual((qg["n"], qg["dof"], qg["mc"], qg["date"], qg["by"]), (2, "6dof", True, "2025-05-02", ["Mala", "Rook"]))
+        self.assertEqual(qg["dir"], "https://github.com/uevr-profiles/repo/tree/main/profiles/00000000-0000-4000-8000-000000000001")
+        self.assertEqual(games["Lantern Hollow"]["dof"], "3dof")
+
+    def test_assign(self):
+        """Klammerzusatz muss passen, Doppelte bekommen nichts, eingebautes VR auch nicht, „ / “ trennt Spiele."""
+        from app import flat2vr
+        ports = flat2vr.parse_ports(json.dumps(F2_PORTS))
+        uevr = flat2vr.parse_uevr(json.dumps(F2_UEVR))
+        hit, amb = flat2vr.assign(collection.f2vr_items(F2_COL), ports, uevr, lambda q: collection.system_of([q]))
+        got = {k: sorted(p["name"] for p in v.get("ports", [])) for k, v in hit.items()}
+        self.assertEqual(got["steam:1"], ["Lantern Hollow VR"])
+        self.assertNotIn("steam:2", got)                     # „Comet Chase (Remake)“ ist nicht „Comet Chase“
+        self.assertEqual(got["gog:3"], ["Moon Rover Classic VR"])   # das von 1999
+        self.assertNotIn("steam:4", got)                     # die Neuauflage von 2021 nicht
+        self.assertEqual(got["retro:6"], ["Pixel Kart XR"])  # nur das SNES-Spiel
+        self.assertNotIn("steam:5", got)
+        self.assertNotIn("steam:7", got)                     # zwei „Echo Valley“: keins
+        self.assertNotIn("gog:8", got)
+        self.assertNotIn("steam:9", got)                     # VR schon eingebaut
+        self.assertEqual(got["steam:10"], ["Harbor Heist Duo", "Harbor Heist VR"])
+        self.assertEqual(amb, 1)
+        self.assertEqual((hit["steam:11"]["uevr"]["n"], hit["steam:1"]["uevr"]["dof"]), (2, "3dof"))
+
+    def fake(self, ports, uevr, status=200):
+        calls = []
+
+        def fetch(url, timeout=25, ua=None, headers=None, data=None, meta=None):
+            calls.append((url, dict(headers or {})))
+            if meta is not None:
+                meta.update(status=status, etag="v1" if "ports" in url else "u1")
+            if status == 304:
+                return ""
+            return json.dumps(ports if "ports.json" in url else uevr)
+        fetch.calls = calls
+        return fetch
+
+    def test_sync(self):
+        """Abruf mit ETag, einmal am Tag; unverändert kein neues Schreiben der Liste; weggefallene Ports mit dem
+        Spiel, an dem sie hingen; die Sammlung bekommt Marken über view, und der Auftrag „VR-Mods“ lässt sie aus."""
+        from app import flat2vr
+        store.save_json(collection.FILE, F2_COL)
+        log = []
+        sources.fetch = net = self.fake(F2_PORTS, F2_UEVR)
+        r = sync._flat2vr(log.append)
+        self.assertTrue(r["ok"])
+        self.assertEqual((r["ports"], r["uevr"], r["hit_ports"], r["hit_uevr"]), (28, 52, 4, 2))
+        self.assertEqual(store.load_json(flat2vr.PORTS_FILE, {})["etag"], "v1")
+        self.assertIn("Flat2VR und UEVR: in deiner Sammlung 4 Spiele mit Port, 2 mit UEVR-Profil; 1 Name passt zu mehreren Spielen und bleibt offen", log)
+        # gleich danach: kein Abruf
+        sources.fetch = net = self.fake(F2_PORTS, F2_UEVR)
+        sync._flat2vr(log.append)
+        self.assertEqual(net.calls, [])
+        # nach einem Tag: „nur wenn geändert“, 304 lässt die Liste stehen
+        for f in (flat2vr.PORTS_FILE, flat2vr.UEVR_FILE):
+            d = store.load_json(f, {})
+            store.save_json(f, dict(d, checked="2026-01-01T00:00:00+00:00"))
+        before = store.load_json(flat2vr.PORTS_FILE, {})
+        sources.fetch = net = self.fake(F2_PORTS, F2_UEVR, status=304)
+        sync._flat2vr(log.append)
+        self.assertEqual(net.calls[0][1].get("If-None-Match"), "v1")
+        after = store.load_json(flat2vr.PORTS_FILE, {})
+        self.assertEqual((after["ports"], after["at"]), (before["ports"], before["at"]))
+        self.assertNotEqual(after["checked"], before["checked"])
+        self.assertTrue(any("unverändert" in x for x in log))
+        # ein Port fällt weg: das Protokoll nennt das Spiel, die Datei merkt es sich
+        store.save_json(flat2vr.PORTS_FILE, dict(after, checked="2026-01-01T00:00:00+00:00"))
+        sources.fetch = self.fake([p for p in F2_PORTS if p["name"] != "Lantern Hollow VR"], F2_UEVR)
+        sync._flat2vr(log.append)
+        self.assertIn("Flat2VR und UEVR: Flat2VR Index führt „Lantern Hollow VR“ nicht mehr (hing an: Lantern Hollow)", log)
+        self.assertEqual(store.load_json(flat2vr.PORTS_FILE, {})["removed"][-1]["games"], ["Lantern Hollow"])
+        # eine kaputte Datei ersetzt die gute nicht
+        store.save_json(flat2vr.PORTS_FILE, dict(store.load_json(flat2vr.PORTS_FILE, {}), checked="2026-01-01T00:00:00+00:00"))
+        sources.fetch = self.fake([], F2_UEVR)
+        sync._flat2vr(log.append)
+        self.assertEqual(len(store.load_json(flat2vr.PORTS_FILE, {})["ports"]), 27)
+        # Sammlung: Port gefüllt, UEVR als Hinweis; der Auftrag „VR-Mods prüfen“ lässt beide aus
+        rows = {r["key"]: r for r in collection.view(store.load_json(collection.FILE, {}))["games"]}
+        self.assertEqual([p["name"] for p in rows["steam:10"]["f2vr"]], ["Harbor Heist Duo", "Harbor Heist VR"])
+        self.assertNotIn("games", rows["steam:10"]["f2vr"][0])
+        self.assertEqual(rows["steam:11"]["uevr"]["n"], 2)
+        self.assertNotIn("f2vr", rows["steam:1"])            # der Port ist weggefallen, das UEVR-Profil bleibt
+        self.assertEqual(rows["steam:1"]["uevr"]["dof"], "3dof")
+        left = {x["id"] for x in aufgaben.items("vrmod", empty(), games=list(rows.values()))}
+        self.assertFalse({"steam:1", "steam:10", "steam:11"} & left)
+        self.assertIn("steam:2", left)
+
+    def test_old_data(self):
+        """Ohne die beiden Dateien bleibt die Sammlung wie bisher."""
+        rows = collection.view(F2_COL)["games"]
+        self.assertFalse(any("f2vr" in r or "uevr" in r for r in rows))
+
+
 class TestAufgaben(unittest.TestCase):
     """0.10.24: Aufträge zu „Zu erledigen“ und ihre Antworten."""
 
@@ -1839,7 +2001,7 @@ class FakeNet:
     def __init__(self, answers):
         self.answers, self.calls = answers, []
 
-    def __call__(self, url, timeout=25, ua=None, headers=None, data=None):
+    def __call__(self, url, timeout=25, ua=None, headers=None, data=None, meta=None):
         self.calls.append(url)
         self.bodies = getattr(self, "bodies", []) + [data]
         self.heads = getattr(self, "heads", []) + [headers]
@@ -4237,6 +4399,16 @@ class TestUi(unittest.TestCase):
         self.assertEqual(r["xp"], {"on": True, "with": [], "src": "Steam"})
         self.assertNotIn("xp", pcwish.info({"name": "x", "steam": {"ok": True, "xp": False}}))
         self.assertIn("xp", pcwish.info({"name": "x", "steam": dict(det, ok=True)}))
+
+    def test_ui_1028(self):
+        """0.10.28: Ports laut Flat2VR Index als „VR per Mod“, UEVR-Profile als Hinweis, beide in den Einzelheiten."""
+        js = self.read("js/app.js")
+        for name in ("g.f2vr?.length || g.uevr", "const f2Live = g =>", "function f2Port(p)", "function uevrHtml(u)",
+                     "...(g.f2vr || []).map(f2Port), g.uevr && uevrHtml(g.uevr)", '["flat2vr", "Flat2VR Index und UEVR Hub',
+                     "ein Profil heißt nicht, dass das Spiel gut läuft", 'safeUrl(p.src) ? p.src'):
+            self.assertIn(name, js)
+        # ein aufgegebener Port allein gibt keine gefüllte Marke
+        self.assertIn('f2vr || []).filter(p => p.st !== "abandoned")', js)
 
     def test_ui_1027(self):
         """0.10.27: Sammlung nach Erscheinungsjahr filtern („ab“, „vor“) und Genres ausschließen („ohne“)."""

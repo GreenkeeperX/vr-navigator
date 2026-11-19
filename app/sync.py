@@ -28,7 +28,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, deku, gametdb, igdb, itad, library, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, verlauf, wheel, wiki
+from . import accounts, collection, deku, flat2vr, gametdb, igdb, itad, library, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, verlauf, wheel, wiki
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -46,7 +46,7 @@ JUMP = 0.5                  # Selbstprüfung: Normalpreis ändert sich um mehr a
 NAMES = {"steamacc": "Steam-Konto", "ggwish": "gg.deals-Wunschliste", "sharenite": "Sharenite", "qsdb": "QuestStoreDB", "steam": "Steam",
          "gg": "gg.deals", "reviews": "Steam-Rezensionen", "details": "Steam-Details",
          "rating": "Steam-Wertungen", "vrdb": "VRDB", "players": "Steam-Spieler", "active": "Aktive Spieler PC", "retro": "Retro-Fassungen",
-         "gametdb": "GameTDB", "deku": "DekuDeals", "wiki": "Wikidata", "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "vrinfo": "VR-Titel, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "eshop": "eShopKompass",
+         "gametdb": "GameTDB", "deku": "DekuDeals", "wiki": "Wikidata", "igdb": "IGDB", "pcwish": "PC-Wunschliste", "pcinfo": "PC-Wunschliste, Spielinfos", "vrinfo": "VR-Titel, Spielinfos", "pcgw": "PCGamingWiki", "nexus": "Nexus Mods", "wheel": "Sim-Racing", "flat2vr": "Flat2VR und UEVR", "eshop": "eShopKompass",
          "itad": "IsThereAnyDeal"}
 SHOPS = {"meta": "Meta", "steam": "Steam", "gg": "gg.deals Händler"}
 QSDB_HEAD = {"Cookie": "currency=EUR"}     # Preise und Verlauf in Euro
@@ -90,6 +90,7 @@ NEXUS_DAYS = 30
 NEXUS_LIST_DAYS = 7         # Spieleliste von Nexus Mods (nexus_games.json) so oft neu
 WHEEL_MAX = 400             # Steam-Spiele je Lauf für die Schlagwörter (0.8.3), je Anfrage wheel.BATCH
 WHEEL_DAYS = 90
+FLAT2VR_HOURS = 20          # Flat2VR Index und UEVR Hub höchstens so oft (0.10.28), sonst gilt die gespeicherte Liste
 WHEEL_LIST_DAYS = 30        # Liste der Rennsimulationen und Liste der Steam-Schlagwörter so oft neu
 PCWISH_SEARCH = 60          # Steam-Suchen je Lauf für Spiele der PC-Wunschliste ohne Steam-ID (0.8.2, ab 0.8.24 60 statt 30)
 VRINFO_MAX = 60             # VR-Titel je Lauf mit Steam-Details (0.9.4)
@@ -311,9 +312,10 @@ class _Source:
         self.stopped, self.blocked = why, True
         self.log(f"{self.name}: {why} bei {where}, Quelle ruht {REST_H} Stunden")
 
-    def get(self, url, shown=None, absent=(), data=None, raw=False):
+    def get(self, url, shown=None, absent=(), data=None, raw=False, etag="", meta=None):
         """Text der Antwort, None bei Fehler. Statuscodes in absent heißen „gibt es nicht“: dann
-        "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler). Mit data als POST (IGDB)."""
+        "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler). Mit data als POST (IGDB).
+        Mit etag (0.10.28) fragt der Abruf „nur wenn geändert“; meta bekommt Status (304: unverändert) und ETag."""
         if self.stopped:
             return None
         self.n += 1
@@ -327,8 +329,10 @@ class _Source:
                     if wait > 0:
                         sleep(wait)
                     try:
-                        text = (sources.fetch(url, headers=self.headers, raw=True, timeout=90) if raw
-                                else sources.fetch(url, headers=self.headers, data=data) if data is not None else sources.fetch(url, headers=self.headers))
+                        head = dict(self.headers or {}, **({"If-None-Match": etag} if etag else {})) or None
+                        text = (sources.fetch(url, headers=head, raw=True, timeout=90) if raw
+                                else sources.fetch(url, headers=head, data=data) if data is not None
+                                else sources.fetch(url, headers=head, meta=meta) if meta is not None else sources.fetch(url, headers=head))
                     finally:
                         slot[1] = time.monotonic()
                 break
@@ -2333,6 +2337,68 @@ def _nexus(settings, log):
     return src.result()
 
 
+def _flat2vr(log):
+    """Flat-to-VR (0.10.28): Ports aus dem Flat2VR Index und UEVR-Profile aus dem UEVR Hub, je höchstens einmal am Tag
+    (FLAT2VR_HOURS) und nur „wenn geändert“ (ETag). Unverändert wird nichts geschrieben. Fällt ein Eintrag weg,
+    sagt das Protokoll, woran er in deiner Sammlung hing; die letzten REMOVED_KEEP bleiben in der Datei."""
+    label = NAMES["flat2vr"]
+    src = _Source(label, log)
+    due = _iso(now() - timedelta(hours=FLAT2VR_HOURS))
+    col = store.load_json(collection.FILE, collection.EMPTY)
+    items, sys_of = collection.f2vr_items(col), lambda q: collection.system_of([q])
+    names = {it["key"]: it["names"][0] for it in items}
+    stats = {}
+    for kind, url, fname, parse, field, key, least, what in (
+            ("ports", flat2vr.PORTS, flat2vr.PORTS_FILE, flat2vr.parse_ports, "ports", "slug", flat2vr.MIN_PORTS, flat2vr.PORTS_NAME),
+            ("uevr", flat2vr.UEVR, flat2vr.UEVR_FILE, flat2vr.parse_uevr, "games", "name", flat2vr.MIN_UEVR, flat2vr.UEVR_NAME)):
+        cur = store.load_json(fname, {})
+        if cur.get("v") == flat2vr.V and (cur.get("checked") or "") > due:
+            stats[kind] = len(cur.get(field) or [])
+            continue
+        meta = {}
+        text = src.get(url, shown=what, etag=cur.get("etag", "") if cur.get("v") == flat2vr.V else "", meta=meta)
+        if text is None:
+            continue
+        stamp = titles.now_iso()
+        if meta.get("status") == 304:
+            # unverändert: nur den Zeitpunkt der Prüfung merken, ohne die Liste neu zu schreiben, wenn sie jung ist
+            if (cur.get("checked") or "")[:10] != stamp[:10]:
+                store.save_json(fname, dict(cur, checked=stamp))
+            stats[kind] = len(cur.get(field) or [])
+            log(f"{label}: {what} unverändert seit {(cur.get('at') or '')[:10]}")
+            continue
+        new = parse(text)
+        if new is None or len(new) < least:
+            log(f"{label}: {what} nicht lesbar ({len(new or [])} Einträge), "
+                + (f"die vom {cur['at'][:10]} gilt weiter" if cur.get("at") else "ohne diese Quelle"))
+            src.errors += 1
+            continue
+        old = cur.get(field) or []
+        if new == old and cur.get("v") == flat2vr.V:
+            store.save_json(fname, dict(cur, checked=stamp, etag=meta.get("etag") or ""))
+            stats[kind] = len(new)
+            continue
+        gone = flat2vr.removed(old, new, key) if cur.get("v") == flat2vr.V else []
+        rm = list(cur.get("removed") or [])
+        for x in gone:
+            hit, _ = flat2vr.assign(items, [x] if kind == "ports" else [], [x] if kind == "uevr" else [], sys_of)
+            had = [names[k] for k in hit]
+            rm.append({"name": x["name"], "at": stamp[:10], "games": had[:5]})
+            log(f"{label}: {what} führt „{x['name']}“ nicht mehr" + (f" (hing an: {', '.join(had[:5])})" if had else ""))
+        store.save_json(fname, {"v": flat2vr.V, "at": stamp, "checked": stamp, "etag": meta.get("etag") or "", "src": url,
+                                field: new, "removed": rm[-flat2vr.REMOVED_KEEP:]})
+        stats[kind] = len(new)
+        log(f"{label}: {what} mit {len(new)} Einträgen gelesen" + (f", {len(gone)} weggefallen" if gone else ""))
+    ports = (store.load_json(flat2vr.PORTS_FILE, {}) or {}).get("ports") or []
+    uevr = (store.load_json(flat2vr.UEVR_FILE, {}) or {}).get("games") or []
+    hit, amb = flat2vr.assign(items, ports, uevr, sys_of)
+    np, nu = sum(1 for x in hit.values() if x.get("ports")), sum(1 for x in hit.values() if x.get("uevr"))
+    log(f"{label}: in deiner Sammlung {np} Spiele mit Port, {nu} mit UEVR-Profil"
+        + (f"; {amb} Name passt zu mehreren Spielen und bleibt offen" if amb == 1 else f"; {amb} Namen passen zu mehreren Spielen und bleiben offen" if amb else ""))
+    src.stats = {"ports": stats.get("ports", 0), "uevr": stats.get("uevr", 0), "hit_ports": np, "hit_uevr": nu}
+    return src.result()
+
+
 def _wheel(log):
     """Sim-Racing (0.8.3): zwei Listen von Rennspielen für Lenkräder (Bestätigung, je alle WHEEL_LIST_DAYS Tage
     eine Anfrage: Simucube-Forum, ab 0.8.5 SimHub) und die Steam-Schlagwörter (Hinweis), gebündelt über
@@ -2758,7 +2824,7 @@ def run(only=None, boot=False, by_hand=False, fast=False):
         # 0.10.22: Quellen verschiedener Server, die nicht voneinander abhängen, in eigenen Strängen (vorher
         # warteten etwa PCGamingWiki auf IGDB und Wikidata auf DekuDeals)
         lanes = [("Steam-Laden", steam_shop), ("PC-Wunschliste", pc_wish), ("QuestStoreDB", meta), ("VRDB", chain("vrdb")),
-                 ("Steam-Spieler", chain("players", "active")), ("IGDB", chain("igdb")), ("PCGamingWiki", chain("pcgw")),
+                 ("Steam-Spieler", chain("players", "active")), ("IGDB", chain("igdb")), ("PCGamingWiki, Flat2VR", chain("pcgw", "flat2vr")),
                  ("Nexus Mods", chain("nexus")), ("Sim-Racing, Retro", chain("wheel", "retro", "gametdb")),
                  ("DekuDeals", chain("deku")), ("Wikidata", chain("wiki", "eshop"))]
         took = {}
@@ -2826,7 +2892,7 @@ def run(only=None, boot=False, by_hand=False, fast=False):
 
 
 CHAIN.update({k: (lambda fn: lambda settings, log: fn(log))(fn) for k, fn in dict(
-    vrdb=_vrdb, players=_players, active=_active, pcgw=_pcgw, wheel=_wheel, retro=_retro, gametdb=_gametdb, deku=_deku, wiki=_wiki,
+    vrdb=_vrdb, players=_players, active=_active, pcgw=_pcgw, flat2vr=_flat2vr, wheel=_wheel, retro=_retro, gametdb=_gametdb, deku=_deku, wiki=_wiki,
     eshop=_eshop).items()}, igdb=_igdb, nexus=_nexus)
 
 

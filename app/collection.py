@@ -10,7 +10,7 @@ was später je Spiel abgerufen wird (Feld „rev“), bleibt erhalten.
 import math
 import re
 
-from . import igdb, sources, titles, wheel
+from . import flat2vr, igdb, sources, titles, wheel
 from . import store as datastore      # „store“ heißt hier sonst der Launcher
 
 FILE = "collection.json"
@@ -922,11 +922,35 @@ def merge_deku(r, d):
         r["sde_src"] = "DekuDeals"
 
 
+def f2vr_items(col):
+    """Spiele der Sammlung für flat2vr.assign (0.10.28): Namen laut Playnite, Steam und IGDB, System, Jahr und ob
+    VR schon eingebaut ist (Steam sagt VR, oder es ist dein VR-Titel am PC). Ohne eShopKompass-Spiele."""
+    out = []
+    for k, g in (col.get("games") or {}).items():
+        if g.get("src") == ESHOP:
+            continue
+        st, ig = g.get("steam") or {}, g.get("igdb") or {}
+        out.append({"key": k, "names": [g.get("name"), st.get("name"), ig.get("name")], "system": g.get("system") or "PC",
+                    "year": (g.get("released") or "")[:4] or st.get("year") or ig.get("year") or "",
+                    "vr": bool(st.get("vr")) or g.get("src") == PCVR})
+    return out
+
+
+def f2vr_match(col):
+    """Ports und UEVR-Profile je Spiel der Sammlung aus flat2vr.json und uevr.json (0.10.28)."""
+    ports = (datastore.load_json(flat2vr.PORTS_FILE, {}) or {}).get("ports") or []
+    uevr = (datastore.load_json(flat2vr.UEVR_FILE, {}) or {}).get("games") or []
+    if not ports and not uevr:
+        return {}, 0
+    return flat2vr.assign(f2vr_items(col), ports, uevr, lambda q: system_of([q]))
+
+
 def view(col, data=None):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele). Mit data kommen die VR-Titel am PC
     dazu (0.8.7)."""
     rows = []
     wmatch = wheel.matcher(datastore.load_json(wheel.LIST_FILE, {}))
+    f2vr, _ = f2vr_match(col)
     for k, g in (col.get("games") or {}).items():
         r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
              "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
@@ -1020,6 +1044,12 @@ def view(col, data=None):
         # 0.10.26: Recherche zu VR-Mods (auch „nein“, damit das Spiel nicht wieder in den Auftrag kommt)
         if g.get("r_vrmod"):
             r["vrmod_r"] = g["r_vrmod"]
+        # 0.10.28: VR-Ports laut Flat2VR Index (gefüllte Marke) und UEVR-Profile laut UEVR Hub (Hinweis)
+        fx = f2vr.get(k)
+        if fx and fx.get("ports"):
+            r["f2vr"] = flat2vr.row_ports(fx["ports"])
+        if fx and fx.get("uevr"):
+            r["uevr"] = fx["uevr"]
         # Spielzeit und zuletzt gespielt laut Steam-Konto (0.9.3)
         sid = str(g.get("id") or "") if g.get("store") == "Steam" or g.get("src") == PCVR else ""
         sp = ((data or {}).get("steam_play") or {}).get(sid) if sid else None

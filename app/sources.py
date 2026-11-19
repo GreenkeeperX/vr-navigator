@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-VERSION = "0.10.27"
+VERSION = "0.10.28"
 
 # Das Tool gibt sich immer als es selbst zu erkennen. Antwortet eine Quelle mit
 # einer Sperre (403, 429) oder einer Prüfseite, hört es auf, statt sich zu tarnen.
@@ -142,6 +142,7 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate", headers=None, da
             out["enc"] = (resp.headers.get("Content-Encoding") or "").lower()
             out["server"] = resp.headers.get("Server") or ""
             out["final"] = resp.geturl() if hasattr(resp, "geturl") else url   # nach Umleitungen (0.7.2, Diagnose)
+            out["etag"] = resp.headers.get("ETag") or ""                       # 0.10.28: für If-None-Match
             if out["enc"] not in ("", "identity", "gzip", "deflate") and encoding != "identity":
                 return request(url, ua, timeout, "identity", headers, data, want_raw)   # z. B. Brotli
             if want_raw:
@@ -154,13 +155,16 @@ def request(url, ua=None, timeout=25, encoding="gzip, deflate", headers=None, da
     return out
 
 
-def fetch(url, timeout=25, ua=None, headers=None, data=None, raw=False):
-    """HTTP GET (mit data POST), gibt Text zurück, mit raw die Bytes. Wirft FetchError mit Statuscode."""
+def fetch(url, timeout=25, ua=None, headers=None, data=None, raw=False, meta=None):
+    """HTTP GET (mit data POST), gibt Text zurück, mit raw die Bytes. Wirft FetchError mit Statuscode.
+    Mit meta (ein Dict, 0.10.28) stehen danach Status und ETag darin, etwa 304 nach If-None-Match."""
     r = request(url, ua, timeout, headers=headers, data=data, raw=raw) if raw else request(url, ua, timeout, headers=headers, data=data)
     if r["error"]:
         raise FetchError(url, 0, r["error"])
     if r["status"] >= 400:
         raise FetchError(url, r["status"])
+    if meta is not None:
+        meta.update(status=r["status"], etag=r.get("etag") or "")
     return r.get("body", b"") if raw else r["text"]
 
 

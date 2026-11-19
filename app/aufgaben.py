@@ -101,7 +101,7 @@ def items(kind, data, near=None, own=None, pc_ids=None, games=None):
                 and not g.get("wheel_r")]
     if kind == "vrmod":
         rows = [g for g in games or [] if g.get("system") == "PC" and not g.get("retro") and not g.get("vr")
-                and not g.get("vrmod") and not g.get("vrmod_r")]
+                and not g.get("vrmod") and not g.get("vrmod_r") and not g.get("f2vr") and not g.get("uevr")]   # 0.10.28: Port oder Profil schon bekannt
         # die besser bewerteten zuerst: dort lohnt ein Mod am ehesten
         rows.sort(key=lambda g: (-(g.get("score") or 0), titles.norm(g["name"])))
         return [{"id": g["key"], "name": g["name"]} for g in rows]

@@ -156,7 +156,7 @@ function renderHead(){
   $("syncBtn").disabled = !!sy.running;
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
-const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", gametdb: "GameTDB", deku: "DekuDeals", wiki: "Wikidata", igdb: "IGDB", pcgw: "PCGamingWiki", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal", pcinfo: "PC-Wunschliste, Spielinfos", vrinfo: "VR-Titel, Spielinfos"};
+const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", gametdb: "GameTDB", deku: "DekuDeals", wiki: "Wikidata", igdb: "IGDB", pcgw: "PCGamingWiki", flat2vr: "Flat2VR und UEVR", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal", pcinfo: "PC-Wunschliste, Spielinfos", vrinfo: "VR-Titel, Spielinfos"};
 function banners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
@@ -1122,7 +1122,14 @@ function gYear(g){
   const tdb = [g.tyear && `GameTDB ${g.tyear}`, g.dyear && `DekuDeals ${g.dyear}`, g.wyear && `Wikidata ${g.wyear}`].filter(Boolean);      // 0.10.13/0.10.14/0.10.16: andere Quelle, anderes Jahr
   return `<span class="${chk(g) && !g.year_ok || g.tyear || g.dyear || g.wyear ? "gxc" : ""}" title="${esc(who.concat(tip ? [tip] : [], tdb).join("\n"))}">${esc(g.year)}</span>`;
 }
-const vrMod = g => !!(g.vrmod?.length || g.nexus?.vr?.length || g.vorpx || g.vrmod_r?.ok);
+const vrMod = g => !!(g.vrmod?.length || g.nexus?.vr?.length || g.vorpx || g.vrmod_r?.ok || g.f2vr?.length || g.uevr);
+// Flat-to-VR (0.10.28): Ports laut Flat2VR Index (ein aufgegebener allein zählt nur als Hinweis), UEVR-Profile laut UEVR Hub (Hinweis)
+const F2_ST = {alpha: "Alpha", beta: "Beta", stable: "stabil", abandoned: "aufgegeben"};
+const F2_PLAT = {pcvr: "PCVR", standalone: "Quest ohne PC", both: "PCVR und Quest ohne PC"};
+const F2_CTL = {"6dof": "Bewegungssteuerung", "3dof": "3DOF", gamepad: "Gamepad", mixed: "Steuerung gemischt"};
+const f2Live = g => (g.f2vr || []).filter(p => p.st !== "abandoned");
+const f2Short = p => [p.name + (p.st ? ` (${F2_ST[p.st] || p.st})` : ""), F2_PLAT[p.plat]].filter(Boolean).join(", ");
+const uevrText = u => `${u.n === 1 ? "UEVR-Profil" : `${u.n} UEVR-Profile`}${[u.dof === "6dof" ? "6DOF" : u.dof === "3dof" ? "3DOF" : "", u.mc && "Bewegungssteuerung"].filter(Boolean).length ? ` (${[u.dof === "6dof" ? "6DOF" : u.dof === "3dof" ? "3DOF" : "", u.mc && "Bewegungssteuerung"].filter(Boolean).join(", ")})` : ""}`;
 // Wertung nach Rangfolge (0.8.0); eine Ersatzquelle grau und kursiv wie OpenCritic im eShopKompass
 function gSc(g){
   if(g.score == null) return "";
@@ -1444,8 +1451,10 @@ function gBadges(g){
     : `<span class="b vrb" title="${esc(g.from_vr ? `Dein VR-Titel (${g.store}); Playnite kennt ihn nicht` : `VR laut ${g.vr_src || "Steam"}`)}">VR</span>`);
   // VR per Mod (0.8.1): PCGamingWiki „hackable“ gilt; nur Nexus-Mods mit VR im Namen oder vorpX ist ein Hinweis (gestrichelt)
   else if(g.vrmod?.length) b.push(`<span class="b vrb" title="${esc(`Laut PCGamingWiki per Mod: ${g.vrmod.join(", ")}${g.vorpx ? "; auch mit vorpX" : ""}`)}">VR per Mod</span>`);
+  else if(f2Live(g).length) b.push(`<span class="b vrb" title="${esc(`Laut Flat2VR Index: ${f2Live(g).map(f2Short).join("; ")}`)}">VR per Mod</span>`);
   else if(g.vrmod_r?.ok) b.push(`<span class="b vrq gxc" title="${esc(`Laut Recherche per Mod${g.vrmod_r.mod ? ": " + g.vrmod_r.mod : ""}${g.vrmod_r.grund ? "\n" + g.vrmod_r.grund : ""}`)}">VR per Mod</span>`);
-  else if(vrMod(g)) b.push(`<span class="b vrq" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX"].filter(Boolean).join("\n"))}">VR-Mod</span>`);
+  else if(vrMod(g)) b.push(`<span class="b vrq" title="${esc(["Nur ein Hinweis, nicht geprüft", g.nexus?.vr?.length && `Nexus Mods: ${g.nexus.vr.map(m => m.name).join(", ")}`, g.vorpx && "PCGamingWiki: geht mit vorpX",
+    g.uevr && `UEVR Hub: ${uevrText(g.uevr)}; ein Profil heißt nicht, dass das Spiel gut läuft`, g.f2vr?.length && `Flat2VR Index: ${g.f2vr.map(f2Short).join("; ")}`].filter(Boolean).join("\n"))}">VR-Mod</span>`);
   // Sim-Racing (0.8.3): in der Liste der Rennsimulationen bestätigt; nur Steam-Schlagwörter sind ein Hinweis (gestrichelt)
   b.push(wheelBadge(g.wheel));
   b.push(xpMark(g.xp));
@@ -1608,8 +1617,22 @@ function wheelHtml(g){
 }
 // VR per Mod und Nexus Mods in den Einzelheiten (0.8.1), mit Links
 const nxLink = (g, m) => `<a href="https://www.nexusmods.com/${encodeURIComponent(g.nexus.dom)}/mods/${Number(m.id)}" target="_blank" rel="noopener noreferrer" title="${num(m.end)} Empfehlungen">${esc(m.name)}</a>`;
+// 0.10.28: je Port Name mit Link zum Ersteller, Stand, Plattform, Steuerung, Version; Quelle und Prüfdatum im Tooltip
+function f2Port(p){
+  const url = safeUrl(p.src) ? p.src : safeUrl(p.dl) ? p.dl : safeUrl(p.home) ? p.home : "";
+  const tip = [`Laut Flat2VR Index${p.chk ? `, zuletzt geprüft am ${day(p.chk)}` : ""}`, p.by?.length && `von ${p.by.join(", ")}`, p.price && `Preis: ${p.price}`,
+    p.bugs?.length && `Bekannte Fehler: ${p.bugs.join("; ")}${p.bugs_n > p.bugs.length ? ` und ${p.bugs_n - p.bugs.length} weitere` : ""}`].filter(Boolean).join("\n");
+  const facts = [p.st && `<span class="${p.st === "abandoned" ? "err" : ""}">${esc(F2_ST[p.st] || p.st)}</span>`, F2_PLAT[p.plat] && esc(F2_PLAT[p.plat]), F2_CTL[p.ctl] && esc(F2_CTL[p.ctl]),
+    p.ver && esc(p.ver === "unversioned" ? "ohne Versionsnummer" : p.ver) + (p.vdate ? ` vom ${day(p.vdate)}` : ""), p.bugs_n && `${p.bugs_n} bekannte${p.bugs_n === 1 ? "r" : ""} Fehler`].filter(Boolean);
+  const name = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(p.name)}</a>` : esc(p.name);
+  return `<span title="${esc(tip)}">${name}${facts.length ? ` (${facts.join(", ")})` : ""}</span>`;
+}
+function uevrHtml(u){
+  const tip = `Laut UEVR Hub${u.date ? `, jüngstes Profil vom ${day(u.date)}` : ""}${u.by?.length ? `, von ${u.by.join(", ")}` : ""}. Ein Profil heißt nur, dass es eines gibt, nicht dass das Spiel gut läuft`;
+  return `<span class="gxc" title="${esc(tip)}">${esc(uevrText(u))}</span>${safeUrl(u.dir) ? ` <a href="${esc(u.dir)}" target="_blank" rel="noopener noreferrer">Profil</a>` : ""} <a href="https://uevr-profiles.github.io/" target="_blank" rel="noopener noreferrer">UEVR Hub</a>`;
+}
 function vrModHtml(g){
-  const p = [g.vrmod?.length && `<span title="Laut PCGamingWiki: „hackable“">${esc(g.vrmod.join(", "))}</span>`, g.vorpx && "vorpX",
+  const p = [...(g.f2vr || []).map(f2Port), g.uevr && uevrHtml(g.uevr), g.vrmod?.length && `<span title="Laut PCGamingWiki: „hackable“">${esc(g.vrmod.join(", "))}</span>`, g.vorpx && "vorpX",
     g.nexus?.vr?.length && `<span class="gxc" title="Mods mit VR im Namen, nicht geprüft">${g.nexus.vr.map(m => nxLink(g, m)).join(", ")}</span>`,
     g.vrmod_r && resHtml(g.vrmod_r.ok ? `Recherche: ${g.vrmod_r.mod || "VR-Mod"}` : "Recherche: kein VR-Mod", g.vrmod_r)].filter(Boolean);
   return p.join(" · ");
@@ -2029,7 +2052,7 @@ function vlSvg(v){
 /* ---------------------------------------------------------------- Abrufe */
 const SOURCES = [["steamacc", "Steam-Konto (Besitz, Wunschliste)"], ["ggwish", "gg.deals-Wunschliste"], ["sharenite", "Sharenite (Playnite)"],
   ["qsdb", "QuestStoreDB (Meta-Preise)"], ["steam", "Steam-Store"], ["gg", "gg.deals"], ["reviews", "Steam-Rezensionen (Sammlung)"], ["details", "Steam-Details (Sammlung)"], ["rating", "Steam-Wertungen (Wunschliste, Sammlung VR)"],
-  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["gametdb", "GameTDB (GameCube, Wii, DS, 3DS, PS3)"], ["deku", "DekuDeals (Spielinfos PC und Konsolen)"], ["wiki", "Wikidata und Wikipedia (deutsche Beschreibung der Retro-Spiele)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["vrinfo", "VR-Titel, Spielinfos (Steam, IGDB)"], ["itad", "IsThereAnyDeal (Läden einzeln, PC-Wunschliste)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
+  ["players", "Steam-Spieler und Updates"], ["active", "Aktive Spieler PC (Wunschliste, Sammlung)"], ["vrdb", "VRDB (Crossbuy, Version, Meta-Wertung)"], ["retro", "Retro-Fassungen (No-Intro, Redump, Retool)"], ["gametdb", "GameTDB (GameCube, Wii, DS, 3DS, PS3)"], ["deku", "DekuDeals (Spielinfos PC und Konsolen)"], ["wiki", "Wikidata und Wikipedia (deutsche Beschreibung der Retro-Spiele)"], ["igdb", "IGDB (Spielinfos der Sammlung)"], ["pcinfo", "PC-Wunschliste, Spielinfos (Steam, IGDB)"], ["vrinfo", "VR-Titel, Spielinfos (Steam, IGDB)"], ["itad", "IsThereAnyDeal (Läden einzeln, PC-Wunschliste)"], ["pcgw", "PCGamingWiki (VR per Mod)"], ["flat2vr", "Flat2VR Index und UEVR Hub (VR-Ports, UEVR-Profile)"], ["nexus", "Nexus Mods (Mods je PC-Spiel)"], ["wheel", "Sim-Racing (Steam-Schlagwörter, Listen von SimHub und Simucube)"], ["eshop", "eShopKompass (Switch-Sammlung)"]];
 const ACCOUNT_SET = {igdb: se => se.igdb_set, steamacc: se => se.steam_id, ggwish: se => se.gg_wish_set, sharenite: se => se.sharenite};
 /* Eine Tabellenzeile je Quelle (0.6.2, kompakt wie im eShopKompass): Name, Zustand farbig, wann, Abrufe und Meldung */
 function srcRow(k, l, x){

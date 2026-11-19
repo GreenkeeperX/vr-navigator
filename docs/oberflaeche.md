@@ -220,6 +220,11 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Genre ist entweder gewählt oder ausgeschlossen. Ausgeschlossen: rot (`--stop`), Name durchgestrichen, die Zahl mit
   Minus nennt die gerade ausgeblendeten Spiele; im Kopf des Menüs ein rotes „−n“, unter den Filtern rote Marken
   „ohne … ×“. „Auswahl leeren“ nimmt Häkchen und Ausschlüsse zurück.
+- Flat-to-VR (ab 0.10.28): ein Port laut Flat2VR Index (`g.f2vr`, nicht nur aufgegebene) gibt die gefüllte Marke
+  „VR per Mod“ (`.b.vrb`), nur ein UEVR-Profil (`g.uevr`) den Hinweis „VR-Mod“ (`.b.vrq`). Zeile „VR per Mod“ in den
+  Einzelheiten: je Port Name mit Link, Stand („aufgegeben“ rot), Plattform, Steuerung, Version mit Datum, bekannte
+  Fehler; Quelle und Prüfdatum im Tooltip (`f2Port`). UEVR violett mit Zahl, 6DOF oder 3DOF und Bewegungssteuerung,
+  Links „Profil“ und „UEVR Hub“ (`uevrHtml`).
 - Filter „Crossplay“ (ab 0.10.6, `d.xp`): Spiele mit Crossplay laut PCGamingWiki oder Steam; erscheint, wenn ein Spiel
   im Reiter es hat.
 - SimRacing (ab 0.8.12, vorher „Lenkrad“): Marke orange gefüllt (`.b.simb`, Token `--sim`), wie VR türkis (`.b.vrb`);
