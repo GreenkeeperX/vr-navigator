@@ -73,6 +73,9 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/aufgaben.py`: ab 0.10.24 Aufträge zu den Listen unter „Zu erledigen“ (`items`, `task`, `tasks`) und ihre Antworten
   (`parse`, `apply`, erst als Vorschau); eingelesen in `server.import_todo`; ab 0.10.26 auch Lenkrad und VR-Mods der Sammlung
   (`r_wheel`, `r_vrmod` am Spiel in `collection.json`)
+- `app/flat2vr.py`: ab 0.10.28 Flat2VR Index (Ports) und UEVR Hub (Profile) ohne Netz: lesen (`parse_ports`, `parse_uevr`),
+  vorsichtig über den Namen zuordnen (`assign`), weggefallene Einträge (`removed`); abgerufen in `sync._flat2vr` mit ETag,
+  in der Sammlung `collection.f2vr_match`
 - `app/wheel.py`: Sim-Racing ohne Netz: Steam-Schlagwörter (Hinweis), Liste der Rennsimulationen (Bestätigung)
 - `app/pcwish.py`: PC-Wunschliste (`pcwish.json`), Spiegel der gg.deals-Wunschliste; Zeilen mit Preisen und ab 0.8.11
   Spielinfos nach den Regeln der Sammlung (`info`); abgerufen in `sync._pcwish` und `sync._pcwish_info`

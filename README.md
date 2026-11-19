@@ -7,7 +7,7 @@ Vorbild und Unterbau ist der [eShopKompass](https://github.com/GreenkeeperX/esho
 Python ohne Zusatzpakete, Daten als JSON-Dateien, Oberfläche in reinem JavaScript, gehärteter
 Docker-Container.
 
-**Stand 0.10.27:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
+**Stand 0.10.28:** Wunschliste (VR mit Abgleich gegen die Wunschlisten der Läden, PC als Spiegel der gg.deals-Wunschliste mit Preisen und Spielinfos), Jetzt für VR- und PC-Wünsche, Sammlung (alle Spiele je System als Liste mit Spalten wie im eShopKompass, dazu der Reiter VR mit deinen VR-Titeln, Mein Stand, Filter und Vorschläge, Retro-Liste aus dem ROM-Ordner mit Spielinfos aus der libretro-database und deinen Ordner-Listen), Konten (Steam, gg.deals, Sharenite), Zuordnung aller Titel, Tief über beide Läden, Meinungen aus der Recherche, Meta-Lesezeichen, Importe und Live-Preise von QuestStoreDB (Meta), Steam
 und gg.deals, dazu Gemessenes: Steam-Spieler und -Updates, Crossbuy, Version und Meta-Wertung von
 VRDB, daraus das Urteil „wo kaufen“ je Wunschtitel.
 Neu in 0.9.7: Spiele aus dem Steam-Konto ohne Playnite-Eintrag stehen in der Sammlung (Herkunft „Steam-Konto“),
@@ -67,6 +67,15 @@ je Spiel die Suche und die Spielseite, höchstens 30 Spiele je Lauf, bekannte zu
 zählt nur mit gleichem Namen und der richtigen Plattform (am PC „Steam“). Daraus kommen die Spielzeit laut
 HowLongToBeat (vor IGDB, IGDB bleibt im Tooltip), OpenCritic, Metacritic wo Steam keine nennt, USK oder PEGI, Deutsch
 wo Steam nichts sagt; Spieler, Genre und Jahr werden bestätigt oder ergänzt, ein anderes Jahr steht violett.
+Neu in 0.10.28: Flat-to-VR. Einmal am Tag liest der Abgleich den Flat2VR Index (VR-Ports für Flachbildspiele, offene
+Daten unter CC0 1.0) und den UEVR Hub (gesammelte UEVR-Profile), jeweils nur, wenn sich die Datei geändert hat. Hat ein
+PC-Spiel deiner Sammlung einen Port, trägt es die Marke „VR per Mod“; die Einzelheiten nennen je Port Stand (Alpha, Beta,
+stabil, aufgegeben), PCVR oder Quest ohne PC, Steuerung, Version mit Datum und bekannte Fehler, mit Link zum Ersteller
+und dem Prüfdatum im Tooltip. Gibt es nur ein UEVR-Profil, steht der Hinweis „VR-Mod“ (gestrichelt), denn ein Profil
+heißt nicht, dass das Spiel gut läuft; die Einzelheiten nennen Zahl der Profile, 6DOF oder 3DOF, Bewegungssteuerung und
+verlinken Profil und Hub. Zugeordnet wird vorsichtig über den Namen: Ein Zusatz in Klammern muss passen (Jahr, System,
+„Remake“), und passen zwei Spiele zum selben Namen, bekommt keines den Eintrag. Fällt ein Port aus der Quelle, sagt das
+Protokoll, an welchem Spiel er hing. Spiele mit Port oder Profil fallen aus dem Auftrag „VR-Mods prüfen“.
 Neu in 0.10.27: Zwei Filter mehr in der Sammlung. Das Menü „Erschienen“ grenzt nach dem Erscheinungsjahr ein: „ab 2020“
 zeigt 2020 und neuer, „vor 2015“ alles bis 2014, beides zusammen einen Zeitraum; Spiele ohne Jahr fallen dann heraus,
 das Menü nennt ihre Zahl. Im Menü „Genre“ hat jede Zeile den Schalter „ohne“: Spiele mit diesem Genre verschwinden aus
@@ -205,6 +214,9 @@ selbst, Meta kommt per Lesezeichen, alles andere als Datei. Gelöscht wird beim 
   Die Abfrage geht auch ohne; mit Schlüssel fragt das Tool als dein Konto (0.7.7). Seit 0.8.1 holt
   jeder Abgleich einmal die Woche die Spieleliste von Nexus und je PC-Spiel mit Seite dort die
   beliebtesten Mods und die mit VR im Namen.
+- **Flat2VR Index und UEVR Hub** (0.10.28): ohne Konto und Schlüssel. Die Daten des Flat2VR Index stehen unter
+  CC0 1.0 (github.com/jrejaud/awesome-flat2vr), der UEVR Hub sammelt Profile der Community (uevr-profiles.github.io);
+  das Tool liest nur Namen und Angaben und verlinkt Ports und Profile, es lädt nichts davon herunter.
 
 Schlüssel und Wunschlisten-Link bleiben auf deinem Server, nicht in der Sicherung, nicht im
 Protokoll, nie zurück im Browser.
