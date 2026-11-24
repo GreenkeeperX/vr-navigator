@@ -2807,16 +2807,31 @@ class TestSync(unittest.TestCase):
     def test_hosts_one_at_a_time(self):
         """0.10.21: Quellen laufen gleichzeitig, aber je Server geht nur ein Abruf zur Zeit hinaus, und zwischen dem
         Ende eines Abrufs und dem nächsten an denselben Server liegt die Pause, gleich von welcher Quelle. Ein anderer
-        Server wartet nicht auf ihn."""
-        sync.sleep = time.sleep
+        Server wartet nicht auf ihn. Ab 0.10.29 ohne echte Uhr: eine gemeinsame Testuhr, die nur Warten und Abrufe
+        vorstellen, und ein Ereignis statt Zeitvergleich (vorher scheiterte der Test auf langsamen Rechnern)."""
+        t = {"now": 100.0}
+        tick = threading.Lock()
+
+        def advance(dt):
+            with tick:
+                t["now"] += max(0.0, dt)
+        old_clock, sync.clock = sync.clock, lambda: t["now"]
+        sync.sleep = advance
         sync.HOSTS.reset()
-        seen, lock = [], threading.Lock()
+        seen, lock, vrdb_first = [], threading.Lock(), threading.Event()
+        steam_waited = []
 
         def fetch(url, **kw):
-            t0 = time.monotonic()
-            time.sleep(0.02)
+            host = urllib.parse.urlsplit(url).hostname
+            if host == "store.steampowered.com" and not steam_waited:
+                # der erste Steam-Abruf hält den Server, bis VRDB einmal abgerufen hat: wartete VRDB auf Steam, käme es nie
+                steam_waited.append(vrdb_first.wait(5))
+            a = t["now"]
+            advance(0.02)
             with lock:
-                seen.append((urllib.parse.urlsplit(url).hostname, t0, time.monotonic()))
+                seen.append((host, a, t["now"]))
+            if host == "vrdb.app":
+                vrdb_first.set()
             return "{}"
         sources.fetch = fetch
         log = lambda m: None
@@ -2829,17 +2844,19 @@ class TestSync(unittest.TestCase):
             for _ in range(4):
                 self.assertEqual(src.get(url), "{}")
         threads = [threading.Thread(target=go, args=x) for x in zip(srcs, urls)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        try:
+            for th in threads:
+                th.start()
+            for th in threads:
+                th.join()
+        finally:
+            sync.clock = old_clock
         steam = sorted((a, b) for h, a, b in seen if h == "store.steampowered.com")
-        vrdb = sorted((a, b) for h, a, b in seen if h == "vrdb.app")
+        vrdb = [x for x in seen if x[0] == "vrdb.app"]
         self.assertEqual((len(steam), len(vrdb)), (8, 4))
         for (a1, b1), (a2, b2) in zip(steam, steam[1:]):
-            self.assertGreaterEqual(a2 - b1, 0.045)          # nie gleichzeitig, immer mit Pause dazwischen
-        self.assertLess(vrdb[0][0], steam[2][0])            # VRDB wartet nicht, bis Steam durch ist
-        self.assertLess(vrdb[-1][1], steam[-1][1])
+            self.assertGreaterEqual(a2 - b1, 0.05 - 1e-9)      # nie gleichzeitig, immer mit Pause dazwischen
+        self.assertEqual(steam_waited, [True])                 # VRDB wartet nicht, bis Steam durch ist
 
     def test_vrdb_and_players(self):
         """VRDB: Crossbuy, Version (mit Tag des Wechsels), Meta-Wertung als Anteil 4 und 5 Sterne.

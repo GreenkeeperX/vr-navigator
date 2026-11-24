@@ -125,6 +125,7 @@ SECRET_FLAGS = {"gg_key_set": ("gg_key",), "steam_key_set": ("steam_key",), "gg_
                 "igdb_set": ("igdb_id", "igdb_secret"), "nexus_set": ("nexus_key",), "itad_set": ("itad_key",)}
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
+clock = time.monotonic      # 0.10.29: Uhr der Pausen je Server, Tests setzen eine eigene ein (kein Warten auf die echte Uhr)
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
 _running = threading.Lock()
 _diag = threading.Lock()            # 0.10.29: Verbindungstest; nie gleichzeitig mit einem Abgleich
@@ -366,7 +367,7 @@ class _Source:
                     if attempt == 2 and self._resting(url):     # inzwischen von einer anderen Quelle gesperrt
                         return None
                     # Pause seit dem letzten Abruf an diesen Server, gleich von welcher Quelle (0.10.21)
-                    wait = slot[1] + self.pause - time.monotonic() if slot[1] else 0
+                    wait = slot[1] + self.pause - clock() if slot[1] else 0
                     if wait > 0:
                         sleep(wait)
                     try:
@@ -375,7 +376,7 @@ class _Source:
                                 else sources.fetch(url, headers=head, data=data) if data is not None
                                 else sources.fetch(url, headers=head, meta=meta) if meta is not None else sources.fetch(url, headers=head))
                     finally:
-                        slot[1] = time.monotonic()
+                        slot[1] = clock()
                 break
             except sources.FetchError as e:
                 if e.status == 0 and attempt == 1:
@@ -3049,13 +3050,13 @@ def _diagnose():
             return None
         slot = HOSTS.slot(url)
         with slot[0]:
-            wait = slot[1] + PAUSE - time.monotonic() if slot[1] else 0
+            wait = slot[1] + PAUSE - clock() if slot[1] else 0
             if wait > 0:
                 sleep(wait)
             try:
                 r = sources.request(url, headers=headers, data=data)
             finally:
-                slot[1] = time.monotonic()
+                slot[1] = clock()
         why = sources.challenge(r["text"])
         if r["status"] in sources.BLOCKED or why:
             ruhe.block(url, why or f"gesperrt (HTTP {r['status']})", "Verbindungstest")

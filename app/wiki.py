@@ -20,7 +20,6 @@ from . import sources, titles
 
 API = "https://www.wikidata.org/w/api.php"
 WIKI_API = "https://de.wikipedia.org/w/api.php"
-WIKI_PAGE = "https://de.wikipedia.org/wiki/"
 # Wikimedia bittet um eine Kennung mit Kontakt: das öffentliche Repository
 HEAD = {"User-Agent": f"vr-navigator/{sources.VERSION} (+https://github.com/GreenkeeperX/vr-navigator; privates Sammlungs-Tool)"}
 FILE = "wiki.json"       # Bezeichnungen der Einträge für Plattformen und Freigaben: {"labels": {Q: Name}}
@@ -52,10 +51,6 @@ def extracts_url(articles):
     return WIKI_API + "?" + urllib.parse.urlencode({"action": "query", "prop": "extracts", "exintro": 1, "explaintext": 1,
                                                     "exlimit": 20, "redirects": 1, "titles": "|".join(articles),
                                                     "format": "json", "formatversion": 2})
-
-
-def page_url(article):
-    return WIKI_PAGE + urllib.parse.quote(article.replace(" ", "_"))
 
 
 def query_name(g):

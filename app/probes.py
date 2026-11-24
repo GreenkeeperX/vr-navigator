@@ -206,14 +206,6 @@ def deku_item_info(text):
         f"; Beschreibung „{_short(desc.group(1))}“" if desc else "; keine Beschreibung")
 
 
-def uevr_info(text):
-    title = re.search(r"(?s)<title>(.*?)</title>", text)
-    links = set(re.findall(r'href="(/games?/[^"#?]+)', text))
-    api = sorted(set(re.findall(r"/api/[A-Za-z0-9/_-]+", text)))[:5]
-    return (f"Titel „{_short(title.group(1) if title else '', 60)}“, {len(links)} Spiel-Links, "
-            f"Hinweise auf eine Schnittstelle: {api or 'keine'}")
-
-
 def deku_search_slug(text, name=""):
     # Auch mit Zusatz (?format=…) oder ganzer Adresse (0.7.4: der PS4-Test fand mit dem engen Muster nichts).
     # 0.7.5: der passendste Treffer statt des ersten (der erste war eine Sammlung mit dem Spiel): gleicher Name

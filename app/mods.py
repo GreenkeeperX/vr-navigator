@@ -141,8 +141,4 @@ def mod_url(dom, mid):
     return f"https://www.nexusmods.com/{dom}/mods/{int(mid)}"
 
 
-def game_url(dom):
-    return f"https://www.nexusmods.com/games/{dom}"
-
-
 GQL = NEXUS_GQL

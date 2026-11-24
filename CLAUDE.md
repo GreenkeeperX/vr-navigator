@@ -33,6 +33,7 @@ Weitere feste Regeln (wie im eShopKompass):
 ## Aufbau
 
 - `app/sources.py`: Netzabruf (`request`, `fetch`, nur öffentliche Ziele), `VERSION`
+- `docs/entfernt.md`: was aus dem Code entfernt wurde, warum und wie geprüft (ab 0.10.29); nichts auf Verdacht entfernen
 - `app/ruhe.py`: ab 0.10.29 Ruhezeit je Server nach 403, 429 oder Prüfseite (`block`, `until`, `active`), in `ruhe.json`,
   gilt für Abgleich und Verbindungstest; Länge `RUHE_STUNDEN` (Vorgabe 24)
 - `app/sicherung.py`: ab 0.10.29 Sicherungen im Datenordner (`make`, `daily`), feldweises Einspielen mit Vorschau
@@ -80,6 +81,12 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/flat2vr.py`: ab 0.10.28 Flat2VR Index (Ports) und UEVR Hub (Profile) ohne Netz: lesen (`parse_ports`, `parse_uevr`),
   vorsichtig über den Namen zuordnen (`assign`), weggefallene Einträge (`removed`); abgerufen in `sync._flat2vr` mit ETag,
   in der Sammlung `collection.f2vr_match`
+- `app/igdb.py`: IGDB ohne Netz (Anfragen bauen, Antworten lesen, Steam-Spiele gebündelt über die Steam-ID); abgerufen in `sync._igdb`
+- `app/itad.py`: IsThereAnyDeal ohne Netz: Preise je offiziellem Laden für die PC-Wunschliste; abgerufen in `sync._itad`
+- `app/mods.py`: VR per Mod ohne Netz: PCGamingWiki („VR support“) und Nexus Mods; abgerufen in `sync._pcgw`, `sync._nexus`
+- `app/probes.py`: Proben neuer Quellen für den Verbindungstest (`run`), nur dort; ab 0.10.29 auch hier mit Ruhezeit je Server
+- `app/trend.py`: Steam-Trend (Rezensionen der letzten 30 Tage gegen alle) und Pflege (letztes Update), ohne Netz
+- `app/verlauf.py`: Preisverlauf je Titel für `GET /api/verlauf` (Normalpreis, Tief, übliche Angebote), ohne Netz
 - `app/wheel.py`: Sim-Racing ohne Netz: Steam-Schlagwörter (Hinweis), Liste der Rennsimulationen (Bestätigung)
 - `app/pcwish.py`: PC-Wunschliste (`pcwish.json`), Spiegel der gg.deals-Wunschliste; Zeilen mit Preisen und ab 0.8.11
   Spielinfos nach den Regeln der Sammlung (`info`); abgerufen in `sync._pcwish` und `sync._pcwish_info`
