@@ -2,8 +2,8 @@
 
 Reihenfolge nach Nutzen. Das Konzept dahinter: Kaufentscheidung erst nach Qualität
 (Multiplayer, gepflegtere Version, bessere Version, Crossbuy), dann nach dem Preisabstand.
-Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md), wann es dazukam,
-in der Git-Geschichte.
+Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md) und in `docs/`, wann es dazukam,
+in [docs/neu.md](docs/neu.md).
 
 ## 0.3 Wo kaufen
 
@@ -164,3 +164,38 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 - Pakete selbst finden: welche Meta-Bundles einen Wunsch enthalten, nennt bisher keine abrufbare Quelle; das Tool
   vergleicht nur Pakete, deren Inhalt es kennt (0.10.2)
 - weitere Anbieter über gg.deals
+
+## Stabilisierung nach dem Review (ab 0.10.29)
+
+Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen und V-2
+Nutzereingaben aus `collection.json` in eine eigene kleine Datei (0.11.0, `docs/sammlung-felder.md`), V-3 schlanke Listen und
+Messung vorher und nachher (0.11.1, `docs/leistung.md`: eine Entscheidung 0,17 statt 0,85 s, SQLite nicht nötig),
+V-5 Statuskarte „Betrieb“ im Einstellungsreiter (0.11.2: eingeklappt der Gesamtstatus, Leistungstest im eigenen
+Prozess), danach Dokumentation, Altlasten und V-6.
+
+Später, wenn belegbar: VR-Platzbedarf (Spielfläche, sitzend, stehend, Roomscale; nur dokumentierte Angaben) und die
+Qualität eines UEVR-Profils als weiteres Kriterium der bestehenden KI-Aufträge (mit Quellen und Stand, erst Vorschau).
+
+## Von den Geschwistern
+
+Pokédex, eShopKompass und VR-Navigator bleiben eigenständig (kein gemeinsamer Kern, keine Submodule). Hier steht, was
+sich lohnen könnte, hinüber oder herüber zu nehmen; übernommen wird nur nach Prüfung im jeweiligen Projekt.
+
+- Ruhezeit je Server statt je Quelle, sofort gespeichert (`app/ruhe.py`, 0.10.29): lohnt im eShopKompass, wenn dort
+  mehrere Quellen denselben Server fragen; mit nur einer Quelle je Server bringt es wenig.
+- Zwischenstand des Abgleichs nach jeder Quelle und Erkennung eines unterbrochenen Laufs (0.10.29): passt zu jedem
+  Projekt mit längeren Läufen und Watchtower-Neustarts.
+- Tägliche Sicherung im Datenordner mit monatlichem Wiederherstellungstest im temporären Ordner (`app/sicherung.py`):
+  übertragbar, die Teile der Sicherung sind je Projekt andere.
+- Feldweises Einspielen mit Vorschau und Sicherung vorher, NaN und Unendlich abgelehnt: übertragbar.
+- `/healthz` und `HEALTHCHECK` im Image: übertragbar ohne Anpassung.
+- Nutzereingaben getrennt von abgerufenen Daten, eingesetzt beim Lesen (0.11.0): der eShopKompass hat dasselbe Muster
+  (Mein Stand neben großen Abrufdaten); lohnt dort, wenn seine Sammlung beim Haken spürbar langsam schreibt. Erst messen.
+- ETag und 304 für die großen Antworten, mit HTTP/1.1 (sonst fragt Chromium nicht nach), dazu Stile und Skript mit der
+  Version in der Adresse (0.11.1): übertragbar auf eShopKompass und Pokédex, beide liefern ebenfalls große JSON-Antworten
+  an dieselbe Seite. Klein und ohne Risiko für die Daten.
+- Statuskarte mit Gesamtstatus und Leistungstest im eigenen Prozess mit erfundenen Daten (0.11.2, `app/betrieb.py`):
+  übertragbar auf beide; die Gründe für Hinweise und Probleme sind je Projekt andere, der Leistungstest braucht je
+  Projekt einen eigenen Generator für erfundene Daten.
+- Nach einer Entscheidung nur die betroffenen Zeilen neu rechnen und zurückgeben (0.11.1): lohnt nur, wo eine
+  Entscheidung heute die ganze Liste neu baut; im eShopKompass erst messen.

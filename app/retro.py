@@ -865,11 +865,6 @@ def _fam(groups):
     return {f for x in groups for f in _FAMILY.get(x, "").split()}
 
 
-def _same_title(a, b):
-    c = lambda t: _squash(titles.norm(article_front(str(t or "").replace("_", " "))))
-    return c(a) == c(b)
-
-
 def own_genre(g):
     return OWN_GENRE.get(((g.get("own") or {}).get("genre") or "").casefold())
 

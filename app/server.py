@@ -2,6 +2,7 @@
 import copy
 import datetime
 import gzip
+import hashlib
 import ipaddress
 import json
 import os
@@ -13,7 +14,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import aufgaben, besitz, collection, flat2vr, imports, library, lists, muster, pcwish, retro, sources, store, sync, titles, verlauf, wheel
+from . import aufgaben, besitz, betrieb, collection, eingaben, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -82,14 +83,10 @@ def diag_view():
 def settings_view():
     """Einstellungen für die Oberfläche: der Schlüssel selbst geht nie zurück an den Browser."""
     s = sync.load_settings()
-    key = s.pop("gg_key")
-    steam = s.pop("steam_key")
-    wish = s.pop("gg_wish")
-    igdb = s.pop("igdb_id"), s.pop("igdb_secret")
-    nexus = s.pop("nexus_key")
-    it = s.pop("itad_key")
-    return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "",
-                steam_key_set=bool(steam), gg_wish_set=bool(wish), igdb_set=all(igdb), nexus_set=bool(nexus), itad_set=bool(it))
+    secret = {k: s.pop(k) for k in sync.SECRETS}
+    key = secret["gg_key"]
+    return dict(s, gg_key_end=key[-4:] if len(key) > 12 else "",
+                **{flag: all(secret[k] for k in keys) for flag, keys in sync.SECRET_FLAGS.items()})
 
 
 def import_collection(data, text, dry):
@@ -190,12 +187,12 @@ def price_stats(data=None, pw=None, hist=None):
 
 
 # Was der Zustand liest (0.10.15): ändert sich keine dieser Dateien, kommt er aus dem Zwischenspeicher
-STATE_FILES = ("data.json", collection.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
+STATE_FILES = ("data.json", collection.FILE, eingaben.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
 
 
 def _state_core():
     data = store.load_data()
-    near, own, de = memo("retro", (collection.FILE,), _retro_lists)
+    near, own, de = memo("retro", (collection.FILE, eingaben.FILE), _retro_lists)
     games = collection_view().get("games") or []
     hist, pw = store.load_json("history.json", {}), store.load_json(pcwish.FILE, pcwish.EMPTY)
     view, pcv = library.view(data, hist=hist, settings=sync.load_settings()), pcwish.view(data)
@@ -218,18 +215,81 @@ def state():
     return dict(core, sync=sync.status(), settings=settings_view())
 
 
+# Was die Sammlung liest; ab 0.11.0 mit den Nutzereingaben (eine Entscheidung ändert nur eingaben.json)
+COL_FILES = (collection.FILE, eingaben.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
+
+
 def collection_view():
     """Die Sammlung wie in der Oberfläche, zwischengespeichert, bis sich eine der Dateien ändert."""
-    return memo("colview", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE),
+    return memo("colview", COL_FILES,
                 lambda: collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
 
 
+# Nur in den Einzelheiten gebraucht (0.11.1): fehlt in /api/collection, kommt beim Aufklappen über /api/details.
+# Die Beschreibung ist rund ein Drittel der Antwort; hd sagt der Oberfläche, dass es eine gibt
+DETAIL_FIELDS = ("desc",)
+
+
+def slim(r):
+    """Zeile der Sammlung ohne die Felder der Einzelheiten."""
+    out = {k: v for k, v in r.items() if k not in DETAIL_FIELDS}
+    if r.get("desc"):
+        out["hd"] = 1
+    return out
+
+
+def slim_view(v):
+    return dict(v, games=[slim(r) for r in v["games"]], detail=list(DETAIL_FIELDS))
+
+
+def etag_of(raw):
+    return '"' + hashlib.sha1(raw).hexdigest()[:20] + '"'
+
+
 def collection_body():
-    """Die Sammlung als fertige Antwort, roh und gepackt."""
+    """Die Sammlung als fertige Antwort: roh, gepackt und ihr ETag (0.11.1)."""
     def make():
-        raw = json.dumps(collection_view(), ensure_ascii=False).encode("utf-8")
-        return raw, gzip.compress(raw, compresslevel=5)
-    return memo("collection", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE), make)
+        raw = json.dumps(slim_view(collection_view()), ensure_ascii=False).encode("utf-8")
+        return raw, gzip.compress(raw, compresslevel=5), etag_of(raw)
+    return memo("collection", COL_FILES, make)
+
+
+def details(keys):
+    """Felder der Einzelheiten je Spiel (0.11.1) aus der zwischengespeicherten Sammlung: {Schlüssel: {Feld: Wert}}."""
+    want = {str(k) for k in keys[:5000] if isinstance(k, str)}
+    return {r["key"]: {f: r.get(f) or "" for f in DETAIL_FIELDS}
+            for r in collection_view().get("games") or [] if r["key"] in want}
+
+
+def colview_patch(rows, before):
+    """Nach einer Entscheidung (unter store.lock): die zwischengespeicherte Sammlung bekommt nur die neuen Zeilen der
+    betroffenen Spiele, statt alles neu zu rechnen (0.11.1). before ist der Stand der Dateien beim Lesen der Sammlung;
+    passt der Zwischenspeicher nicht genau dazu (oder rechnet gerade jemand), bleibt er, wie er ist, und wird beim
+    nächsten Abruf ganz neu gerechnet."""
+    with _memo_lock:
+        busy = _memo_busy.get("colview")
+    if busy is None or not busy.acquire(blocking=False):
+        return False
+    try:
+        with _memo_lock:
+            hit = _memo.get("colview")
+        if not hit or hit[0] != (store.DATA_DIR, before, None):
+            return False
+        games = [rows.get(r["key"], r) for r in hit[1]["games"]]
+        nv = dict(hit[1], games=games, genres=sorted({x for r in games for x in r["genres"]}))
+        with _memo_lock:
+            _memo["colview"] = ((store.DATA_DIR, store.stamp(*COL_FILES), None), nv)
+        return True
+    finally:
+        busy.release()
+
+
+def decided(col, keys, before):
+    """Zeilen der Spiele nach einer Entscheidung (ohne Einzelheiten) für die Antwort; der Zwischenspeicher bekommt sie
+    auch. Die Oberfläche tauscht nur diese Zeilen aus, statt die ganze Sammlung neu zu laden (0.11.1)."""
+    rows = collection.rows(col, store.load_data(), keys)
+    colview_patch(rows, before)
+    return {k: slim(r) for k, r in rows.items()}
 
 
 # Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder
@@ -368,7 +428,7 @@ def import_todo(text, dry):
         data = store.load_data()
         col = store.load_json(collection.FILE, collection.EMPTY)
         pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
-        changed = set()
+        changed, user = set(), []           # user (0.11.0): Spiele mit geänderten Nutzereingaben
         cache = {}
 
         def act(kind, key, val):
@@ -381,17 +441,20 @@ def import_todo(text, dry):
                 if sy not in cache:
                     cache[sy] = (store.load_json(retro.CACHE, {}).get(sy) or {}).get("idx")
                 retro.settle_near(col, key, bool(val), cache[sy])
-                changed.add("col")
+                user.append(key)
+                changed.add("col")          # die Fassung (de) ist gleich neu gerechnet
             elif kind == "own":
                 retro.settle_own(col, key, take=bool(val))
-                changed.add("col")
+                user.append(key)
             elif kind in ("wheel", "vrmod") and key in (col.get("games") or {}):
                 col["games"][key]["r_" + kind] = val
-                changed.add("col")
+                user.append(key)
         games = collection.view(col, data)["games"]
         res = aufgaben.apply(text, data, retro.near_list(col), retro.own_list(col), pcwish.id_todo(pw), dry=dry, act=act, games=games)
         if not dry:
             store.save_data(data)
+            if user:
+                eingaben.save(col, user)    # erst die kleine Datei: der Haken beim Speichern der Sammlung liest sie
             if "col" in changed:
                 store.save_json(collection.FILE, col)
             if "pw" in changed:
@@ -413,13 +476,41 @@ def restore_titles(recs):
     return state()
 
 
+def index_html():
+    """index.html mit der Version an Stilen und Skript (0.11.1), damit der Browser beide lange behalten darf."""
+    with open(os.path.join(STATIC, "index.html"), encoding="utf-8") as f:
+        page = f.read()
+    v = urllib.parse.quote(sources.VERSION)
+    return page.replace('href="style.css"', f'href="style.css?v={v}"').replace('src="js/app.js"', f'src="js/app.js?v={v}"').encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "vr-navigator"
+    # 0.11.1: HTTP/1.1, sonst fragt Chromium mit dem ETag nicht nach (If-None-Match) und lädt jedes Mal alles. Jede
+    # Antwort hat eine Länge; eine Verbindung ohne Anfrage schließt nach timeout Sekunden
+    protocol_version = "HTTP/1.1"
+    timeout = 60
 
     def log_message(self, fmt, *args):
         pass
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None, cache="no-store", etag=None):
+        """etag (0.11.1): mit If-None-Match gleich kommt 304 ohne Inhalt; der Browser fragt jedes Mal nach (no-cache),
+        lädt aber nur, was sich geändert hat."""
+        if etag:
+            cache = "no-cache"
+            if code == 200 and etag in [x.strip() for x in (self.headers.get("If-None-Match") or "").split(",")]:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", cache)
+                self.end_headers()
+                return
+            extra = dict(extra or {}, ETag=etag)
+        if self.command == "POST" and not getattr(self, "_consumed", False):
+            # Inhalt der Anfrage nicht gelesen (zu groß, falscher Typ, fremde Adresse): die Verbindung endet hier,
+            # sonst läse der Server den Rest als nächste Anfrage
+            self.close_connection = True
+            extra = dict(extra or {}, Connection="close")
         zipped = None
         if isinstance(body, tuple):         # schon fertig: (roh, gepackt), siehe collection_body
             body, zipped = body
@@ -434,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Encoding", "gzip")
             self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         # Nicht in fremde Seiten einbetten, Typen nicht raten, keine Adresse an verlinkte Seiten
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -453,7 +544,9 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         if n < 0 or n > limit:          # negativ hieße: lesen bis zum Ende
             raise ValueError("zu groß")
-        body = json.loads(self.rfile.read(n) or b"{}")
+        raw = self.rfile.read(n)
+        self._consumed = True
+        body = sicherung.loads(raw or b"{}")      # 0.10.29: NaN und Infinity gelten nicht
         if not isinstance(body, dict):
             raise ValueError("JSON-Objekt erwartet")
         return body
@@ -469,18 +562,28 @@ class Handler(BaseHTTPRequestHandler):
         if self._foreign():
             return
         try:
-            if path in ("/", "/index.html"):
-                with open(os.path.join(STATIC, "index.html"), "rb") as f:
-                    self._send(200, f.read(), "text/html; charset=utf-8")
+            if path == "/healthz":
+                # 0.10.29: für den HEALTHCHECK von Docker; liest keine großen Dateien
+                h = health()
+                self._send(200 if h["ok"] else 503, h)
+            elif path in ("/", "/index.html"):
+                self._send(200, index_html(), "text/html; charset=utf-8", cache="no-cache")
             elif re.fullmatch(r"/(style\.css|js/[a-z-]+\.js)", path) and os.path.isfile(os.path.join(STATIC, path[1:])):
-                # Teile der Oberfläche: nur diese Namen, kein Pfad aus der Anfrage sonst
+                # Teile der Oberfläche: nur diese Namen, kein Pfad aus der Anfrage sonst. Ab 0.11.1 mit der Version in
+                # der Adresse (index_html): die gilt ein Jahr, ein Update bringt eine neue Adresse
+                versioned = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("v") == [sources.VERSION]
                 with open(os.path.join(STATIC, path[1:]), "rb") as f:
                     self._send(200, f.read(), "text/css; charset=utf-8" if path.endswith(".css")
-                               else "text/javascript; charset=utf-8")
+                               else "text/javascript; charset=utf-8",
+                               cache="public, max-age=31536000, immutable" if versioned else "no-cache")
             elif path == "/api/state":
-                self._send(200, state())
+                raw = json.dumps(state(), ensure_ascii=False).encode("utf-8")
+                self._send(200, raw, etag=etag_of(raw))
             elif path == "/api/diag":
                 self._send(200, diag_view())
+            elif path == "/api/betrieb":
+                # Statuskarte (0.11.2): Zustand des Betriebs, liest nur kleine Dateien und den Zwischenspeicher
+                self._send(200, betrieb.view(collection_view().get("n") or 0))
             elif path == "/api/status":
                 self._send(200, sync.status())
             elif path == "/api/verlauf":
@@ -494,11 +597,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send(404, {"error": "Titel nicht gefunden"})
             elif path == "/api/collection":
-                self._send(200, collection_body())
+                raw, packed, tag = collection_body()
+                self._send(200, (raw, packed), etag=tag)
             elif path == "/api/export":
-                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
-                                 "collection": store.load_json(collection.FILE, collection.EMPTY),
-                                 "pcwish": store.load_json(pcwish.FILE, pcwish.EMPTY)},
+                # dieselben Teile wie die Sicherungen im Datenordner, ab 0.11.0 mit den Nutzereingaben (eingaben)
+                self._send(200, sicherung.snapshot(),
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
             elif path == "/api/abgleich":
                 # Zum Nachprüfen (wie im eShopKompass): Stand und Protokoll des Abgleichs, Preisverlauf,
@@ -514,6 +617,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
+        self._consumed = False          # dieselbe Verbindung trägt mehrere Anfragen (HTTP/1.1)
         if self._foreign():
             return
         try:
@@ -532,7 +636,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, import_todo(text, dry))
                     return
                 fn = import_retro if kind == "retro" else imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
-                with store.lock:
+                # 0.10.29: die Vorschau ändert nichts und braucht das Schloss nicht; nur Übernehmen hält es
+                with store.lock if not dry else _NO_LOCK:
                     data = store.load_data()
                     res = fn(data, text, dry=dry, lists=_lists(body)) if fn is import_retro else fn(data, text, dry=dry)
                     if (res.get("kind") or kind) == "playnite":
@@ -553,22 +658,26 @@ class Handler(BaseHTTPRequestHandler):
                     if data["imports"].get("retro"):
                         data["imports"]["retro"]["gone"] = 0
                         store.save_data(data)
-                self._send(200, {"changed": n, "collection": collection.view(col, store.load_data())})
+                # Spiele fallen weg: die ganze Sammlung, ab 0.11.1 ohne Einzelheiten (selten)
+                self._send(200, {"changed": n, "collection": slim_view(collection_view())})
             elif path == "/api/retro/own":
                 # Widerspruch zu deiner Ordner-Liste (0.8.8): „Liste gilt“ für ein Spiel oder alle; ab 0.9.6 mit
                 # take „Quellen gelten“ (libretro und IGDB einig)
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     keys = [x["key"] for x in retro.own_list(col)] if body.get("all") is True else [_text(body.get("key"), 300)]
                     for k in keys:
                         retro.settle_own(col, k, take=body.get("take") is True)
-                    store.save_json(collection.FILE, col)
-                self._send(200, {"retro_own": retro.own_list(col), "collection": collection.view(col, store.load_data())})
+                    eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei, nicht die ganze Sammlung
+                    rows = decided(col, keys, before)
+                self._send(200, {"retro_own": retro.own_list(col), "rows": rows})
             elif path == "/api/retro/de":
                 # „DE fehlt“ aus „Zu erledigen“ (0.10.12): ignorieren (ein Spiel, alle oder alle eines Systems) oder wieder melden
                 ign = body.get("ign") is not False
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     if body.get("all") is True:
                         sy = _text(body.get("system"), 40)
                         keys = [x["key"] for x in retro.de_list(col) if not sy or x["system"] == sy]
@@ -577,18 +686,22 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         keys = [_text(body.get("key"), 300)]
                     n = retro.settle_de(col, keys, ign)
-                    store.save_json(collection.FILE, col)
-                self._send(200, {"changed": n, "retro_de": retro.de_list(col), "collection": collection.view(col, store.load_data())})
+                    eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei
+                    rows = decided(col, keys, before)
+                self._send(200, {"changed": n, "retro_de": retro.de_list(col), "rows": rows})
             elif path == "/api/retro/near":
                 # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
                 key = _text(body.get("key"), 300)
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     g = (col.get("games") or {}).get(key) or {}
                     idx = (store.load_json(retro.CACHE, {}).get(g.get("system") or "") or {}).get("idx")
                     retro.settle_near(col, key, bool(body.get("ok")), idx)
-                    store.save_json(collection.FILE, col)
-                self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col, store.load_data())})
+                    eingaben.save(col, [key])
+                    store.save_json(collection.FILE, col)      # die Fassung (de) ist neu gerechnet, nur bei diesem Spiel
+                    rows = decided(col, [key], before)
+                self._send(200, {"retro_near": retro.near_list(col), "rows": rows})
             elif path == "/api/pcwish/id":
                 # Steam-ID eines PC-Wunschs aus „Zu erledigen“ (0.8.24): eine der angebotenen oder keine
                 with store.lock:
@@ -599,6 +712,17 @@ class Handler(BaseHTTPRequestHandler):
                 pcv = pcwish.view(data)
                 muster.annotate({}, pcv, data, pw.get("items") or {}, price_stats(data, pw))
                 self._send(200, {"pcwish": pcv, "pcwish_ids": pcwish.id_todo(pw)})
+            elif path == "/api/leistung":
+                # Leistungstest der Statuskarte (0.11.2): nur auf Klick, nicht während eines Abgleichs; eigener Prozess,
+                # temporärer Datenordner, erfundene Daten, ohne Netz
+                betrieb.start_test(collection_view().get("n") or 0)
+                self._send(200, betrieb.view(collection_view().get("n") or 0))
+            elif path == "/api/details":
+                # Einzelheiten der Sammlung beim Aufklappen (0.11.1): {"keys": [...]}, liest nur den Zwischenspeicher
+                keys = body.get("keys")
+                if not isinstance(keys, list):
+                    raise ValueError("keys fehlt")
+                self._send(200, {"games": details(keys)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/mark":
@@ -660,25 +784,13 @@ class Handler(BaseHTTPRequestHandler):
                 start_diag()
                 self._send(200, diag_view())
             elif path == "/api/restore":
-                d = body.get("data")
-                if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):
-                    raise ValueError("Keine Sicherung des VR-Navigator")
-                bad = [k for k, t in d["titles"].items() if not isinstance(t, dict) or not t.get("name")]
-                if bad:
-                    raise ValueError(f"{len(bad)} Einträge ohne Namen, Sicherung nicht übernommen")
-                col = body.get("collection")
-                with store.lock:
-                    store.save_data(d)
-                    # Sicherungen vor 0.4.0 haben keine Sammlung: dann bleibt die vorhandene
-                    if isinstance(col, dict) and isinstance(col.get("games"), dict):
-                        games = {str(k): g for k, g in col["games"].items() if isinstance(g, dict) and g.get("name")}
-                        store.save_json(collection.FILE, dict(col, games=games, n=len(games)))
-                    # PC-Wunschliste ab 0.8.7 in der Sicherung; ältere Sicherungen lassen die vorhandene
-                    pw = body.get("pcwish")
-                    if isinstance(pw, dict) and isinstance(pw.get("items"), dict):
-                        items = {str(k): e for k, e in pw["items"].items() if isinstance(e, dict) and e.get("name")}
-                        store.save_json(pcwish.FILE, dict(pw, items=items))
-                self._send(200, state())
+                # 0.10.29: erst Vorschau (dry), dann feldweise und mit Sicherung des jetzigen Stands vorher.
+                # Sicherungen vor 0.4.0 haben keine Sammlung, vor 0.8.7 keine PC-Wunschliste: die bleiben dann
+                if sync.status_running() and body.get("dry") is False:
+                    raise ValueError("Gerade läuft ein Abgleich. Bitte nach dessen Ende einspielen.")
+                # Ohne dry wie bisher: einspielen und den Zustand zurück (Schnittstelle bleibt), jetzt mit dem Bericht
+                res = sicherung.restore(body, dry=body.get("dry") is True)
+                self._send(200, res if res["dry"] else dict(state(), restore=res))
             else:
                 self._send(404, {"error": "nicht gefunden"})
         except ValueError as e:
@@ -694,23 +806,74 @@ class Handler(BaseHTTPRequestHandler):
         self._send(500, {"error": f"Interner Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers"})
 
 
+class _NoLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+_NO_LOCK = _NoLock()
+
+
+def health():
+    """Lebenszeichen (0.10.29): Version, ob der Datenordner da ist, ob ein Abgleich läuft."""
+    ok = os.path.isdir(store.DATA_DIR) and os.access(store.DATA_DIR, os.W_OK)
+    return {"ok": ok, "version": sources.VERSION, "sync_running": sync.status_running()}
+
+
+WARTUNG_S = 600
+WARTUNG_START_S = 120
+
+
+def wartung(once=False):
+    """Pflege im Hintergrund (0.10.29): tägliche Sicherung, monatlicher Wiederherstellungstest; nie während eines
+    Abgleichs (der schreibt laufend). Läuft auch ohne Zeitplan (AUTO_SYNC=0). Erst WARTUNG_START_S nach dem Start, damit
+    das erste Vorrechnen der Ansichten Vorrang hat."""
+    if not once:
+        time.sleep(WARTUNG_START_S)
+    while True:
+        try:
+            if not sync.status_running():
+                sicherung.daily()
+                if sicherung.check_due() and sicherung.files():
+                    sicherung.check()
+        except Exception as e:
+            print("Wartung:", type(e).__name__, e, file=sys.stderr)
+        if once:
+            return
+        time.sleep(WARTUNG_S)
+
+
 def _warm(once=False):
     """Sammlung und Zustand gleich nach dem Start berechnen, ab 0.10.15 auch nach jedem Abgleich und Import: alle
     paar Sekunden prüfen, ob sich eine Datei geändert hat (nur die Änderungszeit, ohne Lesen), und dann vorab
     rechnen; so öffnet der erste Klick ohne Warten. Während eines Abgleichs nicht, der schreibt laufend."""
+    last = ""
     while True:
+        wait = WARM_S
         try:
             if not sync.status_running():
                 collection_body()
                 state()
-        except Exception:
-            pass
+            last = ""
+        except Exception as e:
+            # 0.11.2: nicht mehr still. Ins Protokoll des Containers (dieselbe Meldung nur einmal), dann eine Minute
+            # Pause, statt alle paar Sekunden vergeblich alles neu zu rechnen; der Abruf aus dem Browser zeigt den Fehler
+            msg = f"{type(e).__name__}: {e}"
+            if msg != last:
+                print("Vorrechnen der Ansichten:", file=sys.stderr)
+                traceback.print_exception(e, file=sys.stderr)
+                last = msg
+            wait = WARM_FAIL_S
         if once:
             return
-        time.sleep(WARM_S)
+        time.sleep(wait)
 
 
 WARM_S = 3
+WARM_FAIL_S = 60
 
 
 def main():
@@ -719,6 +882,7 @@ def main():
     if os.environ.get("AUTO_SYNC", "1") != "0":
         threading.Thread(target=sync.scheduler, daemon=True).start()
     threading.Thread(target=_warm, daemon=True).start()
+    threading.Thread(target=wartung, daemon=True).start()
     print(f"VR-Navigator läuft auf Port {port}", flush=True)
     srv.serve_forever()
 

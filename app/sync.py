@@ -11,8 +11,10 @@ Ablauf eines Laufs (Einzelheiten in docs/abrufe.md):
 Die Abrufe laufen ohne Sperre auf data.json; erst das Ergebnis wird unter der Sperre in die
 aktuelle Fassung eingetragen. Zwischen zwei Abrufen an denselben Server liegt die Pause der Quelle (PAUSE), auch
 wenn ab 0.10.21 nach den Konten mehrere Stränge gleichzeitig laufen (HOSTS). Antwortet
-eine Quelle mit 403 oder 429 oder einer Prüfseite, endet sie für diesen Lauf und ruht danach
-REST_H Stunden, auch über Läufe hinweg. Nach einem kurzen Netzfehler gibt es einen zweiten
+eine Quelle mit 403 oder 429 oder einer Prüfseite, endet sie für diesen Lauf, und ab 0.10.29 ruht ihr Server
+(ruhe.py, 24 Stunden), gleich welche Quelle ihn fragt, auch über Läufe und Neustarts hinweg. Der Stand des Laufs
+steht ab 0.10.29 nach jeder fertigen Quelle in sync.json; ein Neustart mitten im Lauf verliert so weder Sperren
+noch Protokoll, und der nächste Blick des Zeitplans erkennt den unterbrochenen Lauf. Nach einem kurzen Netzfehler gibt es einen zweiten
 Versuch.
 
 Das Protokoll entsteht live (STATE), in den Strängen als ein Block je Quelle, wenn sie fertig ist; was noch läuft,
@@ -25,10 +27,11 @@ import re
 import sys
 import threading
 import time
+import traceback
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, collection, deku, flat2vr, gametdb, igdb, itad, library, lists, mods, pcwish, prices, probes, retro, sources, store, titles, trend, verlauf, wheel, wiki
+from . import accounts, collection, deku, flat2vr, gametdb, igdb, itad, library, lists, mods, pcwish, prices, probes, retro, ruhe, sources, store, titles, trend, verlauf, wheel, wiki
 
 PAUSE = 2.0
 PAGE_AGE_H = 20
@@ -38,7 +41,7 @@ MAX_SEARCH = 30
 MAX_ERRORS = 5
 MISS_DAYS = 7               # nicht gefundene Titel erst nach so vielen Tagen erneut suchen
 SEARCH_V = 2                # Stand der Suche; ändert sie sich, gelten alte Fehlschläge nicht mehr
-REST_H = 24                 # Ruhezeit einer Quelle nach Sperre oder Prüfseite
+REST_H = ruhe.DEFAULT_H     # Ruhezeit nach Sperre oder Prüfseite, ab 0.10.29 je Server (ruhe.hours, RUHE_STUNDEN)
 NET_RETRY = 5.0             # Pause vor dem zweiten Versuch nach einem Netzfehler
 BOOT_GAP_MIN = 30           # Lauf nach dem Start nur, wenn der letzte länger her ist
 LOG_LINES = 200
@@ -115,11 +118,22 @@ RATING_MAX = 60             # Steam-Rezensionen je Lauf für Titel auf Wunschlis
 
 SETTINGS = {"gg_key": "", "auto": True, "hours": 6, "steam_key": "", "steam_id": "", "steam_wish": True, "gg_wish": "", "sharenite": "",
             "igdb_id": "", "igdb_secret": "", "nexus_key": "", "itad_key": ""}
-SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret", "nexus_key", "itad_key")      # bleiben auf dem Server, nie im Protokoll
+# Geheimnisse (0.10.29 an einer Stelle): bleiben auf dem Server, nie im Protokoll, im Verbindungstest oder im Browser.
+# SECRET_FLAGS sagt der Oberfläche nur, ob sie eingetragen sind: Name der Marke: Schlüssel, die alle gesetzt sein müssen
+SECRETS = ("gg_key", "steam_key", "gg_wish", "igdb_id", "igdb_secret", "nexus_key", "itad_key")
+SECRET_FLAGS = {"gg_key_set": ("gg_key",), "steam_key_set": ("steam_key",), "gg_wish_set": ("gg_wish",),
+                "igdb_set": ("igdb_id", "igdb_secret"), "nexus_set": ("nexus_key",), "itad_set": ("itad_key",)}
 
 sleep = time.sleep          # Tests setzen hier eine Attrappe ein
+clock = time.monotonic      # 0.10.29: Uhr der Pausen je Server, Tests setzen eine eigene ein (kein Warten auf die echte Uhr)
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
 _running = threading.Lock()
+_diag = threading.Lock()            # 0.10.29: Verbindungstest; nie gleichzeitig mit einem Abgleich
+leistung_running = threading.Event()   # 0.11.2: Leistungstest der Statuskarte; der Zeitplan wartet so lange
+RUNS_KEEP = 30                      # 0.11.2: so viele Läufe merkt sich sync.json (runs) für die Statuskarte
+_guard = threading.Lock()           # prüft und nimmt die beiden Riegel in einem Schritt
+_save_lock = threading.Lock()
+_manual_reset = set()               # gg.deals-Link während eines Laufs neu gespeichert: am Ende nicht zurückschreiben
 # Stand des laufenden Abgleichs, live für die Oberfläche
 STATE = {"started": "", "step": "", "done": 0, "total": 0, "log": [], "parts": []}
 
@@ -135,6 +149,12 @@ def load_settings():
 
 
 def save_settings(body):
+    """Einstellungen ändern. Ab 0.10.29 unter dem Schloss der Datenablage: zwei Anfragen zugleich verlieren nichts."""
+    with store.lock:
+        return _save_settings(body)
+
+
+def _save_settings(body):
     s = load_settings()
     if "gg_key" in body:
         s["gg_key"] = str(body["gg_key"] or "").strip()[:100]
@@ -162,6 +182,8 @@ def save_settings(body):
             raise ValueError("gg.deals: den Link aus „Wunschliste teilen“ einfügen (https://gg.deals/wishlist/share/…)")
         s["gg_wish"] = v
         st = store.load_json("sync.json", {})
+        if _running.locked():
+            _manual_reset.add("ggwish")     # der laufende Abgleich schreibt den alten Stand am Ende nicht zurück
         if (st.get("manual") or {}).pop("ggwish", None):
             # Neuer Link: der Server versucht es wieder selbst
             store.save_json("sync.json", st)
@@ -206,10 +228,18 @@ def status_running():
     return _running.locked()
 
 
+def diag_running():
+    return _diag.locked()
+
+
 def status():
-    """Letzter Lauf aus sync.json; läuft gerade einer, mit Schritt und Protokoll live."""
+    """Letzter Lauf aus sync.json; läuft gerade einer, mit Schritt und Protokoll live. Ab 0.10.29 mit den ruhenden
+    Servern (resting) und, ob der letzte Lauf unterbrochen wurde (interrupted: steht noch als partial in der Datei)."""
     st = store.load_json("sync.json", {})
     st["running"] = _running.locked()
+    st["resting"] = ruhe.active()
+    if st.pop("partial", None) and not st["running"]:
+        st["interrupted"] = True
     if st["running"]:
         st.update(started=STATE["started"], step=STATE["step"], done=STATE["done"],
                   total=STATE["total"], log=list(STATE["log"]), parts=list(STATE.get("parts") or []))
@@ -240,6 +270,8 @@ def due(settings=None, at=None, boot=False):
     if since is None:
         return True
     gap = timedelta(minutes=BOOT_GAP_MIN)
+    if last.get("partial"):
+        return since >= gap         # 0.10.29: unterbrochen (Neustart): nach der kurzen Pause weiter
     if last.get("ok") is False and since < gap:
         return False
     return since >= (gap if boot else timedelta(hours=s["hours"]))
@@ -306,17 +338,27 @@ class _Source:
         self.n = self.errors = 0
         self.stopped = ""
         self.blocked = False
+        self.resting = ""           # 0.10.29: Ende der Ruhe des Servers, wenn die Quelle deshalb nicht fragte
         self.stats = {}
 
-    def _stop(self, why, where):
+    def _stop(self, why, where, url):
         self.stopped, self.blocked = why, True
-        self.log(f"{self.name}: {why} bei {where}, Quelle ruht {REST_H} Stunden")
+        end = ruhe.block(url, why, self.name)
+        self.log(f"{self.name}: {why} bei {where}, Server {ruhe.host_of(url)} ruht bis {_hm(end)} UTC")
+
+    def _resting(self, url):
+        """Ruht der Server (Sperre aus dieser oder einer anderen Quelle, auch aus einem früheren Lauf)?"""
+        end = ruhe.until(url)
+        if end:
+            self.stopped, self.resting = "ruht", end
+            self.log(f"{self.name}: Server {ruhe.host_of(url)} ruht nach einer Sperre bis {_hm(end)} UTC, nicht abgefragt")
+        return bool(end)
 
     def get(self, url, shown=None, absent=(), data=None, raw=False, etag="", meta=None):
         """Text der Antwort, None bei Fehler. Statuscodes in absent heißen „gibt es nicht“: dann
         "" ohne Fehlerzeile (etwa Steam-Spielerzahl 404 für eine App ohne Spieler). Mit data als POST (IGDB).
         Mit etag (0.10.28) fragt der Abruf „nur wenn geändert“; meta bekommt Status (304: unverändert) und ETag."""
-        if self.stopped:
+        if self.stopped or self._resting(url):
             return None
         self.n += 1
         where = shown or url
@@ -324,8 +366,10 @@ class _Source:
         for attempt in (1, 2):
             try:
                 with slot[0]:
+                    if attempt == 2 and self._resting(url):     # inzwischen von einer anderen Quelle gesperrt
+                        return None
                     # Pause seit dem letzten Abruf an diesen Server, gleich von welcher Quelle (0.10.21)
-                    wait = slot[1] + self.pause - time.monotonic() if slot[1] else 0
+                    wait = slot[1] + self.pause - clock() if slot[1] else 0
                     if wait > 0:
                         sleep(wait)
                     try:
@@ -334,7 +378,7 @@ class _Source:
                                 else sources.fetch(url, headers=head, data=data) if data is not None
                                 else sources.fetch(url, headers=head, meta=meta) if meta is not None else sources.fetch(url, headers=head))
                     finally:
-                        slot[1] = time.monotonic()
+                        slot[1] = clock()
                 break
             except sources.FetchError as e:
                 if e.status == 0 and attempt == 1:
@@ -344,7 +388,7 @@ class _Source:
                 if e.status in absent:
                     return ""
                 if e.status in sources.BLOCKED:
-                    self._stop(f"gesperrt (HTTP {e.status})", where)
+                    self._stop(f"gesperrt (HTTP {e.status})", where, url)
                 else:
                     self.errors += 1
                     self.log(f"{self.name}: {'HTTP ' + str(e.status) if e.status else 'keine Verbindung'} bei {where}")
@@ -354,13 +398,31 @@ class _Source:
                 return None
         why = sources.challenge(text if not raw else text[:4000].decode("utf-8", "replace"))
         if why:
-            self._stop(why, where)
+            self._stop(why, where, url)
             return None
         return text
 
     def result(self):
         return {"at": titles.now_iso(), "requests": self.n, "errors": self.errors,
-                "ok": not self.stopped, "msg": self.stopped, "blocked": self.blocked, **self.stats}
+                "ok": not self.stopped, "msg": self.stopped, "blocked": self.blocked,
+                **({"until": self.resting} if self.resting else {}), **self.stats}
+
+
+def run_summary(st, results):
+    """Kurzfassung eines Laufs für die Liste der Läufe (0.11.2): Zeit, ob alles ging, Quellen mit Problem."""
+    bad = [{"src": NAMES.get(k, k), "msg": str(r.get("msg") or "")[:80], "errors": r.get("errors") or 0}
+           for k, r in sorted(results.items()) if isinstance(r, dict) and (r.get("ok") is False or r.get("errors"))]
+    out = {"started": st.get("started") or "", "finished": st.get("finished") or "", "ok": bool(st.get("ok")), "bad": bad}
+    if st.get("error"):
+        out["error"] = st["error"]
+    return out
+
+
+def _hm(iso):
+    try:
+        return datetime.fromisoformat(iso).strftime("%d.%m. %H:%M")
+    except (TypeError, ValueError):
+        return "?"
 
 
 def _targets(data):
@@ -2557,7 +2619,7 @@ def _assign(log, budget, rest):
         steam = _Source("Steam", log)
         checked = _app_checks(steam, list(dict.fromkeys(unsure.values())), apps, budget, stamp)
         if steam.blocked:
-            rest["steam"] = _iso(now() + timedelta(hours=REST_H))
+            rest["steam"] = _iso(now() + timedelta(hours=ruhe.hours()))
     # 2. Meta-ID suchen, gekaufte bei Meta zuerst
     todo = [(not (t.get("owned") or {}).get("meta"), bool(t.get("steam_appid")), titles.norm(t["name"]), k)
             for k, t in data["titles"].items()
@@ -2583,7 +2645,7 @@ def _assign(log, budget, rest):
             elif miss:
                 missed.append(k)
         if src.blocked:
-            rest["qsdb"] = _iso(now() + timedelta(hours=REST_H))
+            rest["qsdb"] = _iso(now() + timedelta(hours=ruhe.hours()))
     # Eintragen
     sure, doubt, found, merged = [], [], [], 0
     with store.lock:
@@ -2644,20 +2706,40 @@ CHAIN = {}       # Quellen der einfachen Stränge: Name: fn(settings, log), gef�
 def run(only=None, boot=False, by_hand=False, fast=False):
     """Ein Lauf. only: Menge der Quellen (qsdb, steam, gg), sonst alle. fast: Grenzen je Lauf mal FAST
     (nur von Hand). Läuft schon einer, kommt False zurück."""
-    if not _running.acquire(blocking=False):
-        return False
+    with _guard:
+        # 0.10.29: nicht neben einem Verbindungstest, der dieselben Server fragt
+        if _diag.locked() or not _running.acquire(blocking=False):
+            return False
     limits = {k: globals()[k] for k in FAST_LIMITS}
+    st, results, log_lock = None, {}, threading.Lock()
+
+    def checkpoint(final=False):
+        """0.10.29: Stand des Laufs nach jeder fertigen Quelle in sync.json (partial), am Ende ohne. So überstehen
+        Protokoll und Ruhezeiten einen Neustart, und ein unterbrochener Lauf ist danach zu erkennen."""
+        with log_lock:
+            snap = dict(st, log=list(st["log"]), rest=dict(st["rest"]), sources=dict(st["sources"], **dict(results)))
+        if final:
+            snap.pop("partial", None)
+        else:
+            snap["partial"] = True
+        with _save_lock:
+            store.save_json("sync.json", snap)
+
     try:
         if fast:
             globals().update({k: v * FAST for k, v in limits.items()})
         prev = store.load_json("sync.json", {})
+        if prev.get("partial"):
+            prev = dict(prev, interrupted=prev.get("started"))
         st = {"started": _iso(now()), "log": [], "sources": dict(prev.get("sources") or {}),
-              "rest": {k: v for k, v in (prev.get("rest") or {}).items() if v > _iso(now())}}
+              "rest": {k: v for k, v in (prev.get("rest") or {}).items() if isinstance(v, str) and v > _iso(now())},
+              "runs": [x for x in (prev.get("runs") or []) if isinstance(x, dict)][-RUNS_KEEP:]}
+        if prev.get("interrupted"):
+            st["runs"] = (st["runs"] + [{"started": prev["interrupted"], "ok": False, "interrupted": True}])[-RUNS_KEEP:]
         STATE.update(started=st["started"], step="Start", done=0, total=0, log=st["log"])
 
         HOSTS.reset()
         mine = threading.local()        # Block der Quelle, die in diesem Faden läuft (0.10.21)
-        log_lock = threading.Lock()
 
         def put(lines):
             with log_lock:
@@ -2681,10 +2763,16 @@ def run(only=None, boot=False, by_hand=False, fast=False):
             + ("von Hand" if by_hand else "nach dem Start" if boot else "nach Zeitplan")
             + (", nur " + ", ".join(NAMES[x] for x in NAMES if x in only) if only else "")
             + (f", beschleunigt (je Quelle bis zu {FAST}-mal so viele Abrufe, Pausen wie sonst)" if fast else ""))
+        if prev.get("interrupted"):
+            log(f"Der Lauf vom {_hm(prev['interrupted'])} UTC wurde unterbrochen (etwa durch einen Neustart); "
+                "was er schon geholt hatte, ist gespeichert, der Rest kommt jetzt")
+        if (ra := ruhe.active()):
+            log("Ruhende Server: " + ", ".join(f"{h} bis {_hm(e['until'])} UTC" for h, e in sorted(ra.items())))
         _old_misses["ignore"] = prev.get("search_v") != SEARCH_V
         if _old_misses["ignore"] and prev:
             log("Suche geändert: Titel ohne Treffer werden diesmal neu gesucht")
-        upd, results = {}, {}
+        upd = {}
+        checkpoint()
 
         def do(name, fn):
             if only and name not in only:
@@ -2711,8 +2799,12 @@ def run(only=None, boot=False, by_hand=False, fast=False):
                     if block:
                         put(block)
             if results[name].get("blocked"):
-                st["rest"][name] = _iso(now() + timedelta(hours=REST_H))
+                st["rest"][name] = _iso(now() + timedelta(hours=ruhe.hours()))
                 results[name]["until"] = st["rest"][name]
+            try:
+                checkpoint()
+            except Exception as e:      # ein Fehler beim Zwischenspeichern hält den Lauf nicht auf
+                print("Zwischenstand nicht gespeichert:", e, file=sys.stderr)
 
         # Erst die Konten (Besitz, Wunschlisten), damit neue Wunschtitel gleich Preise bekommen
         budget = {"apps": APPINFO_MAX, "search": 15}
@@ -2879,11 +2971,35 @@ def run(only=None, boot=False, by_hand=False, fast=False):
         log(f"fertig nach {_took(begun)}, {len(upd)} Titel aktualisiert" + ("" if st["ok"] else ", mit Fehlern"))
         # Kurzfassung als zweite Zeile, damit das Wichtigste oben steht
         if st["log"]:
-            st["log"].insert(1, st["log"][-1][:9] + summary(applied, st["warnings"], results))
-            del st["log"][:-LOG_LINES]
-        store.save_json("sync.json", st)
+            with log_lock:
+                st["log"].insert(1, st["log"][-1][:9] + summary(applied, st["warnings"], results))
+                del st["log"][:-LOG_LINES]
+        return True
+    except Exception as e:
+        # 0.10.29: ein Fehler außerhalb der Quellen (Eintragen, Selbstprüfung) verhindert das Speichern nicht mehr
+        print("Fehler im Abgleich:", file=sys.stderr)
+        traceback.print_exception(e, file=sys.stderr)
+        if st is not None:
+            with log_lock:
+                st["log"].append(f"{now().strftime('%H:%M:%S')} Abgleich abgebrochen: unerwarteter Fehler "
+                                 f"({type(e).__name__}), Einzelheiten im Protokoll des Containers")
+            st.update(ok=False, error=type(e).__name__)
         return True
     finally:
+        if st is not None:
+            try:
+                st.setdefault("finished", _iso(now()))
+                st.setdefault("done", st["finished"])
+                st.setdefault("ok", False)
+                st["sources"].update(results)
+                st["runs"] = (st.get("runs") or []) + [run_summary(st, results)]
+                st["runs"] = st["runs"][-RUNS_KEEP:]
+                for k in list(_manual_reset):           # Link während des Laufs neu gespeichert (save_settings)
+                    (st.get("manual") or {}).pop(k, None)
+                _manual_reset.clear()
+                checkpoint(final=True)
+            except Exception as e:
+                print("Stand des Abgleichs nicht gespeichert:", e, file=sys.stderr)
         globals().update(limits)
         with _parts_lock:
             _parts.clear()
@@ -2897,8 +3013,8 @@ CHAIN.update({k: (lambda fn: lambda settings, log: fn(log))(fn) for k, fn in dic
 
 
 def start(only=None, fast=False):
-    """Lauf im Hintergrund starten. False, wenn schon einer läuft."""
-    if _running.locked():
+    """Lauf im Hintergrund starten. False, wenn schon einer oder ein Verbindungstest läuft."""
+    if _running.locked() or _diag.locked():
         return False
     threading.Thread(target=run, args=(only,), kwargs={"by_hand": True, "fast": bool(fast)}, daemon=True).start()
     return True
@@ -2911,7 +3027,7 @@ def scheduler():
     boot = True
     while True:
         try:
-            if due(boot=boot) and not _running.locked():
+            if due(boot=boot) and not _running.locked() and not _diag.locked() and not leistung_running.is_set():
                 run(boot=boot)
         except Exception as e:
             print("Zeitplan:", e, file=sys.stderr)
@@ -2919,30 +3035,54 @@ def scheduler():
         time.sleep(60)
 
 
+BUSY_LINE = "Verbindungstest nicht gestartet: Gerade läuft ein Abgleich. Bitte nach dessen Ende erneut testen."
+
+
 def diagnose():
     """Verbindung testen: jede Quelle einmal abfragen und beschreiben, was zurückkommt (Status,
     Server, Kodierung, was die Leser erkennen). Nimmt, wo es geht, einen Titel deiner
-    Wunschliste. Speichert nichts; der gg.deals-Schlüssel erscheint nie im Ergebnis."""
+    Wunschliste. Speichert nichts außer einer Sperre (ruhe.py); Schlüssel erscheinen nie im Ergebnis.
+    Ab 0.10.29 nie neben einem Abgleich, mit den Pausen je Server (HOSTS) und ohne ruhende Server zu fragen."""
+    with _guard:
+        if _running.locked() or not _diag.acquire(blocking=False):
+            return [BUSY_LINE]
+    try:
+        HOSTS.reset()
+        return _diagnose()
+    finally:
+        _diag.release()
+
+
+def _diagnose():
     data = store.load_data()
     settings = load_settings()
     key = settings["gg_key"]
     targets = list(_targets(data).values())
     lines = [f"VR-Navigator {sources.VERSION}, Test vom {now().strftime('%d.%m.%Y %H:%M')} UTC"]
-    hosts = set()
 
     def probe(name, url, info, headers=None, shown=None, data=None):
-        host = urllib.parse.urlsplit(url).hostname
-        if host in hosts:
-            sleep(PAUSE)
-        hosts.add(host)
-        r = sources.request(url, headers=headers, data=data)
+        end = ruhe.until(url)
+        if end:
+            lines.append(f"{name}: Server {ruhe.host_of(url)} ruht nach einer Sperre bis {_hm(end)} UTC, nicht angefragt")
+            return None
+        slot = HOSTS.slot(url)
+        with slot[0]:
+            wait = slot[1] + PAUSE - clock() if slot[1] else 0
+            if wait > 0:
+                sleep(wait)
+            try:
+                r = sources.request(url, headers=headers, data=data)
+            finally:
+                slot[1] = clock()
+        why = sources.challenge(r["text"])
+        if r["status"] in sources.BLOCKED or why:
+            ruhe.block(url, why or f"gesperrt (HTTP {r['status']})", "Verbindungstest")
         if r["error"]:
             lines.append(f"{name}: keine Verbindung ({r['error']})")
             return None
         moved = r.get("final") and r["final"] != url and urllib.parse.urlsplit(r["final"])[:3] != urllib.parse.urlsplit(url)[:3]
         head = (f"{name}: HTTP {r['status']}, Server {r['server'] or '?'}, Kodierung {r['enc'] or 'keine'}, {len(r['text'])} Zeichen"
                 + (f", umgeleitet nach {urllib.parse.urlsplit(r['final']).path or '/'}" if moved else ""))
-        why = sources.challenge(r["text"])
         if why or r["status"] >= 400:
             lines.append(head + (f", {why}" if why else "") + (", gesperrt" if r["status"] in sources.BLOCKED else "")
                          + f". Anfang: {' '.join(r['text'][:160].split())}")
@@ -3121,7 +3261,7 @@ def diagnose():
     else:
         lines.append("Retro-Fassungen: keine Retro-Liste, nicht angefragt")
     probes.run(probe, lines, col, settings, sleep)
-    for secret in (key, settings["steam_key"], settings["gg_wish"], settings["igdb_id"], settings["igdb_secret"], settings["nexus_key"], settings["itad_key"]):
+    for secret in (settings[k] for k in SECRETS):
         if secret:
             lines = [x.replace(secret, "…").replace(urllib.parse.quote(secret), "…") for x in lines]
     return lines

@@ -11,7 +11,19 @@ import re
 import unicodedata
 import urllib.parse
 
-from . import sources
+from . import ruhe, sources
+
+
+def _request(url, **kw):
+    """Wie sources.request, aber ab 0.10.29 nie an einen ruhenden Server; 403 und 429 lassen ihn ruhen (ruhe.py)."""
+    end = ruhe.until(url)
+    if end:
+        return {"url": url, "status": 0, "text": "", "enc": "", "server": "", "error": f"Server ruht bis {end[:16]} UTC"}
+    r = sources.request(url, **kw)
+    if r["status"] in sources.BLOCKED:
+        ruhe.block(url, f"gesperrt (HTTP {r['status']})", "Verbindungstest")
+    return r
+
 
 STEAM = "https://store.steampowered.com"
 PCGW = "https://www.pcgamingwiki.com/w/api.php"
@@ -132,7 +144,7 @@ def nexus(lines, name, sleep, key=""):
 
     def ask(query, variables):
         sleep(1)
-        r = sources.request(NEXUS_GQL, data=json.dumps({"query": query, "variables": variables}).encode(), headers=head)
+        r = _request(NEXUS_GQL, data=json.dumps({"query": query, "variables": variables}).encode(), headers=head)
         if r["error"] or r["status"] != 200:
             return None, f"HTTP {r['status']} {r['error']} {' '.join(r['text'][:200].split())}".strip()
         try:
@@ -194,14 +206,6 @@ def deku_item_info(text):
         f"; Beschreibung „{_short(desc.group(1))}“" if desc else "; keine Beschreibung")
 
 
-def uevr_info(text):
-    title = re.search(r"(?s)<title>(.*?)</title>", text)
-    links = set(re.findall(r'href="(/games?/[^"#?]+)', text))
-    api = sorted(set(re.findall(r"/api/[A-Za-z0-9/_-]+", text)))[:5]
-    return (f"Titel „{_short(title.group(1) if title else '', 60)}“, {len(links)} Spiel-Links, "
-            f"Hinweise auf eine Schnittstelle: {api or 'keine'}")
-
-
 def deku_search_slug(text, name=""):
     # Auch mit Zusatz (?format=…) oder ganzer Adresse (0.7.4: der PS4-Test fand mit dem engen Muster nichts).
     # 0.7.5: der passendste Treffer statt des ersten (der erste war eine Sammlung mit dem Spiel): gleicher Name
@@ -249,7 +253,7 @@ def igdb(lines, keys, names, sleep):
     if not (cid and secret):
         lines.append("IGDB: kein Schlüssel eingetragen (Einstellungen, Konten und Schlüssel), nicht angefragt")
         return
-    r = sources.request(TWITCH, data=urllib.parse.urlencode(
+    r = _request(TWITCH, data=urllib.parse.urlencode(
         {"client_id": cid, "client_secret": secret, "grant_type": "client_credentials"}).encode())
     try:
         token = json.loads(r["text"] or "{}").get("access_token") if not r["error"] else None
@@ -262,7 +266,7 @@ def igdb(lines, keys, names, sleep):
 
     def ask(path, body):
         sleep(1)
-        r = sources.request(IGDB + path, data=body.encode(), headers=head)
+        r = _request(IGDB + path, data=body.encode(), headers=head)
         if r["error"] or r["status"] != 200:
             return None, f"HTTP {r['status']} {r['error']} {' '.join(r['text'][:120].split())}".strip()
         try:

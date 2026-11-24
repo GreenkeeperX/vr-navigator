@@ -1,8 +1,8 @@
 # Oberfläche: Farben, Marken, Klappen
 
 Verbindliche Regeln für `app/static/` (`index.html`, `style.css`, `js/app.js`), übernommen aus
-dem eShopKompass. Wer Farben, Marken oder Bezeichnungen ändert, passt diese Datei und die
-README im selben Commit an.
+dem eShopKompass. Wer Farben, Marken oder Bezeichnungen ändert, passt diese Datei und
+`docs/ansichten.md` im selben Commit an (bis 0.11.1 stand das in der README).
 
 ## Grundsatz
 
@@ -182,6 +182,11 @@ Launcher: am PC der Launcher, bei Konsolen unter „Alle“ das System.
   Zustand farbig, Zeit, Abrufe und Meldung); Knöpfe in der Zeile `.bar.slim` sind so hoch wie
   im eShopKompass.
   Das Protokoll ist zu, außer der letzte Lauf hatte Fehler.
+- Ab 0.11.2 als letzte Karte „Betrieb“ (V-5): eine Klappe „Zustand“, deren Zeile den Gesamtstatus nennt („alles in
+  Ordnung“ grün, „n Hinweise“ violett, „n Probleme“ rot, dahinter die Gründe). Zu ist die Vorgabe, nur bei einem
+  Hinweis oder Problem offen. Darin eine kurze Tabelle (Version, Sicherung, Wiederherstellungstest, Daten, Speicher,
+  Platz) und Klappen für Quellen, ruhende Server, Läufe, Sperren, Dateien und den Leistungstest. Kein Datenalter als
+  Spalte oder Marke (Entscheidung 24.11.2026).
 - Werkzeugzeile: Suche mit eigenem ×, Esc leert sie ebenso; dahinter „Sortieren“ als Auswahl,
   Menüs (`details.menu` mit `data-menu`, nicht `data-kc`) mit Häkchen und „?“ für die Legende.
   Ein Menü zur Zeit; ein Klick daneben oder Esc schließt es; am Handy klappt es über die volle

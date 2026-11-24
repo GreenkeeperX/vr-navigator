@@ -10,7 +10,7 @@ was später je Spiel abgerufen wird (Feld „rev“), bleibt erhalten.
 import math
 import re
 
-from . import flat2vr, igdb, sources, titles, wheel
+from . import eingaben, flat2vr, igdb, sources, titles, wheel  # eingaben: Nutzerfelder beim Lesen (0.11.0)
 from . import store as datastore      # „store“ heißt hier sonst der Launcher
 
 FILE = "collection.json"
@@ -690,33 +690,47 @@ def sync_gg(col, data):
     return new, len(gone)
 
 
+def _vr_ctx(data):
+    """Was _vr_tag braucht, einmal je Aufbau (0.11.1): Steam-IDs und Namen deiner VR-Titel, VR-Prüfung im Store."""
+    return (data.get("steam_apps") or {},
+            {str(t["steam_appid"]): k for k, t in data["titles"].items() if str(t.get("steam_appid") or "").isdigit()},
+            {titles.base_norm(t["name"]): k for k, t in data["titles"].items()})
+
+
+def _vr_tag(r, ctx):
+    """VR am PC für eine Zeile (siehe _pc_vr). Gibt die Steam-ID zurück (auch ""), None für Zeilen, die nicht zählen."""
+    if r["system"] != "PC" or r.get("retro") or r.get("eshop"):
+        return None
+    apps, t_ids, t_names = ctx
+    sid = r["key"][6:] if r["key"].startswith("steam:") else r.get("steam_id") or ""
+    if r.get("from_vr"):
+        r.update(vr=True, vr_src="VR-Titel im Tool")
+    elif r.get("vr"):
+        r["vr_src"] = "Steam"
+    elif sid and sid in t_ids:
+        r.update(vr=True, vr_src="VR-Titel im Tool")
+    elif sid and (apps.get(sid) or {}).get("vr"):
+        r.update(vr=True, vr_src="VR-Prüfung im Steam-Store")
+    elif titles.base_norm(r["name"]) in t_names:
+        r.update(vr=True, vr_src="VR-Titel im Tool (Name)")
+    elif vr_name(r["name"]):
+        r.update(vr=True, vr_guess=True, vr_src="nur der Name")
+    return sid
+
+
 def _pc_vr(rows, data, wmatch=None):
     """VR am PC (0.8.7): Steam-Spiele der Sammlung, die das Tool als VR kennt (VR-Titel oder VR-Prüfung im Store),
     tragen „VR“; nennt nur der Name VR, ist das ein Hinweis (vr_guess). Dazu kommen deine VR-Titel am PC, die
     Playnite nicht kennt: am PC gekauft (Steam, Epic …) oder bei Meta mit Crossbuy (Entscheidung 28.10.2026)."""
     from . import library
-    apps = data.get("steam_apps") or {}
-    t_ids = {str(t["steam_appid"]): k for k, t in data["titles"].items() if str(t.get("steam_appid") or "").isdigit()}
-    t_names = {titles.base_norm(t["name"]): k for k, t in data["titles"].items()}
+    ctx = _vr_ctx(data)
     seen_ids, seen_names = set(), set()
     for r in rows:
-        if r["system"] != "PC" or r.get("retro") or r.get("eshop"):
+        sid = _vr_tag(r, ctx)
+        if sid is None:
             continue
-        sid = r["key"][6:] if r["key"].startswith("steam:") else r.get("steam_id") or ""
         seen_ids.add(sid)
         seen_names.add(titles.base_norm(r["name"]))
-        if r.get("from_vr"):
-            r.update(vr=True, vr_src="VR-Titel im Tool")
-        elif r.get("vr"):
-            r["vr_src"] = "Steam"
-        elif sid and sid in t_ids:
-            r.update(vr=True, vr_src="VR-Titel im Tool")
-        elif sid and (apps.get(sid) or {}).get("vr"):
-            r.update(vr=True, vr_src="VR-Prüfung im Steam-Store")
-        elif titles.base_norm(r["name"]) in t_names:
-            r.update(vr=True, vr_src="VR-Titel im Tool (Name)")
-        elif vr_name(r["name"]):
-            r.update(vr=True, vr_guess=True, vr_src="nur der Name")
     extra = []
     for k, t in data["titles"].items():
         o = t.get("owned") or {}
@@ -948,114 +962,149 @@ def f2vr_match(col):
 def view(col, data=None):
     """Zeilen für die Oberfläche, kurz gehalten (bis zu einige tausend Spiele). Mit data kommen die VR-Titel am PC
     dazu (0.8.7)."""
-    rows = []
     wmatch = wheel.matcher(datastore.load_json(wheel.LIST_FILE, {}))
     f2vr, _ = f2vr_match(col)
-    for k, g in (col.get("games") or {}).items():
-        r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
-             "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
-             "score_src": "", "year": (g.get("released") or "")[:4],
-             "added": g.get("added") or "", "dev": g.get("dev") or "", "pub": g.get("pub") or "",
-             "rel": g.get("released") or "", "url": link(k, g)}
-        if g.get("src") == ESHOP:
-            # eShopKompass (0.7.3): Wertung Metacritic, sonst OpenCritic; Mein Stand von dort, nur lesend
-            sc, src = (g["mc"], "Metacritic") if g.get("mc") is not None else (g.get("oc"), "OpenCritic") if g.get("oc") is not None else (None, "")
-            r.update(eshop=True, score=sc, score_src=src, hours=g.get("hours"), desc=g.get("desc") or "",
-                     desc_lang=g.get("desc_lang") or "de", usk=g.get("usk") or "", langs=g.get("langs") or [],
-                     pl=g.get("pl") or {}, mine=g.get("ext_mine") or {}, slug=g.get("id") or "", kv=g.get("kv") or {})
-            rows.append(r)
-            continue
-        if g.get("src") == "retro":
-            r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
-                     regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
-                     gone=bool(g.get("gone")), de=g.get("de") or None)
-            if g.get("de_ign") and (g.get("de") or {}).get("st") == "missing":
-                r["de"] = dict(g["de"], ign=g["de_ign"])      # 0.10.12: „DE fehlt“ ignoriert
-            if (g.get("de") or {}).get("langs"):
-                # 3DS (0.8.4): Sprachen der Fassung laut No-Intro, gefunden über den Produktcode
-                r.update(langs=g["de"]["langs"], lang_guess=False)
-            elif (g.get("de") or {}).get("dat"):
-                r.update(lang_guess=False, lang_dat=True)     # 0.8.12: Datei genau so in der Fassungsliste
-        r["gem"], r["gem_guess"] = gem(g)
-        rev = g.get("rev") or {}
-        if g.get("src") == PCVR:
-            # VR-Titel am PC (0.8.9): Wertung von Steam über das Spiel selbst, sonst die des VR-Titels
-            if not rev and data is not None:
-                rev = (data["titles"].get(g.get("from_vr")) or {}).get("rev") or {}
-            r.update(from_vr=g.get("from_vr"), steam_id=str(g.get("id") or ""))
-            if not r["url"] and str(g.get("id") or "").isdigit():
-                r["url"] = f"https://store.steampowered.com/app/{g['id']}/"
-        r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
-        r["rdesc"] = rev.get("desc") or ""
-        # Aktiv (0.8.23): Steam-Spieler gerade eben; VR-Titel am PC aus der Messung des VR-Titels
-        play = g.get("play") or {}
-        if g.get("src") == PCVR and data is not None:
-            play = (data["titles"].get(g.get("from_vr")) or {}).get("play") or play
-        if isinstance(play.get("now"), int):
-            r["active"] = {"now": play["now"], "at": play.get("at") or ""}
-        if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
-            # Wertung nur von Steam, sobald genug Rezensionen da sind
-            r["score"], r["score_src"] = rev["pct"], "Steam"
-        if r["guess"] and r["reviews"]:
-            r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
-        check(r, g.get("steam") or {})
-        r["srcs"] = ["Playnite"] + (["Steam"] if r["src"] == "steam" else []) if not r.get("retro") else ["Retro-Liste"]
-        if g.get("src") == STEAMACCT:
-            r["srcs"][0] = "Steam-Konto"
-        if g.get("src") == GGCOLL:
-            r["srcs"][0] = "gg.deals-Sammlung"
-            r["stores"] = g.get("stores") or []
-        if g.get("src") == PCVR:
-            r["srcs"][0] = "VR-Titel im Tool"
-            r.update(vr=True, vr_src="VR-Titel im Tool")
-        ig = g.get("igdb") or {}
-        if ig.get("id"):
-            merge_igdb(r, ig)
-        if r.get("retro"):
-            merge_retro(r, g)
-        if (g.get("tdb") or {}).get("id"):
-            merge_tdb(r, g["tdb"])
-        if (g.get("wiki") or {}).get("q"):
-            merge_wiki(r, g["wiki"])
-        if (g.get("deku") or {}).get("slug"):
-            merge_deku(r, g["deku"])
-        # VR per Mod (0.8.1): PCGamingWiki „hackable“, vorpX; Nexus Mods mit Spielseite und Mods
-        pc, nx = g.get("pcgw") or {}, g.get("nexus") or {}
-        merge_pcgw(r, pc)
-        if pc.get("mod"):
-            r["vrmod"] = pc["mod"]
-        if pc.get("vorpx"):
-            r["vorpx"] = True
-        if nx.get("dom"):
-            r["nexus"] = {"dom": nx["dom"], "n": nx.get("n") or 0, "top": nx.get("top") or [], "vr": nx.get("vr") or []}
-        # Sim-Racing (0.8.3): in einer Liste der Rennspiele bestätigt, Steam-Schlagwörter nur ein Hinweis
-        if r["system"] == "PC" and not r.get("retro"):
-            w = wheel.row(wmatch, g.get("id") if g.get("store") == "Steam" else "", g.get("stag"), (g.get("igdb") or {}).get("name"), g["name"])
-            # 0.10.26: Recherche zum Lenkrad (aufgaben.py); „nein“ nimmt den Hinweis aus den Schlagwörtern weg
-            rw = g.get("r_wheel") or {}
-            if rw.get("v") and w:
-                r["wheel_r"] = rw
-                if rw["v"] == "nein" and not w["src"]:
-                    w = None
-                elif rw["v"] in ("ja", "teilweise"):
-                    w = dict(w, r=rw["v"])
-            if w:
-                r["wheel"] = w
-        # 0.10.26: Recherche zu VR-Mods (auch „nein“, damit das Spiel nicht wieder in den Auftrag kommt)
-        if g.get("r_vrmod"):
-            r["vrmod_r"] = g["r_vrmod"]
-        # 0.10.28: VR-Ports laut Flat2VR Index (gefüllte Marke) und UEVR-Profile laut UEVR Hub (Hinweis)
-        fx = f2vr.get(k)
-        if fx and fx.get("ports"):
-            r["f2vr"] = flat2vr.row_ports(fx["ports"])
-        if fx and fx.get("uevr"):
-            r["uevr"] = fx["uevr"]
-        # Spielzeit und zuletzt gespielt laut Steam-Konto (0.9.3)
-        sid = str(g.get("id") or "") if g.get("store") == "Steam" or g.get("src") == PCVR else ""
-        sp = ((data or {}).get("steam_play") or {}).get(sid) if sid else None
-        if sp:
-            r["pt"], r["lp"] = sp[0], sp[1]
-        rows.append(r)
+    rows = [row(k, g, data, wmatch, f2vr) for k, g in (col.get("games") or {}).items()]
+    return _finish(rows, col, data, wmatch)
+
+
+def rows(col, data, keys):
+    """Nur die Zeilen der genannten Spiele, wie view sie baut (0.11.1): nach einer Entscheidung ändert sich nur ihre
+    Zeile. {Schlüssel: Zeile}; Spiele, die es nicht gibt, fehlen. Ob eine Zeile in der Ansicht steht (doppelte Einträge
+    fallen weg), entscheidet view; eine Entscheidung ändert daran nichts."""
+    games = col.get("games") or {}
+    keys = [k for k in dict.fromkeys(keys) if isinstance(games.get(k), dict)]
+    if not keys:
+        return {}
+    wmatch = wheel.matcher(datastore.load_json(wheel.LIST_FILE, {}))
+    f2vr, _ = f2vr_match(col)
+    ctx = _vr_ctx(data) if data is not None else None
+    out = {}
+    for k in keys:
+        r = row(k, games[k], data, wmatch, f2vr)
+        if ctx:
+            _vr_tag(r, ctx)
+        out[k] = r
+    return out
+
+
+def row(k, g, data, wmatch, f2vr):
+    """Eine Zeile der Sammlung aus einem Spiel (ab 0.11.1 eigene Funktion, vorher Teil von view)."""
+    r = {"key": k, "name": g["name"], "system": g.get("system") or "PC", "store": g.get("store") or "", "guess": bool(g.get("store_guess")), "mp": g.get("mp") or [],
+         "players": g.get("players") or 0, "genres": g.get("genres") or [], "score": None,
+         "score_src": "", "year": (g.get("released") or "")[:4],
+         "added": g.get("added") or "", "dev": g.get("dev") or "", "pub": g.get("pub") or "",
+         "rel": g.get("released") or "", "url": link(k, g)}
+    if g.get("src") == ESHOP:
+        # eShopKompass (0.7.3): Wertung Metacritic, sonst OpenCritic; Mein Stand von dort, nur lesend
+        sc, src = (g["mc"], "Metacritic") if g.get("mc") is not None else (g.get("oc"), "OpenCritic") if g.get("oc") is not None else (None, "")
+        r.update(eshop=True, score=sc, score_src=src, hours=g.get("hours"), desc=g.get("desc") or "",
+                 desc_lang=g.get("desc_lang") or "de", usk=g.get("usk") or "", langs=g.get("langs") or [],
+                 pl=g.get("pl") or {}, mine=g.get("ext_mine") or {}, slug=g.get("id") or "", kv=g.get("kv") or {})
+        return _sw(r)
+    if g.get("src") == "retro":
+        r.update(retro=True, langs=g.get("langs") or [], lang_guess=bool(g.get("lang_guess")),
+                 regions=g.get("regions") or [], files=g.get("files") or 0, flags=g.get("flags") or [],
+                 gone=bool(g.get("gone")), de=g.get("de") or None)
+        if g.get("de_ign") and (g.get("de") or {}).get("st") == "missing":
+            r["de"] = dict(g["de"], ign=g["de_ign"])      # 0.10.12: „DE fehlt“ ignoriert
+        if (g.get("de") or {}).get("langs"):
+            # 3DS (0.8.4): Sprachen der Fassung laut No-Intro, gefunden über den Produktcode
+            r.update(langs=g["de"]["langs"], lang_guess=False)
+        elif (g.get("de") or {}).get("dat"):
+            r.update(lang_guess=False, lang_dat=True)     # 0.8.12: Datei genau so in der Fassungsliste
+    r["gem"], r["gem_guess"] = gem(g)
+    rev = g.get("rev") or {}
+    if g.get("src") == PCVR:
+        # VR-Titel am PC (0.8.9): Wertung von Steam über das Spiel selbst, sonst die des VR-Titels
+        if not rev and data is not None:
+            rev = (data["titles"].get(g.get("from_vr")) or {}).get("rev") or {}
+        r.update(from_vr=g.get("from_vr"), steam_id=str(g.get("id") or ""))
+        if not r["url"] and str(g.get("id") or "").isdigit():
+            r["url"] = f"https://store.steampowered.com/app/{g['id']}/"
+    r["reviews"] = rev.get("n") if isinstance(rev.get("n"), int) else None
+    r["rdesc"] = rev.get("desc") or ""
+    # Aktiv (0.8.23): Steam-Spieler gerade eben; VR-Titel am PC aus der Messung des VR-Titels
+    play = g.get("play") or {}
+    if g.get("src") == PCVR and data is not None:
+        play = (data["titles"].get(g.get("from_vr")) or {}).get("play") or play
+    if isinstance(play.get("now"), int):
+        r["active"] = {"now": play["now"], "at": play.get("at") or ""}
+    if r["reviews"] is not None and r["reviews"] >= 50 and rev.get("pct") is not None:
+        # Wertung nur von Steam, sobald genug Rezensionen da sind
+        r["score"], r["score_src"] = rev["pct"], "Steam"
+    if r["guess"] and r["reviews"]:
+        r["guess"] = False              # Steam kennt die App und hat Rezensionen: Laden bestätigt
+    check(r, g.get("steam") or {})
+    r["srcs"] = ["Playnite"] + (["Steam"] if r["src"] == "steam" else []) if not r.get("retro") else ["Retro-Liste"]
+    if g.get("src") == STEAMACCT:
+        r["srcs"][0] = "Steam-Konto"
+    if g.get("src") == GGCOLL:
+        r["srcs"][0] = "gg.deals-Sammlung"
+        r["stores"] = g.get("stores") or []
+    if g.get("src") == PCVR:
+        r["srcs"][0] = "VR-Titel im Tool"
+        r.update(vr=True, vr_src="VR-Titel im Tool")
+    ig = g.get("igdb") or {}
+    if ig.get("id"):
+        merge_igdb(r, ig)
+    if r.get("retro"):
+        merge_retro(r, g)
+    if (g.get("tdb") or {}).get("id"):
+        merge_tdb(r, g["tdb"])
+    if (g.get("wiki") or {}).get("q"):
+        merge_wiki(r, g["wiki"])
+    if (g.get("deku") or {}).get("slug"):
+        merge_deku(r, g["deku"])
+    # VR per Mod (0.8.1): PCGamingWiki „hackable“, vorpX; Nexus Mods mit Spielseite und Mods
+    pc, nx = g.get("pcgw") or {}, g.get("nexus") or {}
+    merge_pcgw(r, pc)
+    if pc.get("mod"):
+        r["vrmod"] = pc["mod"]
+    if pc.get("vorpx"):
+        r["vorpx"] = True
+    if nx.get("dom"):
+        r["nexus"] = {"dom": nx["dom"], "n": nx.get("n") or 0, "top": nx.get("top") or [], "vr": nx.get("vr") or []}
+    # Sim-Racing (0.8.3): in einer Liste der Rennspiele bestätigt, Steam-Schlagwörter nur ein Hinweis
+    if r["system"] == "PC" and not r.get("retro"):
+        w = wheel.row(wmatch, g.get("id") if g.get("store") == "Steam" else "", g.get("stag"), (g.get("igdb") or {}).get("name"), g["name"])
+        # 0.10.26: Recherche zum Lenkrad (aufgaben.py); „nein“ nimmt den Hinweis aus den Schlagwörtern weg
+        rw = g.get("r_wheel") or {}
+        if rw.get("v") and w:
+            r["wheel_r"] = rw
+            if rw["v"] == "nein" and not w["src"]:
+                w = None
+            elif rw["v"] in ("ja", "teilweise"):
+                w = dict(w, r=rw["v"])
+        if w:
+            r["wheel"] = w
+    # 0.10.26: Recherche zu VR-Mods (auch „nein“, damit das Spiel nicht wieder in den Auftrag kommt)
+    if g.get("r_vrmod"):
+        r["vrmod_r"] = g["r_vrmod"]
+    # 0.10.28: VR-Ports laut Flat2VR Index (gefüllte Marke) und UEVR-Profile laut UEVR Hub (Hinweis)
+    fx = f2vr.get(k)
+    if fx and fx.get("ports"):
+        r["f2vr"] = flat2vr.row_ports(fx["ports"])
+    if fx and fx.get("uevr"):
+        r["uevr"] = fx["uevr"]
+    # Spielzeit und zuletzt gespielt laut Steam-Konto (0.9.3)
+    sid = str(g.get("id") or "") if g.get("store") == "Steam" or g.get("src") == PCVR else ""
+    sp = ((data or {}).get("steam_play") or {}).get(sid) if sid else None
+    if sp:
+        r["pt"], r["lp"] = sp[0], sp[1]
+    return _sw(r)
+
+
+def _sw(r):
+    # Switch und Switch 2 in einem Reiter „Switch 2“ (0.7.5, Entscheidung 27.10.2026: alle Switch-Spiele laufen
+    # auf der Switch 2); sw1 merkt, dass es ein Switch-1-Spiel ist (Filter „System“)
+    if r["system"] == "Switch":
+        r["system"], r["sw1"] = "Switch 2", True
+    return r
+
+
+def _finish(rows, col, data, wmatch):
+    """Was view über alle Zeilen hinweg tut: doppelte Einträge weglassen, VR-Titel am PC, Reihenfolge, Listen."""
     # Kommt die Switch-Sammlung aus dem eShopKompass, fallen Switch-Spiele aus Playnite mit demselben Namen weg
     esh = {titles.norm(r["name"]) for r in rows if r.get("eshop")}
     if esh:
@@ -1067,11 +1116,6 @@ def view(col, data=None):
     # gg.deals-Sammlung (0.9.9): nur, was keine andere Quelle unter demselben Namen führt
     pcn = {titles.norm(r["name"]) for r in rows if r["system"] == "PC" and not r["key"].startswith("gg:")}
     rows = [r for r in rows if not r["key"].startswith("gg:") or titles.norm(r["name"]) not in pcn]
-    # Switch und Switch 2 in einem Reiter „Switch 2“ (0.7.5, Entscheidung 27.10.2026: alle Switch-Spiele laufen
-    # auf der Switch 2); sw1 merkt, dass es ein Switch-1-Spiel ist (Filter „System“)
-    for r in rows:
-        if r["system"] == "Switch":
-            r["system"], r["sw1"] = "Switch 2", True
     if data is not None:
         rows += _pc_vr(rows, data, wmatch)
     rows.sort(key=lambda r: titles.norm(r["name"]))

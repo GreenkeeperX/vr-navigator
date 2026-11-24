@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,7 +19,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, aufgaben, collection, imports, library, lists, prices, retro, server, sources, store, sync, titles, wheel  # noqa: E402
+from app import accounts, aufgaben, betrieb, collection, eingaben, imports, leistung, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -1640,8 +1641,8 @@ class TestServer(unittest.TestCase):
         key = st["retro_de"][0]["key"]
         p = json.loads(self.call("/api/retro/de", {"key": key})[1])
         self.assertEqual((p["changed"], len(p["retro_de"])), (1, 2))
-        row = next(r for r in p["collection"]["games"] if r["key"] == key)
-        self.assertTrue(row["de"]["ign"])
+        self.assertEqual(list(p["rows"]), [key])            # 0.11.1: nur die geänderte Zeile
+        self.assertTrue(p["rows"][key]["de"]["ign"])
         p = json.loads(self.call("/api/retro/de", {"all": True, "system": "GB"})[1])
         self.assertEqual((p["changed"], [x["name"] for x in p["retro_de"]]), (1, ["Lantern Keep"]))
         # erneut eingelesen: ignoriert bleibt ignoriert
@@ -2807,16 +2808,31 @@ class TestSync(unittest.TestCase):
     def test_hosts_one_at_a_time(self):
         """0.10.21: Quellen laufen gleichzeitig, aber je Server geht nur ein Abruf zur Zeit hinaus, und zwischen dem
         Ende eines Abrufs und dem nächsten an denselben Server liegt die Pause, gleich von welcher Quelle. Ein anderer
-        Server wartet nicht auf ihn."""
-        sync.sleep = time.sleep
+        Server wartet nicht auf ihn. Ab 0.10.29 ohne echte Uhr: eine gemeinsame Testuhr, die nur Warten und Abrufe
+        vorstellen, und ein Ereignis statt Zeitvergleich (vorher scheiterte der Test auf langsamen Rechnern)."""
+        t = {"now": 100.0}
+        tick = threading.Lock()
+
+        def advance(dt):
+            with tick:
+                t["now"] += max(0.0, dt)
+        old_clock, sync.clock = sync.clock, lambda: t["now"]
+        sync.sleep = advance
         sync.HOSTS.reset()
-        seen, lock = [], threading.Lock()
+        seen, lock, vrdb_first = [], threading.Lock(), threading.Event()
+        steam_waited = []
 
         def fetch(url, **kw):
-            t0 = time.monotonic()
-            time.sleep(0.02)
+            host = urllib.parse.urlsplit(url).hostname
+            if host == "store.steampowered.com" and not steam_waited:
+                # der erste Steam-Abruf hält den Server, bis VRDB einmal abgerufen hat: wartete VRDB auf Steam, käme es nie
+                steam_waited.append(vrdb_first.wait(5))
+            a = t["now"]
+            advance(0.02)
             with lock:
-                seen.append((urllib.parse.urlsplit(url).hostname, t0, time.monotonic()))
+                seen.append((host, a, t["now"]))
+            if host == "vrdb.app":
+                vrdb_first.set()
             return "{}"
         sources.fetch = fetch
         log = lambda m: None
@@ -2829,17 +2845,19 @@ class TestSync(unittest.TestCase):
             for _ in range(4):
                 self.assertEqual(src.get(url), "{}")
         threads = [threading.Thread(target=go, args=x) for x in zip(srcs, urls)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        try:
+            for th in threads:
+                th.start()
+            for th in threads:
+                th.join()
+        finally:
+            sync.clock = old_clock
         steam = sorted((a, b) for h, a, b in seen if h == "store.steampowered.com")
-        vrdb = sorted((a, b) for h, a, b in seen if h == "vrdb.app")
+        vrdb = [x for x in seen if x[0] == "vrdb.app"]
         self.assertEqual((len(steam), len(vrdb)), (8, 4))
         for (a1, b1), (a2, b2) in zip(steam, steam[1:]):
-            self.assertGreaterEqual(a2 - b1, 0.045)          # nie gleichzeitig, immer mit Pause dazwischen
-        self.assertLess(vrdb[0][0], steam[2][0])            # VRDB wartet nicht, bis Steam durch ist
-        self.assertLess(vrdb[-1][1], steam[-1][1])
+            self.assertGreaterEqual(a2 - b1, 0.05 - 1e-9)      # nie gleichzeitig, immer mit Pause dazwischen
+        self.assertEqual(steam_waited, [True])                 # VRDB wartet nicht, bis Steam durch ist
 
     def test_vrdb_and_players(self):
         """VRDB: Crossbuy, Version (mit Tag des Wechsels), Meta-Wertung als Anteil 4 und 5 Sterne.
@@ -2933,7 +2951,10 @@ class TestSync(unittest.TestCase):
         cc = next(t for t in d["titles"].values() if t["name"] == "Comet Chase")
         self.assertEqual((cc["steam_appid"], set(cc["wish_src"])), ("3000030", {"gg"}))
         self.assertEqual(d["gg_unknown"], [])
-        # nach einer Woche versucht es der Server wieder selbst
+        # 0.10.29: der Server gg.deals ruht nach der Sperre, gleich welche Quelle fragt
+        self.assertIn("gg.deals", ruhe.active())
+        # nach einer Woche ist die Ruhe vorbei, und der Server versucht es wieder selbst
+        ruhe.clear()
         st = store.load_json("sync.json", {})
         st["manual"]["ggwish"] = "2026-01-01T00:00:00+00:00"
         store.save_json("sync.json", st)
@@ -4598,6 +4619,643 @@ class TestUi(unittest.TestCase):
         self.assertGreater(f["noYear"], 0)
         self.assertEqual(sorted(set(f["years"])), ["2019", "2020"])
         self.assertEqual(f["label"], "ohne Puzzle, erschienen ab 2019, vor 2021")
+
+
+class TestBetrieb(unittest.TestCase):
+    """0.10.29 (V-1): Ruhezeit je Server, Zwischenstand und Fehler im Abgleich, Verbindungstest, Schlösser,
+    Sicherungen, feldweises Wiederherstellen, Lebenszeichen. Alles mit erfundenen Daten."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        self._fetch, self._sleep, self._request = sources.fetch, sync.sleep, sources.request
+        sync.sleep = lambda s: None
+
+    def tearDown(self):
+        sources.fetch, sync.sleep, sources.request = self._fetch, self._sleep, self._request
+
+    def seed(self):
+        d = empty()
+        imports.import_sheet(d, SHEET, dry=False)
+        store.save_data(d)
+        return d
+
+    def test_ruhe_je_server(self):
+        """Sperrt Steam die Preise, fragen auch Rezensionen, Details und Spielerzahlen den Server nicht mehr, auch im
+        nächsten Lauf und nach einem Neustart (die Ruhe steht in ruhe.json)."""
+        self.seed()
+        sources.fetch = net = FakeNet({"store.steampowered.com": 429, "queststoredb.com": "<html></html>"})
+        sync.run()
+        steam = [u for u in net.calls if "store.steampowered.com" in u]
+        self.assertEqual(len(steam), 1, steam)
+        self.assertIn("store.steampowered.com", ruhe.active())
+        self.assertIn("ruht", "\n".join(sync.status()["log"]))
+        self.assertIn("store.steampowered.com", sync.status()["resting"])
+        # „Neustart“: Speicher des Moduls leeren, die Datei zählt
+        ruhe._cache["stamp"] = ()
+        net.calls.clear()
+        sync.run(by_hand=True)
+        self.assertFalse(any("store.steampowered.com" in u for u in net.calls))
+        self.assertTrue(sync.status()["sources"]["steam"]["until"])
+        # längere Ruhe bleibt, kürzere überschreibt sie nicht
+        end = ruhe.until("https://store.steampowered.com/x")
+        self.assertEqual(ruhe.block("https://store.steampowered.com/y", "test", at=datetime.now(timezone.utc) - timedelta(hours=5)), end)
+        self.assertEqual(ruhe.history()[-1]["host"], "store.steampowered.com")
+
+    def test_ruhe_stunden(self):
+        old = os.environ.get("RUHE_STUNDEN")
+        try:
+            for v, want in (("48", 48), ("0", 24), ("x", 24), ("999", 24), ("", 24)):
+                os.environ["RUHE_STUNDEN"] = v
+                self.assertEqual(ruhe.hours(), want)
+        finally:
+            os.environ.pop("RUHE_STUNDEN", None) if old is None else os.environ.__setitem__("RUHE_STUNDEN", old)
+
+    def test_fehler_nach_den_quellen_speichert(self):
+        """Ein Fehler außerhalb der Stränge (hier beim Eintragen) verhindert das Speichern von Protokoll und Ruhe nicht."""
+        self.seed()
+        sources.fetch = FakeNet({"queststoredb.com": 429})
+        real = sync.apply
+        sync.apply = lambda upd: 1 / 0
+        try:
+            self.assertTrue(sync.run())
+        finally:
+            sync.apply = real
+        st = store.load_json("sync.json", {})
+        self.assertFalse(st["ok"])
+        self.assertEqual(st["error"], "ZeroDivisionError")
+        self.assertNotIn("partial", st)
+        self.assertTrue(st["finished"])
+        self.assertTrue(st["rest"].get("qsdb"))
+        self.assertIn("abgebrochen", st["log"][-1])
+        self.assertFalse(sync.status_running())
+
+    def test_zwischenstand_und_unterbrechung(self):
+        """Nach jeder Quelle steht der Stand in sync.json (partial). Ein Neustart mitten im Lauf hinterlässt ihn: Der
+        Zustand meldet den Lauf als unterbrochen, der Zeitplan holt ihn nach kurzer Pause nach, der Lauf nennt ihn."""
+        self.seed()
+        seen = []
+        real = sync._steam
+
+        def spy(*a):
+            seen.append(store.load_json("sync.json", {}))
+            return real(*a)
+        sync._steam = spy
+        sources.fetch = FakeNet({})
+        try:
+            sync.run()
+        finally:
+            sync._steam = real
+        self.assertTrue(seen and seen[0].get("partial"))
+        self.assertNotIn("partial", store.load_json("sync.json", {}))
+        # unterbrochen: Datei mit partial und ohne Ende
+        at = datetime.now(timezone.utc)
+        store.save_json("sync.json", {"started": (at - timedelta(minutes=40)).isoformat(timespec="seconds"), "partial": True,
+                                      "log": ["12:00:00 Anfang"], "sources": {}, "rest": {}})
+        st = sync.status()
+        self.assertTrue(st["interrupted"])
+        self.assertTrue(sync.due(at=at))
+        store.save_json("sync.json", {"started": (at - timedelta(minutes=10)).isoformat(timespec="seconds"), "partial": True})
+        self.assertFalse(sync.due(at=at))
+        sync.run()
+        self.assertIn("unterbrochen", "\n".join(sync.status()["log"]))
+
+    def test_diag_nicht_neben_abgleich(self):
+        """Der Verbindungstest startet nicht neben einem Abgleich und umgekehrt; ruhende Server fragt er nicht."""
+        self.assertTrue(sync._running.acquire(blocking=False))
+        try:
+            self.assertEqual(sync.diagnose(), [sync.BUSY_LINE])
+        finally:
+            sync._running.release()
+        self.assertTrue(sync._diag.acquire(blocking=False))
+        try:
+            self.assertFalse(sync.run())
+            self.assertFalse(sync.start())
+        finally:
+            sync._diag.release()
+        calls = []
+        sources.request = lambda url, **kw: calls.append(url) or {"url": url, "status": 404, "text": "", "enc": "", "server": "", "error": ""}
+        ruhe.block("https://queststoredb.com/", "test")
+        lines = sync.diagnose()
+        self.assertFalse(any("queststoredb.com" in u for u in calls))
+        self.assertTrue(any("queststoredb.com ruht" in x for x in lines))
+        # 429 im Test: der Server ruht danach auch für den Abgleich
+        sources.request = lambda url, **kw: {"url": url, "status": 429 if "steampowered" in url else 404, "text": "", "enc": "", "server": "", "error": ""}
+        sync.diagnose()
+        self.assertTrue(ruhe.until("https://store.steampowered.com/"))
+
+    def test_einstellungen_gleichzeitig(self):
+        """Zwei Änderungen zugleich verlieren nichts (save_settings unter dem Schloss)."""
+        def one(i):
+            sync.save_settings({"hours": 2 + i % 3} if i % 2 else {"auto": bool(i % 4)})
+        def other(i):
+            sync.save_settings({"sharenite": "https://www.sharenite.link/profiles/beispiel/games"})
+        ts = [threading.Thread(target=(one if i % 2 else other), args=(i,)) for i in range(40)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        s = sync.load_settings()
+        self.assertTrue(s["sharenite"].endswith("/beispiel/games"))
+
+    def test_geheimnisse_an_einer_stelle(self):
+        self.assertEqual(set(sync.SECRETS), {k for keys in sync.SECRET_FLAGS.values() for k in keys})
+        sync.save_settings({"gg_key": "geheim-erfunden-1234567890", "nexus_key": "A" * 30})
+        v = server.settings_view()
+        self.assertFalse(set(sync.SECRETS) & set(v))
+        self.assertTrue(v["gg_key_set"] and v["nexus_set"] and not v["igdb_set"])
+        self.assertNotIn("geheim-erfunden", json.dumps(v))
+
+    def test_endliche_zahlen(self):
+        with self.assertRaises(ValueError):
+            sicherung.loads('{"a": NaN}')
+        with self.assertRaises(ValueError):
+            sicherung.loads('{"a": -Infinity}')
+        store.save_json("x.json", {"a": float("nan"), "b": [1.5, float("inf")], "c": 2})
+        self.assertEqual(store.load_json("x.json", {}), {"a": None, "b": [1.5, None], "c": 2})
+
+    def test_sicherung_und_test(self):
+        d = self.seed()
+        d["marks"]["pc:erfunden"] = {"fav": True}
+        store.save_data(d)
+        store.save_json(collection.FILE, {"games": {"pc:erfunden": {"name": "Erfundenes Spiel", "system": "PC"}}, "at": "", "n": 1})
+        info = sicherung.make("hand")
+        self.assertEqual((info["titles"], info["marks"], info["games"]), (len(d["titles"]), 1, 1))
+        self.assertIsNone(sicherung.daily())                # eben gesichert
+        for i in range(sicherung.KEEP + 3):
+            name = f"vr-navigator-20260101-0000{i:02d}-taeglich.json.gz"
+            with open(os.path.join(sicherung.folder(), name), "wb") as f:
+                f.write(gzip.compress(b"{}"))
+        sicherung.make("hand")
+        self.assertEqual(len(sicherung.files()), sicherung.KEEP)
+        before = {n: os.path.getmtime(os.path.join(store.DATA_DIR, n)) for n in ("data.json", collection.FILE)}
+        res = sicherung.check()
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["counts"]["games"], 1)
+        self.assertEqual(before, {n: os.path.getmtime(os.path.join(store.DATA_DIR, n)) for n in before})
+        self.assertEqual(sicherung.state()["check"]["ok"], True)
+        self.assertFalse(sicherung.check_due())
+        bad = sicherung.check(sicherung.files()[-1]["file"])     # eine leere, alte Datei: Test schlägt fehl
+        self.assertFalse(bad["ok"])
+        self.assertTrue(bad["error"])
+
+    def test_wiederherstellen_feldweise(self):
+        d = self.seed()
+        d["marks"]["pc:a"] = {"s": "done"}
+        d["not_same"] = [["a", "b"]]
+        store.save_data(d)
+        store.save_json(collection.FILE, {"games": {"pc:a": {"name": "Alpha", "system": "PC"}}, "at": "x", "n": 1, "extra": 1})
+        backup = {"version": "0.9.0", "data": {"titles": {"t1": {"name": "Nur einer"}}, "marks": "kaputt"},
+                  "collection": {"games": {"pc:b": {"name": "Beta"}, "pc:c": {"name": ""}}}}
+        rep = sicherung.restore(backup, dry=True)
+        self.assertEqual((rep["data"]["titles"], rep["data"]["skipped"]), (1, ["marks"]))
+        self.assertIn("not_same", rep["data"]["kept"])
+        self.assertEqual((rep["collection"]["n"], rep["collection"]["dropped"]), (1, 1))
+        self.assertEqual(rep["pcwish"]["take"], False)
+        self.assertEqual(len(store.load_data()["titles"]), len(d["titles"]))      # Vorschau ändert nichts
+        rep = sicherung.restore(backup, dry=False)
+        now = store.load_data()
+        self.assertEqual(list(now["titles"]), ["t1"])
+        self.assertEqual(now["marks"], {"pc:a": {"s": "done"}})         # falsche Form: bleibt
+        self.assertEqual(now["not_same"], [["a", "b"]])                  # nicht in der Sicherung: bleibt
+        col = store.load_json(collection.FILE, {})
+        self.assertEqual((list(col["games"]), col["n"], col["extra"]), (["pc:b"], 1, 1))
+        old = sicherung.read(rep["before"])                             # vorher gesichert
+        self.assertEqual(len(old["data"]["titles"]), len(d["titles"]))
+        with self.assertRaises(ValueError):
+            sicherung.restore({"data": {"titles": {"a": {"name": "x", "p": float("nan")}}}}, dry=True)
+
+    def test_healthz_und_wartung(self):
+        h = server.health()
+        self.assertTrue(h["ok"])
+        self.assertEqual(h["version"], sources.VERSION)
+        self.seed()
+        server.wartung(once=True)
+        self.assertEqual(len(sicherung.files()), 1)
+        self.assertTrue(sicherung.state()["check"]["ok"])
+        server.wartung(once=True)                       # am selben Tag keine zweite
+        self.assertEqual(len(sicherung.files()), 1)
+
+
+class TestEingaben(unittest.TestCase):
+    """0.11.0 (V-2): Nutzereingaben der Sammlung in eingaben.json. Umzug mit Sicherung und Prüfung, nur die kleine
+    Datei bei einer Entscheidung, Importe und Abgleiche löschen nichts Eigenes mehr. Alles mit erfundenen Spielen."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+
+    def old_collection(self, n=300):
+        """Sammlung im Stand vor 0.11.0: Nutzerfelder stehen in collection.json."""
+        games = {}
+        for i in range(n):
+            k = f"retro:gba:erfunden {i}" if i % 2 else f"steam:{3100000 + i}"
+            g = {"name": f"Erfundenes Spiel {i}", "system": "GBA" if i % 2 else "PC", "genres": ["Puzzle"], "mp": [], "players": 1}
+            if i % 2:
+                g["src"] = "retro"
+            if i % 7 == 0:
+                g["de_ign"] = "2026-11-01"
+            if i % 11 == 0:
+                g["own_ok"] = ["genre:x"]
+            if i % 13 == 0:
+                g["near_no"] = f"erfunden {i} beta"
+            if i % 5 == 0 and not i % 2:
+                g["r_vrmod"] = {"st": "ja", "mods": [{"name": "Erfundener Mod", "url": "https://example.com/mod"}], "at": "2026-11-20"}
+            games[k] = g
+        col = {"games": games, "at": "2026-11-01", "n": n}
+        with open(os.path.join(store.DATA_DIR, collection.FILE), "w", encoding="utf-8") as f:
+            json.dump(col, f)
+        return col
+
+    def test_umzug(self):
+        old = self.old_collection()
+        path = os.path.join(store.DATA_DIR, collection.FILE)
+        with open(path, "rb") as f:
+            raw_before = f.read()
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        want = eingaben.extract(old)
+        self.assertGreater(len(want), 50)
+        # zusammengeführt wie vorher
+        self.assertEqual(eingaben.extract(col), want)
+        got = eingaben.raw()
+        self.assertEqual(got["games"], want)
+        self.assertEqual((got["migrated"]["games"], got["migrated"]["fields"]), (len(want), sum(len(e) for e in want.values())))
+        self.assertTrue(got["migrated"]["backup"].endswith("-vor-umbau.json.gz"))
+        self.assertEqual(eingaben.extract(sicherung.read(got["migrated"]["backup"])["collection"]), want)   # Sicherung vorher vollständig
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), raw_before)                  # collection.json unverändert
+        # wiederholbar: kein zweiter Umzug, keine zweite Sicherung
+        n = len(sicherung.files())
+        store.load_json(collection.FILE, collection.EMPTY)
+        self.assertTrue(eingaben.migrate())
+        self.assertEqual((len(sicherung.files()), eingaben.raw()["migrated"]), (n, got["migrated"]))
+
+    def test_umzug_misslingt(self):
+        """Stimmt die geschriebene Datei nicht, gilt sie nicht: die Sammlung arbeitet weiter mit ihren eigenen Feldern."""
+        old = self.old_collection(40)
+        real = store._save
+
+        def broken(name, obj):
+            if name == eingaben.FILE:
+                obj = dict(obj, games={})          # geht beim Schreiben verloren
+            return real(name, obj)
+        store._save = broken
+        try:
+            col = store.load_json(collection.FILE, collection.EMPTY)
+        finally:
+            store._save = real
+        self.assertFalse(eingaben.exists())
+        self.assertEqual(eingaben.extract(col), eingaben.extract(old))
+        col = store.load_json(collection.FILE, collection.EMPTY)       # beim nächsten Lesen klappt es
+        self.assertTrue(eingaben.exists())
+        self.assertEqual(eingaben.extract(col), eingaben.extract(old))
+
+    def test_entscheidung_schreibt_nur_die_kleine_datei(self):
+        self.old_collection(20)
+        store.load_json(collection.FILE, collection.EMPTY)              # Umzug
+        path = os.path.join(store.DATA_DIR, collection.FILE)
+        st = os.stat(path).st_mtime_ns
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        key = "retro:gba:erfunden 1"
+        col["games"][key]["de"] = {"st": "missing", "alt": "x"}
+        retro.settle_de(col, [key], True)
+        eingaben.save(col, [key])
+        self.assertEqual(os.stat(path).st_mtime_ns, st)
+        self.assertTrue(store.load_json(collection.FILE, collection.EMPTY)["games"][key]["de_ign"])
+        retro.settle_de(col, [key], False)                              # zurückgenommen
+        eingaben.save(col, [key])
+        self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+        self.assertNotIn(key, eingaben.raw()["games"])
+
+    def test_import_behaelt_recherchen(self):
+        """Befund der Bestandsaufnahme: ein neuer Playnite-Export löschte r_wheel und r_vrmod. Jetzt nicht mehr."""
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION))
+        store.save_json(collection.FILE, col)
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        k = next(iter(col["games"]))
+        col["games"][k]["r_vrmod"] = {"st": "ja", "at": "2026-11-20"}
+        eingaben.save(col, [k])
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        collection.replace(col, collection.parse(COLLECTION))          # neuer Export
+        store.save_json(collection.FILE, col)
+        self.assertEqual(store.load_json(collection.FILE, collection.EMPTY)["games"][k]["r_vrmod"]["st"], "ja")
+        # ein Spiel verschwindet und kommt wieder: die Entscheidung gilt wieder
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        gone = col["games"].pop(k)
+        store.save_json(collection.FILE, col)
+        self.assertIn(k, eingaben.raw()["games"])
+        col["games"][k] = {key: v for key, v in gone.items() if key not in eingaben.FIELDS}
+        store.save_json(collection.FILE, col)
+        self.assertEqual(store.load_json(collection.FILE, collection.EMPTY)["games"][k]["r_vrmod"]["st"], "ja")
+
+    def test_alte_kopien_gelten_nicht_und_rueckschritt(self):
+        """collection.json trägt die Nutzerfelder weiter (für einen Rückschritt auf 0.10.x), maßgeblich ist eingaben.json."""
+        self.old_collection(10)
+        store.load_json(collection.FILE, collection.EMPTY)
+        key = "steam:3100000"
+        eingaben.replace({})                                            # alles zurückgenommen
+        self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+        self.assertIn("de_ign", store.load_raw(collection.FILE, {})["games"][key])      # alte Kopie liegt noch
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        store.save_json(collection.FILE, col)                           # nächstes Speichern bringt sie auf Stand
+        self.assertNotIn("de_ign", store.load_raw(collection.FILE, {})["games"][key])
+        eingaben.replace({key: {"de_ign": "2026-11-24"}})
+        store.save_json(collection.FILE, store.load_json(collection.FILE, collection.EMPTY))
+        self.assertEqual(store.load_raw(collection.FILE, {})["games"][key]["de_ign"], "2026-11-24")
+
+    def test_server_und_sicherung(self):
+        """Über den Server: „DE fehlt“ ignorieren schreibt nur eingaben.json; Sicherung und Einspielen mit Nutzereingaben,
+        auch aus einer Sicherung von vor 0.11.0."""
+        old = self.old_collection(30)
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def call(path, body=None):
+            req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
+                                         method="POST" if body is not None else "GET", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req) as r:
+                return json.loads(r.read())
+        try:
+            store.load_json(collection.FILE, collection.EMPTY)
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            key = "retro:gba:erfunden 3"
+            col["games"][key]["de"] = {"st": "missing", "alt": "Erfunden (Europe) (De)"}
+            store.save_json(collection.FILE, col)
+            st = os.stat(os.path.join(store.DATA_DIR, collection.FILE)).st_mtime_ns
+            res = call("/api/retro/de", {"key": key})
+            self.assertEqual(res["changed"], 1)
+            self.assertEqual(os.stat(os.path.join(store.DATA_DIR, collection.FILE)).st_mtime_ns, st)
+            self.assertTrue(res["rows"][key]["de"]["ign"])
+            row = next(r for r in call("/api/collection")["games"] if r["key"] == key)     # Zwischenspeicher neu
+            self.assertTrue(row["de"]["ign"])
+            self.assertNotIn(key, [x["key"] for x in call("/api/state")["retro_de"]])
+            backup = call("/api/export")
+            self.assertIn(key, backup["eingaben"]["games"])
+            self.assertTrue(backup["collection"]["games"][key]["de_ign"])          # für ältere Versionen
+            # Sicherung von vor 0.11.0: ohne eingaben, Nutzerfelder in der Sammlung
+            legacy = {"data": store.load_data(), "collection": old}
+            prev = call("/api/restore", dict(legacy, dry=True))
+            self.assertEqual((prev["eingaben"]["take"], prev["eingaben"]["n"]), (True, len(eingaben.extract(old))))
+            call("/api/restore", legacy)
+            self.assertEqual(eingaben.raw()["games"], eingaben.extract(old))
+            self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+            self.assertTrue(sicherung.check()["ok"])
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+
+class TestLeistung(unittest.TestCase):
+    """0.11.1 (V-3): Zeilen einzeln neu rechnen, Sammlung ohne Einzelheiten, ETag und 304, Stile und Skript mit Version.
+    Mit der erfundenen Sammlung aus leistung.synthetic."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        server._memo.clear()
+        col, data = leistung.synthetic(400)
+        store.save_data(data)
+        store.save_json(collection.FILE, col)
+
+    def test_zeilen_wie_view(self):
+        col, data = store.load_json(collection.FILE, collection.EMPTY), store.load_data()
+        v = collection.view(col, data)
+        keys = [r["key"] for r in v["games"] if r["key"] in col["games"]]
+        rows = collection.rows(col, data, keys + ["gibt:es:nicht"])
+        self.assertEqual(len(rows), len(keys))
+        for r in v["games"]:
+            if r["key"] in rows:
+                self.assertEqual(rows[r["key"]], r)
+
+    def test_entscheidung_patcht_zwischenspeicher(self):
+        server.collection_view()            # der erste Abruf zieht um (eingaben.json entsteht) …
+        server.collection_view()            # … deshalb gilt erst der zweite Stand
+        with store.lock:
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            before = store.stamp(*server.COL_FILES)
+            de = [k for k, g in col["games"].items() if (g.get("de") or {}).get("st") == "missing"][:3]
+            own = [x["key"] for x in retro.own_list(col)][:2]
+            pc = [k for k, g in col["games"].items() if k.startswith("steam:")][:2]
+            retro.settle_de(col, de, True)
+            for k in own:
+                retro.settle_own(col, k, take=True)
+            for k in pc:
+                col["games"][k]["r_vrmod"] = {"st": "ja", "mods": [], "at": "2026-11-24"}
+            keys = de + own + pc
+            eingaben.save(col, keys)
+            rows = server.decided(col, keys, before)
+        self.assertEqual(set(rows), set(keys))
+        self.assertTrue(all("desc" not in r for r in rows.values()))
+        hit = server._memo["colview"]
+        self.assertEqual(hit[0], (store.DATA_DIR, store.stamp(*server.COL_FILES), None))     # gilt ohne neu zu rechnen
+        server._memo.clear()
+        self.assertEqual(hit[1], server.collection_view())              # genau wie ganz neu gerechnet
+        # passt der Zwischenspeicher nicht zum Stand beim Lesen, bleibt er
+        self.assertFalse(server.colview_patch({}, ("anders",)))
+
+    def call(self, path, body=None, headers=None):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}{path}",
+                                         data=None if body is None else json.dumps(body).encode(),
+                                         headers=dict({"Content-Type": "application/json"}, **(headers or {})))
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, dict(r.headers), r.read()
+            except urllib.error.HTTPError as e:
+                return e.code, dict(e.headers), e.read()
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_sammlung_schlank_mit_etag(self):
+        code, h, body = self.call("/api/collection")
+        c = json.loads(body)
+        self.assertEqual((code, h["Cache-Control"], c["detail"]), (200, "no-cache", ["desc"]))
+        self.assertFalse([r for r in c["games"] if "desc" in r])
+        with_desc = [r["key"] for r in c["games"] if r.get("hd")]
+        self.assertGreater(len(with_desc), 100)
+        code, h2, body = self.call("/api/collection", headers={"If-None-Match": h["ETag"]})
+        self.assertEqual((code, body, h2["ETag"]), (304, b"", h["ETag"]))
+        got = json.loads(self.call("/api/details", {"keys": with_desc[:3] + ["gibt:es:nicht"]})[2])["games"]
+        full = {r["key"]: r for r in server.collection_view()["games"]}
+        self.assertEqual(got, {k: {"desc": full[k]["desc"]} for k in with_desc[:3]})
+        self.assertEqual(self.call("/api/details", {"keys": "x"})[0], 400)
+        code, h, body = self.call("/api/state")
+        self.assertEqual(self.call("/api/state", headers={"If-None-Match": h["ETag"]})[0], 304)
+
+    def test_oberflaeche_mit_version(self):
+        code, h, body = self.call("/")
+        v = urllib.parse.quote(sources.VERSION)
+        self.assertIn(f'src="js/app.js?v={v}"'.encode(), body)
+        self.assertIn(f'href="style.css?v={v}"'.encode(), body)
+        self.assertEqual(h["Cache-Control"], "no-cache")
+        self.assertIn("immutable", self.call(f"/js/app.js?v={v}")[1]["Cache-Control"])
+        self.assertEqual(self.call("/js/app.js?v=0.0.1")[1]["Cache-Control"], "no-cache")     # alte Adresse: nachfragen
+
+
+class TestStatuskarte(unittest.TestCase):
+    """0.11.2 (V-5): Statuskarte „Betrieb“ und Leistungstest im eigenen Prozess, ohne Netz, deine Daten unberührt."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        server._memo.clear()
+
+    def base(self, **kw):
+        v = {"data_ok": True, "has_data": True, "disk": {"free_mb": 50000}, "resting": [],
+             "backup": {"last": {"at": "2026-11-24T03:00:00+00:00"}, "check": {"at": "2026-11-20T03:00:00+00:00", "ok": True}}}
+        v.update(kw)
+        return v
+
+    def test_gesamtstatus(self):
+        at = datetime(2026, 11, 24, 12, tzinfo=timezone.utc)
+        self.assertEqual(betrieb.overall(self.base(), {}, at), ("ok", [], []))
+        lvl, bad, hint = betrieb.overall(self.base(resting=[{"host": "example.org"}]),
+                                         {"interrupted": True, "sources": {"qsdb": {"ok": False, "msg": "HTTPError"},
+                                                                           "gg": {"ok": False, "msg": "ruht"},
+                                                                           "ggwish": {"ok": False, "manual": True}}}, at)
+        self.assertEqual((lvl, bad), ("hinweis", []))
+        self.assertEqual(hint, ["letzter Abgleich unterbrochen, wird nachgeholt", "1 Server ruht", "Problem bei QuestStoreDB"])
+        old = self.base(backup={"last": {"at": "2026-11-01T03:00:00+00:00"}, "check": {"at": "2026-11-20T03:00:00+00:00", "ok": False}},
+                        disk={"free_mb": 100})
+        lvl, bad, hint = betrieb.overall(old, {"error": "KeyError"}, at)
+        self.assertEqual(lvl, "problem")
+        self.assertEqual(bad, ["nur noch 100 MB frei", "Wiederherstellungstest fehlgeschlagen",
+                               "letzte Sicherung älter als drei Tage", "letzter Abgleich abgebrochen (KeyError)"])
+        # ohne Daten (neu eingerichtet): nichts zu sichern, nichts zu prüfen
+        self.assertEqual(betrieb.overall(self.base(has_data=False, backup={}), {}, at)[0], "ok")
+        self.assertEqual((betrieb.test_size(0), betrieb.test_size(7123), betrieb.test_size(99999)), (1000, 8000, 30000))
+
+    def test_laeufe(self):
+        st = {"started": "2026-11-24T01:00:00+00:00", "finished": "2026-11-24T01:05:00+00:00", "ok": False}
+        r = sync.run_summary(st, {"qsdb": {"ok": True, "errors": 0}, "gg": {"ok": False, "msg": "ruht", "errors": 0},
+                                  "steam": {"ok": True, "errors": 2}})
+        self.assertEqual(r["bad"], [{"src": "gg.deals", "msg": "ruht", "errors": 0}, {"src": "Steam", "msg": "", "errors": 2}])
+        store.save_json("sync.json", {"runs": [r] * 3, "sources": {}})
+        v = betrieb.view(0)
+        self.assertEqual((len(v["runs"]), v["level"], v["has_data"]), (3, "ok", False))
+
+    def test_leistungstest(self):
+        store.save_json("data.json", {"titles": {"t1": {"name": "Erfunden"}}})
+        before = {n: os.stat(os.path.join(store.DATA_DIR, n)).st_mtime_ns for n in os.listdir(store.DATA_DIR)}
+        # nie während eines Abgleichs
+        sync._running.acquire()
+        try:
+            with self.assertRaises(ValueError):
+                betrieb.start_test(10)
+        finally:
+            sync._running.release()
+        betrieb.start_test(10)
+        self.assertTrue(sync.leistung_running.is_set())
+        with self.assertRaises(ValueError):
+            betrieb.start_test(10)              # läuft schon
+        for _ in range(600):
+            if not betrieb.test_running():
+                break
+            time.sleep(0.1)
+        res = betrieb.results()
+        self.assertEqual(len(res), 1, res)
+        self.assertTrue(res[0]["ok"], res[0])
+        self.assertEqual((res[0]["n"], res[0]["version"]), (1000, sources.VERSION))
+        self.assertGreater(res[0]["decision_write_s"], 0)
+        self.assertFalse(sync.leistung_running.is_set())
+        # deine Dateien unverändert, neu ist nur das Ergebnis
+        after = {n: os.stat(os.path.join(store.DATA_DIR, n)).st_mtime_ns for n in os.listdir(store.DATA_DIR)}
+        self.assertEqual({n: t for n, t in after.items() if n != betrieb.FILE}, before)
+        with self.assertRaises(RuntimeError):
+            leistung._no_net("https://example.org/")
+
+    def test_schnittstelle(self):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        try:
+            with urllib.request.urlopen(base + "/api/betrieb") as r:
+                v = json.loads(r.read())
+            self.assertEqual((v["version"], v["leistung"]["running"]), (sources.VERSION, False))
+            sync._running.acquire()
+            try:
+                req = urllib.request.Request(base + "/api/leistung", data=b"{}", headers={"Content-Type": "application/json"})
+                with self.assertRaises(urllib.error.HTTPError) as e:
+                    urllib.request.urlopen(req)
+                self.assertEqual(e.exception.code, 400)
+            finally:
+                sync._running.release()
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+
+class TestDoku(unittest.TestCase):
+    """0.11.3: README knapp, je Version ein Eintrag in docs/neu.md; Fehler beim Vorrechnen nicht mehr still."""
+
+    def test_readme_und_neu(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "README.md"), encoding="utf-8") as f:
+            readme = f.read()
+        self.assertLess(readme.count("\n"), 250, "README bleibt knapp, Einzelheiten nach docs/")
+        self.assertIn(f"Stand {sources.VERSION}", readme)
+        for link in re.findall(r"\]\((docs/[a-z-]+\.md)\)", readme):
+            self.assertTrue(os.path.isfile(os.path.join(root, link)), link)
+        with open(os.path.join(root, "docs", "neu.md"), encoding="utf-8") as f:
+            self.assertIn(f"\n## {sources.VERSION}\n", f.read())
+
+    def test_vorrechnen_meldet_fehler(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        old = server.collection_body
+        server.collection_body = lambda: 1 / 0
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                server._warm(once=True)
+        finally:
+            server.collection_body = old
+        self.assertIn("Vorrechnen der Ansichten", err.getvalue())
+        self.assertIn("ZeroDivisionError", err.getvalue())
+
+
+class TestRepo(unittest.TestCase):
+    """0.10.29: Das Repository ist öffentlich. Vor jedem Push (und in CI) prüfen, dass keine Arbeitsdateien, Daten,
+    Protokolle oder Geheimnisse darin stehen. Ersetzt nicht das Lesen des eigenen Diffs (Namen findet kein Muster)."""
+    ROOT = {".dockerignore", ".github", ".gitignore", "CLAUDE.md", "Dockerfile", "README.md", "ROADMAP.md", "app",
+            "docker-compose.yml", "docs", "tests"}
+    BAD_PATH = re.compile(r"(^|/)(data|sicherungen|__pycache__)/|\.(log|tmp|bak|gz|zip|sqlite3?|db|pyc)$|\.kaputt-|"
+                          r"(^|/)\.env|sicherung.*\.json$|(^|/)(settings|sync|ruhe|history|pcwish|collection)\.json$")
+    # Muster für Privates und Geheimnisse; erfundene Beispiele der Tests stehen in ALLOW
+    BAD_TEXT = re.compile(r"profiles/[0-9]{10,}|share/[A-Za-z0-9-]{10,}|spreadsheets/d/|192\.168\.|\b10\.\d+\.\d+\.\d+|"
+                          r"\b172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|@[a-z0-9-]+\.(de|com|net|org)\b|ghp_[A-Za-z0-9]{20,}|"
+                          r"github_pat_|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|\b[0-9A-Fa-f]{32}\b")
+    ALLOW = ("profiles/765611900000000", "share/AbCdEf", "user:pw@example.com", "10.0.0.5", "0123456789abcdef0123456789abcdef",
+             "share/[A-Za-z0-9-]{10,}", "share/Neu1", "@example.org", "@example.com", "spreadsheets/d/|", "github_pat_|")
+
+    def files(self):
+        import shutil
+        import subprocess
+        root = os.path.join(os.path.dirname(__file__), "..")
+        if not shutil.which("git") or not os.path.isdir(os.path.join(root, ".git")):
+            self.skipTest("kein Git-Arbeitsbaum")
+        out = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=root, capture_output=True, text=True)
+        return root, [x for x in out.stdout.splitlines() if x]
+
+    def test_dateien(self):
+        root, names = self.files()
+        self.assertEqual(sorted({n.split("/")[0] for n in names} - self.ROOT), [], "unerwartete Datei im Wurzelverzeichnis")
+        self.assertEqual([n for n in names if self.BAD_PATH.search(n)], [], "Daten, Protokolle oder Arbeitsdateien im Repository")
+
+    def test_inhalt(self):
+        root, names = self.files()
+        hits = []
+        for n in names:
+            try:
+                with open(os.path.join(root, n), encoding="utf-8") as f:
+                    text = f.read()
+            except (UnicodeDecodeError, OSError):
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                for m in self.BAD_TEXT.finditer(line):
+                    if not any(a in line[max(0, m.start() - 20):m.end() + 20] for a in self.ALLOW):
+                        hits.append(f"{n}:{i}: {m.group(0)[:40]}")
+        self.assertEqual(hits, [])
 
 
 if __name__ == "__main__":

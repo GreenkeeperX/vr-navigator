@@ -157,7 +157,18 @@ function renderHead(){
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
 const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", gametdb: "GameTDB", deku: "DekuDeals", wiki: "Wikidata", igdb: "IGDB", pcgw: "PCGamingWiki", flat2vr: "Flat2VR und UEVR", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal", pcinfo: "PC-Wunschliste, Spielinfos", vrinfo: "VR-Titel, Spielinfos"};
+/* Was ist neu (0.11.2, V-6): nach einem Update steht oben einmal, was die neue Version bringt; „verstanden“ blendet es
+   je Browser aus. Alles je Version in docs/neu.md */
+const NEWS = {"0.11.3": "Unter Einstellungen zeigt die Karte „Betrieb“ auf einen Blick, ob alles läuft, mit Sicherungen, Wiederherstellungstest und „Leistung messen“. Der Server sichert täglich selbst, Sicherungen einlesen geht mit Vorschau, nach einer Sperre ruht der ganze Server einen Tag. Entscheidungen zur Sammlung gehen schneller und stehen in einer eigenen Datei; Beschreibungen laden erst beim Aufklappen."};
+let SEEN = (() => { try{ return localStorage.getItem("vn.seen") || ""; }catch(e){ return ""; } })();
+function newsBanner(){
+  const v = S.version, t = NEWS[v];
+  return t && SEEN !== v ? `<div class="banner">Neu in ${esc(v)}: ${esc(t)} <a href="https://github.com/GreenkeeperX/vr-navigator/blob/main/docs/neu.md" target="_blank" rel="noopener noreferrer">alles Neue</a> · <button class="link" data-act="seen">verstanden</button></div>` : "";
+}
 function banners(){
+  return newsBanner() + syncBanners();
+}
+function syncBanners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
   if(sy.running) return "";
@@ -912,6 +923,35 @@ function readFindHash(){
   }
   V.d = d;
 }
+/* Einzelheiten nachladen (0.11.1): /api/collection kommt ohne Beschreibung (hd sagt, dass es eine gibt); beim
+   Aufklappen holt needDetail sie gesammelt nach. Was nicht kommt, bleibt leer, damit niemand zweimal fragt */
+let DQ = new Set(), DT = null;
+async function loadDetails(keys){
+  keys = keys.filter(k => k && !k.startsWith("vr:"));
+  if(!keys.length || !C?.games) return;
+  let got = {};
+  try{ got = (await api("/api/details", {keys})).games || {}; }catch(e){ toast(`Beschreibung nicht geladen: ${e.message}`); }
+  const want = new Set(keys);
+  for(const g of C?.games || []) if(want.has(g.key) && g.desc === undefined) g.desc = (got[g.key] || {}).desc || "";
+}
+function needDetail(key){
+  DQ.add(key);
+  if(DT) return;
+  DT = setTimeout(async () => {
+    const keys = [...DQ];
+    DQ = new Set();
+    await loadDetails(keys);
+    DT = null;
+    if(V.tab === "find" && !document.querySelector("dialog[open]")) render();
+  }, 0);
+}
+/* Nach einer Entscheidung (0.11.1): nur die Zeilen der betroffenen Spiele austauschen statt die ganze Sammlung neu zu
+   laden; eine schon geladene Beschreibung bleibt */
+function patchC(rows){
+  if(!C?.games || !rows) return;
+  const games = C.games.map(g => { const n = rows[g.key]; if(!n) return g; if(n.desc === undefined && g.desc !== undefined) n.desc = g.desc; return n; });
+  C = Object.assign({}, C, {games, genres: [...new Set(games.flatMap(g => g.genres))].sort()});
+}
 async function loadCollection(){
   if(cLoading) return;
   cLoading = true;
@@ -1482,10 +1522,12 @@ function detailText(g){
   for(const x of e.querySelectorAll(".gdesc, .gds")) out.push(plain(x.innerHTML));
   return out.filter(Boolean).join(" | ");
 }
-function gExport(){
+async function gExport(){
   const {rows, cols, sys} = G_SHOWN || {rows: [], cols: []};
   const cell = v => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const open = rows.some(g => V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key);
+  // aufgeklappte Spiele: Beschreibungen erst holen (0.11.1)
+  if(open) await loadDetails(rows.filter(g => g.hd && g.desc === undefined && (V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key)).map(g => g.key));
   const stand = g => { const m = mine(g), st = G_ST.find(x => x[0] === m.s); return [st && st[1], m.fav && "Favorit", m.ign && "ignoriert"].filter(Boolean).join(", "); };
   const lines = [["Spiel", ...cols.map(c => c.l), "Mein Stand", ...(open ? ["Einzelheiten"] : [])].map(cell).join(";")];
   for(const g of rows){
@@ -1526,7 +1568,8 @@ function gDetail(g, gc = 2, shownCols = new Set()){
   // Gespielt ab 0.9.8 ganz unten (0.9.7 über Mein Stand); reine Meta-Titel: Meta nennt keine Spielzeit
   const played = g.pt != null ? `<span class="fl">Gespielt</span><span class="gpt" title="Laut Steam-Konto">${playText(g)}</span>`
     : g.lib && g.lib.where === "meta" ? `<span class="fl">Gespielt</span><span class="gpt hint">unbekannt, der Meta Store nennt keine Spielzeit</span>` : "";
-  const side = `<div class="gdm"><span class="gtags ggen"></span><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}${played}</div>`;
+  if(g.hd && g.desc === undefined) needDetail(g.key);
+  const side = `<div class="gdm"><span class="gtags ggen"></span><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : g.hd && g.desc === undefined ? `<p class="gdesc hint">Beschreibung lädt …</p>` : ""}${played}</div>`;
   if(g.lib){
     const r = g.lib;
     return `<div class="gd vrd" style="--gc:${gc}"><div class="gdv"><div class="gbadges">${badges(Object.assign({}, r, shownCols.has("own") ? {where: ""} : {}, shownCols.has("cb") ? {crossbuy: null} : {}))}</div>${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
@@ -2063,6 +2106,58 @@ function srcRow(k, l, x){
   const st = x.ok ? `<span class="ok">ok</span>` : rest ? `<span class="warnc">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>` : `<span class="err">Problem</span>`;
   return td(st, when(x.at), `${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}${!x.ok && x.msg ? ` · ${esc(x.msg)}` : ""}`);
 }
+/* Statuskarte „Betrieb“ (0.11.2, V-5): zugeklappt nur der Gesamtstatus, aufgeklappt Quellen, ruhende Server, Läufe,
+   Sicherung, Wiederherstellungstest, Daten, Speicher, Platz und der Leistungstest. Lädt beim Öffnen der Einstellungen
+   (höchstens jede Minute neu), während des Leistungstests alle drei Sekunden */
+let BT = null;
+async function loadBetrieb(force){
+  if(BT || (!force && V.betrieb && Date.now() - V.betriebAt < 60000)) return;
+  BT = api("/api/betrieb").then(b => { V.betrieb = b; V.betriebAt = Date.now(); }, e => { V.betrieb = V.betrieb || {error: e.message}; V.betriebAt = Date.now(); });
+  await BT;
+  BT = null;
+  if(V.tab === "settings" && !document.querySelector("dialog[open]")) render();
+  if(V.betrieb?.leistung?.running) setTimeout(() => loadBetrieb(true), 3000);
+}
+const sek = v => v == null ? "" : `${v.toLocaleString("de-DE", {maximumFractionDigits: v < 1 ? 2 : 1})} s`;
+function betriebCard(){
+  loadBetrieb();
+  const b = V.betrieb;
+  if(!b || b.error) return box("betrieb", "Betrieb", "", `<p class="hint">${b ? `Zustand nicht geladen: ${esc(b.error)}` : "Lädt …"}</p>`);
+  const pl = (n, one, more) => n === 1 ? one : `${n} ${more}`;
+  const level = b.level === "problem" ? `<b class="err">${pl(b.problems.length, "1 Problem", "Probleme")}</b>: ${esc(b.problems.join(", "))}${b.hints.length ? ` · ${pl(b.hints.length, "1 Hinweis", "Hinweise")}` : ""}`
+    : b.level === "hinweis" ? `<b class="warnc">${pl(b.hints.length, "1 Hinweis", "Hinweise")}</b>: ${esc(b.hints.join(", "))}` : `<b class="ok">alles in Ordnung</b>`;
+  const tr = (l, v, tip) => `<tr><td>${l}</td><td${tip ? ` title="${esc(tip)}"` : ""}>${v}</td></tr>`;
+  const bk = b.backup || {}, last = bk.last || {}, chk = bk.check || {}, m = b.memory || {}, d = b.disk || {};
+  const facts = `<table class="mini-t"><tbody>
+    ${tr("Version", esc(b.version))}
+    ${tr("Letzte Sicherung", last.at ? `${when(last.at)} <span class="hint">(${esc(last.why || "")}, ${mb(last.bytes || 0)}; ${num(bk.n)} im Datenordner)</span>` : `<span class="hint">noch keine</span>`, "Täglich eine im Ordner sicherungen/ des Datenordners, dazu vor jedem Einspielen; die letzten 14 bleiben")}
+    ${tr("Wiederherstellungstest", chk.at ? `${chk.ok ? `<span class="ok">ok</span>` : `<span class="err">fehlgeschlagen</span>`} ${when(chk.at)}${chk.ok ? "" : ` <span class="hint">${esc(chk.error || "")}</span>`}` : `<span class="hint">noch keiner</span>`, "Einmal im Monat: die jüngste Sicherung in einem temporären Ordner auspacken, lesen und durchrechnen; deine Dateien bleiben unberührt")}
+    ${tr("Daten", mb(b.data_bytes || 0))}
+    ${tr("Speicher", m.rss_mb != null ? `${num(Math.round(m.rss_mb))} MB <span class="hint">(höchstens ${num(Math.round(m.peak_mb))} MB seit dem Start)</span>` : "", "Arbeitsspeicher des Servers")}
+    ${tr("Frei auf dem Datenträger", d.free_mb != null ? `${mb(d.free_mb * 1048576)} <span class="hint">von ${mb(d.total_mb * 1048576)}</span>` : "")}
+  </tbody></table>`;
+  const src = S.sync?.sources || {};
+  const shown = SOURCES.filter(([k]) => src[k]);
+  const srcT = shown.length ? `<div class="scroll"><table class="mini-t"><tbody>${shown.map(([k, l]) => srcRow(k, l, src[k])).join("")}</tbody></table></div>` : `<p class="hint">Noch kein Abgleich.</p>`;
+  const until = iso => esc(whenDay(new Date(iso)) + clock(new Date(iso)));
+  const rest = b.resting.length ? `<ul class="plain">${b.resting.map(r => `<li><b>${esc(r.host)}</b> bis ${until(r.until)} <span class="hint">${esc(r.why || "")}${r.source ? ` (${esc(r.source)})` : ""}</span></li>`).join("")}</ul>` : `<p class="hint">Kein Server ruht.</p>`;
+  const blocks = b.blocks.length ? `<ul class="plain">${b.blocks.map(r => `<li>${when(r.at)} <b>${esc(r.host)}</b> <span class="hint">${esc(r.why || "")}${r.source ? ` (${esc(r.source)})` : ""}</span></li>`).join("")}</ul>` : `<p class="hint">Noch keine Sperre.</p>`;
+  const runs = b.runs.length ? `<ul class="plain">${b.runs.map(r => `<li>${when(r.started)} ${r.interrupted ? `<span class="warnc">unterbrochen</span>` : r.ok ? `<span class="ok">ok</span>` : `<span class="err">${r.error ? `abgebrochen (${esc(r.error)})` : "mit Problemen"}</span>`}${(r.bad || []).length ? ` <span class="hint">${r.bad.map(x => `${esc(x.src)}${x.msg ? `: ${esc(x.msg)}` : ""}${x.errors ? ` (${x.errors} Fehler)` : ""}`).join(" · ")}</span>` : ""}</li>`).join("")}</ul>` : `<p class="hint">Noch kein Lauf seit 0.11.2.</p>`;
+  const files = `<table class="mini-t"><tbody>${b.files.map(f => tr(esc(f.name), `${mb(f.bytes)}${f.n != null ? ` <span class="hint">(${num(f.n)})</span>` : ""}`)).join("")}</tbody></table>`;
+  const L = b.leistung || {}, busy = L.running || b.sync_running || S.sync?.running;
+  const lres = (L.results || []).length ? `<div class="scroll"><table class="mini-t"><thead><tr><th>Zeit</th><th>Version</th><th>Spiele</th><th title="„DE fehlt“ ignorieren, mit Antwort">Entscheidung</th><th title="Sammlung danach">danach Sammlung</th><th title="/api/collection, Server rechnet alles">Sammlung kalt</th><th title="/api/state, Server rechnet alles">Zustand kalt</th><th title="Höchster Speicher des Testprozesses">Speicher</th><th>Dauer</th></tr></thead><tbody>${L.results.map(r => r.ok
+      ? `<tr><td>${when(r.at)}</td><td>${esc(r.version)}</td><td>${num(r.n)}</td><td>${sek(r.decision_write_s)}</td><td>${sek(r.decision_then_collection_s)}</td><td>${sek(r.api_collection_cold_s)}</td><td>${sek(r.api_state_cold_s)}</td><td>${r.rss_peak_mb != null ? num(Math.round(r.rss_peak_mb)) + " MB" : ""}</td><td>${sek(r.wall_s)}</td></tr>`
+      : `<tr><td>${when(r.at)}</td><td>${esc(r.version)}</td><td>${num(r.n)}</td><td colspan="6"><span class="err">fehlgeschlagen</span> <span class="hint">${esc(r.error || "")}</span></td></tr>`).join("")}</tbody></table></div>` : "";
+  const ltest = `<p class="hint">Misst mit einer erfundenen Sammlung so groß wie deine (${num(L.n)} Spiele), wie schnell der Server rechnet: eine Entscheidung, die Sammlung und der Zustand. Er läuft in einem eigenen Prozess mit einem temporären Ordner, fragt kein Netz an und lässt deine Daten unberührt; nie während eines Abgleichs. Dauert je nach Rechner eine halbe bis einige Minuten.</p>
+    <div class="bar slim"><button data-act="leistung" ${busy ? "disabled" : ""} title="${L.running ? "Der Test läuft" : b.sync_running || S.sync?.running ? "Während eines Abgleichs nicht" : "Test jetzt starten"}">${L.running ? "Misst …" : "Leistung messen"}</button></div>${lres}`;
+  return box("betrieb", "Betrieb", "", sub("betrieb", "Zustand", level, `${facts}
+    ${sub("bt-src", "Abgleich je Quelle", `${shown.length} Quellen`, srcT, true)}
+    ${sub("bt-rest", "Ruhende Server", b.resting.length ? `${b.resting.length}` : "keiner", rest, !b.resting.length)}
+    ${sub("bt-runs", "Letzte Läufe", `${b.runs.filter(r => !r.ok).length} mit Problemen von ${b.runs.length}`, runs, true)}
+    ${sub("bt-blocks", "Letzte Sperren", b.blocks.length ? `${b.blocks.length}` : "keine", blocks, true)}
+    ${sub("bt-files", "Dateien im Datenordner", mb(b.data_bytes || 0), files, true)}
+    ${sub("bt-test", "Leistungstest", L.running ? "läuft" : (L.results || []).length ? `zuletzt ${when(L.results[0].at)}` : "noch keiner", ltest, !L.running)}`, b.level === "ok"));
+}
 /* ---------------------------------------------------------------- Einstellungen
    Drei feste Karten (Abgleich, Importe, Sicherung), oben „Derselbe Titel?“, wenn etwas zu
    entscheiden ist. Klappbar sind die Teile darin, nicht die Karten: Protokoll, Verbindungstest,
@@ -2126,7 +2221,7 @@ function settingsView(){
   const oc = S.own_check || {doubt: []}, own = oc.doubt || [];
   const rs = S.research || {}, rwh = rs.wheel || [];
   const open = sug + todo.length + lists.length + near.length + rown.length + rde.length + pcIds.length + own.length + rwh.length;
-  const jumps = [(open || rs.vrmod_n) && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const jumps = [(open || rs.vrmod_n) && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"], ["betrieb", "Betrieb"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${todoGo(x.a_name, x.a, "vr")} ↔ ${todoGo(x.b_name, x.b, "vr")}</span>
       <span class="row2">Zusammenführen als
@@ -2237,7 +2332,7 @@ function settingsView(){
      <a class="btn" href="/api/export" download="vr-navigator-sicherung.json">Sicherung herunterladen</a>
      <button data-act="pickrestore">Sicherung einlesen</button><input type="file" id="restoreFile" accept=".json,application/json" data-file="restore" hidden aria-label="Sicherung wählen"></div>`);
   return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` +
-    sugCard + importe + abgleich + sicherung;
+    sugCard + importe + abgleich + sicherung + betriebCard();
 }
 /* Wunschliste abgleichen: das Tool führt deine Wünsche, die Wunschlisten der Läden sind Spiegel.
    Je Gruppe eine Aktion für alle, je Titel dieselbe einzeln; Links führen zur Liste im Laden,
@@ -2790,6 +2885,16 @@ document.addEventListener("click", async ev => {
     if(res){ $("edit").close(); toast(`„${name}“ gelöscht`, undoTo(res)); }
   }
   else if(a === "sync"){ if(await act("/api/sync", el.dataset.v === "fast" ? {fast: true} : {})) watchSync(); }
+  else if(a === "seen"){
+    SEEN = S.version;
+    try{ localStorage.setItem("vn.seen", SEEN); }catch(e){}
+    render();
+  }
+  else if(a === "leistung"){
+    try{ V.betrieb = await api("/api/leistung", {}); V.betriebAt = Date.now(); toast("Leistungstest läuft; das Ergebnis steht gleich unter Leistungstest"); setTimeout(() => loadBetrieb(true), 3000); }
+    catch(e){ toast(e.message); }
+    render();
+  }
   else if(a === "diag"){
     V.diagRunning = true; render();
     // 0.8.0: der Test läuft auf dem Server weiter, die Seite fragt alle zwei Sekunden nach (kein 504 mehr)
@@ -2841,7 +2946,7 @@ document.addEventListener("click", async ev => {
     const k = el.dataset.k, x = (S.retro_near || []).find(y => y.key === k) || {};
     try{
       const res = await api("/api/retro/near", {key: k, ok: a === "nearok"});
-      C = res.collection; S.retro_near = res.retro_near;
+      patchC(res.rows); S.retro_near = res.retro_near;
       toast(a === "nearok" ? `„${x.name}“ gilt jetzt als „${x.near}“` : `Vorschlag für „${x.name}“ verworfen`);
     }catch(e){ toast(e.message); }
     render();
@@ -2857,10 +2962,10 @@ document.addEventListener("click", async ev => {
     const keys = k ? [k] : (S.retro_de || []).filter(y => !sy || y.system === sy).map(y => y.key);
     try{
       const res = await api("/api/retro/de", Object.assign(k ? {key: k} : {all: true, system: sy}, {ign}));
-      C = res.collection; S.retro_de = res.retro_de;
+      patchC(res.rows); S.retro_de = res.retro_de;
       toast(!ign ? `„${x.name || "Spiel"}“ zeigt wieder „DE fehlt“` : k ? `„DE fehlt“ bei „${x.name || "Spiel"}“ ignoriert`
         : `${res.changed} ${res.changed === 1 ? "Spiel" : "Spiele"}${sy ? ` (${sy})` : ""} ignoriert`,
-        ign ? () => api("/api/retro/de", {keys, ign: false}).then(r => { C = r.collection; S.retro_de = r.retro_de; render(); }) : null);
+        ign ? () => api("/api/retro/de", {keys, ign: false}).then(r => { patchC(r.rows); S.retro_de = r.retro_de; render(); }) : null);
     }catch(e){ toast(e.message); }
     render();
   }
@@ -2868,7 +2973,7 @@ document.addEventListener("click", async ev => {
     const k = el.dataset.k;
     const take = el.dataset.take === "1";
     const res = await api("/api/retro/own", Object.assign(k ? {key: k} : {all: true}, take ? {take: true} : {}));
-    C = res.collection; S.retro_own = res.retro_own;
+    patchC(res.rows); S.retro_own = res.retro_own;
     toast(take ? (k ? "Das Genre der Quellen gilt" : "Das Genre der Quellen gilt für alle") : k ? "Deine Liste gilt" : "Deine Liste gilt für alle");
     render();
   }
@@ -2891,15 +2996,20 @@ document.addEventListener("click", async ev => {
   }
 });
 
+// Suchfelder (0.10.29): der Wert gilt sofort, gezeichnet wird erst nach einer kurzen Pause im Tippen. Bei großen
+// Listen (Sammlung mit Tausenden Spielen) zeichnete sonst jeder Tastendruck alles neu
+const SEARCH_MS = 180;
+let searchTimer = 0;
+function searchLater(fn){ clearTimeout(searchTimer); searchTimer = setTimeout(fn, SEARCH_MS); }
 document.addEventListener("input", ev => {
-  if(ev.target.dataset.in === "q"){ V.q = ev.target.value; V.focusQ = true; render(); V.focusQ = false; }
+  if(ev.target.dataset.in === "q"){ V.q = ev.target.value; searchLater(() => { V.focusQ = true; render(); V.focusQ = false; }); }
   if(ev.target.dataset.in === "gq"){
-    V.gq = ev.target.value; V.menu = "g"; render();
-    const q = document.querySelector("[data-in=gq]"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length);
+    V.gq = ev.target.value; V.menu = "g";
+    searchLater(() => { render(); const q = document.querySelector("[data-in=gq]"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length); });
   }
   if(ev.target.dataset.in === "dq"){
-    V.d.q = ev.target.value; V.d.n = D0.n; render();
-    const q = $("dq"); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    V.d.q = ev.target.value; V.d.n = D0.n;
+    searchLater(() => { render(); const q = $("dq"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length); });
   }
 });
 
@@ -2954,7 +3064,23 @@ document.addEventListener("change", async ev => {
     let obj;
     try{ obj = JSON.parse(text); }catch(e){ alert("Keine gültige Sicherung"); return; }
     ev.target.value = "";
-    if(confirm(`Sicherung einlesen? Sie ersetzt alle ${S.counts.all} Titel.`) && await act("/api/restore", {data: obj.data || obj, collection: obj.collection, pcwish: obj.pcwish})){ C = null; toast("Sicherung eingelesen"); }
+    // 0.10.29: erst Vorschau vom Server (was übernommen wird, was bleibt), dann einspielen; vorher sichert der Server den jetzigen Stand
+    const body = {data: obj.data || obj, collection: obj.collection, pcwish: obj.pcwish, version: obj.version};
+    let p;
+    try{ p = await api("/api/restore", Object.assign({dry: true}, body)); }catch(e){ alert("Sicherung nicht übernommen: " + e.message); return; }
+    const part = (r, what) => r.take ? `${what}: ${r.n} statt jetzt ${r.now}` + (r.dropped ? ` (${r.dropped} ohne Namen ausgelassen)` : "") : `${what}: ${r.why}`;
+    const msg = ["Sicherung einlesen?" + (p.version ? ` (Version ${p.version})` : ""),
+      `Titel: ${p.data.titles} statt jetzt ${p.data.titles_now}` + (p.data.marks != null ? `, Mein Stand: ${p.data.marks} statt ${p.data.marks_now}` : ""),
+      part(p.collection, "Sammlung"), part(p.pcwish, "PC-Wunschliste"),
+      p.data.kept.length ? `Bleibt wie jetzt (nicht in der Sicherung): ${p.data.kept.join(", ")}` : "",
+      p.data.skipped.length ? `Nicht übernommen (falsche Form): ${p.data.skipped.join(", ")}` : "",
+      "Vorher sichert der Server den jetzigen Stand im Datenordner (sicherungen/)."].filter(Boolean).join("\n");
+    if(confirm(msg)){
+      try{
+        const r = await api("/api/restore", Object.assign({dry: false}, body));
+        S = r; C = null; render(); toast("Sicherung eingelesen, vorheriger Stand gesichert");
+      }catch(e){ alert(e.message); }
+    }
     return;
   }
   V.txt = Object.assign(V.txt || {}, {[kind]: text});
