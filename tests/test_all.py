@@ -18,7 +18,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, aufgaben, collection, eingaben, imports, leistung, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
+from app import accounts, aufgaben, betrieb, collection, eingaben, imports, leistung, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -5091,6 +5091,98 @@ class TestLeistung(unittest.TestCase):
         self.assertEqual(h["Cache-Control"], "no-cache")
         self.assertIn("immutable", self.call(f"/js/app.js?v={v}")[1]["Cache-Control"])
         self.assertEqual(self.call("/js/app.js?v=0.0.1")[1]["Cache-Control"], "no-cache")     # alte Adresse: nachfragen
+
+
+class TestStatuskarte(unittest.TestCase):
+    """0.11.2 (V-5): Statuskarte „Betrieb“ und Leistungstest im eigenen Prozess, ohne Netz, deine Daten unberührt."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        server._memo.clear()
+
+    def base(self, **kw):
+        v = {"data_ok": True, "has_data": True, "disk": {"free_mb": 50000}, "resting": [],
+             "backup": {"last": {"at": "2026-11-24T03:00:00+00:00"}, "check": {"at": "2026-11-20T03:00:00+00:00", "ok": True}}}
+        v.update(kw)
+        return v
+
+    def test_gesamtstatus(self):
+        at = datetime(2026, 11, 24, 12, tzinfo=timezone.utc)
+        self.assertEqual(betrieb.overall(self.base(), {}, at), ("ok", [], []))
+        lvl, bad, hint = betrieb.overall(self.base(resting=[{"host": "example.org"}]),
+                                         {"interrupted": True, "sources": {"qsdb": {"ok": False, "msg": "HTTPError"},
+                                                                           "gg": {"ok": False, "msg": "ruht"},
+                                                                           "ggwish": {"ok": False, "manual": True}}}, at)
+        self.assertEqual((lvl, bad), ("hinweis", []))
+        self.assertEqual(hint, ["letzter Abgleich unterbrochen, wird nachgeholt", "1 Server ruht", "Problem bei QuestStoreDB"])
+        old = self.base(backup={"last": {"at": "2026-11-01T03:00:00+00:00"}, "check": {"at": "2026-11-20T03:00:00+00:00", "ok": False}},
+                        disk={"free_mb": 100})
+        lvl, bad, hint = betrieb.overall(old, {"error": "KeyError"}, at)
+        self.assertEqual(lvl, "problem")
+        self.assertEqual(bad, ["nur noch 100 MB frei", "Wiederherstellungstest fehlgeschlagen",
+                               "letzte Sicherung älter als drei Tage", "letzter Abgleich abgebrochen (KeyError)"])
+        # ohne Daten (neu eingerichtet): nichts zu sichern, nichts zu prüfen
+        self.assertEqual(betrieb.overall(self.base(has_data=False, backup={}), {}, at)[0], "ok")
+        self.assertEqual((betrieb.test_size(0), betrieb.test_size(7123), betrieb.test_size(99999)), (1000, 8000, 30000))
+
+    def test_laeufe(self):
+        st = {"started": "2026-11-24T01:00:00+00:00", "finished": "2026-11-24T01:05:00+00:00", "ok": False}
+        r = sync.run_summary(st, {"qsdb": {"ok": True, "errors": 0}, "gg": {"ok": False, "msg": "ruht", "errors": 0},
+                                  "steam": {"ok": True, "errors": 2}})
+        self.assertEqual(r["bad"], [{"src": "gg.deals", "msg": "ruht", "errors": 0}, {"src": "Steam", "msg": "", "errors": 2}])
+        store.save_json("sync.json", {"runs": [r] * 3, "sources": {}})
+        v = betrieb.view(0)
+        self.assertEqual((len(v["runs"]), v["level"], v["has_data"]), (3, "ok", False))
+
+    def test_leistungstest(self):
+        store.save_json("data.json", {"titles": {"t1": {"name": "Erfunden"}}})
+        before = {n: os.stat(os.path.join(store.DATA_DIR, n)).st_mtime_ns for n in os.listdir(store.DATA_DIR)}
+        # nie während eines Abgleichs
+        sync._running.acquire()
+        try:
+            with self.assertRaises(ValueError):
+                betrieb.start_test(10)
+        finally:
+            sync._running.release()
+        betrieb.start_test(10)
+        self.assertTrue(sync.leistung_running.is_set())
+        with self.assertRaises(ValueError):
+            betrieb.start_test(10)              # läuft schon
+        for _ in range(600):
+            if not betrieb.test_running():
+                break
+            time.sleep(0.1)
+        res = betrieb.results()
+        self.assertEqual(len(res), 1, res)
+        self.assertTrue(res[0]["ok"], res[0])
+        self.assertEqual((res[0]["n"], res[0]["version"]), (1000, sources.VERSION))
+        self.assertGreater(res[0]["decision_write_s"], 0)
+        self.assertFalse(sync.leistung_running.is_set())
+        # deine Dateien unverändert, neu ist nur das Ergebnis
+        after = {n: os.stat(os.path.join(store.DATA_DIR, n)).st_mtime_ns for n in os.listdir(store.DATA_DIR)}
+        self.assertEqual({n: t for n, t in after.items() if n != betrieb.FILE}, before)
+        with self.assertRaises(RuntimeError):
+            leistung._no_net("https://example.org/")
+
+    def test_schnittstelle(self):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        try:
+            with urllib.request.urlopen(base + "/api/betrieb") as r:
+                v = json.loads(r.read())
+            self.assertEqual((v["version"], v["leistung"]["running"]), (sources.VERSION, False))
+            sync._running.acquire()
+            try:
+                req = urllib.request.Request(base + "/api/leistung", data=b"{}", headers={"Content-Type": "application/json"})
+                with self.assertRaises(urllib.error.HTTPError) as e:
+                    urllib.request.urlopen(req)
+                self.assertEqual(e.exception.code, 400)
+            finally:
+                sync._running.release()
+        finally:
+            srv.shutdown()
+            srv.server_close()
 
 
 class TestRepo(unittest.TestCase):

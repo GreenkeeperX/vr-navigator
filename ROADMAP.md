@@ -170,8 +170,8 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen und V-2
 Nutzereingaben aus `collection.json` in eine eigene kleine Datei (0.11.0, `docs/sammlung-felder.md`), V-3 schlanke Listen und
 Messung vorher und nachher (0.11.1, `docs/leistung.md`: eine Entscheidung 0,17 statt 0,85 s, SQLite nicht nötig),
-V-5 Statuskarte im Einstellungsreiter (eingeklappt, mit Wiederherstellungstest und Leistungstest), danach
-Dokumentation, Altlasten und V-6.
+V-5 Statuskarte „Betrieb“ im Einstellungsreiter (0.11.2: eingeklappt der Gesamtstatus, Leistungstest im eigenen
+Prozess), danach Dokumentation, Altlasten und V-6.
 
 Später, wenn belegbar: VR-Platzbedarf (Spielfläche, sitzend, stehend, Roomscale; nur dokumentierte Angaben) und die
 Qualität eines UEVR-Profils als weiteres Kriterium der bestehenden KI-Aufträge (mit Quellen und Stand, erst Vorschau).
@@ -194,5 +194,8 @@ sich lohnen könnte, hinüber oder herüber zu nehmen; übernommen wird nur nach
 - ETag und 304 für die großen Antworten, mit HTTP/1.1 (sonst fragt Chromium nicht nach), dazu Stile und Skript mit der
   Version in der Adresse (0.11.1): übertragbar auf eShopKompass und Pokédex, beide liefern ebenfalls große JSON-Antworten
   an dieselbe Seite. Klein und ohne Risiko für die Daten.
+- Statuskarte mit Gesamtstatus und Leistungstest im eigenen Prozess mit erfundenen Daten (0.11.2, `app/betrieb.py`):
+  übertragbar auf beide; die Gründe für Hinweise und Probleme sind je Projekt andere, der Leistungstest braucht je
+  Projekt einen eigenen Generator für erfundene Daten.
 - Nach einer Entscheidung nur die betroffenen Zeilen neu rechnen und zurückgeben (0.11.1): lohnt nur, wo eine
   Entscheidung heute die ganze Liste neu baut; im eShopKompass erst messen.

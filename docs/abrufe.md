@@ -572,7 +572,10 @@ Konsolenfassung). Am Spiel bleibt unter `wiki` der Treffer (`q`, `via`, `t`, `de
 - Preisverlauf (0.9.1): `GET /api/verlauf?vr=<Schlüssel>` liest `history.json`, `?pc=<Schlüssel>` die Felder `ph` und
   `sh` in `pcwish.json`; nichts wird gespeichert.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
-  Selbstprüfung (`warnings`), Protokoll; ab 0.10.29 während des Laufs mit `partial`, nach einem Fehler `error`.
+  Selbstprüfung (`warnings`), Protokoll; ab 0.10.29 während des Laufs mit `partial`, nach einem Fehler `error`; ab 0.11.2
+  die letzten 30 Läufe in Kurzform (`runs`: Beginn, Ende, ok, Quellen mit Problem, unterbrochene) für die Statuskarte.
+- `leistung.json` (0.11.2): die letzten 10 Ergebnisse des Leistungstests der Statuskarte, je mit Zeit, Version und Größe
+  der erfundenen Sammlung (siehe `docs/leistung.md`).
 - `eingaben.json` (0.11.0): deine Entscheidungen zu Spielen der Sammlung (`games`: Schlüssel, Felder) und der Umzug
   (`migrated`); siehe `docs/sammlung-felder.md`. `collection.json` trägt sie weiter mit, maßgeblich ist diese Datei.
 - `ruhe.json` (0.10.29): ruhende Server (`hosts`: Ende, Grund, Quelle) und die letzten 50 Sperren (`history`).

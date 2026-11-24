@@ -14,7 +14,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import aufgaben, besitz, collection, eingaben, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
+from . import aufgaben, besitz, betrieb, collection, eingaben, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -581,6 +581,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, raw, etag=etag_of(raw))
             elif path == "/api/diag":
                 self._send(200, diag_view())
+            elif path == "/api/betrieb":
+                # Statuskarte (0.11.2): Zustand des Betriebs, liest nur kleine Dateien und den Zwischenspeicher
+                self._send(200, betrieb.view(collection_view().get("n") or 0))
             elif path == "/api/status":
                 self._send(200, sync.status())
             elif path == "/api/verlauf":
@@ -709,6 +712,11 @@ class Handler(BaseHTTPRequestHandler):
                 pcv = pcwish.view(data)
                 muster.annotate({}, pcv, data, pw.get("items") or {}, price_stats(data, pw))
                 self._send(200, {"pcwish": pcv, "pcwish_ids": pcwish.id_todo(pw)})
+            elif path == "/api/leistung":
+                # Leistungstest der Statuskarte (0.11.2): nur auf Klick, nicht während eines Abgleichs; eigener Prozess,
+                # temporärer Datenordner, erfundene Daten, ohne Netz
+                betrieb.start_test(collection_view().get("n") or 0)
+                self._send(200, betrieb.view(collection_view().get("n") or 0))
             elif path == "/api/details":
                 # Einzelheiten der Sammlung beim Aufklappen (0.11.1): {"keys": [...]}, liest nur den Zwischenspeicher
                 keys = body.get("keys")

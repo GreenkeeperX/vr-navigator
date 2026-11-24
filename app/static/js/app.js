@@ -2095,6 +2095,58 @@ function srcRow(k, l, x){
   const st = x.ok ? `<span class="ok">ok</span>` : rest ? `<span class="warnc">ruht bis ${esc(whenDay(new Date(x.until)) + clock(new Date(x.until)))}</span>` : `<span class="err">Problem</span>`;
   return td(st, when(x.at), `${x.requests ?? 0} Abrufe${x.errors ? `, ${x.errors} Fehler` : ""}${!x.ok && x.msg ? ` · ${esc(x.msg)}` : ""}`);
 }
+/* Statuskarte „Betrieb“ (0.11.2, V-5): zugeklappt nur der Gesamtstatus, aufgeklappt Quellen, ruhende Server, Läufe,
+   Sicherung, Wiederherstellungstest, Daten, Speicher, Platz und der Leistungstest. Lädt beim Öffnen der Einstellungen
+   (höchstens jede Minute neu), während des Leistungstests alle drei Sekunden */
+let BT = null;
+async function loadBetrieb(force){
+  if(BT || (!force && V.betrieb && Date.now() - V.betriebAt < 60000)) return;
+  BT = api("/api/betrieb").then(b => { V.betrieb = b; V.betriebAt = Date.now(); }, e => { V.betrieb = V.betrieb || {error: e.message}; V.betriebAt = Date.now(); });
+  await BT;
+  BT = null;
+  if(V.tab === "settings" && !document.querySelector("dialog[open]")) render();
+  if(V.betrieb?.leistung?.running) setTimeout(() => loadBetrieb(true), 3000);
+}
+const sek = v => v == null ? "" : `${v.toLocaleString("de-DE", {maximumFractionDigits: v < 1 ? 2 : 1})} s`;
+function betriebCard(){
+  loadBetrieb();
+  const b = V.betrieb;
+  if(!b || b.error) return box("betrieb", "Betrieb", "", `<p class="hint">${b ? `Zustand nicht geladen: ${esc(b.error)}` : "Lädt …"}</p>`);
+  const pl = (n, one, more) => n === 1 ? one : `${n} ${more}`;
+  const level = b.level === "problem" ? `<b class="err">${pl(b.problems.length, "1 Problem", "Probleme")}</b>: ${esc(b.problems.join(", "))}${b.hints.length ? ` · ${pl(b.hints.length, "1 Hinweis", "Hinweise")}` : ""}`
+    : b.level === "hinweis" ? `<b class="warnc">${pl(b.hints.length, "1 Hinweis", "Hinweise")}</b>: ${esc(b.hints.join(", "))}` : `<b class="ok">alles in Ordnung</b>`;
+  const tr = (l, v, tip) => `<tr><td>${l}</td><td${tip ? ` title="${esc(tip)}"` : ""}>${v}</td></tr>`;
+  const bk = b.backup || {}, last = bk.last || {}, chk = bk.check || {}, m = b.memory || {}, d = b.disk || {};
+  const facts = `<table class="mini-t"><tbody>
+    ${tr("Version", esc(b.version))}
+    ${tr("Letzte Sicherung", last.at ? `${when(last.at)} <span class="hint">(${esc(last.why || "")}, ${mb(last.bytes || 0)}; ${num(bk.n)} im Datenordner)</span>` : `<span class="hint">noch keine</span>`, "Täglich eine im Ordner sicherungen/ des Datenordners, dazu vor jedem Einspielen; die letzten 14 bleiben")}
+    ${tr("Wiederherstellungstest", chk.at ? `${chk.ok ? `<span class="ok">ok</span>` : `<span class="err">fehlgeschlagen</span>`} ${when(chk.at)}${chk.ok ? "" : ` <span class="hint">${esc(chk.error || "")}</span>`}` : `<span class="hint">noch keiner</span>`, "Einmal im Monat: die jüngste Sicherung in einem temporären Ordner auspacken, lesen und durchrechnen; deine Dateien bleiben unberührt")}
+    ${tr("Daten", mb(b.data_bytes || 0))}
+    ${tr("Speicher", m.rss_mb != null ? `${num(Math.round(m.rss_mb))} MB <span class="hint">(höchstens ${num(Math.round(m.peak_mb))} MB seit dem Start)</span>` : "", "Arbeitsspeicher des Servers")}
+    ${tr("Frei auf dem Datenträger", d.free_mb != null ? `${mb(d.free_mb * 1048576)} <span class="hint">von ${mb(d.total_mb * 1048576)}</span>` : "")}
+  </tbody></table>`;
+  const src = S.sync?.sources || {};
+  const shown = SOURCES.filter(([k]) => src[k]);
+  const srcT = shown.length ? `<div class="scroll"><table class="mini-t"><tbody>${shown.map(([k, l]) => srcRow(k, l, src[k])).join("")}</tbody></table></div>` : `<p class="hint">Noch kein Abgleich.</p>`;
+  const until = iso => esc(whenDay(new Date(iso)) + clock(new Date(iso)));
+  const rest = b.resting.length ? `<ul class="plain">${b.resting.map(r => `<li><b>${esc(r.host)}</b> bis ${until(r.until)} <span class="hint">${esc(r.why || "")}${r.source ? ` (${esc(r.source)})` : ""}</span></li>`).join("")}</ul>` : `<p class="hint">Kein Server ruht.</p>`;
+  const blocks = b.blocks.length ? `<ul class="plain">${b.blocks.map(r => `<li>${when(r.at)} <b>${esc(r.host)}</b> <span class="hint">${esc(r.why || "")}${r.source ? ` (${esc(r.source)})` : ""}</span></li>`).join("")}</ul>` : `<p class="hint">Noch keine Sperre.</p>`;
+  const runs = b.runs.length ? `<ul class="plain">${b.runs.map(r => `<li>${when(r.started)} ${r.interrupted ? `<span class="warnc">unterbrochen</span>` : r.ok ? `<span class="ok">ok</span>` : `<span class="err">${r.error ? `abgebrochen (${esc(r.error)})` : "mit Problemen"}</span>`}${(r.bad || []).length ? ` <span class="hint">${r.bad.map(x => `${esc(x.src)}${x.msg ? `: ${esc(x.msg)}` : ""}${x.errors ? ` (${x.errors} Fehler)` : ""}`).join(" · ")}</span>` : ""}</li>`).join("")}</ul>` : `<p class="hint">Noch kein Lauf seit 0.11.2.</p>`;
+  const files = `<table class="mini-t"><tbody>${b.files.map(f => tr(esc(f.name), `${mb(f.bytes)}${f.n != null ? ` <span class="hint">(${num(f.n)})</span>` : ""}`)).join("")}</tbody></table>`;
+  const L = b.leistung || {}, busy = L.running || b.sync_running || S.sync?.running;
+  const lres = (L.results || []).length ? `<div class="scroll"><table class="mini-t"><thead><tr><th>Zeit</th><th>Version</th><th>Spiele</th><th title="„DE fehlt“ ignorieren, mit Antwort">Entscheidung</th><th title="Sammlung danach">danach Sammlung</th><th title="/api/collection, Server rechnet alles">Sammlung kalt</th><th title="/api/state, Server rechnet alles">Zustand kalt</th><th title="Höchster Speicher des Testprozesses">Speicher</th><th>Dauer</th></tr></thead><tbody>${L.results.map(r => r.ok
+      ? `<tr><td>${when(r.at)}</td><td>${esc(r.version)}</td><td>${num(r.n)}</td><td>${sek(r.decision_write_s)}</td><td>${sek(r.decision_then_collection_s)}</td><td>${sek(r.api_collection_cold_s)}</td><td>${sek(r.api_state_cold_s)}</td><td>${r.rss_peak_mb != null ? num(Math.round(r.rss_peak_mb)) + " MB" : ""}</td><td>${sek(r.wall_s)}</td></tr>`
+      : `<tr><td>${when(r.at)}</td><td>${esc(r.version)}</td><td>${num(r.n)}</td><td colspan="6"><span class="err">fehlgeschlagen</span> <span class="hint">${esc(r.error || "")}</span></td></tr>`).join("")}</tbody></table></div>` : "";
+  const ltest = `<p class="hint">Misst mit einer erfundenen Sammlung so groß wie deine (${num(L.n)} Spiele), wie schnell der Server rechnet: eine Entscheidung, die Sammlung und der Zustand. Er läuft in einem eigenen Prozess mit einem temporären Ordner, fragt kein Netz an und lässt deine Daten unberührt; nie während eines Abgleichs. Dauert je nach Rechner eine halbe bis einige Minuten.</p>
+    <div class="bar slim"><button data-act="leistung" ${busy ? "disabled" : ""} title="${L.running ? "Der Test läuft" : b.sync_running || S.sync?.running ? "Während eines Abgleichs nicht" : "Test jetzt starten"}">${L.running ? "Misst …" : "Leistung messen"}</button></div>${lres}`;
+  return box("betrieb", "Betrieb", "", sub("betrieb", "Zustand", level, `${facts}
+    ${sub("bt-src", "Abgleich je Quelle", `${shown.length} Quellen`, srcT, true)}
+    ${sub("bt-rest", "Ruhende Server", b.resting.length ? `${b.resting.length}` : "keiner", rest, !b.resting.length)}
+    ${sub("bt-runs", "Letzte Läufe", `${b.runs.filter(r => !r.ok).length} mit Problemen von ${b.runs.length}`, runs, true)}
+    ${sub("bt-blocks", "Letzte Sperren", b.blocks.length ? `${b.blocks.length}` : "keine", blocks, true)}
+    ${sub("bt-files", "Dateien im Datenordner", mb(b.data_bytes || 0), files, true)}
+    ${sub("bt-test", "Leistungstest", L.running ? "läuft" : (L.results || []).length ? `zuletzt ${when(L.results[0].at)}` : "noch keiner", ltest, !L.running)}`, b.level === "ok"));
+}
 /* ---------------------------------------------------------------- Einstellungen
    Drei feste Karten (Abgleich, Importe, Sicherung), oben „Derselbe Titel?“, wenn etwas zu
    entscheiden ist. Klappbar sind die Teile darin, nicht die Karten: Protokoll, Verbindungstest,
@@ -2158,7 +2210,7 @@ function settingsView(){
   const oc = S.own_check || {doubt: []}, own = oc.doubt || [];
   const rs = S.research || {}, rwh = rs.wheel || [];
   const open = sug + todo.length + lists.length + near.length + rown.length + rde.length + pcIds.length + own.length + rwh.length;
-  const jumps = [(open || rs.vrmod_n) && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"]].filter(Boolean);
+  const jumps = [(open || rs.vrmod_n) && ["todo", "Zu erledigen"], ["importe", "Einlesen"], ["abgleich", "Abgleich"], ["sicherung", "Sicherung"], ["betrieb", "Betrieb"]].filter(Boolean);
   const sugList = `<p class="hint">Diese Paare heißen fast gleich, einer stammt aus Meta, der andere vom PC. Zusammenführen heißt: ein Eintrag mit beiden Seiten, unter dem Namen, den du anklickst. Der andere Name bleibt für spätere Importe bekannt, und unter „bearbeiten“ kannst du jederzeit umbenennen.</p>
     <div class="list">${S.suggestions.map(x => `<div class="item"><span class="nm">${todoGo(x.a_name, x.a, "vr")} ↔ ${todoGo(x.b_name, x.b, "vr")}</span>
       <span class="row2">Zusammenführen als
@@ -2269,7 +2321,7 @@ function settingsView(){
      <a class="btn" href="/api/export" download="vr-navigator-sicherung.json">Sicherung herunterladen</a>
      <button data-act="pickrestore">Sicherung einlesen</button><input type="file" id="restoreFile" accept=".json,application/json" data-file="restore" hidden aria-label="Sicherung wählen"></div>`);
   return banners() + `<div class="jump" role="navigation" aria-label="Abschnitte">${jumps.map(([id, l]) => `<a href="#${id}" data-act="jump" data-v="${id}">${l}</a>`).join("")}${foldAll}</div>` +
-    sugCard + importe + abgleich + sicherung;
+    sugCard + importe + abgleich + sicherung + betriebCard();
 }
 /* Wunschliste abgleichen: das Tool führt deine Wünsche, die Wunschlisten der Läden sind Spiegel.
    Je Gruppe eine Aktion für alle, je Titel dieselbe einzeln; Links führen zur Liste im Laden,
@@ -2822,6 +2874,11 @@ document.addEventListener("click", async ev => {
     if(res){ $("edit").close(); toast(`„${name}“ gelöscht`, undoTo(res)); }
   }
   else if(a === "sync"){ if(await act("/api/sync", el.dataset.v === "fast" ? {fast: true} : {})) watchSync(); }
+  else if(a === "leistung"){
+    try{ V.betrieb = await api("/api/leistung", {}); V.betriebAt = Date.now(); toast("Leistungstest läuft; das Ergebnis steht gleich unter Leistungstest"); setTimeout(() => loadBetrieb(true), 3000); }
+    catch(e){ toast(e.message); }
+    render();
+  }
   else if(a === "diag"){
     V.diagRunning = true; render();
     // 0.8.0: der Test läuft auf dem Server weiter, die Seite fragt alle zwei Sekunden nach (kein 504 mehr)

@@ -129,6 +129,8 @@ clock = time.monotonic      # 0.10.29: Uhr der Pausen je Server, Tests setzen ei
 _old_misses = {"ignore": False}     # Fehlschläge einer früheren Suche (SEARCH_V) zählen nicht
 _running = threading.Lock()
 _diag = threading.Lock()            # 0.10.29: Verbindungstest; nie gleichzeitig mit einem Abgleich
+leistung_running = threading.Event()   # 0.11.2: Leistungstest der Statuskarte; der Zeitplan wartet so lange
+RUNS_KEEP = 30                      # 0.11.2: so viele Läufe merkt sich sync.json (runs) für die Statuskarte
 _guard = threading.Lock()           # prüft und nimmt die beiden Riegel in einem Schritt
 _save_lock = threading.Lock()
 _manual_reset = set()               # gg.deals-Link während eines Laufs neu gespeichert: am Ende nicht zurückschreiben
@@ -404,6 +406,16 @@ class _Source:
         return {"at": titles.now_iso(), "requests": self.n, "errors": self.errors,
                 "ok": not self.stopped, "msg": self.stopped, "blocked": self.blocked,
                 **({"until": self.resting} if self.resting else {}), **self.stats}
+
+
+def run_summary(st, results):
+    """Kurzfassung eines Laufs für die Liste der Läufe (0.11.2): Zeit, ob alles ging, Quellen mit Problem."""
+    bad = [{"src": NAMES.get(k, k), "msg": str(r.get("msg") or "")[:80], "errors": r.get("errors") or 0}
+           for k, r in sorted(results.items()) if isinstance(r, dict) and (r.get("ok") is False or r.get("errors"))]
+    out = {"started": st.get("started") or "", "finished": st.get("finished") or "", "ok": bool(st.get("ok")), "bad": bad}
+    if st.get("error"):
+        out["error"] = st["error"]
+    return out
 
 
 def _hm(iso):
@@ -2720,7 +2732,10 @@ def run(only=None, boot=False, by_hand=False, fast=False):
         if prev.get("partial"):
             prev = dict(prev, interrupted=prev.get("started"))
         st = {"started": _iso(now()), "log": [], "sources": dict(prev.get("sources") or {}),
-              "rest": {k: v for k, v in (prev.get("rest") or {}).items() if isinstance(v, str) and v > _iso(now())}}
+              "rest": {k: v for k, v in (prev.get("rest") or {}).items() if isinstance(v, str) and v > _iso(now())},
+              "runs": [x for x in (prev.get("runs") or []) if isinstance(x, dict)][-RUNS_KEEP:]}
+        if prev.get("interrupted"):
+            st["runs"] = (st["runs"] + [{"started": prev["interrupted"], "ok": False, "interrupted": True}])[-RUNS_KEEP:]
         STATE.update(started=st["started"], step="Start", done=0, total=0, log=st["log"])
 
         HOSTS.reset()
@@ -2977,6 +2992,8 @@ def run(only=None, boot=False, by_hand=False, fast=False):
                 st.setdefault("done", st["finished"])
                 st.setdefault("ok", False)
                 st["sources"].update(results)
+                st["runs"] = (st.get("runs") or []) + [run_summary(st, results)]
+                st["runs"] = st["runs"][-RUNS_KEEP:]
                 for k in list(_manual_reset):           # Link während des Laufs neu gespeichert (save_settings)
                     (st.get("manual") or {}).pop(k, None)
                 _manual_reset.clear()
@@ -3010,7 +3027,7 @@ def scheduler():
     boot = True
     while True:
         try:
-            if due(boot=boot) and not _running.locked() and not _diag.locked():
+            if due(boot=boot) and not _running.locked() and not _diag.locked() and not leistung_running.is_set():
                 run(boot=boot)
         except Exception as e:
             print("Zeitplan:", e, file=sys.stderr)

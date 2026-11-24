@@ -2,6 +2,7 @@
 
 - `synthetic(n)`: eine erfundene Sammlung im Aufbau der echten (dieselben Felder je Quelle; Anteile, Namen, Kennungen,
   Texte und Werte sind erfunden). Dient den Messungen hier, dem Leistungstest der Statuskarte und den Tests.
+- `python -m app.leistung N`: dasselbe für die Statuskarte in einem eigenen Prozess (siehe `betrieb.start_test`).
 - `measure(...)`: misst in einem temporären Datenordner, was die Oberfläche spürt: `/api/collection` kalt und warm,
   `/api/state`, eine Entscheidung zu einem Spiel (Antwort, danach Sammlung und Zustand), Antwortgrößen, Speicher und
   Rechenzeit. Die echten Dateien bleiben
@@ -166,3 +167,25 @@ def measure(n=8000, rounds=3):
     out["cpu_s"] = round(_cpu() - cpu0, 2)
     out["rss_peak_mb"] = _rss_mb()
     return out
+
+
+def _no_net(*a, **kw):
+    raise RuntimeError("Der Leistungstest fragt kein Netz an")
+
+
+def main(argv):
+    """Für den Leistungstest der Statuskarte (betrieb.start_test): in einem eigenen Prozess mit DATA_DIR in einem
+    temporären Ordner, niedriger Priorität und ohne Netz; schreibt das Ergebnis als eine Zeile JSON."""
+    from . import sources
+    sources.request = sources.fetch = _no_net
+    try:
+        os.nice(10)             # der Server bleibt bedienbar, solange der Test rechnet
+    except OSError:
+        pass
+    n = int(argv[0]) if argv else 8000
+    print(json.dumps(measure(max(100, min(30000, n)))), flush=True)
+
+
+if __name__ == "__main__":
+    import sys
+    main(sys.argv[1:])

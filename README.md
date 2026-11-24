@@ -811,6 +811,11 @@ jüngste in einen temporären Ordner aus, liest sie wie beim Einspielen und rech
   (ab 0.10.29, `RUHE_STUNDEN` ändert die Länge).
 - `GET /healthz` (ab 0.10.29) ist das Lebenszeichen für den `HEALTHCHECK` im Image: Version, Datenordner beschreibbar,
   läuft ein Abgleich; es liest keine großen Dateien.
+- **Statuskarte „Betrieb“** (ab 0.11.2, unten in den Einstellungen): zugeklappt nur der Gesamtstatus („alles in
+  Ordnung“, Hinweise violett, Probleme rot mit Grund), aufgeklappt Quellen, ruhende Server, die letzten Läufe und
+  Sperren, letzte Sicherung, letzter Wiederherstellungstest, Daten, Speicher, freier Platz und Version. Der
+  **Leistungstest** dort läuft nur auf Klick und nie während eines Abgleichs, in einem eigenen Prozess mit erfundenen
+  Daten in einem temporären Ordner, ohne Netz; deine Daten bleiben unberührt (`docs/leistung.md`).
 - `AUTO_SYNC=0` schaltet den Zeitplan ab (etwa für einen zweiten Testcontainer).
 - **Switch-Sammlung aus dem eShopKompass** (ab 0.7.3, Entscheidung 27.10.2026): Mit `ESHOP_URL`
   (etwa `http://eshop-kompass:8787`) liest jeder Abgleich einmal `ESHOP_URL/api/sammlung` des

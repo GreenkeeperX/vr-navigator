@@ -39,6 +39,8 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/eingaben.py`: ab 0.11.0 Nutzereingaben der Sammlung (`de_ign`, `own_ok`, `own_take`, `alias`, `near_no`, `r_wheel`,
   `r_vrmod`) in `eingaben.json`; beim Lesen von `collection.json` eingesetzt (`store.LOAD_HOOKS`), Entscheidungen schreiben
   nur sie (`save`), Umzug beim ersten Lesen (`migrate`); Felder und Gründe in `docs/sammlung-felder.md`
+- `app/betrieb.py`: ab 0.11.2 Statuskarte „Betrieb“ (`view`, Gesamtstatus `overall`) und Leistungstest im eigenen
+  Prozess mit temporärem Datenordner (`start_test`, Ergebnisse in `leistung.json`); `GET /api/betrieb`, `POST /api/leistung`
 - `app/leistung.py`: ab 0.11.1 erfundene Sammlung im echten Aufbau (`synthetic`) und Messung im temporären
   Datenordner (`measure`); Ergebnisse und Verfahren in `docs/leistung.md`
 - `app/sicherung.py`: ab 0.10.29 Sicherungen im Datenordner (`make`, `daily`), feldweises Einspielen mit Vorschau

@@ -52,4 +52,8 @@ Verhältnis bleibt. Angegeben ist der Bereich aus zwei Läufen je Version.
 ## Selbst messen
 
 Ab 0.11.1 misst `leistung.measure(n)` dasselbe ohne HTTP in einem temporären Datenordner. Es schaltet den Datenordner
-für den ganzen Prozess um; im laufenden Server nur in einem eigenen Prozess (so wird es die Statuskarte aufrufen).
+für den ganzen Prozess um; im laufenden Server deshalb nur in einem eigenen Prozess. Ab 0.11.2 tut das der Knopf
+„Leistung messen“ der Statuskarte (`betrieb.start_test`, `python -m app.leistung N`): erfundene Sammlung so groß wie
+deine (auf Tausend aufgerundet), niedrige Priorität, kein Netz, nie während eines Abgleichs; der Zeitplan wartet, bis
+der Test fertig ist. Die Ergebnisse stehen mit Version und Zeit in `leistung.json` und in der Karte; so lassen sich
+Versionen auf dem Server zu Hause vergleichen.
