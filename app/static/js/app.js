@@ -2891,15 +2891,20 @@ document.addEventListener("click", async ev => {
   }
 });
 
+// Suchfelder (0.10.29): der Wert gilt sofort, gezeichnet wird erst nach einer kurzen Pause im Tippen. Bei großen
+// Listen (Sammlung mit Tausenden Spielen) zeichnete sonst jeder Tastendruck alles neu
+const SEARCH_MS = 180;
+let searchTimer = 0;
+function searchLater(fn){ clearTimeout(searchTimer); searchTimer = setTimeout(fn, SEARCH_MS); }
 document.addEventListener("input", ev => {
-  if(ev.target.dataset.in === "q"){ V.q = ev.target.value; V.focusQ = true; render(); V.focusQ = false; }
+  if(ev.target.dataset.in === "q"){ V.q = ev.target.value; searchLater(() => { V.focusQ = true; render(); V.focusQ = false; }); }
   if(ev.target.dataset.in === "gq"){
-    V.gq = ev.target.value; V.menu = "g"; render();
-    const q = document.querySelector("[data-in=gq]"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length);
+    V.gq = ev.target.value; V.menu = "g";
+    searchLater(() => { render(); const q = document.querySelector("[data-in=gq]"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length); });
   }
   if(ev.target.dataset.in === "dq"){
-    V.d.q = ev.target.value; V.d.n = D0.n; render();
-    const q = $("dq"); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    V.d.q = ev.target.value; V.d.n = D0.n;
+    searchLater(() => { render(); const q = $("dq"); q?.focus(); q?.setSelectionRange(q.value.length, q.value.length); });
   }
 });
 
@@ -2954,7 +2959,23 @@ document.addEventListener("change", async ev => {
     let obj;
     try{ obj = JSON.parse(text); }catch(e){ alert("Keine gültige Sicherung"); return; }
     ev.target.value = "";
-    if(confirm(`Sicherung einlesen? Sie ersetzt alle ${S.counts.all} Titel.`) && await act("/api/restore", {data: obj.data || obj, collection: obj.collection, pcwish: obj.pcwish})){ C = null; toast("Sicherung eingelesen"); }
+    // 0.10.29: erst Vorschau vom Server (was übernommen wird, was bleibt), dann einspielen; vorher sichert der Server den jetzigen Stand
+    const body = {data: obj.data || obj, collection: obj.collection, pcwish: obj.pcwish, version: obj.version};
+    let p;
+    try{ p = await api("/api/restore", Object.assign({dry: true}, body)); }catch(e){ alert("Sicherung nicht übernommen: " + e.message); return; }
+    const part = (r, what) => r.take ? `${what}: ${r.n} statt jetzt ${r.now}` + (r.dropped ? ` (${r.dropped} ohne Namen ausgelassen)` : "") : `${what}: ${r.why}`;
+    const msg = ["Sicherung einlesen?" + (p.version ? ` (Version ${p.version})` : ""),
+      `Titel: ${p.data.titles} statt jetzt ${p.data.titles_now}` + (p.data.marks != null ? `, Mein Stand: ${p.data.marks} statt ${p.data.marks_now}` : ""),
+      part(p.collection, "Sammlung"), part(p.pcwish, "PC-Wunschliste"),
+      p.data.kept.length ? `Bleibt wie jetzt (nicht in der Sicherung): ${p.data.kept.join(", ")}` : "",
+      p.data.skipped.length ? `Nicht übernommen (falsche Form): ${p.data.skipped.join(", ")}` : "",
+      "Vorher sichert der Server den jetzigen Stand im Datenordner (sicherungen/)."].filter(Boolean).join("\n");
+    if(confirm(msg)){
+      try{
+        const r = await api("/api/restore", Object.assign({dry: false}, body));
+        S = r; C = null; render(); toast("Sicherung eingelesen, vorheriger Stand gesichert");
+      }catch(e){ alert(e.message); }
+    }
     return;
   }
   V.txt = Object.assign(V.txt || {}, {[kind]: text});

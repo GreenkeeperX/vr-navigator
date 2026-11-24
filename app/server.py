@@ -13,7 +13,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import aufgaben, besitz, collection, flat2vr, imports, library, lists, muster, pcwish, retro, sources, store, sync, titles, verlauf, wheel
+from . import aufgaben, besitz, collection, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -82,14 +82,10 @@ def diag_view():
 def settings_view():
     """Einstellungen für die Oberfläche: der Schlüssel selbst geht nie zurück an den Browser."""
     s = sync.load_settings()
-    key = s.pop("gg_key")
-    steam = s.pop("steam_key")
-    wish = s.pop("gg_wish")
-    igdb = s.pop("igdb_id"), s.pop("igdb_secret")
-    nexus = s.pop("nexus_key")
-    it = s.pop("itad_key")
-    return dict(s, gg_key_set=bool(key), gg_key_end=key[-4:] if len(key) > 12 else "",
-                steam_key_set=bool(steam), gg_wish_set=bool(wish), igdb_set=all(igdb), nexus_set=bool(nexus), itad_set=bool(it))
+    secret = {k: s.pop(k) for k in sync.SECRETS}
+    key = secret["gg_key"]
+    return dict(s, gg_key_end=key[-4:] if len(key) > 12 else "",
+                **{flag: all(secret[k] for k in keys) for flag, keys in sync.SECRET_FLAGS.items()})
 
 
 def import_collection(data, text, dry):
@@ -453,7 +449,7 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         if n < 0 or n > limit:          # negativ hieße: lesen bis zum Ende
             raise ValueError("zu groß")
-        body = json.loads(self.rfile.read(n) or b"{}")
+        body = sicherung.loads(self.rfile.read(n) or b"{}")      # 0.10.29: NaN und Infinity gelten nicht
         if not isinstance(body, dict):
             raise ValueError("JSON-Objekt erwartet")
         return body
@@ -469,7 +465,11 @@ class Handler(BaseHTTPRequestHandler):
         if self._foreign():
             return
         try:
-            if path in ("/", "/index.html"):
+            if path == "/healthz":
+                # 0.10.29: für den HEALTHCHECK von Docker; liest keine großen Dateien
+                h = health()
+                self._send(200 if h["ok"] else 503, h)
+            elif path in ("/", "/index.html"):
                 with open(os.path.join(STATIC, "index.html"), "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
             elif re.fullmatch(r"/(style\.css|js/[a-z-]+\.js)", path) and os.path.isfile(os.path.join(STATIC, path[1:])):
@@ -532,7 +532,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, import_todo(text, dry))
                     return
                 fn = import_retro if kind == "retro" else imports.import_auto if kind == "auto" else imports.IMPORTERS[kind]
-                with store.lock:
+                # 0.10.29: die Vorschau ändert nichts und braucht das Schloss nicht; nur Übernehmen hält es
+                with store.lock if not dry else _NO_LOCK:
                     data = store.load_data()
                     res = fn(data, text, dry=dry, lists=_lists(body)) if fn is import_retro else fn(data, text, dry=dry)
                     if (res.get("kind") or kind) == "playnite":
@@ -660,25 +661,13 @@ class Handler(BaseHTTPRequestHandler):
                 start_diag()
                 self._send(200, diag_view())
             elif path == "/api/restore":
-                d = body.get("data")
-                if not isinstance(d, dict) or not isinstance(d.get("titles"), dict):
-                    raise ValueError("Keine Sicherung des VR-Navigator")
-                bad = [k for k, t in d["titles"].items() if not isinstance(t, dict) or not t.get("name")]
-                if bad:
-                    raise ValueError(f"{len(bad)} Einträge ohne Namen, Sicherung nicht übernommen")
-                col = body.get("collection")
-                with store.lock:
-                    store.save_data(d)
-                    # Sicherungen vor 0.4.0 haben keine Sammlung: dann bleibt die vorhandene
-                    if isinstance(col, dict) and isinstance(col.get("games"), dict):
-                        games = {str(k): g for k, g in col["games"].items() if isinstance(g, dict) and g.get("name")}
-                        store.save_json(collection.FILE, dict(col, games=games, n=len(games)))
-                    # PC-Wunschliste ab 0.8.7 in der Sicherung; ältere Sicherungen lassen die vorhandene
-                    pw = body.get("pcwish")
-                    if isinstance(pw, dict) and isinstance(pw.get("items"), dict):
-                        items = {str(k): e for k, e in pw["items"].items() if isinstance(e, dict) and e.get("name")}
-                        store.save_json(pcwish.FILE, dict(pw, items=items))
-                self._send(200, state())
+                # 0.10.29: erst Vorschau (dry), dann feldweise und mit Sicherung des jetzigen Stands vorher.
+                # Sicherungen vor 0.4.0 haben keine Sammlung, vor 0.8.7 keine PC-Wunschliste: die bleiben dann
+                if sync.status_running() and body.get("dry") is False:
+                    raise ValueError("Gerade läuft ein Abgleich. Bitte nach dessen Ende einspielen.")
+                # Ohne dry wie bisher: einspielen und den Zustand zurück (Schnittstelle bleibt), jetzt mit dem Bericht
+                res = sicherung.restore(body, dry=body.get("dry") is True)
+                self._send(200, res if res["dry"] else dict(state(), restore=res))
             else:
                 self._send(404, {"error": "nicht gefunden"})
         except ValueError as e:
@@ -692,6 +681,46 @@ class Handler(BaseHTTPRequestHandler):
         print(f"Fehler bei {path}:", file=sys.stderr)
         traceback.print_exception(e, file=sys.stderr)
         self._send(500, {"error": f"Interner Fehler ({type(e).__name__}), Einzelheiten im Protokoll des Containers"})
+
+
+class _NoLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+_NO_LOCK = _NoLock()
+
+
+def health():
+    """Lebenszeichen (0.10.29): Version, ob der Datenordner da ist, ob ein Abgleich läuft."""
+    ok = os.path.isdir(store.DATA_DIR) and os.access(store.DATA_DIR, os.W_OK)
+    return {"ok": ok, "version": sources.VERSION, "sync_running": sync.status_running()}
+
+
+WARTUNG_S = 600
+WARTUNG_START_S = 120
+
+
+def wartung(once=False):
+    """Pflege im Hintergrund (0.10.29): tägliche Sicherung, monatlicher Wiederherstellungstest; nie während eines
+    Abgleichs (der schreibt laufend). Läuft auch ohne Zeitplan (AUTO_SYNC=0). Erst WARTUNG_START_S nach dem Start, damit
+    das erste Vorrechnen der Ansichten Vorrang hat."""
+    if not once:
+        time.sleep(WARTUNG_START_S)
+    while True:
+        try:
+            if not sync.status_running():
+                sicherung.daily()
+                if sicherung.check_due() and sicherung.files():
+                    sicherung.check()
+        except Exception as e:
+            print("Wartung:", type(e).__name__, e, file=sys.stderr)
+        if once:
+            return
+        time.sleep(WARTUNG_S)
 
 
 def _warm(once=False):
@@ -719,6 +748,7 @@ def main():
     if os.environ.get("AUTO_SYNC", "1") != "0":
         threading.Thread(target=sync.scheduler, daemon=True).start()
     threading.Thread(target=_warm, daemon=True).start()
+    threading.Thread(target=wartung, daemon=True).start()
     print(f"VR-Navigator läuft auf Port {port}", flush=True)
     srv.serve_forever()
 

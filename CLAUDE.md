@@ -33,6 +33,10 @@ Weitere feste Regeln (wie im eShopKompass):
 ## Aufbau
 
 - `app/sources.py`: Netzabruf (`request`, `fetch`, nur öffentliche Ziele), `VERSION`
+- `app/ruhe.py`: ab 0.10.29 Ruhezeit je Server nach 403, 429 oder Prüfseite (`block`, `until`, `active`), in `ruhe.json`,
+  gilt für Abgleich und Verbindungstest; Länge `RUHE_STUNDEN` (Vorgabe 24)
+- `app/sicherung.py`: ab 0.10.29 Sicherungen im Datenordner (`make`, `daily`), feldweises Einspielen mit Vorschau
+  (`plan`, `restore`), monatlicher Wiederherstellungstest im temporären Ordner (`check`), Stand in `sicherung.json`
 - `app/store.py`: `data.json` im Datenordner (Titel, Importe, Live-Preise), dazu
   `settings.json`, `history.json`, `sync.json` über `load_json`/`save_json`
 - `app/prices.py`: Preise aus QuestStoreDB-Seiten, Steam- und gg.deals-Antworten lesen (ohne Netz)

@@ -12,9 +12,22 @@ Alle Abrufe gehen über `sources.fetch`: ehrliche Kennung `vr-navigator/<Version
 2 Sekunden. Ab 0.10.21 gilt die Pause je Server: Es geht immer nur ein Abruf zur Zeit an einen Server, und nach seinem
 Ende wartet der nächste die Pause seiner Quelle ab, auch wenn er von einer anderen Quelle kommt (`sync.HOSTS`). Nach einem kurzen Netzfehler gibt es nach 5 Sekunden einen zweiten Versuch.
 Antwortet eine Quelle mit 403 oder 429 oder mit einer Prüfseite (Cloudflare „Just a moment“),
-endet sie für diesen Lauf und **ruht 24 Stunden**, auch über spätere Läufe hinweg; das Protokoll
-nennt das Ende der Ruhezeit. Nach 5 anderen Fehlern endet sie nur für diesen Lauf. Die übrigen
-Quellen laufen weiter, und es gelten die zuletzt gelesenen Preise.
+endet sie für diesen Lauf, und ab 0.10.29 **ruht ihr Server 24 Stunden** (`app/ruhe.py`, `ruhe.json`): Keine Quelle
+fragt ihn in dieser Zeit, auch nicht eine andere desselben Servers (Steam-Preise, Rezensionen, Details und Spielerzahlen
+teilen sich store.steampowered.com) und auch nicht der Verbindungstest. Die Ruhe wird sofort gespeichert und übersteht
+Neustarts; das Protokoll nennt Server und Ende. Die Länge lässt sich mit `RUHE_STUNDEN` (1 bis 168) im Stack ändern.
+Bis 0.10.28 hing die Ruhe am Namen der Quelle; `rest` in `sync.json` gibt es weiter, es nennt die gesperrte Quelle.
+Nach 5 anderen Fehlern endet eine Quelle nur für diesen Lauf. Die übrigen Quellen laufen weiter, und es gelten die
+zuletzt gelesenen Preise.
+
+**Zwischenstand und Neustart** (ab 0.10.29): Nach jeder fertigen Quelle steht der Stand des Laufs (Protokoll, Ergebnis
+je Quelle, Ruhezeiten) mit `partial` in `sync.json`; am Ende ohne. Ein Fehler außerhalb der Quellen (etwa beim
+Eintragen) beendet den Lauf mit `ok: false` und `error`, gespeichert wird trotzdem. Findet der Zeitplan nach einem
+Neustart einen Stand mit `partial`, gilt der Lauf als unterbrochen (`interrupted` im Zustand) und läuft nach
+`BOOT_GAP_MIN` (30 Minuten) seit seinem Beginn neu; das Protokoll nennt ihn. Was er schon geholt hatte, ist da.
+
+**Verbindungstest** (ab 0.10.29): läuft im Hintergrund, nie neben einem Abgleich (der Knopf meldet es), hält die Pausen
+je Server ein, fragt keinen ruhenden Server, und eine Sperre im Test lässt den Server ruhen wie im Abgleich.
 
 **Beschleunigt auffüllen** (ab 0.8.6, nur von Hand, `run(fast=True)`): Für diesen einen Lauf gelten die
 Grenzen je Lauf mal `FAST` (5): `REVIEWS_MAX`, `DETAILS_MAX`, `RATING_MAX`, `IGDB_NAMES`, `PCGW_MAX`,
@@ -559,7 +572,10 @@ Konsolenfassung). Am Spiel bleibt unter `wiki` der Treffer (`q`, `via`, `t`, `de
 - Preisverlauf (0.9.1): `GET /api/verlauf?vr=<Schlüssel>` liest `history.json`, `?pc=<Schlüssel>` die Felder `ph` und
   `sh` in `pcwish.json`; nichts wird gespeichert.
 - `sync.json`: Beginn und Ende des letzten Laufs, Ergebnis je Quelle, Ruhezeiten (`rest`),
-  Selbstprüfung (`warnings`), Protokoll.
+  Selbstprüfung (`warnings`), Protokoll; ab 0.10.29 während des Laufs mit `partial`, nach einem Fehler `error`.
+- `ruhe.json` (0.10.29): ruhende Server (`hosts`: Ende, Grund, Quelle) und die letzten 50 Sperren (`history`).
+- `sicherung.json` (0.10.29): letzte Sicherung (`last`), letzter Wiederherstellungstest (`check`), letztes Einspielen
+  (`restored`); die Sicherungen selbst in `sicherungen/` (siehe README, Sicherung).
 - `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB, Nexus Mods, ab 0.9.0 IsThereAnyDeal).
 - `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
   geholt, wenn sie fehlt oder älter als sieben Tage ist.

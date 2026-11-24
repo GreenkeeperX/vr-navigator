@@ -177,7 +177,7 @@ Dateisystem.
     docker compose up -d
 
 Danach `http://<server>:8788` öffnen. Der Port liegt neben dem des eShopKompass (8787), beide
-laufen nebeneinander. Ohne Docker: `python3 -m app.server` (Python 3.10+, Daten in `./data/`).
+laufen nebeneinander. Ohne Docker: `python3 -m app.server` (Python 3.12 oder neuer, Daten in `./data/`).
 
 ## Einrichten
 
@@ -520,7 +520,9 @@ Die Karte Abgleich zeigt je Quelle Ergebnis und Anzahl der Abrufe, darunter:
   Warteschlangen nennen die Läufe bis zum Ende („noch etwa 12 Läufe“), Cent-Schwankungen unter
   0,50 € und 5 % stehen nur als Zahl da, Apps ohne Spielerzahl bei Steam ebenso.
 
-Nach einer Sperre (403, 429 oder Prüfseite) ruht eine Quelle 24 Stunden. Probleme stehen als
+Nach einer Sperre (403, 429 oder Prüfseite) ruht ihr Server 24 Stunden, für alle Quellen, die ihn fragen (ab 0.10.29).
+Ein Neustart mitten im Abgleich verliert weder Protokoll noch Ruhezeiten; der Lauf gilt dann als unterbrochen und
+läuft bald neu. Probleme stehen als
 Hinweis über den Ansichten, jeweils mit „Protokoll öffnen“: noch kein Abgleich, eine ruhende
 Quelle, Auffälligkeiten der Selbstprüfung, Fehler im letzten Lauf. Einzelheiten in
 [docs/abrufe.md](docs/abrufe.md).
@@ -773,11 +775,22 @@ Schrift gedeckt, hell bleiben nur Name, Überschriften, aktiver Reiter und groß
 
 Unter Einstellungen, Sicherung, drei Knöpfe wie im eShopKompass: „Sicherung herunterladen“ (alle
 Titel, Notizen, Zuordnungen und Mein Stand als eine JSON-Datei, dazu die Sammlung,
-`collection.json`, und ab 0.8.7 die PC-Wunschliste, `pcwish.json`), „Sicherung einlesen“ (ersetzt alles; Sicherungen ohne Sammlung lassen die
-vorhandene stehen, Sicherungen vor 0.6.0 ohne Mein Stand laden weiter) und „Abgleichsdaten
+`collection.json`, und ab 0.8.7 die PC-Wunschliste, `pcwish.json`), „Sicherung einlesen“ und „Abgleichsdaten
 herunterladen“ (Stand und Protokoll des Abgleichs, Preisverlauf und Einstellungen ohne Schlüssel und
 Konten, zum Nachprüfen; zum Einlesen nicht nötig). Die Sicherung enthält deine Käufe; sie gehört
 nicht ins Repository. Schlüssel, Konten und der Preisverlauf (`history.json`) sind nicht darin.
+
+**Einlesen** (ab 0.10.29) zeigt erst, was sich ändert (Titel, Mein Stand, Sammlung, PC-Wunschliste je mit der Zahl jetzt
+und in der Sicherung), und spielt erst nach der Bestätigung ein. Übernommen wird feldweise: Was die Sicherung nicht
+enthält (etwa die Sammlung in Sicherungen vor 0.4.0 oder Mein Stand vor 0.6.0), bleibt wie es ist; was nicht die
+erwartete Form hat oder keinen Namen trägt, wird ausgelassen und in der Vorschau genannt; Zahlen ohne Wert (NaN,
+unendlich) lehnt der Server ab. Vorher sichert er den jetzigen Stand.
+
+**Sicherungen im Datenordner** (ab 0.10.29): Einmal am Tag (und vor jedem Einspielen) legt der Server dieselbe
+Sicherung gepackt unter `sicherungen/` im Datenordner ab, es bleiben die 14 neuesten. Einmal im Monat packt er die
+jüngste in einen temporären Ordner aus, liest sie wie beim Einspielen und rechnet die Ansichten damit durch
+(Wiederherstellungstest); die echten Dateien bleiben dabei unberührt. Ergebnis und letzte Sicherung stehen in
+`sicherung.json`.
 
 ## Betrieb und Sicherheit
 
@@ -787,7 +800,10 @@ nicht ins Repository. Schlüssel, Konten und der Preisverlauf (`history.json`) s
 - Fremde Texte (Titel, Notizen, Links) werden in der Oberfläche nie als HTML ausgeführt; Links
   sind nur mit http und https klickbar.
 - Abrufe laufen über `sources.request`: ehrliche Kennung, nur öffentliche Ziele, Grenzen für
-  Zeit und Größe, Pausen zwischen zwei Abrufen, 24 Stunden Ruhe nach 403, 429 oder Prüfseite.
+  Zeit und Größe, Pausen zwischen zwei Abrufen, nach 403, 429 oder Prüfseite 24 Stunden Ruhe für den ganzen Server
+  (ab 0.10.29, `RUHE_STUNDEN` ändert die Länge).
+- `GET /healthz` (ab 0.10.29) ist das Lebenszeichen für den `HEALTHCHECK` im Image: Version, Datenordner beschreibbar,
+  läuft ein Abgleich; es liest keine großen Dateien.
 - `AUTO_SYNC=0` schaltet den Zeitplan ab (etwa für einen zweiten Testcontainer).
 - **Switch-Sammlung aus dem eShopKompass** (ab 0.7.3, Entscheidung 27.10.2026): Mit `ESHOP_URL`
   (etwa `http://eshop-kompass:8787`) liest jeder Abgleich einmal `ESHOP_URL/api/sammlung` des

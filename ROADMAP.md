@@ -164,3 +164,28 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 - Pakete selbst finden: welche Meta-Bundles einen Wunsch enthalten, nennt bisher keine abrufbare Quelle; das Tool
   vergleicht nur Pakete, deren Inhalt es kennt (0.10.2)
 - weitere Anbieter über gg.deals
+
+## Stabilisierung nach dem Review (ab 0.10.29)
+
+Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen, V-2
+Nutzereingaben aus `collection.json` in eine eigene kleine Datei (mit Sicherung und Migration), V-3 schlanke Listen und
+Messung vorher und nachher, V-5 Statuskarte im Einstellungsreiter (eingeklappt, mit Wiederherstellungstest und
+Leistungstest), danach Dokumentation, Altlasten und V-6. SQLite nur, wenn die Messungen nach V-3 zeigen, dass JSON
+nicht reicht.
+
+Später, wenn belegbar: VR-Platzbedarf (Spielfläche, sitzend, stehend, Roomscale; nur dokumentierte Angaben) und die
+Qualität eines UEVR-Profils als weiteres Kriterium der bestehenden KI-Aufträge (mit Quellen und Stand, erst Vorschau).
+
+## Von den Geschwistern
+
+Pokédex, eShopKompass und VR-Navigator bleiben eigenständig (kein gemeinsamer Kern, keine Submodule). Hier steht, was
+sich lohnen könnte, hinüber oder herüber zu nehmen; übernommen wird nur nach Prüfung im jeweiligen Projekt.
+
+- Ruhezeit je Server statt je Quelle, sofort gespeichert (`app/ruhe.py`, 0.10.29): lohnt im eShopKompass, wenn dort
+  mehrere Quellen denselben Server fragen; mit nur einer Quelle je Server bringt es wenig.
+- Zwischenstand des Abgleichs nach jeder Quelle und Erkennung eines unterbrochenen Laufs (0.10.29): passt zu jedem
+  Projekt mit längeren Läufen und Watchtower-Neustarts.
+- Tägliche Sicherung im Datenordner mit monatlichem Wiederherstellungstest im temporären Ordner (`app/sicherung.py`):
+  übertragbar, die Teile der Sicherung sind je Projekt andere.
+- Feldweises Einspielen mit Vorschau und Sicherung vorher, NaN und Unendlich abgelehnt: übertragbar.
+- `/healthz` und `HEALTHCHECK` im Image: übertragbar ohne Anpassung.
