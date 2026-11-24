@@ -2,6 +2,7 @@
 import copy
 import datetime
 import gzip
+import hashlib
 import ipaddress
 import json
 import os
@@ -224,12 +225,71 @@ def collection_view():
                 lambda: collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
 
 
+# Nur in den Einzelheiten gebraucht (0.11.1): fehlt in /api/collection, kommt beim Aufklappen über /api/details.
+# Die Beschreibung ist rund ein Drittel der Antwort; hd sagt der Oberfläche, dass es eine gibt
+DETAIL_FIELDS = ("desc",)
+
+
+def slim(r):
+    """Zeile der Sammlung ohne die Felder der Einzelheiten."""
+    out = {k: v for k, v in r.items() if k not in DETAIL_FIELDS}
+    if r.get("desc"):
+        out["hd"] = 1
+    return out
+
+
+def slim_view(v):
+    return dict(v, games=[slim(r) for r in v["games"]], detail=list(DETAIL_FIELDS))
+
+
+def etag_of(raw):
+    return '"' + hashlib.sha1(raw).hexdigest()[:20] + '"'
+
+
 def collection_body():
-    """Die Sammlung als fertige Antwort, roh und gepackt."""
+    """Die Sammlung als fertige Antwort: roh, gepackt und ihr ETag (0.11.1)."""
     def make():
-        raw = json.dumps(collection_view(), ensure_ascii=False).encode("utf-8")
-        return raw, gzip.compress(raw, compresslevel=5)
+        raw = json.dumps(slim_view(collection_view()), ensure_ascii=False).encode("utf-8")
+        return raw, gzip.compress(raw, compresslevel=5), etag_of(raw)
     return memo("collection", COL_FILES, make)
+
+
+def details(keys):
+    """Felder der Einzelheiten je Spiel (0.11.1) aus der zwischengespeicherten Sammlung: {Schlüssel: {Feld: Wert}}."""
+    want = {str(k) for k in keys[:5000] if isinstance(k, str)}
+    return {r["key"]: {f: r.get(f) or "" for f in DETAIL_FIELDS}
+            for r in collection_view().get("games") or [] if r["key"] in want}
+
+
+def colview_patch(rows, before):
+    """Nach einer Entscheidung (unter store.lock): die zwischengespeicherte Sammlung bekommt nur die neuen Zeilen der
+    betroffenen Spiele, statt alles neu zu rechnen (0.11.1). before ist der Stand der Dateien beim Lesen der Sammlung;
+    passt der Zwischenspeicher nicht genau dazu (oder rechnet gerade jemand), bleibt er, wie er ist, und wird beim
+    nächsten Abruf ganz neu gerechnet."""
+    with _memo_lock:
+        busy = _memo_busy.get("colview")
+    if busy is None or not busy.acquire(blocking=False):
+        return False
+    try:
+        with _memo_lock:
+            hit = _memo.get("colview")
+        if not hit or hit[0] != (store.DATA_DIR, before, None):
+            return False
+        games = [rows.get(r["key"], r) for r in hit[1]["games"]]
+        nv = dict(hit[1], games=games, genres=sorted({x for r in games for x in r["genres"]}))
+        with _memo_lock:
+            _memo["colview"] = ((store.DATA_DIR, store.stamp(*COL_FILES), None), nv)
+        return True
+    finally:
+        busy.release()
+
+
+def decided(col, keys, before):
+    """Zeilen der Spiele nach einer Entscheidung (ohne Einzelheiten) für die Antwort; der Zwischenspeicher bekommt sie
+    auch. Die Oberfläche tauscht nur diese Zeilen aus, statt die ganze Sammlung neu zu laden (0.11.1)."""
+    rows = collection.rows(col, store.load_data(), keys)
+    colview_patch(rows, before)
+    return {k: slim(r) for k, r in rows.items()}
 
 
 # Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder
@@ -416,13 +476,41 @@ def restore_titles(recs):
     return state()
 
 
+def index_html():
+    """index.html mit der Version an Stilen und Skript (0.11.1), damit der Browser beide lange behalten darf."""
+    with open(os.path.join(STATIC, "index.html"), encoding="utf-8") as f:
+        page = f.read()
+    v = urllib.parse.quote(sources.VERSION)
+    return page.replace('href="style.css"', f'href="style.css?v={v}"').replace('src="js/app.js"', f'src="js/app.js?v={v}"').encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "vr-navigator"
+    # 0.11.1: HTTP/1.1, sonst fragt Chromium mit dem ETag nicht nach (If-None-Match) und lädt jedes Mal alles. Jede
+    # Antwort hat eine Länge; eine Verbindung ohne Anfrage schließt nach timeout Sekunden
+    protocol_version = "HTTP/1.1"
+    timeout = 60
 
     def log_message(self, fmt, *args):
         pass
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None, cache="no-store", etag=None):
+        """etag (0.11.1): mit If-None-Match gleich kommt 304 ohne Inhalt; der Browser fragt jedes Mal nach (no-cache),
+        lädt aber nur, was sich geändert hat."""
+        if etag:
+            cache = "no-cache"
+            if code == 200 and etag in [x.strip() for x in (self.headers.get("If-None-Match") or "").split(",")]:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", cache)
+                self.end_headers()
+                return
+            extra = dict(extra or {}, ETag=etag)
+        if self.command == "POST" and not getattr(self, "_consumed", False):
+            # Inhalt der Anfrage nicht gelesen (zu groß, falscher Typ, fremde Adresse): die Verbindung endet hier,
+            # sonst läse der Server den Rest als nächste Anfrage
+            self.close_connection = True
+            extra = dict(extra or {}, Connection="close")
         zipped = None
         if isinstance(body, tuple):         # schon fertig: (roh, gepackt), siehe collection_body
             body, zipped = body
@@ -437,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Encoding", "gzip")
             self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         # Nicht in fremde Seiten einbetten, Typen nicht raten, keine Adresse an verlinkte Seiten
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -456,7 +544,9 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         if n < 0 or n > limit:          # negativ hieße: lesen bis zum Ende
             raise ValueError("zu groß")
-        body = sicherung.loads(self.rfile.read(n) or b"{}")      # 0.10.29: NaN und Infinity gelten nicht
+        raw = self.rfile.read(n)
+        self._consumed = True
+        body = sicherung.loads(raw or b"{}")      # 0.10.29: NaN und Infinity gelten nicht
         if not isinstance(body, dict):
             raise ValueError("JSON-Objekt erwartet")
         return body
@@ -477,15 +567,18 @@ class Handler(BaseHTTPRequestHandler):
                 h = health()
                 self._send(200 if h["ok"] else 503, h)
             elif path in ("/", "/index.html"):
-                with open(os.path.join(STATIC, "index.html"), "rb") as f:
-                    self._send(200, f.read(), "text/html; charset=utf-8")
+                self._send(200, index_html(), "text/html; charset=utf-8", cache="no-cache")
             elif re.fullmatch(r"/(style\.css|js/[a-z-]+\.js)", path) and os.path.isfile(os.path.join(STATIC, path[1:])):
-                # Teile der Oberfläche: nur diese Namen, kein Pfad aus der Anfrage sonst
+                # Teile der Oberfläche: nur diese Namen, kein Pfad aus der Anfrage sonst. Ab 0.11.1 mit der Version in
+                # der Adresse (index_html): die gilt ein Jahr, ein Update bringt eine neue Adresse
+                versioned = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("v") == [sources.VERSION]
                 with open(os.path.join(STATIC, path[1:]), "rb") as f:
                     self._send(200, f.read(), "text/css; charset=utf-8" if path.endswith(".css")
-                               else "text/javascript; charset=utf-8")
+                               else "text/javascript; charset=utf-8",
+                               cache="public, max-age=31536000, immutable" if versioned else "no-cache")
             elif path == "/api/state":
-                self._send(200, state())
+                raw = json.dumps(state(), ensure_ascii=False).encode("utf-8")
+                self._send(200, raw, etag=etag_of(raw))
             elif path == "/api/diag":
                 self._send(200, diag_view())
             elif path == "/api/status":
@@ -501,7 +594,8 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send(404, {"error": "Titel nicht gefunden"})
             elif path == "/api/collection":
-                self._send(200, collection_body())
+                raw, packed, tag = collection_body()
+                self._send(200, (raw, packed), etag=tag)
             elif path == "/api/export":
                 # dieselben Teile wie die Sicherungen im Datenordner, ab 0.11.0 mit den Nutzereingaben (eingaben)
                 self._send(200, sicherung.snapshot(),
@@ -520,6 +614,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
+        self._consumed = False          # dieselbe Verbindung trägt mehrere Anfragen (HTTP/1.1)
         if self._foreign():
             return
         try:
@@ -560,22 +655,26 @@ class Handler(BaseHTTPRequestHandler):
                     if data["imports"].get("retro"):
                         data["imports"]["retro"]["gone"] = 0
                         store.save_data(data)
-                self._send(200, {"changed": n, "collection": collection.view(col, store.load_data())})
+                # Spiele fallen weg: die ganze Sammlung, ab 0.11.1 ohne Einzelheiten (selten)
+                self._send(200, {"changed": n, "collection": slim_view(collection_view())})
             elif path == "/api/retro/own":
                 # Widerspruch zu deiner Ordner-Liste (0.8.8): „Liste gilt“ für ein Spiel oder alle; ab 0.9.6 mit
                 # take „Quellen gelten“ (libretro und IGDB einig)
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     keys = [x["key"] for x in retro.own_list(col)] if body.get("all") is True else [_text(body.get("key"), 300)]
                     for k in keys:
                         retro.settle_own(col, k, take=body.get("take") is True)
                     eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei, nicht die ganze Sammlung
-                self._send(200, {"retro_own": retro.own_list(col), "collection": collection.view(col, store.load_data())})
+                    rows = decided(col, keys, before)
+                self._send(200, {"retro_own": retro.own_list(col), "rows": rows})
             elif path == "/api/retro/de":
                 # „DE fehlt“ aus „Zu erledigen“ (0.10.12): ignorieren (ein Spiel, alle oder alle eines Systems) oder wieder melden
                 ign = body.get("ign") is not False
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     if body.get("all") is True:
                         sy = _text(body.get("system"), 40)
                         keys = [x["key"] for x in retro.de_list(col) if not sy or x["system"] == sy]
@@ -585,18 +684,21 @@ class Handler(BaseHTTPRequestHandler):
                         keys = [_text(body.get("key"), 300)]
                     n = retro.settle_de(col, keys, ign)
                     eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei
-                self._send(200, {"changed": n, "retro_de": retro.de_list(col), "collection": collection.view(col, store.load_data())})
+                    rows = decided(col, keys, before)
+                self._send(200, {"changed": n, "retro_de": retro.de_list(col), "rows": rows})
             elif path == "/api/retro/near":
                 # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
                 key = _text(body.get("key"), 300)
                 with store.lock:
                     col = store.load_json(collection.FILE, collection.EMPTY)
+                    before = store.stamp(*COL_FILES)
                     g = (col.get("games") or {}).get(key) or {}
                     idx = (store.load_json(retro.CACHE, {}).get(g.get("system") or "") or {}).get("idx")
                     retro.settle_near(col, key, bool(body.get("ok")), idx)
                     eingaben.save(col, [key])
-                    store.save_json(collection.FILE, col)      # die Fassung (de) ist neu gerechnet
-                self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col, store.load_data())})
+                    store.save_json(collection.FILE, col)      # die Fassung (de) ist neu gerechnet, nur bei diesem Spiel
+                    rows = decided(col, [key], before)
+                self._send(200, {"retro_near": retro.near_list(col), "rows": rows})
             elif path == "/api/pcwish/id":
                 # Steam-ID eines PC-Wunschs aus „Zu erledigen“ (0.8.24): eine der angebotenen oder keine
                 with store.lock:
@@ -607,6 +709,12 @@ class Handler(BaseHTTPRequestHandler):
                 pcv = pcwish.view(data)
                 muster.annotate({}, pcv, data, pw.get("items") or {}, price_stats(data, pw))
                 self._send(200, {"pcwish": pcv, "pcwish_ids": pcwish.id_todo(pw)})
+            elif path == "/api/details":
+                # Einzelheiten der Sammlung beim Aufklappen (0.11.1): {"keys": [...]}, liest nur den Zwischenspeicher
+                keys = body.get("keys")
+                if not isinstance(keys, list):
+                    raise ValueError("keys fehlt")
+                self._send(200, {"games": details(keys)})
             elif path == "/api/title":
                 self._send(200, edit_title(body))
             elif path == "/api/mark":

@@ -18,7 +18,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, aufgaben, collection, eingaben, imports, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
+from app import accounts, aufgaben, collection, eingaben, imports, leistung, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -1640,8 +1640,8 @@ class TestServer(unittest.TestCase):
         key = st["retro_de"][0]["key"]
         p = json.loads(self.call("/api/retro/de", {"key": key})[1])
         self.assertEqual((p["changed"], len(p["retro_de"])), (1, 2))
-        row = next(r for r in p["collection"]["games"] if r["key"] == key)
-        self.assertTrue(row["de"]["ign"])
+        self.assertEqual(list(p["rows"]), [key])            # 0.11.1: nur die geänderte Zeile
+        self.assertTrue(p["rows"][key]["de"]["ign"])
         p = json.loads(self.call("/api/retro/de", {"all": True, "system": "GB"})[1])
         self.assertEqual((p["changed"], [x["name"] for x in p["retro_de"]]), (1, ["Lantern Keep"]))
         # erneut eingelesen: ignoriert bleibt ignoriert
@@ -4984,8 +4984,7 @@ class TestEingaben(unittest.TestCase):
             res = call("/api/retro/de", {"key": key})
             self.assertEqual(res["changed"], 1)
             self.assertEqual(os.stat(os.path.join(store.DATA_DIR, collection.FILE)).st_mtime_ns, st)
-            row = next(r for r in res["collection"]["games"] if r["key"] == key)
-            self.assertTrue(row["de"]["ign"])
+            self.assertTrue(res["rows"][key]["de"]["ign"])
             row = next(r for r in call("/api/collection")["games"] if r["key"] == key)     # Zwischenspeicher neu
             self.assertTrue(row["de"]["ign"])
             self.assertNotIn(key, [x["key"] for x in call("/api/state")["retro_de"]])
@@ -5003,6 +5002,95 @@ class TestEingaben(unittest.TestCase):
         finally:
             srv.shutdown()
             srv.server_close()
+
+
+class TestLeistung(unittest.TestCase):
+    """0.11.1 (V-3): Zeilen einzeln neu rechnen, Sammlung ohne Einzelheiten, ETag und 304, Stile und Skript mit Version.
+    Mit der erfundenen Sammlung aus leistung.synthetic."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        server._memo.clear()
+        col, data = leistung.synthetic(400)
+        store.save_data(data)
+        store.save_json(collection.FILE, col)
+
+    def test_zeilen_wie_view(self):
+        col, data = store.load_json(collection.FILE, collection.EMPTY), store.load_data()
+        v = collection.view(col, data)
+        keys = [r["key"] for r in v["games"] if r["key"] in col["games"]]
+        rows = collection.rows(col, data, keys + ["gibt:es:nicht"])
+        self.assertEqual(len(rows), len(keys))
+        for r in v["games"]:
+            if r["key"] in rows:
+                self.assertEqual(rows[r["key"]], r)
+
+    def test_entscheidung_patcht_zwischenspeicher(self):
+        server.collection_view()            # der erste Abruf zieht um (eingaben.json entsteht) …
+        server.collection_view()            # … deshalb gilt erst der zweite Stand
+        with store.lock:
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            before = store.stamp(*server.COL_FILES)
+            de = [k for k, g in col["games"].items() if (g.get("de") or {}).get("st") == "missing"][:3]
+            own = [x["key"] for x in retro.own_list(col)][:2]
+            pc = [k for k, g in col["games"].items() if k.startswith("steam:")][:2]
+            retro.settle_de(col, de, True)
+            for k in own:
+                retro.settle_own(col, k, take=True)
+            for k in pc:
+                col["games"][k]["r_vrmod"] = {"st": "ja", "mods": [], "at": "2026-11-24"}
+            keys = de + own + pc
+            eingaben.save(col, keys)
+            rows = server.decided(col, keys, before)
+        self.assertEqual(set(rows), set(keys))
+        self.assertTrue(all("desc" not in r for r in rows.values()))
+        hit = server._memo["colview"]
+        self.assertEqual(hit[0], (store.DATA_DIR, store.stamp(*server.COL_FILES), None))     # gilt ohne neu zu rechnen
+        server._memo.clear()
+        self.assertEqual(hit[1], server.collection_view())              # genau wie ganz neu gerechnet
+        # passt der Zwischenspeicher nicht zum Stand beim Lesen, bleibt er
+        self.assertFalse(server.colview_patch({}, ("anders",)))
+
+    def call(self, path, body=None, headers=None):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}{path}",
+                                         data=None if body is None else json.dumps(body).encode(),
+                                         headers=dict({"Content-Type": "application/json"}, **(headers or {})))
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, dict(r.headers), r.read()
+            except urllib.error.HTTPError as e:
+                return e.code, dict(e.headers), e.read()
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_sammlung_schlank_mit_etag(self):
+        code, h, body = self.call("/api/collection")
+        c = json.loads(body)
+        self.assertEqual((code, h["Cache-Control"], c["detail"]), (200, "no-cache", ["desc"]))
+        self.assertFalse([r for r in c["games"] if "desc" in r])
+        with_desc = [r["key"] for r in c["games"] if r.get("hd")]
+        self.assertGreater(len(with_desc), 100)
+        code, h2, body = self.call("/api/collection", headers={"If-None-Match": h["ETag"]})
+        self.assertEqual((code, body, h2["ETag"]), (304, b"", h["ETag"]))
+        got = json.loads(self.call("/api/details", {"keys": with_desc[:3] + ["gibt:es:nicht"]})[2])["games"]
+        full = {r["key"]: r for r in server.collection_view()["games"]}
+        self.assertEqual(got, {k: {"desc": full[k]["desc"]} for k in with_desc[:3]})
+        self.assertEqual(self.call("/api/details", {"keys": "x"})[0], 400)
+        code, h, body = self.call("/api/state")
+        self.assertEqual(self.call("/api/state", headers={"If-None-Match": h["ETag"]})[0], 304)
+
+    def test_oberflaeche_mit_version(self):
+        code, h, body = self.call("/")
+        v = urllib.parse.quote(sources.VERSION)
+        self.assertIn(f'src="js/app.js?v={v}"'.encode(), body)
+        self.assertIn(f'href="style.css?v={v}"'.encode(), body)
+        self.assertEqual(h["Cache-Control"], "no-cache")
+        self.assertIn("immutable", self.call(f"/js/app.js?v={v}")[1]["Cache-Control"])
+        self.assertEqual(self.call("/js/app.js?v=0.0.1")[1]["Cache-Control"], "no-cache")     # alte Adresse: nachfragen
 
 
 class TestRepo(unittest.TestCase):

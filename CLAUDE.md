@@ -39,6 +39,8 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/eingaben.py`: ab 0.11.0 Nutzereingaben der Sammlung (`de_ign`, `own_ok`, `own_take`, `alias`, `near_no`, `r_wheel`,
   `r_vrmod`) in `eingaben.json`; beim Lesen von `collection.json` eingesetzt (`store.LOAD_HOOKS`), Entscheidungen schreiben
   nur sie (`save`), Umzug beim ersten Lesen (`migrate`); Felder und Gründe in `docs/sammlung-felder.md`
+- `app/leistung.py`: ab 0.11.1 erfundene Sammlung im echten Aufbau (`synthetic`) und Messung im temporären
+  Datenordner (`measure`); Ergebnisse und Verfahren in `docs/leistung.md`
 - `app/sicherung.py`: ab 0.10.29 Sicherungen im Datenordner (`make`, `daily`), feldweises Einspielen mit Vorschau
   (`plan`, `restore`), monatlicher Wiederherstellungstest im temporären Ordner (`check`), Stand in `sicherung.json`
 - `app/store.py`: `data.json` im Datenordner (Titel, Importe, Live-Preise), dazu
@@ -65,6 +67,7 @@ Weitere feste Regeln (wie im eShopKompass):
   libretro-database (`parse_meta`, `meta_for`, `mark_meta`) und deine Ordner-Listen `…_ordner.csv`
   (`parse_folder_list`, `apply_folder_lists`, Widersprüche `own_list`, `settle_own`)
 - `app/collection.py`: ganze Sammlung je System für die Sammlung (`collection.json`) aus dem Playnite-Export
+  (Zeilen der Oberfläche: `view`, ab 0.11.1 je Spiel `row` und nur einige `rows`)
   und ab 0.8.9 deinen VR-Titeln am PC ohne Playnite-Eintrag (`sync_pcvr`), Steam-Konto (`sync_steam`),
   gg.deals-Sammlung (`sync_gg`),
   Merkmale (Mehrspieler, Spielerzahl, Genre-Gruppen, Wertung), Geheimtipp-Wert
@@ -96,7 +99,8 @@ Weitere feste Regeln (wie im eShopKompass):
 - `app/lists.py`: Wunschliste abgleichen (gekauft und noch gewünscht, im Tool entfernt, nur
   aus der Tabelle), Aktionen für ganze Gruppen, lange nicht gelesene Lesezeichen-Listen
 - `app/library.py`: Zeilen für Jetzt, Wunschliste und den Reiter VR der Sammlung, ab 0.10.2 Pakete gegen Einzelpreise (`bundle_deals`)
-- `app/server.py`: Webserver und JSON-Schnittstelle
+- `app/server.py`: Webserver und JSON-Schnittstelle; ab 0.11.1 HTTP/1.1, ETag für Sammlung und Zustand, Sammlung
+  ohne Beschreibung (`slim`, `POST /api/details`), Zeilen nach einer Entscheidung (`decided`, `colview_patch`)
 - `app/static/`: Oberfläche, reines JavaScript ohne Build (`index.html`, `style.css`, `js/app.js`);
   Farben, Marken und Klappen nach `docs/oberflaeche.md`
 - `tests/test_all.py`: alle Tests, mit `tests/ui_selbsttest.html` (Oberfläche bei 390 px in Chromium); Antworten der Quellen sind erfundene Nachbauten im echten

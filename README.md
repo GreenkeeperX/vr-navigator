@@ -823,6 +823,8 @@ jüngste in einen temporären Ordner aus, liest sie wie beim Einspielen und rech
 - Die Sammlung rechnet der Server gleich nach dem Start einmal und hält sie bereit, bis sich
   `collection.json`, `data.json` oder die Liste der Rennsimulationen ändert (ab 0.8.14); die Seite lädt
   sie kurz nach dem Öffnen im Hintergrund vor. Der Wechsel in den Reiter wartet dann nicht mehr.
+  Ab 0.11.1 rechnet eine Entscheidung nur die Zeilen der betroffenen Spiele neu, die Beschreibung kommt erst beim
+  Aufklappen, und unveränderte Antworten schickt der Server nicht noch einmal (ETag); Messung in `docs/leistung.md`.
 - Ein Abgleich dauert länger, solange die Warteschlangen (Steam-Details, PCGamingWiki, IGDB) noch gefüllt
   werden; das Protokoll nennt die verbleibenden Läufe. Danach liest jeder Lauf nur noch, was veraltet ist.
 - Daten liegen in `data.json` im Datenordner. Eine kaputte Datei bleibt als

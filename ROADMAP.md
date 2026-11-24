@@ -169,9 +169,9 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 
 Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen und V-2
 Nutzereingaben aus `collection.json` in eine eigene kleine Datei (0.11.0, `docs/sammlung-felder.md`), V-3 schlanke Listen und
-Messung vorher und nachher, V-5 Statuskarte im Einstellungsreiter (eingeklappt, mit Wiederherstellungstest und
-Leistungstest), danach Dokumentation, Altlasten und V-6. SQLite nur, wenn die Messungen nach V-3 zeigen, dass JSON
-nicht reicht.
+Messung vorher und nachher (0.11.1, `docs/leistung.md`: eine Entscheidung 0,17 statt 0,85 s, SQLite nicht nötig),
+V-5 Statuskarte im Einstellungsreiter (eingeklappt, mit Wiederherstellungstest und Leistungstest), danach
+Dokumentation, Altlasten und V-6.
 
 Später, wenn belegbar: VR-Platzbedarf (Spielfläche, sitzend, stehend, Roomscale; nur dokumentierte Angaben) und die
 Qualität eines UEVR-Profils als weiteres Kriterium der bestehenden KI-Aufträge (mit Quellen und Stand, erst Vorschau).
@@ -191,3 +191,8 @@ sich lohnen könnte, hinüber oder herüber zu nehmen; übernommen wird nur nach
 - `/healthz` und `HEALTHCHECK` im Image: übertragbar ohne Anpassung.
 - Nutzereingaben getrennt von abgerufenen Daten, eingesetzt beim Lesen (0.11.0): der eShopKompass hat dasselbe Muster
   (Mein Stand neben großen Abrufdaten); lohnt dort, wenn seine Sammlung beim Haken spürbar langsam schreibt. Erst messen.
+- ETag und 304 für die großen Antworten, mit HTTP/1.1 (sonst fragt Chromium nicht nach), dazu Stile und Skript mit der
+  Version in der Adresse (0.11.1): übertragbar auf eShopKompass und Pokédex, beide liefern ebenfalls große JSON-Antworten
+  an dieselbe Seite. Klein und ohne Risiko für die Daten.
+- Nach einer Entscheidung nur die betroffenen Zeilen neu rechnen und zurückgeben (0.11.1): lohnt nur, wo eine
+  Entscheidung heute die ganze Liste neu baut; im eShopKompass erst messen.

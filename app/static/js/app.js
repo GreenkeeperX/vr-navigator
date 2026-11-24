@@ -912,6 +912,35 @@ function readFindHash(){
   }
   V.d = d;
 }
+/* Einzelheiten nachladen (0.11.1): /api/collection kommt ohne Beschreibung (hd sagt, dass es eine gibt); beim
+   Aufklappen holt needDetail sie gesammelt nach. Was nicht kommt, bleibt leer, damit niemand zweimal fragt */
+let DQ = new Set(), DT = null;
+async function loadDetails(keys){
+  keys = keys.filter(k => k && !k.startsWith("vr:"));
+  if(!keys.length || !C?.games) return;
+  let got = {};
+  try{ got = (await api("/api/details", {keys})).games || {}; }catch(e){ toast(`Beschreibung nicht geladen: ${e.message}`); }
+  const want = new Set(keys);
+  for(const g of C?.games || []) if(want.has(g.key) && g.desc === undefined) g.desc = (got[g.key] || {}).desc || "";
+}
+function needDetail(key){
+  DQ.add(key);
+  if(DT) return;
+  DT = setTimeout(async () => {
+    const keys = [...DQ];
+    DQ = new Set();
+    await loadDetails(keys);
+    DT = null;
+    if(V.tab === "find" && !document.querySelector("dialog[open]")) render();
+  }, 0);
+}
+/* Nach einer Entscheidung (0.11.1): nur die Zeilen der betroffenen Spiele austauschen statt die ganze Sammlung neu zu
+   laden; eine schon geladene Beschreibung bleibt */
+function patchC(rows){
+  if(!C?.games || !rows) return;
+  const games = C.games.map(g => { const n = rows[g.key]; if(!n) return g; if(n.desc === undefined && g.desc !== undefined) n.desc = g.desc; return n; });
+  C = Object.assign({}, C, {games, genres: [...new Set(games.flatMap(g => g.genres))].sort()});
+}
 async function loadCollection(){
   if(cLoading) return;
   cLoading = true;
@@ -1482,10 +1511,12 @@ function detailText(g){
   for(const x of e.querySelectorAll(".gdesc, .gds")) out.push(plain(x.innerHTML));
   return out.filter(Boolean).join(" | ");
 }
-function gExport(){
+async function gExport(){
   const {rows, cols, sys} = G_SHOWN || {rows: [], cols: []};
   const cell = v => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const open = rows.some(g => V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key);
+  // aufgeklappte Spiele: Beschreibungen erst holen (0.11.1)
+  if(open) await loadDetails(rows.filter(g => g.hd && g.desc === undefined && (V.gAll ? !V.gShut.has(g.key) : V.gOpen === g.key)).map(g => g.key));
   const stand = g => { const m = mine(g), st = G_ST.find(x => x[0] === m.s); return [st && st[1], m.fav && "Favorit", m.ign && "ignoriert"].filter(Boolean).join(", "); };
   const lines = [["Spiel", ...cols.map(c => c.l), "Mein Stand", ...(open ? ["Einzelheiten"] : [])].map(cell).join(";")];
   for(const g of rows){
@@ -1526,7 +1557,8 @@ function gDetail(g, gc = 2, shownCols = new Set()){
   // Gespielt ab 0.9.8 ganz unten (0.9.7 über Mein Stand); reine Meta-Titel: Meta nennt keine Spielzeit
   const played = g.pt != null ? `<span class="fl">Gespielt</span><span class="gpt" title="Laut Steam-Konto">${playText(g)}</span>`
     : g.lib && g.lib.where === "meta" ? `<span class="fl">Gespielt</span><span class="gpt hint">unbekannt, der Meta Store nennt keine Spielzeit</span>` : "";
-  const side = `<div class="gdm"><span class="gtags ggen"></span><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : ""}${played}</div>`;
+  if(g.hd && g.desc === undefined) needDetail(g.key);
+  const side = `<div class="gdm"><span class="gtags ggen"></span><span class="fl">Mein Stand</span>${shown}${g.desc ? `<p class="gdesc${V.gDesc === g.key ? " full" : ""}" data-act="gdesc" data-s="${esc(g.key)}" title="${dtip}${V.gDesc === g.key ? "" : ". Klick zeigt alles"}">${esc(g.desc)}</p>` : g.hd && g.desc === undefined ? `<p class="gdesc hint">Beschreibung lädt …</p>` : ""}${played}</div>`;
   if(g.lib){
     const r = g.lib;
     return `<div class="gd vrd" style="--gc:${gc}"><div class="gdv"><div class="gbadges">${badges(Object.assign({}, r, shownCols.has("own") ? {where: ""} : {}, shownCols.has("cb") ? {crossbuy: null} : {}))}</div>${factsHtml(r)}${opinionHtml(r)}${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}${moreHtml(r)}</div>${side}</div>`;
@@ -2841,7 +2873,7 @@ document.addEventListener("click", async ev => {
     const k = el.dataset.k, x = (S.retro_near || []).find(y => y.key === k) || {};
     try{
       const res = await api("/api/retro/near", {key: k, ok: a === "nearok"});
-      C = res.collection; S.retro_near = res.retro_near;
+      patchC(res.rows); S.retro_near = res.retro_near;
       toast(a === "nearok" ? `„${x.name}“ gilt jetzt als „${x.near}“` : `Vorschlag für „${x.name}“ verworfen`);
     }catch(e){ toast(e.message); }
     render();
@@ -2857,10 +2889,10 @@ document.addEventListener("click", async ev => {
     const keys = k ? [k] : (S.retro_de || []).filter(y => !sy || y.system === sy).map(y => y.key);
     try{
       const res = await api("/api/retro/de", Object.assign(k ? {key: k} : {all: true, system: sy}, {ign}));
-      C = res.collection; S.retro_de = res.retro_de;
+      patchC(res.rows); S.retro_de = res.retro_de;
       toast(!ign ? `„${x.name || "Spiel"}“ zeigt wieder „DE fehlt“` : k ? `„DE fehlt“ bei „${x.name || "Spiel"}“ ignoriert`
         : `${res.changed} ${res.changed === 1 ? "Spiel" : "Spiele"}${sy ? ` (${sy})` : ""} ignoriert`,
-        ign ? () => api("/api/retro/de", {keys, ign: false}).then(r => { C = r.collection; S.retro_de = r.retro_de; render(); }) : null);
+        ign ? () => api("/api/retro/de", {keys, ign: false}).then(r => { patchC(r.rows); S.retro_de = r.retro_de; render(); }) : null);
     }catch(e){ toast(e.message); }
     render();
   }
@@ -2868,7 +2900,7 @@ document.addEventListener("click", async ev => {
     const k = el.dataset.k;
     const take = el.dataset.take === "1";
     const res = await api("/api/retro/own", Object.assign(k ? {key: k} : {all: true}, take ? {take: true} : {}));
-    C = res.collection; S.retro_own = res.retro_own;
+    patchC(res.rows); S.retro_own = res.retro_own;
     toast(take ? (k ? "Das Genre der Quellen gilt" : "Das Genre der Quellen gilt für alle") : k ? "Deine Liste gilt" : "Deine Liste gilt für alle");
     render();
   }
