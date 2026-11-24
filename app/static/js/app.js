@@ -157,7 +157,18 @@ function renderHead(){
 }
 /* Hinweise über den Ansichten: kein Abgleich, ruhende Quelle, Selbstprüfung, Fehler */
 const SRC_NAME = {qsdb: "QuestStoreDB", steam: "Steam", gg: "gg.deals", steamacc: "Steam-Konto", ggwish: "gg.deals-Wunschliste", sharenite: "Sharenite", reviews: "Steam-Rezensionen", details: "Steam-Details", rating: "Steam-Wertungen", players: "Steam-Spieler", vrdb: "VRDB", retro: "Retro-Fassungen", gametdb: "GameTDB", deku: "DekuDeals", wiki: "Wikidata", igdb: "IGDB", pcgw: "PCGamingWiki", flat2vr: "Flat2VR und UEVR", nexus: "Nexus Mods", wheel: "Sim-Racing", eshop: "eShopKompass", itad: "IsThereAnyDeal", pcinfo: "PC-Wunschliste, Spielinfos", vrinfo: "VR-Titel, Spielinfos"};
+/* Was ist neu (0.11.2, V-6): nach einem Update steht oben einmal, was die neue Version bringt; „verstanden“ blendet es
+   je Browser aus. Alles je Version in docs/neu.md */
+const NEWS = {"0.11.3": "Unter Einstellungen zeigt die Karte „Betrieb“ auf einen Blick, ob alles läuft, mit Sicherungen, Wiederherstellungstest und „Leistung messen“. Der Server sichert täglich selbst, Sicherungen einlesen geht mit Vorschau, nach einer Sperre ruht der ganze Server einen Tag. Entscheidungen zur Sammlung gehen schneller und stehen in einer eigenen Datei; Beschreibungen laden erst beim Aufklappen."};
+let SEEN = (() => { try{ return localStorage.getItem("vn.seen") || ""; }catch(e){ return ""; } })();
+function newsBanner(){
+  const v = S.version, t = NEWS[v];
+  return t && SEEN !== v ? `<div class="banner">Neu in ${esc(v)}: ${esc(t)} <a href="https://github.com/GreenkeeperX/vr-navigator/blob/main/docs/neu.md" target="_blank" rel="noopener noreferrer">alles Neue</a> · <button class="link" data-act="seen">verstanden</button></div>` : "";
+}
 function banners(){
+  return newsBanner() + syncBanners();
+}
+function syncBanners(){
   const sy = S.sync || {}, out = [];
   const logLink = `<button class="link" data-act="showlog">Protokoll öffnen</button>`;
   if(sy.running) return "";
@@ -2874,6 +2885,11 @@ document.addEventListener("click", async ev => {
     if(res){ $("edit").close(); toast(`„${name}“ gelöscht`, undoTo(res)); }
   }
   else if(a === "sync"){ if(await act("/api/sync", el.dataset.v === "fast" ? {fast: true} : {})) watchSync(); }
+  else if(a === "seen"){
+    SEEN = S.version;
+    try{ localStorage.setItem("vn.seen", SEEN); }catch(e){}
+    render();
+  }
   else if(a === "leistung"){
     try{ V.betrieb = await api("/api/leistung", {}); V.betriebAt = Date.now(); toast("Leistungstest läuft; das Ergebnis steht gleich unter Leistungstest"); setTimeout(() => loadBetrieb(true), 3000); }
     catch(e){ toast(e.message); }

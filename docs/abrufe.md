@@ -580,7 +580,7 @@ Konsolenfassung). Am Spiel bleibt unter `wiki` der Treffer (`q`, `via`, `t`, `de
   (`migrated`); siehe `docs/sammlung-felder.md`. `collection.json` trägt sie weiter mit, maßgeblich ist diese Datei.
 - `ruhe.json` (0.10.29): ruhende Server (`hosts`: Ende, Grund, Quelle) und die letzten 50 Sperren (`history`).
 - `sicherung.json` (0.10.29): letzte Sicherung (`last`), letzter Wiederherstellungstest (`check`), letztes Einspielen
-  (`restored`); die Sicherungen selbst in `sicherungen/` (siehe README, Sicherung).
+  (`restored`); die Sicherungen selbst in `sicherungen/` (siehe README, Abschnitt Sicherung).
 - `settings.json`: Zeitplan, Konten und Schlüssel (gg.deals, Steam, IGDB, Nexus Mods, ab 0.9.0 IsThereAnyDeal).
 - `retro_dat.json`: die Fassungen je System aus den Listen oben, mit Tag des Abrufs; wird neu
   geholt, wenn sie fehlt oder älter als sieben Tage ist.

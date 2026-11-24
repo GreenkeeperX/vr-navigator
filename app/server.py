@@ -850,19 +850,30 @@ def _warm(once=False):
     """Sammlung und Zustand gleich nach dem Start berechnen, ab 0.10.15 auch nach jedem Abgleich und Import: alle
     paar Sekunden prüfen, ob sich eine Datei geändert hat (nur die Änderungszeit, ohne Lesen), und dann vorab
     rechnen; so öffnet der erste Klick ohne Warten. Während eines Abgleichs nicht, der schreibt laufend."""
+    last = ""
     while True:
+        wait = WARM_S
         try:
             if not sync.status_running():
                 collection_body()
                 state()
-        except Exception:
-            pass
+            last = ""
+        except Exception as e:
+            # 0.11.2: nicht mehr still. Ins Protokoll des Containers (dieselbe Meldung nur einmal), dann eine Minute
+            # Pause, statt alle paar Sekunden vergeblich alles neu zu rechnen; der Abruf aus dem Browser zeigt den Fehler
+            msg = f"{type(e).__name__}: {e}"
+            if msg != last:
+                print("Vorrechnen der Ansichten:", file=sys.stderr)
+                traceback.print_exception(e, file=sys.stderr)
+                last = msg
+            wait = WARM_FAIL_S
         if once:
             return
-        time.sleep(WARM_S)
+        time.sleep(wait)
 
 
 WARM_S = 3
+WARM_FAIL_S = 60
 
 
 def main():

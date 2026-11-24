@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -5183,6 +5184,34 @@ class TestStatuskarte(unittest.TestCase):
         finally:
             srv.shutdown()
             srv.server_close()
+
+
+class TestDoku(unittest.TestCase):
+    """0.11.3: README knapp, je Version ein Eintrag in docs/neu.md; Fehler beim Vorrechnen nicht mehr still."""
+
+    def test_readme_und_neu(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "README.md"), encoding="utf-8") as f:
+            readme = f.read()
+        self.assertLess(readme.count("\n"), 250, "README bleibt knapp, Einzelheiten nach docs/")
+        self.assertIn(f"Stand {sources.VERSION}", readme)
+        for link in re.findall(r"\]\((docs/[a-z-]+\.md)\)", readme):
+            self.assertTrue(os.path.isfile(os.path.join(root, link)), link)
+        with open(os.path.join(root, "docs", "neu.md"), encoding="utf-8") as f:
+            self.assertIn(f"\n## {sources.VERSION}\n", f.read())
+
+    def test_vorrechnen_meldet_fehler(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+        old = server.collection_body
+        server.collection_body = lambda: 1 / 0
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                server._warm(once=True)
+        finally:
+            server.collection_body = old
+        self.assertIn("Vorrechnen der Ansichten", err.getvalue())
+        self.assertIn("ZeroDivisionError", err.getvalue())
 
 
 class TestRepo(unittest.TestCase):

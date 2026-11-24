@@ -27,12 +27,14 @@ Weitere feste Regeln (wie im eShopKompass):
 - die Härtung des Containers bleibt,
 - geschätzte oder übernommene Werte sind in der Oberfläche gekennzeichnet (violett, „Tabelle“; kein „≈“, Entscheidung 02.11.2026),
 - jede Version mit Tests (`python3 -m unittest tests.test_all`), neuer Nummer in
-  `app/sources.py`, aktueller README und aktueller ROADMAP.md,
+  `app/sources.py`, Eintrag in `docs/neu.md`, aktueller README und aktueller ROADMAP.md; die README bleibt knapp
+  (Zweck, Start, Einrichten, Nutzung, Betrieb), Einzelheiten stehen in `docs/` (ab 0.11.2),
 - alte Datendateien müssen nach einem Update weiter laden.
 
 ## Aufbau
 
 - `app/sources.py`: Netzabruf (`request`, `fetch`, nur öffentliche Ziele), `VERSION`
+- `docs/neu.md` (was ist neu, je Version), `docs/einrichten.md`, `docs/ansichten.md`: ab 0.11.2 aus der README ausgelagert
 - `docs/entfernt.md`: was aus dem Code entfernt wurde, warum und wie geprüft (ab 0.10.29); nichts auf Verdacht entfernen
 - `app/ruhe.py`: ab 0.10.29 Ruhezeit je Server nach 403, 429 oder Prüfseite (`block`, `until`, `active`), in `ruhe.json`,
   gilt für Abgleich und Verbindungstest; Länge `RUHE_STUNDEN` (Vorgabe 24)

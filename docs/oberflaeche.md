@@ -1,8 +1,8 @@
 # Oberfläche: Farben, Marken, Klappen
 
 Verbindliche Regeln für `app/static/` (`index.html`, `style.css`, `js/app.js`), übernommen aus
-dem eShopKompass. Wer Farben, Marken oder Bezeichnungen ändert, passt diese Datei und die
-README im selben Commit an.
+dem eShopKompass. Wer Farben, Marken oder Bezeichnungen ändert, passt diese Datei und
+`docs/ansichten.md` im selben Commit an (bis 0.11.1 stand das in der README).
 
 ## Grundsatz
 

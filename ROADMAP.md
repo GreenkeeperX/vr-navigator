@@ -2,8 +2,8 @@
 
 Reihenfolge nach Nutzen. Das Konzept dahinter: Kaufentscheidung erst nach Qualität
 (Multiplayer, gepflegtere Version, bessere Version, Crossbuy), dann nach dem Preisabstand.
-Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md), wann es dazukam,
-in der Git-Geschichte.
+Erledigtes fällt heraus; was das Tool kann, steht in der [README](README.md) und in `docs/`, wann es dazukam,
+in [docs/neu.md](docs/neu.md).
 
 ## 0.3 Wo kaufen
 
