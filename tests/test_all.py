@@ -18,7 +18,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
-from app import accounts, aufgaben, collection, imports, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
+from app import accounts, aufgaben, collection, eingaben, imports, library, lists, prices, retro, ruhe, server, sicherung, sources, store, sync, titles, wheel  # noqa: E402
 
 # Erfundene Beispiele im Format der eigenen Vergleichstabelle und der Exporte; keine echten Daten
 SHEET = """Spiel,Aufschlag,gg.deals best,Bestpreis,Gutschein,,Vergleich,meta,Rabatt,Crossbuy,https://queststoredb.com/on_sale/
@@ -4833,6 +4833,176 @@ class TestBetrieb(unittest.TestCase):
         self.assertTrue(sicherung.state()["check"]["ok"])
         server.wartung(once=True)                       # am selben Tag keine zweite
         self.assertEqual(len(sicherung.files()), 1)
+
+
+class TestEingaben(unittest.TestCase):
+    """0.11.0 (V-2): Nutzereingaben der Sammlung in eingaben.json. Umzug mit Sicherung und Prüfung, nur die kleine
+    Datei bei einer Entscheidung, Importe und Abgleiche löschen nichts Eigenes mehr. Alles mit erfundenen Spielen."""
+
+    def setUp(self):
+        store.DATA_DIR = tempfile.mkdtemp()
+
+    def old_collection(self, n=300):
+        """Sammlung im Stand vor 0.11.0: Nutzerfelder stehen in collection.json."""
+        games = {}
+        for i in range(n):
+            k = f"retro:gba:erfunden {i}" if i % 2 else f"steam:{3100000 + i}"
+            g = {"name": f"Erfundenes Spiel {i}", "system": "GBA" if i % 2 else "PC", "genres": ["Puzzle"], "mp": [], "players": 1}
+            if i % 2:
+                g["src"] = "retro"
+            if i % 7 == 0:
+                g["de_ign"] = "2026-11-01"
+            if i % 11 == 0:
+                g["own_ok"] = ["genre:x"]
+            if i % 13 == 0:
+                g["near_no"] = f"erfunden {i} beta"
+            if i % 5 == 0 and not i % 2:
+                g["r_vrmod"] = {"st": "ja", "mods": [{"name": "Erfundener Mod", "url": "https://example.com/mod"}], "at": "2026-11-20"}
+            games[k] = g
+        col = {"games": games, "at": "2026-11-01", "n": n}
+        with open(os.path.join(store.DATA_DIR, collection.FILE), "w", encoding="utf-8") as f:
+            json.dump(col, f)
+        return col
+
+    def test_umzug(self):
+        old = self.old_collection()
+        path = os.path.join(store.DATA_DIR, collection.FILE)
+        with open(path, "rb") as f:
+            raw_before = f.read()
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        want = eingaben.extract(old)
+        self.assertGreater(len(want), 50)
+        # zusammengeführt wie vorher
+        self.assertEqual(eingaben.extract(col), want)
+        got = eingaben.raw()
+        self.assertEqual(got["games"], want)
+        self.assertEqual((got["migrated"]["games"], got["migrated"]["fields"]), (len(want), sum(len(e) for e in want.values())))
+        self.assertTrue(got["migrated"]["backup"].endswith("-vor-umbau.json.gz"))
+        self.assertEqual(eingaben.extract(sicherung.read(got["migrated"]["backup"])["collection"]), want)   # Sicherung vorher vollständig
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), raw_before)                  # collection.json unverändert
+        # wiederholbar: kein zweiter Umzug, keine zweite Sicherung
+        n = len(sicherung.files())
+        store.load_json(collection.FILE, collection.EMPTY)
+        self.assertTrue(eingaben.migrate())
+        self.assertEqual((len(sicherung.files()), eingaben.raw()["migrated"]), (n, got["migrated"]))
+
+    def test_umzug_misslingt(self):
+        """Stimmt die geschriebene Datei nicht, gilt sie nicht: die Sammlung arbeitet weiter mit ihren eigenen Feldern."""
+        old = self.old_collection(40)
+        real = store._save
+
+        def broken(name, obj):
+            if name == eingaben.FILE:
+                obj = dict(obj, games={})          # geht beim Schreiben verloren
+            return real(name, obj)
+        store._save = broken
+        try:
+            col = store.load_json(collection.FILE, collection.EMPTY)
+        finally:
+            store._save = real
+        self.assertFalse(eingaben.exists())
+        self.assertEqual(eingaben.extract(col), eingaben.extract(old))
+        col = store.load_json(collection.FILE, collection.EMPTY)       # beim nächsten Lesen klappt es
+        self.assertTrue(eingaben.exists())
+        self.assertEqual(eingaben.extract(col), eingaben.extract(old))
+
+    def test_entscheidung_schreibt_nur_die_kleine_datei(self):
+        self.old_collection(20)
+        store.load_json(collection.FILE, collection.EMPTY)              # Umzug
+        path = os.path.join(store.DATA_DIR, collection.FILE)
+        st = os.stat(path).st_mtime_ns
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        key = "retro:gba:erfunden 1"
+        col["games"][key]["de"] = {"st": "missing", "alt": "x"}
+        retro.settle_de(col, [key], True)
+        eingaben.save(col, [key])
+        self.assertEqual(os.stat(path).st_mtime_ns, st)
+        self.assertTrue(store.load_json(collection.FILE, collection.EMPTY)["games"][key]["de_ign"])
+        retro.settle_de(col, [key], False)                              # zurückgenommen
+        eingaben.save(col, [key])
+        self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+        self.assertNotIn(key, eingaben.raw()["games"])
+
+    def test_import_behaelt_recherchen(self):
+        """Befund der Bestandsaufnahme: ein neuer Playnite-Export löschte r_wheel und r_vrmod. Jetzt nicht mehr."""
+        col = json.loads(json.dumps(collection.EMPTY))
+        collection.replace(col, collection.parse(COLLECTION))
+        store.save_json(collection.FILE, col)
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        k = next(iter(col["games"]))
+        col["games"][k]["r_vrmod"] = {"st": "ja", "at": "2026-11-20"}
+        eingaben.save(col, [k])
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        collection.replace(col, collection.parse(COLLECTION))          # neuer Export
+        store.save_json(collection.FILE, col)
+        self.assertEqual(store.load_json(collection.FILE, collection.EMPTY)["games"][k]["r_vrmod"]["st"], "ja")
+        # ein Spiel verschwindet und kommt wieder: die Entscheidung gilt wieder
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        gone = col["games"].pop(k)
+        store.save_json(collection.FILE, col)
+        self.assertIn(k, eingaben.raw()["games"])
+        col["games"][k] = {key: v for key, v in gone.items() if key not in eingaben.FIELDS}
+        store.save_json(collection.FILE, col)
+        self.assertEqual(store.load_json(collection.FILE, collection.EMPTY)["games"][k]["r_vrmod"]["st"], "ja")
+
+    def test_alte_kopien_gelten_nicht_und_rueckschritt(self):
+        """collection.json trägt die Nutzerfelder weiter (für einen Rückschritt auf 0.10.x), maßgeblich ist eingaben.json."""
+        self.old_collection(10)
+        store.load_json(collection.FILE, collection.EMPTY)
+        key = "steam:3100000"
+        eingaben.replace({})                                            # alles zurückgenommen
+        self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+        self.assertIn("de_ign", store.load_raw(collection.FILE, {})["games"][key])      # alte Kopie liegt noch
+        col = store.load_json(collection.FILE, collection.EMPTY)
+        store.save_json(collection.FILE, col)                           # nächstes Speichern bringt sie auf Stand
+        self.assertNotIn("de_ign", store.load_raw(collection.FILE, {})["games"][key])
+        eingaben.replace({key: {"de_ign": "2026-11-24"}})
+        store.save_json(collection.FILE, store.load_json(collection.FILE, collection.EMPTY))
+        self.assertEqual(store.load_raw(collection.FILE, {})["games"][key]["de_ign"], "2026-11-24")
+
+    def test_server_und_sicherung(self):
+        """Über den Server: „DE fehlt“ ignorieren schreibt nur eingaben.json; Sicherung und Einspielen mit Nutzereingaben,
+        auch aus einer Sicherung von vor 0.11.0."""
+        old = self.old_collection(30)
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def call(path, body=None):
+            req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
+                                         method="POST" if body is not None else "GET", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req) as r:
+                return json.loads(r.read())
+        try:
+            store.load_json(collection.FILE, collection.EMPTY)
+            col = store.load_json(collection.FILE, collection.EMPTY)
+            key = "retro:gba:erfunden 3"
+            col["games"][key]["de"] = {"st": "missing", "alt": "Erfunden (Europe) (De)"}
+            store.save_json(collection.FILE, col)
+            st = os.stat(os.path.join(store.DATA_DIR, collection.FILE)).st_mtime_ns
+            res = call("/api/retro/de", {"key": key})
+            self.assertEqual(res["changed"], 1)
+            self.assertEqual(os.stat(os.path.join(store.DATA_DIR, collection.FILE)).st_mtime_ns, st)
+            row = next(r for r in res["collection"]["games"] if r["key"] == key)
+            self.assertTrue(row["de"]["ign"])
+            row = next(r for r in call("/api/collection")["games"] if r["key"] == key)     # Zwischenspeicher neu
+            self.assertTrue(row["de"]["ign"])
+            self.assertNotIn(key, [x["key"] for x in call("/api/state")["retro_de"]])
+            backup = call("/api/export")
+            self.assertIn(key, backup["eingaben"]["games"])
+            self.assertTrue(backup["collection"]["games"][key]["de_ign"])          # für ältere Versionen
+            # Sicherung von vor 0.11.0: ohne eingaben, Nutzerfelder in der Sammlung
+            legacy = {"data": store.load_data(), "collection": old}
+            prev = call("/api/restore", dict(legacy, dry=True))
+            self.assertEqual((prev["eingaben"]["take"], prev["eingaben"]["n"]), (True, len(eingaben.extract(old))))
+            call("/api/restore", legacy)
+            self.assertEqual(eingaben.raw()["games"], eingaben.extract(old))
+            self.assertNotIn("de_ign", store.load_json(collection.FILE, collection.EMPTY)["games"][key])
+            self.assertTrue(sicherung.check()["ok"])
+        finally:
+            srv.shutdown()
+            srv.server_close()
 
 
 class TestRepo(unittest.TestCase):

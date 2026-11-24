@@ -10,7 +10,7 @@ was später je Spiel abgerufen wird (Feld „rev“), bleibt erhalten.
 import math
 import re
 
-from . import flat2vr, igdb, sources, titles, wheel
+from . import eingaben, flat2vr, igdb, sources, titles, wheel  # eingaben: Nutzerfelder beim Lesen (0.11.0)
 from . import store as datastore      # „store“ heißt hier sonst der Launcher
 
 FILE = "collection.json"

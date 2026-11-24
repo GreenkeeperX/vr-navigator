@@ -36,6 +36,9 @@ Weitere feste Regeln (wie im eShopKompass):
 - `docs/entfernt.md`: was aus dem Code entfernt wurde, warum und wie geprüft (ab 0.10.29); nichts auf Verdacht entfernen
 - `app/ruhe.py`: ab 0.10.29 Ruhezeit je Server nach 403, 429 oder Prüfseite (`block`, `until`, `active`), in `ruhe.json`,
   gilt für Abgleich und Verbindungstest; Länge `RUHE_STUNDEN` (Vorgabe 24)
+- `app/eingaben.py`: ab 0.11.0 Nutzereingaben der Sammlung (`de_ign`, `own_ok`, `own_take`, `alias`, `near_no`, `r_wheel`,
+  `r_vrmod`) in `eingaben.json`; beim Lesen von `collection.json` eingesetzt (`store.LOAD_HOOKS`), Entscheidungen schreiben
+  nur sie (`save`), Umzug beim ersten Lesen (`migrate`); Felder und Gründe in `docs/sammlung-felder.md`
 - `app/sicherung.py`: ab 0.10.29 Sicherungen im Datenordner (`make`, `daily`), feldweises Einspielen mit Vorschau
   (`plan`, `restore`), monatlicher Wiederherstellungstest im temporären Ordner (`check`), Stand in `sicherung.json`
 - `app/store.py`: `data.json` im Datenordner (Titel, Importe, Live-Preise), dazu

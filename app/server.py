@@ -13,7 +13,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import aufgaben, besitz, collection, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
+from . import aufgaben, besitz, collection, eingaben, flat2vr, imports, library, lists, muster, pcwish, retro, sicherung, sources, store, sync, titles, verlauf, wheel
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 
@@ -186,12 +186,12 @@ def price_stats(data=None, pw=None, hist=None):
 
 
 # Was der Zustand liest (0.10.15): ändert sich keine dieser Dateien, kommt er aus dem Zwischenspeicher
-STATE_FILES = ("data.json", collection.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
+STATE_FILES = ("data.json", collection.FILE, eingaben.FILE, pcwish.FILE, "history.json", "settings.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
 
 
 def _state_core():
     data = store.load_data()
-    near, own, de = memo("retro", (collection.FILE,), _retro_lists)
+    near, own, de = memo("retro", (collection.FILE, eingaben.FILE), _retro_lists)
     games = collection_view().get("games") or []
     hist, pw = store.load_json("history.json", {}), store.load_json(pcwish.FILE, pcwish.EMPTY)
     view, pcv = library.view(data, hist=hist, settings=sync.load_settings()), pcwish.view(data)
@@ -214,9 +214,13 @@ def state():
     return dict(core, sync=sync.status(), settings=settings_view())
 
 
+# Was die Sammlung liest; ab 0.11.0 mit den Nutzereingaben (eine Entscheidung ändert nur eingaben.json)
+COL_FILES = (collection.FILE, eingaben.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE)
+
+
 def collection_view():
     """Die Sammlung wie in der Oberfläche, zwischengespeichert, bis sich eine der Dateien ändert."""
-    return memo("colview", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE),
+    return memo("colview", COL_FILES,
                 lambda: collection.view(store.load_json(collection.FILE, collection.EMPTY), store.load_data()))
 
 
@@ -225,7 +229,7 @@ def collection_body():
     def make():
         raw = json.dumps(collection_view(), ensure_ascii=False).encode("utf-8")
         return raw, gzip.compress(raw, compresslevel=5)
-    return memo("collection", (collection.FILE, "data.json", wheel.LIST_FILE, flat2vr.PORTS_FILE, flat2vr.UEVR_FILE), make)
+    return memo("collection", COL_FILES, make)
 
 
 # Mein Stand (0.6.0, wie im eShopKompass): je Spiel der Sammlung von Hand Backlog, angefangen oder
@@ -364,7 +368,7 @@ def import_todo(text, dry):
         data = store.load_data()
         col = store.load_json(collection.FILE, collection.EMPTY)
         pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
-        changed = set()
+        changed, user = set(), []           # user (0.11.0): Spiele mit geänderten Nutzereingaben
         cache = {}
 
         def act(kind, key, val):
@@ -377,17 +381,20 @@ def import_todo(text, dry):
                 if sy not in cache:
                     cache[sy] = (store.load_json(retro.CACHE, {}).get(sy) or {}).get("idx")
                 retro.settle_near(col, key, bool(val), cache[sy])
-                changed.add("col")
+                user.append(key)
+                changed.add("col")          # die Fassung (de) ist gleich neu gerechnet
             elif kind == "own":
                 retro.settle_own(col, key, take=bool(val))
-                changed.add("col")
+                user.append(key)
             elif kind in ("wheel", "vrmod") and key in (col.get("games") or {}):
                 col["games"][key]["r_" + kind] = val
-                changed.add("col")
+                user.append(key)
         games = collection.view(col, data)["games"]
         res = aufgaben.apply(text, data, retro.near_list(col), retro.own_list(col), pcwish.id_todo(pw), dry=dry, act=act, games=games)
         if not dry:
             store.save_data(data)
+            if user:
+                eingaben.save(col, user)    # erst die kleine Datei: der Haken beim Speichern der Sammlung liest sie
             if "col" in changed:
                 store.save_json(collection.FILE, col)
             if "pw" in changed:
@@ -496,9 +503,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/collection":
                 self._send(200, collection_body())
             elif path == "/api/export":
-                self._send(200, {"app": "vr-navigator", "version": sources.VERSION, "data": store.load_data(),
-                                 "collection": store.load_json(collection.FILE, collection.EMPTY),
-                                 "pcwish": store.load_json(pcwish.FILE, pcwish.EMPTY)},
+                # dieselben Teile wie die Sicherungen im Datenordner, ab 0.11.0 mit den Nutzereingaben (eingaben)
+                self._send(200, sicherung.snapshot(),
                            extra={"Content-Disposition": 'attachment; filename="vr-navigator-sicherung.json"'})
             elif path == "/api/abgleich":
                 # Zum Nachprüfen (wie im eShopKompass): Stand und Protokoll des Abgleichs, Preisverlauf,
@@ -563,7 +569,7 @@ class Handler(BaseHTTPRequestHandler):
                     keys = [x["key"] for x in retro.own_list(col)] if body.get("all") is True else [_text(body.get("key"), 300)]
                     for k in keys:
                         retro.settle_own(col, k, take=body.get("take") is True)
-                    store.save_json(collection.FILE, col)
+                    eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei, nicht die ganze Sammlung
                 self._send(200, {"retro_own": retro.own_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/de":
                 # „DE fehlt“ aus „Zu erledigen“ (0.10.12): ignorieren (ein Spiel, alle oder alle eines Systems) oder wieder melden
@@ -578,7 +584,7 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         keys = [_text(body.get("key"), 300)]
                     n = retro.settle_de(col, keys, ign)
-                    store.save_json(collection.FILE, col)
+                    eingaben.save(col, keys)        # 0.11.0: nur die kleine Datei
                 self._send(200, {"changed": n, "retro_de": retro.de_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/retro/near":
                 # Ähnlicher Name aus „Zu erledigen“ (0.8.4): dieselbe Fassung oder nicht
@@ -588,7 +594,8 @@ class Handler(BaseHTTPRequestHandler):
                     g = (col.get("games") or {}).get(key) or {}
                     idx = (store.load_json(retro.CACHE, {}).get(g.get("system") or "") or {}).get("idx")
                     retro.settle_near(col, key, bool(body.get("ok")), idx)
-                    store.save_json(collection.FILE, col)
+                    eingaben.save(col, [key])
+                    store.save_json(collection.FILE, col)      # die Fassung (de) ist neu gerechnet
                 self._send(200, {"retro_near": retro.near_list(col), "collection": collection.view(col, store.load_data())})
             elif path == "/api/pcwish/id":
                 # Steam-ID eines PC-Wunschs aus „Zu erledigen“ (0.8.24): eine der angebotenen oder keine

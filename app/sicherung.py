@@ -22,14 +22,14 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import collection, pcwish, sources, store
+from . import collection, eingaben, pcwish, sources, store
 
 DIR = "sicherungen"
 STATE = "sicherung.json"
 KEEP = 14                   # neueste Dateien, die bleiben (bei täglicher Sicherung gut zwei Wochen)
 DAILY_H = 20                # tägliche Sicherung, wenn die letzte so lange her ist
 CHECK_DAYS = 30             # Wiederherstellungstest so oft
-_lock = threading.Lock()
+_lock = threading.RLock()
 NAME = re.compile(r"^vr-navigator-(\d{8}-\d{6})-([a-z-]+)\.json\.gz$")
 
 
@@ -59,13 +59,16 @@ def _set_state(**kw):
 def snapshot():
     """Die Teile der Sicherung, wie /api/export sie liefert."""
     return {"app": "vr-navigator", "version": sources.VERSION, "at": _iso(_now()), "data": store.load_data(),
-            "collection": store.load_json(collection.FILE, collection.EMPTY), "pcwish": store.load_json(pcwish.FILE, pcwish.EMPTY)}
+            "collection": store.load_json(collection.FILE, collection.EMPTY), "pcwish": store.load_json(pcwish.FILE, pcwish.EMPTY),
+            # 0.11.0: Nutzereingaben extra; die Sammlung oben enthält sie zusammengeführt (für ältere Versionen)
+            "eingaben": eingaben.raw()}
 
 
 def counts(snap):
     d, c, p = snap.get("data") or {}, snap.get("collection") or {}, snap.get("pcwish") or {}
     return {"titles": len(d.get("titles") or {}), "marks": len(d.get("marks") or {}),
-            "games": len(c.get("games") or {}), "pcwish": len(p.get("items") or {})}
+            "games": len(c.get("games") or {}), "pcwish": len(p.get("items") or {}),
+            "eingaben": len((snap.get("eingaben") or {}).get("games") or {})}
 
 
 def files():
@@ -91,7 +94,9 @@ def files():
 def make(why="taeglich"):
     """Sicherung schreiben (erst .tmp, dann umbenennen) und alte über KEEP löschen. Gibt die Angaben zurück."""
     why = re.sub(r"[^a-z-]", "", why.lower())[:30] or "hand"
-    with _lock:
+    if not eingaben.exists() and not eingaben.migrating():
+        eingaben.migrate()            # 0.11.0: erst der Umzug (er sichert selbst), dann diese Sicherung
+    with store.lock, _lock:          # immer erst store.lock, dann _lock (der Umzug sichert unter store.lock)
         snap = snapshot()
         raw = json.dumps(snap, ensure_ascii=False, allow_nan=False).encode("utf-8")
         os.makedirs(folder(), exist_ok=True)
@@ -187,6 +192,16 @@ def plan(body):
         fields[k] = v
     col, col_rep = _part("collection", body.get("collection"), "games", "Sammlung")
     pw, pw_rep = _part("pcwish", body.get("pcwish"), "items", "PC-Wunschliste")
+    # Nutzereingaben (0.11.0): aus der Sicherung, sonst aus den Spielen ihrer Sammlung (Sicherungen vor 0.11.0)
+    ein = body.get("eingaben")
+    if isinstance(ein, dict) and isinstance(ein.get("games"), dict):
+        user = {str(k)[:300]: e for k, e in ein["games"].items() if isinstance(e, dict)}
+        ein_rep = {"take": True, "n": len(user), "dropped": len(ein["games"]) - len(user), "why": "aus der Sicherung"}
+    elif col is not None:
+        user = eingaben.extract(col)
+        ein_rep = {"take": True, "n": len(user), "dropped": 0, "why": "aus der Sammlung der Sicherung"}
+    else:
+        user, ein_rep = None, {"take": False, "n": 0, "dropped": 0, "why": "nicht in der Sicherung, bleibt wie es ist"}
     cur_col = store.load_json(collection.FILE, collection.EMPTY)
     cur_pw = store.load_json(pcwish.FILE, pcwish.EMPTY)
     report = {
@@ -196,8 +211,9 @@ def plan(body):
                  "marks": len(fields.get("marks") or {}) if "marks" in fields else None, "marks_now": len(now["marks"])},
         "collection": dict(col_rep, now=len(cur_col.get("games") or {})),
         "pcwish": dict(pw_rep, now=len(cur_pw.get("items") or {})),
+        "eingaben": dict(ein_rep, now=len(eingaben.raw().get("games") or {})),
     }
-    return report, {"data": fields, "collection": col, "pcwish": pw}
+    return report, {"data": fields, "collection": col, "pcwish": pw, "eingaben": user}
 
 
 def restore(body, dry=True):
@@ -211,6 +227,8 @@ def restore(body, dry=True):
         data = store.load_data()
         data.update(parts["data"])          # Felder, die die Sicherung nicht kennt, bleiben
         store.save_data(data)
+        if parts["eingaben"] is not None:
+            eingaben.replace(parts["eingaben"])         # vor der Sammlung: deren Haken setzt die Nutzerfelder von hier
         if parts["collection"] is not None:
             cur = store.load_json(collection.FILE, collection.EMPTY)
             new = dict(cur, **parts["collection"])
@@ -251,18 +269,20 @@ def check(name=None):
         if report["collection"]["dropped"] or report["pcwish"]["dropped"]:
             raise ValueError("Einträge ohne Namen in der Sicherung")
         # wie beim Wiederherstellen: Dateien schreiben und wieder lesen, aber im temporären Ordner
-        for fname, obj in (("data.json", snap["data"]), (collection.FILE, snap.get("collection") or collection.EMPTY),
-                           (pcwish.FILE, snap.get("pcwish") or pcwish.EMPTY)):
+        files_ = (("data.json", snap["data"]), (collection.FILE, snap.get("collection") or collection.EMPTY),
+                  (pcwish.FILE, snap.get("pcwish") or pcwish.EMPTY), (eingaben.FILE, snap.get("eingaben") or {"games": {}}))
+        for fname, obj in files_:
             with open(os.path.join(tmp, fname), "w", encoding="utf-8") as f:
                 json.dump(obj, f, ensure_ascii=False, allow_nan=False)
         back = {}
-        for fname in ("data.json", collection.FILE, pcwish.FILE):
+        for fname, _ in files_:
             with open(os.path.join(tmp, fname), encoding="utf-8") as f:
                 back[fname] = loads(f.read())
         data = json.loads(json.dumps(store.EMPTY_DATA))
         data.update(back["data.json"])
         got = {"titles": len(data["titles"]), "marks": len(data.get("marks") or {}),
-               "games": len(back[collection.FILE].get("games") or {}), "pcwish": len(back[pcwish.FILE].get("items") or {})}
+               "games": len(back[collection.FILE].get("games") or {}), "pcwish": len(back[pcwish.FILE].get("items") or {}),
+               "eingaben": len(back[eingaben.FILE].get("games") or {})}
         if got != counts(snap):
             raise ValueError(f"Anzahl nach dem Lesen anders: {got} statt {counts(snap)}")
         # nutzbar: dieselben Rechnungen wie die Oberfläche

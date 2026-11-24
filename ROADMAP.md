@@ -167,8 +167,8 @@ Bestätigen und Einlesen von Hand. Als Nächstes:
 
 ## Stabilisierung nach dem Review (ab 0.10.29)
 
-Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen, V-2
-Nutzereingaben aus `collection.json` in eine eigene kleine Datei (mit Sicherung und Migration), V-3 schlanke Listen und
+Reihenfolge fest: V-1 Betrieb und Fehlerbehandlung (0.10.29), dann die Schreibfelder der Sammlung erfassen und V-2
+Nutzereingaben aus `collection.json` in eine eigene kleine Datei (0.11.0, `docs/sammlung-felder.md`), V-3 schlanke Listen und
 Messung vorher und nachher, V-5 Statuskarte im Einstellungsreiter (eingeklappt, mit Wiederherstellungstest und
 Leistungstest), danach Dokumentation, Altlasten und V-6. SQLite nur, wenn die Messungen nach V-3 zeigen, dass JSON
 nicht reicht.
@@ -189,3 +189,5 @@ sich lohnen könnte, hinüber oder herüber zu nehmen; übernommen wird nur nach
   übertragbar, die Teile der Sicherung sind je Projekt andere.
 - Feldweises Einspielen mit Vorschau und Sicherung vorher, NaN und Unendlich abgelehnt: übertragbar.
 - `/healthz` und `HEALTHCHECK` im Image: übertragbar ohne Anpassung.
+- Nutzereingaben getrennt von abgerufenen Daten, eingesetzt beim Lesen (0.11.0): der eShopKompass hat dasselbe Muster
+  (Mein Stand neben großen Abrufdaten); lohnt dort, wenn seine Sammlung beim Haken spürbar langsam schreibt. Erst messen.

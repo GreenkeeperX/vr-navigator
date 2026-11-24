@@ -786,6 +786,13 @@ enthält (etwa die Sammlung in Sicherungen vor 0.4.0 oder Mein Stand vor 0.6.0),
 erwartete Form hat oder keinen Namen trägt, wird ausgelassen und in der Vorschau genannt; Zahlen ohne Wert (NaN,
 unendlich) lehnt der Server ab. Vorher sichert er den jetzigen Stand.
 
+**Deine Entscheidungen zur Sammlung** (ab 0.11.0: „DE fehlt“ ignorieren, „Liste gilt“, „dieselbe Fassung“,
+übernommene Recherchen zu Lenkrad und VR-Mods) stehen in einer eigenen kleinen Datei, `eingaben.json`. Ein Haken schreibt
+nur sie, nicht mehr die ganze Sammlung, und kein Import und kein Abgleich kann sie löschen (vorher löschte ein neuer
+Playnite-Export die übernommenen Recherchen). Beim ersten Start von 0.11.0 zieht der Server sie aus `collection.json`
+um, nach einer Sicherung und mit Prüfung; `collection.json` bleibt dabei unverändert. Einzelheiten in
+[docs/sammlung-felder.md](docs/sammlung-felder.md).
+
 **Sicherungen im Datenordner** (ab 0.10.29): Einmal am Tag (und vor jedem Einspielen) legt der Server dieselbe
 Sicherung gepackt unter `sicherungen/` im Datenordner ab, es bleiben die 14 neuesten. Einmal im Monat packt er die
 jüngste in einen temporären Ordner aus, liest sie wie beim Einspielen und rechnet die Ansichten damit durch

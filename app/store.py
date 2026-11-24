@@ -17,6 +17,9 @@ DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), ".
 EMPTY_DATA = {"titles": {}, "imports": {}, "marks": {}}     # marks: Mein Stand je Spiel (0.6.0)
 
 lock = threading.RLock()
+# 0.11.0: Haken je Datei beim Lesen und vor dem Schreiben (eingaben.py setzt sie für collection.json)
+LOAD_HOOKS = {}
+SAVE_HOOKS = {}
 
 
 def _path(name):
@@ -89,8 +92,24 @@ def save_data(d):
 
 
 def load_json(name, default):
-    """Weitere Dateien im Datenordner: settings.json, history.json, sync.json. Ohne Schloss, siehe load_data."""
+    """Weitere Dateien im Datenordner: settings.json, history.json, sync.json. Ohne Schloss, siehe load_data.
+    Ab 0.11.0 mit dem Haken der Datei (LOAD_HOOKS): collection.json kommt mit den Nutzereingaben zusammengeführt."""
+    obj = _load(name, default)
+    hook = LOAD_HOOKS.get(name)
+    return hook(obj) if hook else obj
+
+
+def load_raw(name, default):
+    """Datei ohne Haken, so wie sie auf der Platte steht (Umzug, Prüfungen)."""
     return _load(name, default)
+
+
+def remove(name):
+    with lock:
+        try:
+            os.remove(_path(name))
+        except OSError:
+            pass
 
 
 def stamp(*names):
@@ -107,4 +126,5 @@ def stamp(*names):
 
 def save_json(name, obj):
     with lock:
-        _save(name, obj)
+        hook = SAVE_HOOKS.get(name)
+        _save(name, hook(obj) if hook else obj)
